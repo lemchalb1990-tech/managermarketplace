@@ -11,8 +11,8 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email, active: true },
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' }, active: true },
       include: { company: true },
     });
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
