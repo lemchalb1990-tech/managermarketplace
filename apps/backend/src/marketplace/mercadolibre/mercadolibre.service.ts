@@ -1,7 +1,9 @@
 import {
-  Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException,
+  Injectable, Logger, BadRequestException, NotFoundException,
+  InternalServerErrorException, ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
 import { ListingStatus } from '@prisma/client';
@@ -19,15 +21,36 @@ export class MercadolibreService {
     private catalog: CatalogService,
   ) {}
 
-  getAuthUrl(companyId: string): string {
+  getAuthUrl(companyId: string, name: string): string {
     const clientId = this.config.get('ML_CLIENT_ID');
     const redirectUri = this.config.get('ML_REDIRECT_URI');
-    const state = Buffer.from(JSON.stringify({ companyId })).toString('base64');
+    const state = Buffer.from(JSON.stringify({ companyId, name })).toString('base64');
     return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   }
 
-  async handleCallback(code: string, state: string, connectionName: string) {
-    const { companyId } = JSON.parse(Buffer.from(state, 'base64').toString());
+  async getConnections(user: any, companyId?: string) {
+    const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
+    if (!cid) return [];
+    return this.prisma.marketplaceConnection.findMany({
+      where: { companyId: cid, active: true },
+      select: { id: true, name: true, marketplace: true, active: true, expiresAt: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async removeConnection(id: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
+  }
+
+  async handleCallback(code: string, state: string, fallbackName: string) {
+    const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
+    const companyId: string = decoded.companyId;
+    const connectionName: string = decoded.name || fallbackName || 'Conexión ML';
 
     const clientId = this.config.get('ML_CLIENT_ID');
     const clientSecret = this.config.get('ML_CLIENT_SECRET');
@@ -65,6 +88,8 @@ export class MercadolibreService {
       },
     });
   }
+
+
 
   private async refreshToken(connectionId: string) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });

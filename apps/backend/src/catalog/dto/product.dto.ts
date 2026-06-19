@@ -19,6 +19,12 @@ export class CreateProductDto {
   @Min(0)
   price: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  cost?: number;
+
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -40,6 +46,12 @@ export class UpdateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  cost?: number;
 
   @IsOptional()
   @Type(() => Number)

@@ -1,4 +1,7 @@
-import { Controller, Get, Post, Query, Body, Param, UseGuards, Res } from '@nestjs/common';
+import {
+  Controller, Get, Post, Delete, Query, Body, Param,
+  UseGuards, Res, BadRequestException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
@@ -11,12 +14,31 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 export class MercadolibreController {
   constructor(private service: MercadolibreService) {}
 
-  @Get('connect')
+  @Get('auth-url')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN)
-  getAuthUrl(@Query('companyId') companyId: string, @Res() res: Response) {
-    const url = this.service.getAuthUrl(companyId);
-    return res.redirect(url);
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  getAuthUrl(
+    @Query('name') name: string,
+    @Query('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    const cid = user.role === Role.COMPANY_ADMIN ? user.companyId : companyId;
+    if (!cid) throw new BadRequestException('companyId requerido');
+    return { authUrl: this.service.getAuthUrl(cid, name || 'Conexión ML') };
+  }
+
+  @Get('connections')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  getConnections(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.getConnections(user, companyId);
+  }
+
+  @Delete('connections/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  removeConnection(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.removeConnection(id, user);
   }
 
   @Get('callback')
@@ -26,8 +48,16 @@ export class MercadolibreController {
     @Query('name') name: string,
     @Res() res: Response,
   ) {
-    await this.service.handleCallback(code, state, name || 'Conexión ML');
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/marketplace/connected`);
+    try {
+      await this.service.handleCallback(code, state, name || 'Conexión ML');
+      return res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/marketplace/connected`,
+      );
+    } catch {
+      return res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/marketplace?error=1`,
+      );
+    }
   }
 
   @Post('webhook')

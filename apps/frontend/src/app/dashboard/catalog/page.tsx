@@ -1,24 +1,74 @@
 'use client';
 
-import { useEffect, useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent, useRef } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
+
+type Tab = 'edit' | 'images' | 'ml';
+
+const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '' };
+
+const statusLabel: Record<string, string> = {
+  ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
+};
+const statusColor: Record<string, string> = {
+  ACTIVE: 'bg-green-100 text-green-700',
+  PAUSED: 'bg-yellow-100 text-yellow-700',
+  DRAFT: 'bg-gray-100 text-gray-600',
+  ERROR: 'bg-red-100 text-red-600',
+  CLOSED: 'bg-gray-200 text-gray-500',
+};
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<any[]>([]);
-  const [form, setForm] = useState({ sku: '', name: '', description: '', price: '', stock: '' });
+  const [connections, setConnections] = useState<any[]>([]);
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
 
+  const [selected, setSelected] = useState<any>(null);
+  const [tab, setTab] = useState<Tab>('edit');
+  const [editForm, setEditForm] = useState<any>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+
   async function load() {
     const token = getToken();
     if (!token) return;
-    const data = await api.catalog.list(token);
-    setProducts(data);
+    const [prods, conns] = await Promise.all([
+      api.catalog.list(token),
+      api.marketplace.connections(token).catch(() => []),
+    ]);
+    setProducts(prods);
+    setConnections(conns);
   }
 
   useEffect(() => { load(); }, []);
+
+  function openModal(product: any) {
+    setSelected(product);
+    setEditForm({
+      name: product.name,
+      description: product.description || '',
+      price: String(Number(product.price)),
+      cost: product.cost != null ? String(Number(product.cost)) : '',
+      stock: String(product.stock),
+    });
+    setTab('edit');
+    setEditError('');
+  }
+
+  async function refreshSelected(id: string) {
+    const token = getToken()!;
+    const refreshed = await api.catalog.get(id, token);
+    setSelected(refreshed);
+    setProducts(ps => ps.map(p => p.id === refreshed.id ? refreshed : p));
+    return refreshed;
+  }
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -27,11 +77,14 @@ export default function CatalogPage() {
     try {
       const token = getToken()!;
       await api.catalog.create({
-        ...form,
+        sku: form.sku,
+        name: form.name,
+        description: form.description || undefined,
         price: parseFloat(form.price),
+        cost: form.cost ? parseFloat(form.cost) : undefined,
         stock: parseInt(form.stock),
       }, token);
-      setForm({ sku: '', name: '', description: '', price: '', stock: '' });
+      setForm(emptyForm);
       setShowForm(false);
       await load();
     } catch (err: any) {
@@ -41,21 +94,89 @@ export default function CatalogPage() {
     }
   }
 
-  const statusColor: Record<string, string> = {
-    ACTIVE: 'bg-green-100 text-green-700',
-    PAUSED: 'bg-yellow-100 text-yellow-700',
-    DRAFT: 'bg-gray-100 text-gray-600',
-    ERROR: 'bg-red-100 text-red-600',
-  };
+  async function handleEdit(e: FormEvent) {
+    e.preventDefault();
+    setEditError('');
+    setEditLoading(true);
+    try {
+      const token = getToken()!;
+      await api.catalog.update(selected.id, {
+        name: editForm.name,
+        description: editForm.description || undefined,
+        price: parseFloat(editForm.price),
+        cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
+        stock: parseInt(editForm.stock),
+      }, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      setEditError(err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadLoading(true);
+    try {
+      const token = getToken()!;
+      await api.catalog.uploadImage(selected.id, file, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUploadLoading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function handleDeleteImage(imageId: string) {
+    const token = getToken()!;
+    await api.catalog.deleteImage(selected.id, imageId, token);
+    await refreshSelected(selected.id);
+  }
+
+  async function handleSetPrimary(imageId: string) {
+    const token = getToken()!;
+    await api.catalog.setPrimaryImage(selected.id, imageId, token);
+    await refreshSelected(selected.id);
+  }
+
+  async function handlePublish(connectionId: string) {
+    setMlLoading(l => ({ ...l, [connectionId]: true }));
+    try {
+      const token = getToken()!;
+      await api.marketplace.publish(selected.id, connectionId, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setMlLoading(l => ({ ...l, [connectionId]: false }));
+    }
+  }
+
+  async function handleSync(connectionId: string) {
+    setMlLoading(l => ({ ...l, [`sync_${connectionId}`]: true }));
+    try {
+      const token = getToken()!;
+      await api.marketplace.sync(selected.id, connectionId, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setMlLoading(l => ({ ...l, [`sync_${connectionId}`]: false }));
+    }
+  }
+
+  const primaryImage = (p: any) => p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
+        <button onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Nuevo producto
         </button>
       </div>
@@ -63,39 +184,47 @@ export default function CatalogPage() {
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nuevo producto</h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleCreate} className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
               <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
-            <div>
+            <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
+              <input type="number" step="0.01" min="0" value={form.cost}
+                onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Precio *</label>
-              <input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
+              <input type="number" step="0.01" min="0" value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Stock *</label>
-              <input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Stock inicial *</label>
+              <input type="number" min="0" value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
-            {error && <p className="col-span-2 text-red-600 text-sm">{error}</p>}
-            <div className="col-span-2 flex gap-2">
+            {error && <p className="col-span-3 text-red-600 text-sm">{error}</p>}
+            <div className="col-span-3 flex gap-2">
               <button type="submit" disabled={loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {loading ? 'Guardando...' : 'Guardar'}
+                {loading ? 'Guardando...' : 'Crear producto'}
               </button>
-              <button type="button" onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => { setShowForm(false); setForm(emptyForm); }}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
                 Cancelar
               </button>
@@ -108,42 +237,237 @@ export default function CatalogPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th className="px-4 py-3 w-14"></th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">SKU</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Producto</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Costo</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Precio</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Stock</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones ML</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {products.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-gray-500">{p.sku}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                <td className="px-4 py-3 text-gray-700">${Number(p.price).toFixed(2)}</td>
-                <td className="px-4 py-3">
-                  <span className={`font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-800'}`}>
-                    {p.stock}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {p.listings?.map((l: any) => (
-                    <span key={l.id} className={`mr-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[l.status] || 'bg-gray-100 text-gray-500'}`}>
-                      ML: {l.status}
+            {products.map((p) => {
+              const img = primaryImage(p);
+              return (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2">
+                    {img ? (
+                      <img src={imgUrl(img.url)} alt={p.name}
+                        className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs">
+                        —
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-gray-400 text-xs">{p.sku}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {p.cost != null ? `$${Number(p.cost).toFixed(2)}` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">${Number(p.price).toFixed(2)}</td>
+                  <td className="px-4 py-3">
+                    <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
+                      {p.stock}
                     </span>
-                  ))}
-                  {(!p.listings || p.listings.length === 0) && (
-                    <span className="text-gray-400 text-xs">Sin publicar</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {p.listings?.length > 0
+                        ? p.listings.map((l: any) => (
+                            <span key={l.id} className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColor[l.status] || 'bg-gray-100'}`}>
+                              {l.connection?.name || 'ML'}: {statusLabel[l.status] || l.status}
+                            </span>
+                          ))
+                        : <span className="text-gray-400 text-xs">Sin publicar</span>
+                      }
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openModal(p)}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                      Gestionar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {products.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Modal */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-12 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <p className="font-mono text-xs text-gray-400 mb-0.5">{selected.sku}</p>
+                <h3 className="font-semibold text-gray-900">{selected.name}</h3>
+              </div>
+              <button onClick={() => setSelected(null)}
+                className="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">
+                ×
+              </button>
+            </div>
+
+            <div className="flex border-b border-gray-200 px-6">
+              {(['edit', 'images', 'ml'] as Tab[]).map((t) => (
+                <button key={t} onClick={() => setTab(t)}
+                  className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}>
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : 'Mercado Libre'}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-6 max-h-[65vh] overflow-y-auto">
+
+              {tab === 'edit' && (
+                <form onSubmit={handleEdit} className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                    <input value={editForm.name}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
+                    <input type="number" step="0.01" min="0" value={editForm.cost}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, cost: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio *</label>
+                    <input type="number" step="0.01" min="0" value={editForm.price}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>
+                    <input type="number" min="0" value={editForm.stock}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+                    <textarea value={editForm.description}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
+                      rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
+                  <div className="col-span-2">
+                    <button type="submit" disabled={editLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                      {editLoading ? 'Guardando...' : 'Guardar cambios'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {tab === 'images' && (
+                <div>
+                  {selected.images?.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-3 mb-5">
+                      {selected.images.map((img: any) => (
+                        <div key={img.id} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square">
+                          <img src={imgUrl(img.url)} alt="" className="w-full h-full object-cover" />
+                          {img.isPrimary && (
+                            <span className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-md font-medium">
+                              Principal
+                            </span>
+                          )}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            {!img.isPrimary && (
+                              <button onClick={() => handleSetPrimary(img.id)}
+                                className="text-xs bg-white text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 font-medium">
+                                Principal
+                              </button>
+                            )}
+                            <button onClick={() => handleDeleteImage(img.id)}
+                              className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 font-medium">
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 text-sm py-6 mb-4">Sin imágenes cargadas</p>
+                  )}
+                  <div className="border-t border-gray-100 pt-4">
+                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                      Subir imagen (JPG, PNG, WebP · máx. 5 MB)
+                    </label>
+                    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp"
+                      onChange={handleUpload} disabled={uploadLoading}
+                      className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50" />
+                    {uploadLoading && <p className="text-xs text-gray-400 mt-2">Subiendo imagen...</p>}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'ml' && (
+                <div className="space-y-3">
+                  {connections.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <p className="text-sm mb-1">No hay cuentas de Mercado Libre conectadas.</p>
+                      <p className="text-xs">Ve a <strong>Mercado Libre</strong> en el menú para conectar una cuenta.</p>
+                    </div>
+                  ) : connections.map((conn) => {
+                    const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
+                    const publishBusy = mlLoading[conn.id];
+                    const syncBusy = mlLoading[`sync_${conn.id}`];
+                    return (
+                      <div key={conn.id} className="border border-gray-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{conn.name}</p>
+                            <p className="text-xs text-gray-400">Mercado Libre</p>
+                          </div>
+                          {listing ? (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[listing.status]}`}>
+                              {statusLabel[listing.status]}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                              Sin publicar
+                            </span>
+                          )}
+                        </div>
+                        {listing?.externalUrl && (
+                          <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-blue-500 hover:underline block mb-3 truncate">
+                            {listing.externalUrl}
+                          </a>
+                        )}
+                        <div className="flex gap-2">
+                          <button onClick={() => handlePublish(conn.id)} disabled={publishBusy}
+                            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
+                            {publishBusy ? 'Publicando...' : listing ? 'Republicar' : 'Publicar'}
+                          </button>
+                          {listing && (
+                            <button onClick={() => handleSync(conn.id)} disabled={syncBusy}
+                              className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                              {syncBusy ? 'Sincronizando...' : 'Sincronizar stock'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

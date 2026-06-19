@@ -35,7 +35,10 @@ export class CatalogService {
     const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
     return this.prisma.product.findMany({
       where: companyId ? { companyId } : {},
-      include: { images: { orderBy: { order: 'asc' } }, _count: { select: { listings: true } } },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        listings: { include: { connection: { select: { id: true, name: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
