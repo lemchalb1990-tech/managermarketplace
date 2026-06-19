@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: marketplace_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-marketplace}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-marketplace123}
+      POSTGRES_DB: ${DB_NAME:-marketplace_db}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: marketplace_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: marketplace_backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-marketplace}:${DB_PASSWORD:-marketplace123}@postgres:5432/${DB_NAME:-marketplace_db}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-changeme_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ML_CLIENT_ID: ${ML_CLIENT_ID}
+      ML_CLIENT_SECRET: ${ML_CLIENT_SECRET}
+      ML_REDIRECT_URI: ${ML_REDIRECT_URI}
+      UPLOAD_DIR: /app/uploads
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+    ports:
+      - '3001:3001'
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: marketplace_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres_data:
+  uploads_data:
