@@ -79,8 +79,10 @@ export const api = {
         `/marketplace/ml/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     saveCredentials: (data: { mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
       apiFetch<any>('/marketplace/ml/credentials', { method: 'PATCH', body: JSON.stringify(data) }, token),
-    authUrl: (name: string, token: string) =>
-      apiFetch<{ authUrl: string }>(`/marketplace/ml/auth-url?name=${encodeURIComponent(name)}`, {}, token),
+    authUrl: (name: string, token: string, companyId?: string) =>
+      apiFetch<{ authUrl: string }>(
+        `/marketplace/ml/auth-url?name=${encodeURIComponent(name)}${companyId ? `&companyId=${companyId}` : ''}`,
+        {}, token),
     connections: (token: string) =>
       apiFetch<any[]>('/marketplace/ml/connections', {}, token),
     deleteConnection: (id: string, token: string) =>
