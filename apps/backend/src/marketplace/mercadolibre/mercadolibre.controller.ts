@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Query, Body, Param, UseGuards, Res } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
