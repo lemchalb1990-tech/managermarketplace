@@ -3,6 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
+function sanitizeCompany(company: any) {
+  if (!company) return company;
+  const { mlClientSecret: _, ...rest } = company;
+  return rest;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -21,9 +27,9 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Credenciales inválidas');
 
     const token = this.jwt.sign({ sub: user.id, email: user.email });
-    const { password: _, ...userData } = user;
+    const { password: _, company, ...userData } = user as any;
 
-    return { access_token: token, user: userData };
+    return { access_token: token, user: { ...userData, company: sanitizeCompany(company) } };
   }
 
   async validateToken(userId: string) {
@@ -32,7 +38,7 @@ export class AuthService {
       include: { company: true },
     });
     if (!user) throw new UnauthorizedException();
-    const { password: _, ...result } = user;
-    return result;
+    const { password: _, company, ...result } = user as any;
+    return { ...result, company: sanitizeCompany(company) };
   }
 }

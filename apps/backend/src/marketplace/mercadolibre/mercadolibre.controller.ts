@@ -1,8 +1,9 @@
 import {
-  Controller, Get, Post, Delete, Query, Body, Param,
+  Controller, Get, Post, Patch, Delete, Query, Body, Param,
   UseGuards, Res, BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { IsString, IsOptional } from 'class-validator';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -10,35 +11,46 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
+class SaveCredentialsDto {
+  @IsString() mlClientId: string;
+  @IsString() mlClientSecret: string;
+  @IsOptional() @IsString() companyId?: string;
+}
+
 @Controller('marketplace/ml')
 export class MercadolibreController {
   constructor(private service: MercadolibreService) {}
 
+  // ─── Credenciales ─────────────────────────────────────────────────────────
+
+  @Get('settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  getMlSettings(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.getMlSettings(user, companyId);
+  }
+
+  @Patch('credentials')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  saveCredentials(@Body() dto: SaveCredentialsDto, @CurrentUser() user: any) {
+    return this.service.saveCredentials(user, dto.mlClientId, dto.mlClientSecret, dto.companyId);
+  }
+
+  // ─── OAuth ─────────────────────────────────────────────────────────────────
+
   @Get('auth-url')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  getAuthUrl(
+  async getAuthUrl(
     @Query('name') name: string,
     @Query('companyId') companyId: string,
     @CurrentUser() user: any,
   ) {
     const cid = user.role === Role.COMPANY_ADMIN ? user.companyId : companyId;
     if (!cid) throw new BadRequestException('companyId requerido');
-    return { authUrl: this.service.getAuthUrl(cid, name || 'Conexión ML') };
-  }
-
-  @Get('connections')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
-  getConnections(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
-    return this.service.getConnections(user, companyId);
-  }
-
-  @Delete('connections/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  removeConnection(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.service.removeConnection(id, user);
+    const authUrl = await this.service.getAuthUrl(cid, name || 'Conexión ML');
+    return { authUrl };
   }
 
   @Get('callback')
@@ -60,10 +72,30 @@ export class MercadolibreController {
     }
   }
 
+  // ─── Connections ───────────────────────────────────────────────────────────
+
+  @Get('connections')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  getConnections(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.getConnections(user, companyId);
+  }
+
+  @Delete('connections/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  removeConnection(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.removeConnection(id, user);
+  }
+
+  // ─── Webhook ───────────────────────────────────────────────────────────────
+
   @Post('webhook')
   webhook(@Body() body: any) {
     return this.service.handleWebhook(body);
   }
+
+  // ─── Publicaciones ─────────────────────────────────────────────────────────
 
   @Post('products/:productId/publish/:connectionId')
   @UseGuards(JwtAuthGuard, RolesGuard)

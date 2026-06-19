@@ -74,6 +74,11 @@ export const api = {
       apiFetch<any>(`/catalog/products/${id}/images/${imageId}/primary`, { method: 'PATCH' }, token),
   },
   marketplace: {
+    getSettings: (token: string, companyId?: string) =>
+      apiFetch<{ mlClientId: string | null; hasSecret: boolean }>(
+        `/marketplace/ml/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    saveCredentials: (data: { mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
+      apiFetch<any>('/marketplace/ml/credentials', { method: 'PATCH', body: JSON.stringify(data) }, token),
     authUrl: (name: string, token: string) =>
       apiFetch<{ authUrl: string }>(`/marketplace/ml/auth-url?name=${encodeURIComponent(name)}`, {}, token),
     connections: (token: string) =>

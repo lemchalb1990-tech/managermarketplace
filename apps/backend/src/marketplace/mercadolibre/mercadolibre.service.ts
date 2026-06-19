@@ -21,30 +21,53 @@ export class MercadolibreService {
     private catalog: CatalogService,
   ) {}
 
-  getAuthUrl(companyId: string, name: string): string {
-    const clientId = this.config.get('ML_CLIENT_ID');
-    const redirectUri = this.config.get('ML_REDIRECT_URI');
-    const state = Buffer.from(JSON.stringify({ companyId, name })).toString('base64');
-    return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+  // ─── Credenciales por empresa ────────────────────────────────────────────────
+
+  private async getCompanyCredentials(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { mlClientId: true, mlClientSecret: true },
+    });
+    const clientId = company?.mlClientId || this.config.get('ML_CLIENT_ID');
+    const clientSecret = company?.mlClientSecret || this.config.get('ML_CLIENT_SECRET');
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException(
+        'Configura el Client ID y Secret de Mercado Libre en la sección Mercado Libre antes de continuar.',
+      );
+    }
+    return { clientId, clientSecret };
   }
 
-  async getConnections(user: any, companyId?: string) {
+  async getMlSettings(user: any, companyId?: string) {
     const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
-    if (!cid) return [];
-    return this.prisma.marketplaceConnection.findMany({
-      where: { companyId: cid, active: true },
-      select: { id: true, name: true, marketplace: true, active: true, expiresAt: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
+    if (!cid) return { mlClientId: null, hasSecret: false };
+    const company = await this.prisma.company.findUnique({
+      where: { id: cid },
+      select: { mlClientId: true, mlClientSecret: true },
+    });
+    return {
+      mlClientId: company?.mlClientId || null,
+      hasSecret: !!company?.mlClientSecret,
+    };
+  }
+
+  async saveCredentials(user: any, mlClientId: string, mlClientSecret: string, companyId?: string) {
+    const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
+    if (!cid) throw new BadRequestException('Selecciona una empresa');
+    return this.prisma.company.update({
+      where: { id: cid },
+      data: { mlClientId, mlClientSecret },
+      select: { id: true, name: true, mlClientId: true },
     });
   }
 
-  async removeConnection(id: string, user: any) {
-    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id } });
-    if (!conn) throw new NotFoundException('Conexión no encontrada');
-    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
-      throw new ForbiddenException();
-    }
-    return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
+  // ─── OAuth ───────────────────────────────────────────────────────────────────
+
+  async getAuthUrl(companyId: string, name: string): Promise<string> {
+    const { clientId } = await this.getCompanyCredentials(companyId);
+    const redirectUri = this.config.get('ML_REDIRECT_URI');
+    const state = Buffer.from(JSON.stringify({ companyId, name })).toString('base64');
+    return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   }
 
   async handleCallback(code: string, state: string, fallbackName: string) {
@@ -52,8 +75,7 @@ export class MercadolibreService {
     const companyId: string = decoded.companyId;
     const connectionName: string = decoded.name || fallbackName || 'Conexión ML';
 
-    const clientId = this.config.get('ML_CLIENT_ID');
-    const clientSecret = this.config.get('ML_CLIENT_SECRET');
+    const { clientId, clientSecret } = await this.getCompanyCredentials(companyId);
     const redirectUri = this.config.get('ML_REDIRECT_URI');
 
     const res = await fetch(`${ML_API}/oauth/token`, {
@@ -89,14 +111,17 @@ export class MercadolibreService {
     });
   }
 
-
+  // ─── Token management ────────────────────────────────────────────────────────
 
   private async refreshToken(connectionId: string) {
-    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    const conn = await this.prisma.marketplaceConnection.findUnique({
+      where: { id: connectionId },
+      include: { company: { select: { mlClientId: true, mlClientSecret: true } } },
+    });
     if (!conn?.refreshToken) throw new InternalServerErrorException('Sin refresh token');
 
-    const clientId = this.config.get('ML_CLIENT_ID');
-    const clientSecret = this.config.get('ML_CLIENT_SECRET');
+    const clientId = conn.company?.mlClientId || this.config.get('ML_CLIENT_ID');
+    const clientSecret = conn.company?.mlClientSecret || this.config.get('ML_CLIENT_SECRET');
 
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
@@ -112,14 +137,12 @@ export class MercadolibreService {
     if (!res.ok) throw new InternalServerErrorException('Error al renovar token de ML');
 
     const tokens = await res.json() as any;
-    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
     return this.prisma.marketplaceConnection.update({
       where: { id: connectionId },
       data: {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        expiresAt,
+        expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       },
     });
   }
@@ -127,13 +150,34 @@ export class MercadolibreService {
   private async getValidToken(connectionId: string): Promise<string> {
     let conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
-
-    const shouldRefresh = conn.expiresAt && conn.expiresAt < new Date(Date.now() + 5 * 60 * 1000);
-    if (shouldRefresh) {
+    if (conn.expiresAt && conn.expiresAt < new Date(Date.now() + 5 * 60 * 1000)) {
       conn = await this.refreshToken(connectionId);
     }
     return conn.accessToken;
   }
+
+  // ─── Connections ─────────────────────────────────────────────────────────────
+
+  async getConnections(user: any, companyId?: string) {
+    const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
+    if (!cid) return [];
+    return this.prisma.marketplaceConnection.findMany({
+      where: { companyId: cid, active: true },
+      select: { id: true, name: true, marketplace: true, active: true, expiresAt: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async removeConnection(id: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
+  }
+
+  // ─── Publicaciones ───────────────────────────────────────────────────────────
 
   async publishProduct(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
@@ -144,7 +188,7 @@ export class MercadolibreService {
     const categoryId = (product as any).mlCategoryId || this.config.get('ML_DEFAULT_CATEGORY');
     if (!categoryId) {
       throw new BadRequestException(
-        'Debes asignar una categoría de Mercado Libre al producto antes de publicar (campo Categoría ML).',
+        'Debes asignar una categoría de Mercado Libre al producto antes de publicar.',
       );
     }
 
@@ -190,8 +234,7 @@ export class MercadolibreService {
         errorMsg: null,
       },
       create: {
-        productId,
-        connectionId,
+        productId, connectionId,
         externalId: mlData.id,
         externalUrl: mlData.permalink,
         status: ListingStatus.ACTIVE,
@@ -208,7 +251,6 @@ export class MercadolibreService {
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
     const token = await this.getValidToken(connectionId);
-
     const res = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -227,9 +269,10 @@ export class MercadolibreService {
     });
   }
 
+  // ─── Webhook ─────────────────────────────────────────────────────────────────
+
   async handleWebhook(body: any) {
     this.logger.log(`ML Webhook: topic=${body.topic} resource=${body.resource}`);
-
     if (body.topic !== 'orders_v2') return { received: true };
 
     try {
@@ -240,14 +283,12 @@ export class MercadolibreService {
         where: { externalId: { not: null } },
         include: { connection: true, product: true },
       });
-
       if (!listing) return { received: true };
 
       const token = await this.getValidToken(listing.connectionId);
       const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!orderRes.ok) return { received: true };
 
       const order = await orderRes.json() as any;
@@ -256,27 +297,23 @@ export class MercadolibreService {
         const itemId = orderItem.item?.id;
         const quantity = orderItem.quantity || 1;
 
-        const affectedListing = await this.prisma.listing.findFirst({
+        const affected = await this.prisma.listing.findFirst({
           where: { externalId: itemId },
           include: { product: true },
         });
+        if (!affected) continue;
 
-        if (!affectedListing) continue;
-
-        const newStock = Math.max(0, affectedListing.product.stock - quantity);
-        await this.prisma.product.update({
-          where: { id: affectedListing.productId },
-          data: { stock: newStock },
-        });
+        const newStock = Math.max(0, affected.product.stock - quantity);
+        await this.prisma.product.update({ where: { id: affected.productId }, data: { stock: newStock } });
 
         const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
         await this.prisma.listing.update({
-          where: { id: affectedListing.id },
+          where: { id: affected.id },
           data: { status: newStatus, syncedAt: new Date() },
         });
 
         if (newStock === 0) {
-          const itemToken = await this.getValidToken(affectedListing.connectionId);
+          const itemToken = await this.getValidToken(affected.connectionId);
           await fetch(`${ML_API}/items/${itemId}`, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
@@ -284,10 +321,10 @@ export class MercadolibreService {
           });
         }
 
-        this.logger.log(`Stock updated: product=${affectedListing.productId} new_stock=${newStock}`);
+        this.logger.log(`Stock actualizado: producto=${affected.productId} nuevo_stock=${newStock}`);
       }
     } catch (error) {
-      this.logger.error('Error processing ML webhook', error);
+      this.logger.error('Error procesando webhook ML', error);
     }
 
     return { received: true };
