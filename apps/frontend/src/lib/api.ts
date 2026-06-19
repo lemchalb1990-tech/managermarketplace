@@ -30,6 +30,10 @@ export const api = {
     list: (token: string) => apiFetch<any[]>('/companies', {}, token),
     create: (data: any, token: string) =>
       apiFetch<any>('/companies', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/companies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<any>(`/companies/${id}`, { method: 'DELETE' }, token),
   },
   users: {
     list: (token: string) => apiFetch<any[]>('/users', {}, token),

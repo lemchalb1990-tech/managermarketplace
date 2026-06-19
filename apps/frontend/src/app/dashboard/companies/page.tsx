@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
 const emptyForm = { name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '' };
+type EditState = { id: string; name: string; active: boolean } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -12,6 +13,9 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<EditState>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   async function load() {
     const token = getToken();
@@ -21,6 +25,13 @@ export default function CompaniesPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`¿Eliminar la empresa "${name}"?`)) return;
+    const token = getToken()!;
+    await api.companies.remove(id, token);
+    await load();
+  }
 
   function handleNameChange(name: string) {
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -48,6 +59,23 @@ export default function CompaniesPage() {
     }
   }
 
+  async function handleUpdate(e: FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setEditError('');
+    setEditLoading(true);
+    try {
+      const token = getToken()!;
+      await api.companies.update(editing.id, { name: editing.name, active: editing.active }, token);
+      setEditing(null);
+      await load();
+    } catch (err: any) {
+      setEditError(err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -62,17 +90,10 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
-                <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
-                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Slug *</label>
-                <input value={form.slug} onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))}
-                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
+              <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
+                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
 
             <div className="border-t border-gray-100 pt-4">
@@ -111,6 +132,40 @@ export default function CompaniesPage() {
         </div>
       )}
 
+      {editing && (
+        <div className="bg-white rounded-xl border border-blue-200 p-6 mb-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Editar empresa</h2>
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                <input value={editing.name} onChange={(e) => setEditing(s => s && ({ ...s, name: e.target.value }))}
+                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={editing.active}
+                    onChange={(e) => setEditing(s => s && ({ ...s, active: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-600" />
+                  <span className="text-sm text-gray-700">Empresa activa</span>
+                </label>
+              </div>
+            </div>
+            {editError && <p className="text-red-600 text-sm">{editError}</p>}
+            <div className="flex gap-2">
+              <button type="submit" disabled={editLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                {editLoading ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+              <button type="button" onClick={() => setEditing(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
@@ -120,11 +175,12 @@ export default function CompaniesPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Usuarios</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Productos</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {companies.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50">
+              <tr key={c.id} className={`hover:bg-gray-50 ${editing?.id === c.id ? 'bg-blue-50' : ''}`}>
                 <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                 <td className="px-4 py-3 text-gray-500 font-mono">{c.slug}</td>
                 <td className="px-4 py-3 text-gray-600">{c._count?.users ?? 0}</td>
@@ -134,10 +190,20 @@ export default function CompaniesPage() {
                     {c.active ? 'Activa' : 'Inactiva'}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-right flex gap-3 justify-end">
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active }); setEditError(''); }}
+                    className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                    Editar
+                  </button>
+                  <button onClick={() => handleDelete(c.id, c.name)}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium">
+                    Eliminar
+                  </button>
+                </td>
               </tr>
             ))}
             {companies.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Sin empresas registradas</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sin empresas registradas</td></tr>
             )}
           </tbody>
         </table>
