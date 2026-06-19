@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/create-company.dto';
 
@@ -9,7 +10,39 @@ export class CompaniesService {
   async create(dto: CreateCompanyDto) {
     const exists = await this.prisma.company.findUnique({ where: { slug: dto.slug } });
     if (exists) throw new ConflictException('Ya existe una empresa con ese slug');
-    return this.prisma.company.create({ data: dto });
+
+    const { admin, ...companyData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({ data: companyData });
+
+      if (admin) {
+        const emailExists = await tx.user.findUnique({ where: { email: admin.email } });
+        if (emailExists) throw new ConflictException('El email del administrador ya está registrado');
+        const hashed = await bcrypt.hash(admin.password, 10);
+        await tx.user.create({
+          data: {
+            name: admin.name,
+            email: admin.email,
+            password: hashed,
+            role: 'COMPANY_ADMIN',
+            companyId: company.id,
+          },
+        });
+      }
+
+      return this.findOneInTx(tx, company.id);
+    });
+  }
+
+  private async findOneInTx(tx: any, id: string) {
+    return tx.company.findUnique({
+      where: { id },
+      include: {
+        users: { select: { id: true, name: true, email: true, role: true, active: true } },
+        _count: { select: { products: true } },
+      },
+    });
   }
 
   findAll() {

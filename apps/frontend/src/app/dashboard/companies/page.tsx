@@ -4,12 +4,14 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
+const emptyForm = { name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '' };
+
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     const token = getToken();
@@ -20,14 +22,24 @@ export default function CompaniesPage() {
 
   useEffect(() => { load(); }, []);
 
+  function handleNameChange(name: string) {
+    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    setForm(f => ({ ...f, name, slug }));
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       const token = getToken()!;
-      await api.companies.create({ name, slug }, token);
-      setName(''); setSlug('');
+      const payload: any = { name: form.name, slug: form.slug };
+      if (form.adminEmail) {
+        payload.admin = { name: form.adminName, email: form.adminEmail, password: form.adminPassword };
+      }
+      await api.companies.create(payload, token);
+      setForm(emptyForm);
+      setShowForm(false);
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -38,35 +50,66 @@ export default function CompaniesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Empresas</h1>
-
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
-        <form onSubmit={handleCreate} className="flex gap-3 flex-wrap">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre de la empresa"
-            required
-            className="flex-1 min-w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-            placeholder="slug-empresa"
-            required
-            className="flex-1 min-w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Creando...' : 'Crear'}
-          </button>
-        </form>
-        {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+        <button onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+          + Nueva empresa
+        </button>
       </div>
+
+      {showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
+                <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
+                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Slug *</label>
+                <input value={form.slug} onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))}
+                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Administrador de empresa (opcional)</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                  <input value={form.adminName} onChange={(e) => setForm(f => ({ ...f, adminName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Juan García" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <input type="email" value={form.adminEmail} onChange={(e) => setForm(f => ({ ...f, adminEmail: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="admin@empresa.com" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña</label>
+                  <input type="password" value={form.adminPassword} onChange={(e) => setForm(f => ({ ...f, adminPassword: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="mínimo 6 caracteres" />
+                </div>
+              </div>
+            </div>
+
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+            <div className="flex gap-2">
+              <button type="submit" disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                {loading ? 'Creando...' : 'Crear empresa'}
+              </button>
+              <button type="button" onClick={() => { setShowForm(false); setForm(emptyForm); }}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
