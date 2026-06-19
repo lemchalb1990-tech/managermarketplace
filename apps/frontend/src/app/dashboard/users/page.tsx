@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
-import { getToken, getUser } from '@/lib/auth';
+import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-const ROLES = [
+const ALL_ROLES = [
   { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
   { value: 'CATALOG_MANAGER', label: 'Gestor de catálogo' },
 ];
@@ -13,6 +13,12 @@ const roleLabels: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
   COMPANY_ADMIN: 'Admin empresa',
   CATALOG_MANAGER: 'Gestor catálogo',
+};
+
+const roleBadge: Record<string, string> = {
+  SUPER_ADMIN: 'bg-purple-100 text-purple-700',
+  COMPANY_ADMIN: 'bg-blue-100 text-blue-700',
+  CATALOG_MANAGER: 'bg-green-100 text-green-700',
 };
 
 const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '' };
@@ -25,17 +31,23 @@ export default function UsersPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [myCompany, setMyCompany] = useState<any>(null);
 
   async function load() {
     const token = getToken();
-    const u = getUser();
-    if (!token || !u) return;
-    setCurrentUser(u);
+    if (!token) return;
+    // Use /auth/me for fresh user+company data (includes maxUsers after schema update)
+    const me = await api.me(token);
+    setCurrentUser(me);
     const data = await api.users.list(token);
     setUsers(data);
-    if (u.role === 'SUPER_ADMIN') {
+    if (me.role === 'SUPER_ADMIN') {
       const comps = await api.companies.list(token);
       setCompanies(comps);
+    } else if (me.company) {
+      // company object from /auth/me includes maxUsers
+      const companyUsers = data.filter((u: any) => u.company?.id === me.company.id);
+      setMyCompany({ ...me.company, _count: { users: companyUsers.length } });
     }
   }
 
@@ -60,14 +72,27 @@ export default function UsersPage() {
     }
   }
 
-  const availableRoles = currentUser?.role === 'SUPER_ADMIN' ? ROLES : ROLES.filter(r => r.value === 'CATALOG_MANAGER');
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const availableRoles = isSuperAdmin ? ALL_ROLES : ALL_ROLES; // both roles for company admin too
+
+  const userCount = myCompany?._count?.users ?? users.length;
+  const maxUsers = myCompany?.maxUsers;
+  const atLimit = maxUsers != null && userCount >= maxUsers;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
-        <button onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
+          {!isSuperAdmin && myCompany && (
+            <p className={`text-sm mt-0.5 ${atLimit ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+              {userCount} de {maxUsers} usuarios utilizados
+              {atLimit && ' — límite alcanzado'}
+            </p>
+          )}
+        </div>
+        <button onClick={() => setShowForm(!showForm)} disabled={!isSuperAdmin && atLimit}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
           + Nuevo usuario
         </button>
       </div>
@@ -92,13 +117,13 @@ export default function UsersPage() {
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Rol *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
               <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 {availableRoles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
-            {currentUser?.role === 'SUPER_ADMIN' && (
+            {isSuperAdmin && (
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Empresa</label>
                 <select value={form.companyId} onChange={(e) => setForm(f => ({ ...f, companyId: e.target.value }))}
@@ -129,7 +154,7 @@ export default function UsersPage() {
             <tr>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Nombre</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Email</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Rol</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Perfil</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Empresa</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
             </tr>
@@ -140,7 +165,7 @@ export default function UsersPage() {
                 <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                 <td className="px-4 py-3 text-gray-500">{u.email}</td>
                 <td className="px-4 py-3">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleBadge[u.role] || 'bg-gray-100 text-gray-600'}`}>
                     {roleLabels[u.role] || u.role}
                   </span>
                 </td>

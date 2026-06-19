@@ -4,8 +4,8 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-const emptyForm = { name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean } | null;
+const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
+type EditState = { id: string; name: string; active: boolean; maxUsers: number } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -44,7 +44,7 @@ export default function CompaniesPage() {
     setLoading(true);
     try {
       const token = getToken()!;
-      const payload: any = { name: form.name, slug: form.slug };
+      const payload: any = { name: form.name, slug: form.slug, maxUsers: form.maxUsers };
       if (form.adminEmail) {
         payload.admin = { name: form.adminName, email: form.adminEmail, password: form.adminPassword };
       }
@@ -66,7 +66,7 @@ export default function CompaniesPage() {
     setEditLoading(true);
     try {
       const token = getToken()!;
-      await api.companies.update(editing.id, { name: editing.name, active: editing.active }, token);
+      await api.companies.update(editing.id, { name: editing.name, active: editing.active, maxUsers: editing.maxUsers }, token);
       setEditing(null);
       await load();
     } catch (err: any) {
@@ -90,10 +90,18 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
-              <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
-                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
+                <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
+                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Máximo de usuarios</label>
+                <input type="number" min={1} max={500} value={form.maxUsers}
+                  onChange={(e) => setForm(f => ({ ...f, maxUsers: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
             </div>
 
             <div className="border-t border-gray-100 pt-4">
@@ -136,11 +144,17 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-blue-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Editar empresa</h2>
           <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                 <input value={editing.name} onChange={(e) => setEditing(s => s && ({ ...s, name: e.target.value }))}
                   required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Máximo de usuarios</label>
+                <input type="number" min={1} max={500} value={editing.maxUsers}
+                  onChange={(e) => setEditing(s => s && ({ ...s, maxUsers: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
               <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -172,7 +186,7 @@ export default function CompaniesPage() {
             <tr>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Empresa</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Slug</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Usuarios</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Usuarios / Límite</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Productos</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
               <th className="px-4 py-3"></th>
@@ -183,7 +197,12 @@ export default function CompaniesPage() {
               <tr key={c.id} className={`hover:bg-gray-50 ${editing?.id === c.id ? 'bg-blue-50' : ''}`}>
                 <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                 <td className="px-4 py-3 text-gray-500 font-mono">{c.slug}</td>
-                <td className="px-4 py-3 text-gray-600">{c._count?.users ?? 0}</td>
+                <td className="px-4 py-3 text-gray-600">
+                  <span className={(c._count?.users ?? 0) >= (c.maxUsers ?? 10) ? 'text-red-600 font-medium' : ''}>
+                    {c._count?.users ?? 0}
+                  </span>
+                  <span className="text-gray-400"> / {c.maxUsers ?? 10}</span>
+                </td>
                 <td className="px-4 py-3 text-gray-600">{c._count?.products ?? 0}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -191,7 +210,7 @@ export default function CompaniesPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10 }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

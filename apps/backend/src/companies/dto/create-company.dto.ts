@@ -1,4 +1,4 @@
-import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested } from 'class-validator';
+import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AdminDto {
@@ -24,6 +24,12 @@ export class CreateCompanyDto {
   slug: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxUsers?: number;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => AdminDto)
   admin?: AdminDto;
@@ -37,4 +43,10 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   active?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxUsers?: number;
 }

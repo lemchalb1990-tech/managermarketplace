@@ -17,12 +17,23 @@ export class UsersService {
     const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (exists) throw new ConflictException('El email ya está registrado');
 
-    // COMPANY_ADMIN solo puede crear CATALOG_MANAGER dentro de su empresa
     if (requestingUser.role === Role.COMPANY_ADMIN) {
-      if (dto.role !== Role.CATALOG_MANAGER) {
-        throw new ForbiddenException('Solo puedes crear gestores de catálogo');
+      // Solo puede crear COMPANY_ADMIN o CATALOG_MANAGER dentro de su empresa
+      if (dto.role === Role.SUPER_ADMIN) {
+        throw new ForbiddenException('No tienes permiso para asignar ese rol');
       }
       dto.companyId = requestingUser.companyId;
+
+      // Validar límite de usuarios de la empresa
+      const company = await this.prisma.company.findUnique({
+        where: { id: requestingUser.companyId },
+        select: { maxUsers: true, _count: { select: { users: true } } },
+      });
+      if (company && company._count.users >= company.maxUsers) {
+        throw new ForbiddenException(
+          `Límite de usuarios alcanzado (${company.maxUsers}). Contacta al administrador del sistema.`,
+        );
+      }
     }
 
     const hashed = await bcrypt.hash(dto.password, 10);
