@@ -13,6 +13,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [editing, setEditing] = useState<EditState>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -28,9 +29,14 @@ export default function CompaniesPage() {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`¿Eliminar la empresa "${name}"?`)) return;
-    const token = getToken()!;
-    await api.companies.remove(id, token);
-    await load();
+    setDeleteError('');
+    try {
+      const token = getToken()!;
+      await api.companies.remove(id, token);
+      await load();
+    } catch (err: any) {
+      setDeleteError(err.message);
+    }
   }
 
   function handleNameChange(name: string) {
@@ -177,6 +183,12 @@ export default function CompaniesPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {deleteError}
         </div>
       )}
 

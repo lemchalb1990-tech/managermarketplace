@@ -47,6 +47,7 @@ export class CompaniesService {
 
   findAll() {
     return this.prisma.company.findMany({
+      where: { active: true },
       include: { _count: { select: { users: true, products: true } } },
       orderBy: { createdAt: 'desc' },
     });
