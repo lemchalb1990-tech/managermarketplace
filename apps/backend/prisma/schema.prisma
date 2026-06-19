@@ -83,9 +83,10 @@ model Product {
   sku         String
   name        String
   description String?  @db.Text
-  price       Decimal  @db.Decimal(10, 2)
-  cost        Decimal? @db.Decimal(10, 2)
-  stock       Int      @default(0)
+  price          Decimal  @db.Decimal(10, 2)
+  cost           Decimal? @db.Decimal(10, 2)
+  stock          Int      @default(0)
+  mlCategoryId   String?
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

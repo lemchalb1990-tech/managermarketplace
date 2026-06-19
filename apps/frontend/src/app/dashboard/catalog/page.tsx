@@ -6,7 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 
 type Tab = 'edit' | 'images' | 'ml';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '' };
+const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -57,6 +57,7 @@ export default function CatalogPage() {
       price: String(Number(product.price)),
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
+      mlCategoryId: product.mlCategoryId || '',
     });
     setTab('edit');
     setEditError('');
@@ -83,6 +84,7 @@ export default function CatalogPage() {
         price: parseFloat(form.price),
         cost: form.cost ? parseFloat(form.cost) : undefined,
         stock: parseInt(form.stock),
+        mlCategoryId: form.mlCategoryId || undefined,
       }, token);
       setForm(emptyForm);
       setShowForm(false);
@@ -106,6 +108,7 @@ export default function CatalogPage() {
         price: parseFloat(editForm.price),
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         stock: parseInt(editForm.stock),
+        mlCategoryId: editForm.mlCategoryId || undefined,
       }, token);
       await refreshSelected(selected.id);
     } catch (err: any) {
@@ -213,7 +216,12 @@ export default function CatalogPage() {
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
-            <div className="col-span-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML (ej: MLC1648)</label>
+              <input value={form.mlCategoryId} onChange={(e) => setForm({ ...form, mlCategoryId: e.target.value })}
+                placeholder="MLC..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+            </div>
+            <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -354,6 +362,13 @@ export default function CatalogPage() {
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
+                    <input value={editForm.mlCategoryId}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlCategoryId: e.target.value }))}
+                      placeholder="MLC..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                    <p className="text-xs text-gray-400 mt-1">Busca el código en categorías de mercadolibre.cl</p>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>

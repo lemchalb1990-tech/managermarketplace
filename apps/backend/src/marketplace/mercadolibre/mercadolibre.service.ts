@@ -9,7 +9,7 @@ import { CatalogService } from '../../catalog/catalog.service';
 import { ListingStatus } from '@prisma/client';
 
 const ML_API = 'https://api.mercadolibre.com';
-const ML_AUTH = 'https://auth.mercadolibre.com.ar';
+const ML_AUTH = 'https://auth.mercadolibre.cl';
 
 @Injectable()
 export class MercadolibreService {
@@ -141,11 +141,18 @@ export class MercadolibreService {
 
     const primaryImage = product.images.find((i: any) => i.isPrimary) || product.images[0];
 
+    const categoryId = (product as any).mlCategoryId || this.config.get('ML_DEFAULT_CATEGORY');
+    if (!categoryId) {
+      throw new BadRequestException(
+        'Debes asignar una categoría de Mercado Libre al producto antes de publicar (campo Categoría ML).',
+      );
+    }
+
     const mlItem = {
       title: product.name,
-      category_id: 'MLA5725',
+      category_id: categoryId,
       price: Number(product.price),
-      currency_id: 'ARS',
+      currency_id: 'CLP',
       available_quantity: product.stock,
       buying_mode: 'buy_it_now',
       listing_type_id: 'gold_special',

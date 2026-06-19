@@ -29,6 +29,10 @@ export class CreateProductDto {
   @IsInt()
   @Min(0)
   stock: number;
+
+  @IsOptional()
+  @IsString()
+  mlCategoryId?: string;
 }
 
 export class UpdateProductDto {
@@ -61,6 +65,10 @@ export class UpdateProductDto {
 
   @IsOptional()
   active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  mlCategoryId?: string;
 }
 
 export class AdjustStockDto {
