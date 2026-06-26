@@ -186,7 +186,7 @@ export class MercadolibreService {
     if (!cid) return [];
     return this.prisma.marketplaceConnection.findMany({
       where: { companyId: cid, active: true },
-      select: { id: true, name: true, marketplace: true, active: true, expiresAt: true, createdAt: true },
+      select: { id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
   }
