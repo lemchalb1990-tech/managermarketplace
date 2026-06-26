@@ -56,6 +56,8 @@ export const api = {
     list: (token: string) => apiFetch<any[]>('/users', {}, token),
     create: (data: any, token: string) =>
       apiFetch<any>('/users', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
   catalog: {
     list: (token: string) => apiFetch<any[]>('/catalog/products', {}, token),

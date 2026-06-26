@@ -33,5 +33,9 @@ export class UpdateUserDto {
   password?: string;
 
   @IsOptional()
+  @IsEnum(Role)
+  role?: Role;
+
+  @IsOptional()
   active?: boolean;
 }

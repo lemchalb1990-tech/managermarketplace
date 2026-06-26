@@ -22,6 +22,7 @@ const roleBadge: Record<string, string> = {
 };
 
 const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '' };
+const emptyEdit = { name: '', role: '', password: '', active: true };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -33,10 +34,15 @@ export default function UsersPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [myCompany, setMyCompany] = useState<any>(null);
 
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editForm, setEditForm] = useState(emptyEdit);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   async function load() {
     const token = getToken();
     if (!token) return;
-    // Use /auth/me for fresh user+company data (includes maxUsers after schema update)
     const me = await api.me(token);
     setCurrentUser(me);
     const data = await api.users.list(token);
@@ -45,7 +51,6 @@ export default function UsersPage() {
       const comps = await api.companies.list(token);
       setCompanies(comps);
     } else if (me.company) {
-      // company object from /auth/me includes maxUsers
       const companyUsers = data.filter((u: any) => u.company?.id === me.company.id);
       setMyCompany({ ...me.company, _count: { users: companyUsers.length } });
     }
@@ -72,9 +77,32 @@ export default function UsersPage() {
     }
   }
 
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const availableRoles = isSuperAdmin ? ALL_ROLES : ALL_ROLES; // both roles for company admin too
+  function openEdit(u: any) {
+    setEditUser(u);
+    setEditForm({ name: u.name, role: u.role, password: '', active: u.active });
+    setEditError('');
+    setShowPassword(false);
+  }
 
+  async function handleEdit(e: FormEvent) {
+    e.preventDefault();
+    setEditError('');
+    setEditLoading(true);
+    try {
+      const token = getToken()!;
+      const payload: any = { name: editForm.name, role: editForm.role, active: editForm.active };
+      if (editForm.password) payload.password = editForm.password;
+      await api.users.update(editUser.id, payload, token);
+      setEditUser(null);
+      await load();
+    } catch (err: any) {
+      setEditError(err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const userCount = myCompany?._count?.users ?? users.length;
   const maxUsers = myCompany?.maxUsers;
   const atLimit = maxUsers != null && userCount >= maxUsers;
@@ -120,7 +148,7 @@ export default function UsersPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
               <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                {availableRoles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
             {isSuperAdmin && (
@@ -157,6 +185,7 @@ export default function UsersPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Perfil</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Empresa</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -175,14 +204,81 @@ export default function UsersPage() {
                     {u.active ? 'Activo' : 'Inactivo'}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(u)}
+                    className="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                    Editar
+                  </button>
+                </td>
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Sin usuarios registrados</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sin usuarios registrados</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Modal de edición */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Editar usuario</h2>
+            <p className="text-xs text-gray-400 mb-4">{editUser.email}</p>
+            <form onSubmit={handleEdit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                <input value={editForm.name}
+                  onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
+                <select value={editForm.role}
+                  onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  {ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {isSuperAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Nueva contraseña <span className="text-gray-400">(dejar en blanco para no cambiar)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={editForm.password}
+                    onChange={(e) => setEditForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="••••••"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm pr-16" />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-800">
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="active-toggle" checked={editForm.active}
+                  onChange={(e) => setEditForm(f => ({ ...f, active: e.target.checked }))}
+                  className="rounded" />
+                <label htmlFor="active-toggle" className="text-sm text-gray-700">Usuario activo</label>
+              </div>
+              {editError && <p className="text-red-600 text-sm">{editError}</p>}
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={editLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {editLoading ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button type="button" onClick={() => setEditUser(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
