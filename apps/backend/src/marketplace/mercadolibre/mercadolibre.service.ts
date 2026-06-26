@@ -181,15 +181,25 @@ export class MercadolibreService {
 
   async searchCategories(q: string) {
     if (!q?.trim()) return [];
-    const res = await fetch(
-      `${ML_API}/sites/MLC/category_predictor/predict?q=${encodeURIComponent(q)}`,
-    );
-    if (!res.ok) return [];
-    const data = await res.json() as any[];
-    return (Array.isArray(data) ? data : []).slice(0, 8).map((item: any) => ({
-      id: item.category_id,
-      name: item.category_name,
-    }));
+    try {
+      const res = await fetch(
+        `${ML_API}/sites/MLC/domain_discovery/search?q=${encodeURIComponent(q)}&limit=8`,
+      );
+      if (!res.ok) {
+        this.logger.error(`ML category search HTTP ${res.status}`);
+        return [];
+      }
+      const data = await res.json() as any[];
+      return (Array.isArray(data) ? data : [])
+        .filter((item: any) => item?.category_id)
+        .map((item: any) => ({
+          id: item.category_id,
+          name: item.domain_name,
+        }));
+    } catch (err) {
+      this.logger.error('ML category search error', err);
+      return [];
+    }
   }
 
   // ─── Publicaciones ───────────────────────────────────────────────────────────
