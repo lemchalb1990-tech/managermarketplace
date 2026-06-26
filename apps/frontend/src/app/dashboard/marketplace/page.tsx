@@ -19,6 +19,8 @@ export default function MarketplacePage() {
 
   const [showConnect, setShowConnect] = useState(false);
   const [connName, setConnName] = useState('');
+  const [connClientId, setConnClientId] = useState('');
+  const [connClientSecret, setConnClientSecret] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
   const searchParams = useSearchParams();
@@ -90,14 +92,17 @@ export default function MarketplacePage() {
   }
 
   async function handleConnect() {
-    if (!connName.trim()) return;
+    if (!connName.trim() || !connClientId.trim() || !connClientSecret.trim()) return;
     setConnecting(true);
     setError('');
     try {
       const token = getToken()!;
-      const { authUrl } = await api.marketplace.authUrl(
-        connName.trim(), token, isSuperAdmin ? activeCompanyId : undefined,
-      );
+      const { authUrl } = await api.marketplace.authUrl({
+        name: connName.trim(),
+        mlClientId: connClientId.trim(),
+        mlClientSecret: connClientSecret.trim(),
+        ...(isSuperAdmin && activeCompanyId ? { companyId: activeCompanyId } : {}),
+      }, token);
       window.location.href = authUrl;
     } catch (err: any) {
       setError(err.message);
@@ -225,11 +230,9 @@ export default function MarketplacePage() {
               <h2 className="font-semibold text-gray-900">Cuentas conectadas</h2>
               <button
                 onClick={() => { setShowConnect(!showConnect); setError(''); }}
-                disabled={!credentialsConfigured}
-                title={!credentialsConfigured ? 'Primero guarda las credenciales de la aplicación' : ''}
-                className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold"
               >
-                + Conectar cuenta
+                + Conectar tienda
               </button>
             </div>
 
@@ -241,27 +244,50 @@ export default function MarketplacePage() {
 
             {showConnect && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-                <h3 className="font-semibold text-gray-800 mb-1">Conectar cuenta de Mercado Libre</h3>
+                <h3 className="font-semibold text-gray-800 mb-1">Conectar tienda de Mercado Libre</h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Ingresa un nombre para identificar esta cuenta. Serás redirigido a Mercado Libre para autorizar el acceso.
+                  Cada tienda usa sus propias credenciales de aplicación ML. Serás redirigido a Mercado Libre para autorizar.
                 </p>
-                <div className="flex gap-3">
-                  <input
-                    value={connName}
-                    onChange={(e) => setConnName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-                    placeholder="Ej: Tienda principal, Cuenta dropshipping..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la tienda *</label>
+                    <input
+                      value={connName}
+                      onChange={(e) => setConnName(e.target.value)}
+                      placeholder="Ej: Tienda principal, Cuenta dropshipping..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client ID *</label>
+                    <input
+                      value={connClientId}
+                      onChange={(e) => setConnClientId(e.target.value)}
+                      placeholder="Ej: 123456789"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Secret *</label>
+                    <input
+                      type="password"
+                      value={connClientSecret}
+                      onChange={(e) => setConnClientSecret(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
                   <button
                     onClick={handleConnect}
-                    disabled={connecting || !connName.trim()}
+                    disabled={connecting || !connName.trim() || !connClientId.trim() || !connClientSecret.trim()}
                     className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
                   >
                     {connecting ? 'Redirigiendo...' : 'Autorizar en ML'}
                   </button>
                   <button
-                    onClick={() => setShowConnect(false)}
+                    onClick={() => { setShowConnect(false); setConnName(''); setConnClientId(''); setConnClientSecret(''); }}
                     className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
                   >
                     Cancelar

@@ -2,8 +2,8 @@ import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
   UseGuards, Res, BadRequestException,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { IsString, IsOptional } from 'class-validator';
+import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -39,17 +39,16 @@ export class MercadolibreController {
 
   // ─── OAuth ─────────────────────────────────────────────────────────────────
 
-  @Get('auth-url')
+  @Post('auth-url')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   async getAuthUrl(
-    @Query('name') name: string,
-    @Query('companyId') companyId: string,
+    @Body() body: { name?: string; mlClientId: string; mlClientSecret: string; companyId?: string },
     @CurrentUser() user: any,
   ) {
-    const cid = user.role === Role.COMPANY_ADMIN ? user.companyId : companyId;
+    const cid = user.role === Role.COMPANY_ADMIN ? user.companyId : body.companyId;
     if (!cid) throw new BadRequestException('companyId requerido');
-    const authUrl = await this.service.getAuthUrl(cid, name || 'Conexión ML');
+    const authUrl = await this.service.getAuthUrl(cid, body.name || 'Conexión ML', body.mlClientId, body.mlClientSecret);
     return { authUrl };
   }
 

@@ -64,24 +64,42 @@ export class MercadolibreService {
 
   // ─── OAuth ───────────────────────────────────────────────────────────────────
 
-  async getAuthUrl(companyId: string, name: string): Promise<string> {
-    const { clientId } = await this.getCompanyCredentials(companyId);
+  async getAuthUrl(companyId: string, name: string, mlClientId: string, mlClientSecret: string): Promise<string> {
+    if (!mlClientId || !mlClientSecret) {
+      throw new BadRequestException('Client ID y Client Secret son requeridos');
+    }
     const redirectUri = this.config.get('ML_REDIRECT_URI');
 
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
-    const state = Buffer.from(JSON.stringify({ companyId, name, codeVerifier })).toString('base64url');
-    return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+    // Crear conexión draft con las credenciales propias
+    const draft = await this.prisma.marketplaceConnection.create({
+      data: {
+        name,
+        marketplace: 'MERCADO_LIBRE',
+        mlClientId,
+        mlClientSecret,
+        accessToken: '',
+        active: false,
+        companyId,
+      },
+    });
+
+    const state = Buffer.from(JSON.stringify({ connectionId: draft.id, codeVerifier })).toString('base64url');
+    return `${ML_AUTH}/authorization?response_type=code&client_id=${mlClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
   }
 
   async handleCallback(code: string, state: string, fallbackName: string) {
     const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
-    const companyId: string = decoded.companyId;
-    const connectionName: string = decoded.name || fallbackName || 'Conexión ML';
+    const connectionId: string = decoded.connectionId;
     const codeVerifier: string = decoded.codeVerifier;
 
-    const { clientId, clientSecret } = await this.getCompanyCredentials(companyId);
+    const draft = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!draft) throw new BadRequestException('Conexión no encontrada');
+
+    const clientId = draft.mlClientId;
+    const clientSecret = draft.mlClientSecret;
     const redirectUri = this.config.get('ML_REDIRECT_URI');
 
     const res = await fetch(`${ML_API}/oauth/token`, {
@@ -98,22 +116,20 @@ export class MercadolibreService {
     });
 
     if (!res.ok) {
+      await this.prisma.marketplaceConnection.delete({ where: { id: connectionId } });
       const err = await res.text();
       this.logger.error(`ML token exchange failed [${res.status}]: ${err}`);
       throw new BadRequestException('Error al conectar con Mercado Libre');
     }
 
     const tokens = await res.json() as any;
-    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-    return this.prisma.marketplaceConnection.create({
+    return this.prisma.marketplaceConnection.update({
+      where: { id: connectionId },
       data: {
-        name: connectionName,
-        marketplace: 'MERCADO_LIBRE',
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        expiresAt,
-        companyId,
+        expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        active: true,
       },
     });
   }
@@ -127,8 +143,8 @@ export class MercadolibreService {
     });
     if (!conn?.refreshToken) throw new InternalServerErrorException('Sin refresh token');
 
-    const clientId = conn.company?.mlClientId || this.config.get('ML_CLIENT_ID');
-    const clientSecret = conn.company?.mlClientSecret || this.config.get('ML_CLIENT_SECRET');
+    const clientId = conn.mlClientId || conn.company?.mlClientId || this.config.get('ML_CLIENT_ID');
+    const clientSecret = conn.mlClientSecret || conn.company?.mlClientSecret || this.config.get('ML_CLIENT_SECRET');
 
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
