@@ -85,6 +85,9 @@ export const api = {
       apiFetch<{ authUrl: string }>(
         `/marketplace/ml/auth-url?name=${encodeURIComponent(name)}${companyId ? `&companyId=${companyId}` : ''}`,
         {}, token),
+    searchCategories: (q: string, token: string) =>
+      apiFetch<{ id: string; name: string }[]>(
+        `/marketplace/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),
     connections: (token: string) =>
       apiFetch<any[]>('/marketplace/ml/connections', {}, token),
     deleteConnection: (id: string, token: string) =>

@@ -72,6 +72,14 @@ export class MercadolibreController {
     }
   }
 
+  // ─── Categorías ────────────────────────────────────────────────────────────
+
+  @Get('categories/search')
+  @UseGuards(JwtAuthGuard)
+  searchCategories(@Query('q') q: string) {
+    return this.service.searchCategories(q);
+  }
+
   // ─── Connections ───────────────────────────────────────────────────────────
 
   @Get('connections')

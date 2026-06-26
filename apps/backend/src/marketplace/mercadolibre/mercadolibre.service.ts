@@ -177,6 +177,21 @@ export class MercadolibreService {
     return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
   }
 
+  // ─── Categorías ──────────────────────────────────────────────────────────────
+
+  async searchCategories(q: string) {
+    if (!q?.trim()) return [];
+    const res = await fetch(
+      `${ML_API}/sites/MLC/category_predictor/predict?q=${encodeURIComponent(q)}`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as any[];
+    return (Array.isArray(data) ? data : []).slice(0, 8).map((item: any) => ({
+      id: item.category_id,
+      name: item.category_name,
+    }));
+  }
+
   // ─── Publicaciones ───────────────────────────────────────────────────────────
 
   async publishProduct(productId: string, connectionId: string, user: any) {

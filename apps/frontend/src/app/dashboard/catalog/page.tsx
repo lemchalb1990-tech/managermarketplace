@@ -4,6 +4,72 @@ import { useEffect, useState, FormEvent, useRef } from 'react';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 
+function CategoryPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<any>(null);
+
+  function search(q: string) {
+    setQuery(q);
+    clearTimeout(timer.current);
+    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const token = getToken()!;
+        const data = await api.marketplace.searchCategories(q, token);
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch { setResults([]); }
+      finally { setLoading(false); }
+    }, 350);
+  }
+
+  function select(item: { id: string; name: string }) {
+    onChange(item.id);
+    setQuery('');
+    setResults([]);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      {value && (
+        <div className="flex items-center gap-2 mb-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+          <span className="font-mono text-blue-700 font-semibold">{value}</span>
+          <button type="button" onClick={() => onChange('')}
+            className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base">×</button>
+        </div>
+      )}
+      <div className="relative">
+        <input
+          value={query}
+          onChange={(e) => search(e.target.value)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={value ? 'Buscar otra categoría...' : 'Buscar categoría ML...'}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+        />
+        {loading && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">buscando...</span>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          {results.map((r) => (
+            <button key={r.id} type="button" onMouseDown={() => select(r)}
+              className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0">
+              <span className="font-mono text-blue-600 text-xs mr-2">{r.id}</span>
+              <span className="text-gray-700">{r.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Tab = 'edit' | 'images' | 'ml';
 
 const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '' };
@@ -217,9 +283,8 @@ export default function CatalogPage() {
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML (ej: MLC1648)</label>
-              <input value={form.mlCategoryId} onChange={(e) => setForm({ ...form, mlCategoryId: e.target.value })}
-                placeholder="MLC..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
+              <CategoryPicker value={form.mlCategoryId} onChange={(id) => setForm({ ...form, mlCategoryId: id })} />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
@@ -365,10 +430,10 @@ export default function CatalogPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
-                    <input value={editForm.mlCategoryId}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlCategoryId: e.target.value }))}
-                      placeholder="MLC..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
-                    <p className="text-xs text-gray-400 mt-1">Busca el código en categorías de mercadolibre.cl</p>
+                    <CategoryPicker
+                      value={editForm.mlCategoryId}
+                      onChange={(id) => setEditForm((f: any) => ({ ...f, mlCategoryId: id }))}
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
