@@ -2,6 +2,7 @@ import {
   Injectable, Logger, BadRequestException, NotFoundException,
   InternalServerErrorException, ForbiddenException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -66,15 +67,19 @@ export class MercadolibreService {
   async getAuthUrl(companyId: string, name: string): Promise<string> {
     const { clientId } = await this.getCompanyCredentials(companyId);
     const redirectUri = this.config.get('ML_REDIRECT_URI');
-    const state = Buffer.from(JSON.stringify({ companyId, name }))
-      .toString('base64url');
-    return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+
+    const codeVerifier = randomBytes(32).toString('base64url');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+
+    const state = Buffer.from(JSON.stringify({ companyId, name, codeVerifier })).toString('base64url');
+    return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
   }
 
   async handleCallback(code: string, state: string, fallbackName: string) {
     const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
     const companyId: string = decoded.companyId;
     const connectionName: string = decoded.name || fallbackName || 'Conexión ML';
+    const codeVerifier: string = decoded.codeVerifier;
 
     const { clientId, clientSecret } = await this.getCompanyCredentials(companyId);
     const redirectUri = this.config.get('ML_REDIRECT_URI');
@@ -88,6 +93,7 @@ export class MercadolibreService {
         client_secret: clientSecret,
         code,
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       }),
     });
 
