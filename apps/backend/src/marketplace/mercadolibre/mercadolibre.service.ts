@@ -192,6 +192,10 @@ export class MercadolibreService {
       );
     }
 
+    const appUrl = this.config.get('APP_URL') || '';
+    const toAbsolute = (url: string) =>
+      url.startsWith('http') ? url : `${appUrl}${url}`;
+
     const mlItem = {
       title: product.name,
       category_id: categoryId,
@@ -202,7 +206,7 @@ export class MercadolibreService {
       listing_type_id: 'gold_special',
       condition: 'new',
       description: { plain_text: product.description || product.name },
-      pictures: primaryImage ? [{ url: primaryImage.url }] : [],
+      pictures: primaryImage ? [{ url: toAbsolute(primaryImage.url) }] : [],
       attributes: [{ id: 'SELLER_SKU', value_name: product.sku }],
     };
 
