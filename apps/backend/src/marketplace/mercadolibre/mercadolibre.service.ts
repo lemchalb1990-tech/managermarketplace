@@ -66,12 +66,13 @@ export class MercadolibreService {
   async getAuthUrl(companyId: string, name: string): Promise<string> {
     const { clientId } = await this.getCompanyCredentials(companyId);
     const redirectUri = this.config.get('ML_REDIRECT_URI');
-    const state = Buffer.from(JSON.stringify({ companyId, name })).toString('base64');
+    const state = Buffer.from(JSON.stringify({ companyId, name }))
+      .toString('base64url');
     return `${ML_AUTH}/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   }
 
   async handleCallback(code: string, state: string, fallbackName: string) {
-    const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
+    const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
     const companyId: string = decoded.companyId;
     const connectionName: string = decoded.name || fallbackName || 'Conexión ML';
 
@@ -92,7 +93,7 @@ export class MercadolibreService {
 
     if (!res.ok) {
       const err = await res.text();
-      this.logger.error('ML token exchange failed', err);
+      this.logger.error(`ML token exchange failed [${res.status}]: ${err}`);
       throw new BadRequestException('Error al conectar con Mercado Libre');
     }
 
