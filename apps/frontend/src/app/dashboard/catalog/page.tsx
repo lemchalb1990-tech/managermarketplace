@@ -385,7 +385,7 @@ export default function CatalogPage() {
               <CategoryPicker value={form.mlCategoryId} onChange={(id) => setForm({ ...form, mlCategoryId: id })} />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
@@ -537,7 +537,7 @@ export default function CatalogPage() {
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
                     <textarea value={editForm.description}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -567,12 +567,9 @@ export default function CatalogPage() {
                         };
                         return (
                           <div key={attr.id} className="flex gap-2 items-center">
-                            <div className="w-44 shrink-0">
-                              <span className="block text-xs font-mono text-blue-700 font-semibold truncate">
-                                {attr.id}{attr.required && <span className="text-red-500">*</span>}
-                              </span>
-                              <span className="block text-xs text-gray-400 truncate">{attr.name}</span>
-                            </div>
+                            <span className="w-44 shrink-0 text-xs text-gray-600 font-medium truncate">
+                              {attr.name}{attr.required && <span className="text-red-500 ml-0.5">*</span>}
+                            </span>
                             {attr.values.length > 0 ? (
                               <select value={val} onChange={e => updateAttr(e.target.value)}
                                 className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs">
