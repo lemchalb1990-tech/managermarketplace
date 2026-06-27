@@ -248,25 +248,29 @@ export class MercadolibreService {
     }
   }
 
-  private async upsertMlDescription(itemId: string, token: string, body: object): Promise<string | null> {
+  private async upsertMlDescription(itemId: string, token: string, plainText: string): Promise<string | null> {
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const payload = JSON.stringify(body);
+    const payload = JSON.stringify({ plain_text: plainText });
     this.logger.log(`ML upsertDescription [${itemId}]: ${payload.substring(0, 200)}`);
 
-    // Intentar PUT primero; si la descripción no existe aún, usar POST
     for (const method of ['PUT', 'POST'] as const) {
       const res = await fetch(`${ML_API}/items/${itemId}/description`, {
         method, headers, body: payload,
       });
       const text = await res.text();
-      this.logger.log(`ML description ${method} [${res.status}]: ${text.substring(0, 200)}`);
+      this.logger.log(`ML description ${method} [${res.status}]: ${text.substring(0, 100)}`);
 
-      if (res.ok) return null;
+      if (res.ok) {
+        try {
+          const data = JSON.parse(text);
+          // ML puede responder 200 pero no guardar nada; verificar que plain_text no sea vacío
+          if (data.plain_text && data.plain_text.trim()) return null;
+          if (method === 'PUT') continue; // reintentar con POST
+        } catch { return null; }
+      }
 
-      // Si PUT falla por recurso no encontrado, reintenta con POST
       if (method === 'PUT' && (res.status === 404 || res.status === 405)) continue;
 
-      // Otro error — reportar
       try {
         const err = JSON.parse(text);
         return err.message || err.error || `HTTP ${res.status}`;
@@ -341,22 +345,13 @@ export class MercadolibreService {
 
     // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
-    const mlDescriptionHtml = (product as any).mlDescription;
-    const plainBase = product.description || product.name;
-    const safePlainPublish = plainBase.length < 100
-      ? plainBase + ' '.repeat(100 - plainBase.length)
-      : plainBase;
+    const rawPlainPublish = (product.description || product.name || '').trim();
+    const safePlainPublish = rawPlainPublish.length >= 10
+      ? rawPlainPublish
+      : `${product.name}. ${product.name}. ${product.name}`;
 
     if (mlData.id) {
-      const descBody = mlDescriptionHtml
-        ? { html_content: mlDescriptionHtml }
-        : { plain_text: safePlainPublish };
-
-      let reason = await this.upsertMlDescription(mlData.id, token, descBody);
-      // Si html falla, reintentar con plain_text
-      if (reason && mlDescriptionHtml) {
-        reason = await this.upsertMlDescription(mlData.id, token, { plain_text: safePlainPublish });
-      }
+      const reason = await this.upsertMlDescription(mlData.id, token, safePlainPublish);
       if (reason) {
         descriptionWarning = `Publicación creada, pero la descripción fue rechazada por ML (${reason}).`;
       }
@@ -409,34 +404,15 @@ export class MercadolibreService {
       throw new BadRequestException(err.message || 'Error al sincronizar en Mercado Libre');
     }
 
-    // Sincronizar descripción — siempre enviar, mínimo texto plano
-    const mlDescription = (product as any).mlDescription;
-    const plainText = product.description || product.name;
+    // Sincronizar descripción siempre con plain_text
+    const rawPlain = (product.description || product.name || '').trim();
+    const safePlain = rawPlain.length >= 10
+      ? rawPlain
+      : `${product.name}. ${product.name}. ${product.name}`;
 
-    // ML requiere mínimo ~100 caracteres en plain_text; si es muy corto, paddear
-    const safePlain = plainText.length < 100
-      ? plainText + ' '.repeat(100 - plainText.length)
-      : plainText;
-
-    const descBody = mlDescription
-      ? { html_content: mlDescription }
-      : { plain_text: safePlain };
-
-    this.logger.log(`ML sync description [${listing.externalId}]: ${JSON.stringify(descBody).substring(0, 200)}`);
-    const descErr = await this.upsertMlDescription(listing.externalId, token, descBody);
-
-    if (descErr) {
-      this.logger.warn(`ML description failed: ${descErr}`);
-      // Si html falla, reintentar con plain_text
-      if (mlDescription) {
-        const retryErr = await this.upsertMlDescription(listing.externalId, token, { plain_text: safePlain });
-        if (retryErr) {
-          warnings.push(`Descripción no sincronizada: ${retryErr}`);
-        }
-      } else {
-        warnings.push(`Descripción no sincronizada: ${descErr}`);
-      }
-    }
+    this.logger.log(`ML sync description [${listing.externalId}]: "${safePlain.substring(0, 80)}"`);
+    const descErr = await this.upsertMlDescription(listing.externalId, token, safePlain);
+    if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
 
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
     const updated = await this.prisma.listing.update({
