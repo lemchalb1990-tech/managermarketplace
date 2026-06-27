@@ -9,4 +9,4 @@ import { CatalogModule } from '../catalog/catalog.module';
   controllers: [MercadolibreController],
   exports: [MercadolibreService],
 })
-export class MarketplaceModule {}
+export class EcommerceModule {}

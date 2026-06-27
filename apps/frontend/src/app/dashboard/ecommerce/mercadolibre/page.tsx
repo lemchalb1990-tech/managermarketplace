@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-export default function MarketplacePage() {
+export default function MercadoLibrePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -90,6 +90,11 @@ export default function MarketplacePage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-1">
+        <a href="/dashboard/ecommerce" className="text-sm text-gray-400 hover:text-gray-600">E-commerce</a>
+        <span className="text-gray-300">/</span>
+        <span className="text-sm text-gray-600 font-medium">Mercado Libre</span>
+      </div>
       <h1 className="text-2xl font-bold text-gray-900">Mercado Libre</h1>
 
       {/* Selector de empresa (solo Super Admin) */}

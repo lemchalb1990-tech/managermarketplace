@@ -9,7 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { CompaniesModule } from './companies/companies.module';
 import { CatalogModule } from './catalog/catalog.module';
-import { MarketplaceModule } from './marketplace/marketplace.module';
+import { EcommerceModule } from './ecommerce/ecommerce.module';
 import { PosModule } from './pos/pos.module';
 
 @Module({
@@ -25,7 +25,7 @@ import { PosModule } from './pos/pos.module';
     UsersModule,
     CompaniesModule,
     CatalogModule,
-    MarketplaceModule,
+    EcommerceModule,
     PosModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

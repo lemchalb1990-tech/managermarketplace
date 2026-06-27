@@ -7,7 +7,7 @@ export default function ConnectedPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const t = setTimeout(() => router.push('/dashboard/marketplace'), 3000);
+    const t = setTimeout(() => router.push('/dashboard/ecommerce/mercadolibre'), 3000);
     return () => clearTimeout(t);
   }, [router]);
 

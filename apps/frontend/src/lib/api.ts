@@ -87,31 +87,31 @@ export const api = {
   marketplace: {
     getSettings: (token: string, companyId?: string) =>
       apiFetch<{ mlClientId: string | null; hasSecret: boolean }>(
-        `/marketplace/ml/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+        `/ecommerce/ml/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     saveCredentials: (data: { mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
-      apiFetch<any>('/marketplace/ml/credentials', { method: 'PATCH', body: JSON.stringify(data) }, token),
+      apiFetch<any>('/ecommerce/ml/credentials', { method: 'PATCH', body: JSON.stringify(data) }, token),
     authUrl: (data: { name: string; mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
       apiFetch<{ authUrl: string }>(
-        '/marketplace/ml/auth-url',
+        '/ecommerce/ml/auth-url',
         { method: 'POST', body: JSON.stringify(data) },
         token,
       ),
     searchCategories: (q: string, token: string) =>
       apiFetch<{ id: string; name: string }[]>(
-        `/marketplace/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),
+        `/ecommerce/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),
     getCategoryAttributes: (categoryId: string, token: string) =>
       apiFetch<{ attributes: any[]; supportsHtml: boolean }>(
-        `/marketplace/ml/categories/${categoryId}/attributes`, {}, token),
+        `/ecommerce/ml/categories/${categoryId}/attributes`, {}, token),
     connections: (token: string) =>
-      apiFetch<any[]>('/marketplace/ml/connections', {}, token),
+      apiFetch<any[]>('/ecommerce/ml/connections', {}, token),
     deleteConnection: (id: string, token: string) =>
-      apiFetch<any>(`/marketplace/ml/connections/${id}`, { method: 'DELETE' }, token),
+      apiFetch<any>(`/ecommerce/ml/connections/${id}`, { method: 'DELETE' }, token),
     publish: (productId: string, connectionId: string, token: string) =>
-      apiFetch<any>(`/marketplace/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
     sync: (productId: string, connectionId: string, token: string) =>
-      apiFetch<any>(`/marketplace/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
     toggleListing: (productId: string, connectionId: string, token: string) =>
-      apiFetch<any>(`/marketplace/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
   },
   pos: {
     createSale: (data: any, token: string) =>

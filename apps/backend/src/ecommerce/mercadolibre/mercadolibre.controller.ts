@@ -17,7 +17,7 @@ class SaveCredentialsDto {
   @IsOptional() @IsString() companyId?: string;
 }
 
-@Controller('marketplace/ml')
+@Controller('ecommerce/ml')
 export class MercadolibreController {
   constructor(private service: MercadolibreService) {}
 
@@ -62,11 +62,11 @@ export class MercadolibreController {
     try {
       await this.service.handleCallback(code, state, name || 'Conexión ML');
       return res.redirect(
-        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/marketplace/connected`,
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre/connected`,
       );
     } catch {
       return res.redirect(
-        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/marketplace?error=1`,
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre?error=1`,
       );
     }
   }

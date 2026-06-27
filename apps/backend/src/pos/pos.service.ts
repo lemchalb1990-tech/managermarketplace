@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MercadolibreService } from '../marketplace/mercadolibre/mercadolibre.service';
+import { MercadolibreService } from '../ecommerce/mercadolibre/mercadolibre.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
