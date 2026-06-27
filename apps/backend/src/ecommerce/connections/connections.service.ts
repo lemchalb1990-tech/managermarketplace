@@ -9,7 +9,7 @@ import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
 import { CreateConnectionDto, LinkProductDto } from './connections.dto';
 
-const NON_ML_TYPES = [
+const NON_ML_TYPES: MarketplaceType[] = [
   MarketplaceType.SHOPIFY, MarketplaceType.WOOCOMMERCE, MarketplaceType.JUMPSELLER,
   MarketplaceType.FALABELLA, MarketplaceType.PARIS, MarketplaceType.HITES,
   MarketplaceType.RIPLEY, MarketplaceType.WALMART,
