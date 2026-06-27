@@ -276,6 +276,21 @@ export class MercadolibreService {
     }
 
     const mlData = await res.json() as any;
+
+    // Enviar descripción HTML si existe
+    const mlDescription = (product as any).mlDescription;
+    if (mlDescription && mlData.id) {
+      const descRes = await fetch(`${ML_API}/items/${mlData.id}/description`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html_content: mlDescription }),
+      });
+      if (!descRes.ok) {
+        const descErr = await descRes.json() as any;
+        this.logger.warn(`ML description update failed: ${descErr.message || descErr.error}`);
+      }
+    }
+
     return this.prisma.listing.upsert({
       where: { productId_connectionId: { productId, connectionId } },
       update: {

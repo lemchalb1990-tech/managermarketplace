@@ -33,6 +33,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   mlCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  mlDescription?: string;
 }
 
 export class UpdateProductDto {
@@ -69,6 +73,10 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   mlCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  mlDescription?: string;
 }
 
 export class AdjustStockDto {

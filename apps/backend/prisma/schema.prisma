@@ -86,7 +86,8 @@ model Product {
   id          String   @id @default(cuid())
   sku         String
   name        String
-  description String?  @db.Text
+  description    String?  @db.Text
+  mlDescription  String?  @db.Text
   price          Decimal  @db.Decimal(10, 2)
   cost           Decimal? @db.Decimal(10, 2)
   stock          Int      @default(0)

@@ -124,6 +124,7 @@ export default function CatalogPage() {
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
       mlCategoryId: product.mlCategoryId || '',
+      mlDescription: product.mlDescription || '',
     });
     setTab('edit');
     setEditError('');
@@ -175,6 +176,7 @@ export default function CatalogPage() {
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         stock: parseInt(editForm.stock),
         mlCategoryId: editForm.mlCategoryId || undefined,
+        mlDescription: editForm.mlDescription || undefined,
       }, token);
       await refreshSelected(selected.id);
     } catch (err: any) {
@@ -440,6 +442,48 @@ export default function CatalogPage() {
                     <textarea value={editForm.description}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Descripción HTML para Mercado Libre
+                      <span className="ml-1 text-gray-400 font-normal">(acepta HTML con imágenes)</span>
+                    </label>
+                    {selected.images?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <span className="text-xs text-gray-400 self-center">Insertar imagen:</span>
+                        {selected.images.map((img: any) => (
+                          <button key={img.id} type="button"
+                            onClick={() => {
+                              const tag = `<img src="${imgUrl(img.url)}" style="max-width:100%" />`;
+                              const ta = document.getElementById('ml-desc-editor') as HTMLTextAreaElement;
+                              const start = ta?.selectionStart ?? editForm.mlDescription.length;
+                              const val = editForm.mlDescription;
+                              setEditForm((f: any) => ({
+                                ...f,
+                                mlDescription: val.slice(0, start) + tag + val.slice(start),
+                              }));
+                            }}
+                            className="px-2 py-0.5 bg-gray-100 hover:bg-blue-50 border border-gray-200 rounded text-xs text-gray-600">
+                            {img.isPrimary ? 'Principal' : `Img ${selected.images.indexOf(img) + 1}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <textarea
+                      id="ml-desc-editor"
+                      value={editForm.mlDescription}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlDescription: e.target.value }))}
+                      rows={5}
+                      placeholder="<p>Descripción detallada...</p>&#10;<img src=&quot;...&quot; style=&quot;max-width:100%&quot; />"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                    />
+                    {editForm.mlDescription && (
+                      <details className="mt-1">
+                        <summary className="text-xs text-blue-500 cursor-pointer">Vista previa</summary>
+                        <div className="mt-1 p-3 border border-gray-200 rounded-lg text-sm"
+                          dangerouslySetInnerHTML={{ __html: editForm.mlDescription }} />
+                      </details>
+                    )}
                   </div>
                   {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
                   <div className="col-span-2">
