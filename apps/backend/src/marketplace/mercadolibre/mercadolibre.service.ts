@@ -254,7 +254,7 @@ export class MercadolibreService {
       listing_type_id: 'gold_special',
       condition: 'new',
       description: { plain_text: product.description || product.name },
-      pictures: primaryImage ? [{ url: toAbsolute(primaryImage.url) }] : [],
+      pictures: primaryImage ? [{ source: toAbsolute(primaryImage.url) }] : [],
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
         ...((product as any).mlAttributes || []),
