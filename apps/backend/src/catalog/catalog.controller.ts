@@ -32,11 +32,13 @@ export class CatalogController {
   }
 
   @Get('products')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   findAll(@CurrentUser() user: any) {
     return this.service.findAll(user);
   }
 
   @Get('products/:id')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.findOne(id, user);
   }

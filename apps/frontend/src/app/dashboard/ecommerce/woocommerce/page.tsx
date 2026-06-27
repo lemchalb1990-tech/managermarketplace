@@ -1,5 +1,6 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function WooCommercePage() {
   return (
@@ -9,9 +10,7 @@ export default function WooCommercePage() {
       description: 'Conecta tu tienda WooCommerce para sincronizar stock y precios automáticamente.',
       moduleKey: 'ecommerce_woocommerce',
       color: '#7F54B3',
-      logoBg: '#7F54B3',
-      logoText: 'WC',
-      logoTextColor: '#fff',
+      logo: Logos.woocommerce,
       supportsPublish: true,
       helpText: 'Ve a WooCommerce → Ajustes → Avanzado → REST API y crea una clave con acceso de Lectura/Escritura.',
       fields: [

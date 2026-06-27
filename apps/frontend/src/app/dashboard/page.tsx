@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState({ products: 0, companies: 0, users: 0 });
 
@@ -12,6 +14,7 @@ export default function DashboardPage() {
     const u = getUser();
     const token = getToken();
     if (!u || !token) return;
+    if (u.role === 'VENDEDOR') { router.replace('/dashboard/pos'); return; }
     setUser(u);
 
     (async () => {

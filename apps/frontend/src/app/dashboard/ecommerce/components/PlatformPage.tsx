@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -20,9 +20,10 @@ export interface PlatformConfig {
   description: string;
   moduleKey: string;
   color: string;
-  logoText: string;
-  logoBg: string;
-  logoTextColor: string;
+  logo?: React.ReactNode;
+  logoText?: string;
+  logoBg?: string;
+  logoTextColor?: string;
   fields: PlatformField[];
   supportsPublish?: boolean;
   helpText?: string;
@@ -135,9 +136,13 @@ export default function PlatformPage({ config }: Props) {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
-          style={{ background: config.logoBg, color: config.logoTextColor }}>
-          {config.logoText}
+        <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">
+          {config.logo ?? (
+            <div className="w-full h-full rounded-xl flex items-center justify-center text-xs font-bold"
+              style={{ background: config.logoBg, color: config.logoTextColor }}>
+              {config.logoText}
+            </div>
+          )}
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{config.name}</h1>

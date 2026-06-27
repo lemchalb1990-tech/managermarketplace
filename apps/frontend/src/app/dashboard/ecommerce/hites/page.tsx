@@ -1,17 +1,16 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function HitesPage() {
   return (
     <PlatformPage config={{
       marketplace: 'HITES',
       name: 'Hites',
-      description: 'Conecta tu cuenta de Hites Marketplace (Cencosud) para sincronizar tu inventario.',
+      description: 'Publica en Hites Marketplace y gestiona tu stock automáticamente.',
       moduleKey: 'ecommerce_hites',
-      color: '#E53935',
-      logoBg: '#E53935',
-      logoText: 'HI',
-      logoTextColor: '#fff',
+      color: '#E30613',
+      logo: Logos.hites,
       supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Hites. Contacta a Hites para obtener acceso API.',
       fields: [

@@ -1,17 +1,16 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function RipleyPage() {
   return (
     <PlatformPage config={{
       marketplace: 'RIPLEY',
       name: 'Ripley',
-      description: 'Conecta tu cuenta de Ripley Marketplace para sincronizar tu inventario.',
+      description: 'Conecta tu cuenta de Ripley Marketplace para centralizar tu inventario.',
       moduleKey: 'ecommerce_ripley',
-      color: '#6A1B9A',
-      logoBg: '#6A1B9A',
-      logoText: 'RI',
-      logoTextColor: '#fff',
+      color: '#5B2D8E',
+      logo: Logos.ripley,
       supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Ripley. Contacta a Ripley para obtener acceso API.',
       fields: [

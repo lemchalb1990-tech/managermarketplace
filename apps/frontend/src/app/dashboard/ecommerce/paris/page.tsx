@@ -1,17 +1,16 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function ParisPage() {
   return (
     <PlatformPage config={{
       marketplace: 'PARIS',
       name: 'Paris',
-      description: 'Conecta tu cuenta de Paris Marketplace (Cencosud) para sincronizar tu inventario.',
+      description: 'Vende en Paris Marketplace (Cencosud) con sincronización de inventario.',
       moduleKey: 'ecommerce_paris',
-      color: '#1565C0',
-      logoBg: '#1565C0',
-      logoText: 'PA',
-      logoTextColor: '#fff',
+      color: '#003087',
+      logo: Logos.paris,
       supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Paris. Contacta a Paris para obtener acceso API.',
       fields: [

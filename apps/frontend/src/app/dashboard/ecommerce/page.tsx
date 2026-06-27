@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
+import { Logos } from './components/logos';
 
 const PLATFORMS = [
   {
@@ -99,9 +100,8 @@ export default function EcommercePage() {
           <Link key={p.id} href={p.href} className="block group">
             <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${p.border}`}>
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-                  style={{ background: p.bg, color: p.textColor }}>
-                  {p.name.slice(0, 2).toUpperCase()}
+                <div className="w-16 h-10 rounded-lg overflow-hidden">
+                  {Logos[p.id]}
                 </div>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.badgeColor}`}>
                   {p.badge}

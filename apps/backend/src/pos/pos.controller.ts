@@ -13,13 +13,13 @@ export class PosController {
   constructor(private service: PosService) {}
 
   @Post('sales')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   createSale(@Body() dto: CreateSaleDto, @CurrentUser() user: any) {
     return this.service.createSale(dto, user);
   }
 
   @Get('sales')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   listSales(
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
@@ -32,7 +32,7 @@ export class PosController {
   }
 
   @Get('sales/summary')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getDailySummary(
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
@@ -42,7 +42,7 @@ export class PosController {
   }
 
   @Get('stock/movements/:productId')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getMovements(@Param('productId') productId: string, @CurrentUser() user: any) {
     return this.service.getStockMovements(productId, user);
   }

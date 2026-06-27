@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { Logos } from '../components/logos';
 
 export default function MercadoLibrePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -95,7 +96,10 @@ export default function MercadoLibrePage() {
         <span className="text-gray-300">/</span>
         <span className="text-sm text-gray-600 font-medium">Mercado Libre</span>
       </div>
-      <h1 className="text-2xl font-bold text-gray-900">Mercado Libre</h1>
+      <div className="flex items-center gap-3">
+        <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">{Logos.mercadolibre}</div>
+        <h1 className="text-2xl font-bold text-gray-900">Mercado Libre</h1>
+      </div>
 
       {/* Selector de empresa (solo Super Admin) */}
       {isSuperAdmin && (

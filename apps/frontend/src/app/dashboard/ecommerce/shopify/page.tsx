@@ -1,5 +1,6 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function ShopifyPage() {
   return (
@@ -9,9 +10,7 @@ export default function ShopifyPage() {
       description: 'Sincroniza tu catálogo con tu tienda Shopify. Stock y precios se actualizan automáticamente.',
       moduleKey: 'ecommerce_shopify',
       color: '#96BF48',
-      logoBg: '#96BF48',
-      logoText: 'SH',
-      logoTextColor: '#fff',
+      logo: Logos.shopify,
       supportsPublish: true,
       helpText: 'Crea una app privada en tu tienda Shopify (Settings → Apps → Develop apps) y copia el Admin API access token.',
       fields: [

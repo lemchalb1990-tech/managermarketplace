@@ -1,5 +1,6 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function JumpSellerPage() {
   return (
@@ -9,9 +10,7 @@ export default function JumpSellerPage() {
       description: 'Administra tu tienda JumpSeller y sincroniza stock y precios desde el catálogo.',
       moduleKey: 'ecommerce_jumpseller',
       color: '#FF6B35',
-      logoBg: '#FF6B35',
-      logoText: 'JS',
-      logoTextColor: '#fff',
+      logo: Logos.jumpseller,
       supportsPublish: true,
       helpText: 'Encuentra tu Login Token en Tienda → Configuración → API en tu panel de JumpSeller.',
       fields: [

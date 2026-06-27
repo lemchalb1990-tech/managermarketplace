@@ -1,17 +1,16 @@
 'use client';
 import PlatformPage from '../components/PlatformPage';
+import { Logos } from '../components/logos';
 
 export default function WalmartPage() {
   return (
     <PlatformPage config={{
       marketplace: 'WALMART',
       name: 'Walmart',
-      description: 'Conecta tu cuenta de Walmart Marketplace Chile para sincronizar stock y precios.',
+      description: 'Vende en Walmart Chile con sincronización automática de precios y stock.',
       moduleKey: 'ecommerce_walmart',
       color: '#0071CE',
-      logoBg: '#0071CE',
-      logoText: 'WM',
-      logoTextColor: '#fff',
+      logo: Logos.walmart,
       supportsPublish: true,
       helpText: 'Obtén tu Client ID y Client Secret desde el portal de vendedores de Walmart Chile.',
       fields: [

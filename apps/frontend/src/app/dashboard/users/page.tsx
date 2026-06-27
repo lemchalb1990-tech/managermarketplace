@@ -7,18 +7,21 @@ import { api } from '@/lib/api';
 const ALL_ROLES = [
   { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
   { value: 'CATALOG_MANAGER', label: 'Gestor de catálogo' },
+  { value: 'VENDEDOR', label: 'Vendedor (solo POS)' },
 ];
 
 const roleLabels: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
   COMPANY_ADMIN: 'Admin empresa',
   CATALOG_MANAGER: 'Gestor catálogo',
+  VENDEDOR: 'Vendedor',
 };
 
 const roleBadge: Record<string, string> = {
   SUPER_ADMIN: 'bg-purple-100 text-purple-700',
   COMPANY_ADMIN: 'bg-blue-100 text-blue-700',
   CATALOG_MANAGER: 'bg-green-100 text-green-700',
+  VENDEDOR: 'bg-orange-100 text-orange-700',
 };
 
 const ALL_MODULES = [
