@@ -248,6 +248,29 @@ export class MercadolibreService {
     }
   }
 
+  private async upsertMlDescription(itemId: string, token: string, body: object): Promise<string | null> {
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const payload = JSON.stringify(body);
+
+    let res = await fetch(`${ML_API}/items/${itemId}/description`, {
+      method: 'PUT', headers, body: payload,
+    });
+
+    if (res.status === 404 || res.status === 405) {
+      res = await fetch(`${ML_API}/items/${itemId}/description`, {
+        method: 'POST', headers, body: payload,
+      });
+    }
+
+    if (!res.ok) {
+      const err = await res.json() as any;
+      const reason = err.message || err.error || 'error desconocido';
+      this.logger.warn(`ML description upsert failed [${res.status}]: ${reason}`);
+      return reason;
+    }
+    return null;
+  }
+
   // ─── Publicaciones ───────────────────────────────────────────────────────────
 
   async publishProduct(productId: string, connectionId: string, user: any) {
@@ -310,20 +333,17 @@ export class MercadolibreService {
 
     const mlData = await res.json() as any;
 
-    // Enviar descripción HTML si existe
+    // Enviar descripción
     let descriptionWarning: string | null = null;
     const mlDescription = (product as any).mlDescription;
-    if (mlDescription && mlData.id) {
-      const descRes = await fetch(`${ML_API}/items/${mlData.id}/description`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html_content: mlDescription }),
-      });
-      if (!descRes.ok) {
-        const descErr = await descRes.json() as any;
-        const reason = descErr.message || descErr.error || 'error desconocido';
-        this.logger.warn(`ML description update failed: ${reason}`);
-        descriptionWarning = `La publicación se creó correctamente, pero la descripción HTML fue rechazada por Mercado Libre para esta categoría (${reason}). El producto quedó publicado con la descripción de texto plano.`;
+    const descBody = mlDescription
+      ? { html_content: mlDescription }
+      : product.description ? { plain_text: product.description } : null;
+
+    if (descBody && mlData.id) {
+      const reason = await this.upsertMlDescription(mlData.id, token, descBody);
+      if (reason) {
+        descriptionWarning = `La publicación se creó correctamente, pero la descripción fue rechazada por Mercado Libre (${reason}).`;
       }
     }
 
@@ -377,21 +397,13 @@ export class MercadolibreService {
 
     // Sincronizar descripción
     const mlDescription = (product as any).mlDescription;
-    const plainDesc = product.description || product.name;
     const descBody = mlDescription
       ? { html_content: mlDescription }
-      : { plain_text: plainDesc };
+      : product.description ? { plain_text: product.description } : null;
 
-    const descRes = await fetch(`${ML_API}/items/${listing.externalId}/description`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(descBody),
-    });
-
-    if (!descRes.ok) {
-      const descErr = await descRes.json() as any;
-      this.logger.warn(`ML sync description error [${descRes.status}]: ${JSON.stringify(descErr)}`);
-      warnings.push(`Descripción no sincronizada: ${descErr.message || 'error desconocido'}`);
+    if (descBody) {
+      const descErr = await this.upsertMlDescription(listing.externalId, token, descBody);
+      if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
     }
 
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
