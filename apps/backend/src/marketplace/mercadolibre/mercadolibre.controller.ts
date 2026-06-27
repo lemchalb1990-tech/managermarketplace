@@ -79,6 +79,12 @@ export class MercadolibreController {
     return this.service.searchCategories(q);
   }
 
+  @Get('categories/:id/attributes')
+  @UseGuards(JwtAuthGuard)
+  getCategoryAttributes(@Param('id') id: string) {
+    return this.service.getCategoryAttributes(id);
+  }
+
   // ─── Connections ───────────────────────────────────────────────────────────
 
   @Get('connections')

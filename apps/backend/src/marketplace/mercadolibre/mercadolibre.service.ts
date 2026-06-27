@@ -225,6 +225,29 @@ export class MercadolibreService {
     }
   }
 
+  async getCategoryAttributes(categoryId: string) {
+    try {
+      const res = await fetch(`${ML_API}/categories/${categoryId}/attributes`);
+      if (!res.ok) return [];
+      const data = await res.json() as any[];
+      return (Array.isArray(data) ? data : [])
+        .filter((a: any) => a.tags?.required || a.tags?.catalog_required)
+        .map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          value_type: a.value_type,
+          values: Array.isArray(a.values) && a.values.length > 0
+            ? a.values.map((v: any) => ({ id: v.id, name: v.name }))
+            : [],
+          required: !!a.tags?.required,
+          catalog_required: !!a.tags?.catalog_required,
+        }));
+    } catch (err) {
+      this.logger.error('ML category attributes error', err);
+      return [];
+    }
+  }
+
   // ─── Publicaciones ───────────────────────────────────────────────────────────
 
   async publishProduct(productId: string, connectionId: string, user: any) {

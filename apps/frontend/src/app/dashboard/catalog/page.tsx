@@ -166,6 +166,8 @@ export default function CatalogPage() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
   const [mlWarning, setMlWarning] = useState('');
+  const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
+  const [attrLoading, setAttrLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -181,8 +183,29 @@ export default function CatalogPage() {
 
   useEffect(() => { load(); }, []);
 
+  async function fetchCategoryAttrs(categoryId: string, existingAttrs: any[] = []) {
+    if (!categoryId) { setMlCategoryAttrs([]); return; }
+    setAttrLoading(true);
+    try {
+      const token = getToken()!;
+      const attrs = await api.marketplace.getCategoryAttributes(categoryId, token);
+      setMlCategoryAttrs(attrs);
+      setEditForm((f: any) => {
+        const existing: any[] = existingAttrs.length ? existingAttrs : (f.mlAttributes || []);
+        const required = attrs.map((a: any) => {
+          const found = existing.find((e: any) => e.id === a.id);
+          return { id: a.id, value_name: found?.value_name || '' };
+        });
+        const extras = existing.filter((e: any) => !attrs.find((a: any) => a.id === e.id));
+        return { ...f, mlAttributes: [...required, ...extras] };
+      });
+    } catch { setMlCategoryAttrs([]); }
+    finally { setAttrLoading(false); }
+  }
+
   function openModal(product: any) {
     setSelected(product);
+    const existingAttrs = product.mlAttributes || [];
     setEditForm({
       name: product.name,
       description: product.description || '',
@@ -191,11 +214,13 @@ export default function CatalogPage() {
       stock: String(product.stock),
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
-      mlAttributes: product.mlAttributes || [],
+      mlAttributes: existingAttrs,
     });
     setTab('edit');
     setEditError('');
     setMlWarning('');
+    setMlCategoryAttrs([]);
+    if (product.mlCategoryId) fetchCategoryAttrs(product.mlCategoryId, existingAttrs);
   }
 
   async function refreshSelected(id: string) {
@@ -505,7 +530,10 @@ export default function CatalogPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
                     <CategoryPicker
                       value={editForm.mlCategoryId}
-                      onChange={(id) => setEditForm((f: any) => ({ ...f, mlCategoryId: id }))}
+                      onChange={(id) => {
+                        setEditForm((f: any) => ({ ...f, mlCategoryId: id }));
+                        fetchCategoryAttrs(id);
+                      }}
                     />
                   </div>
                   <div className="col-span-2">
@@ -516,40 +544,85 @@ export default function CatalogPage() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Atributos ML <span className="text-gray-400 font-normal">(ej: BRAND → Samsung, MODEL → Galaxy S24)</span>
+                      Atributos requeridos por ML
+                      {attrLoading && <span className="ml-2 text-gray-400 text-xs font-normal">cargando...</span>}
                     </label>
+                    {!editForm.mlCategoryId && (
+                      <p className="text-xs text-gray-400 mb-1">Selecciona una categoría ML para ver los atributos requeridos.</p>
+                    )}
+                    {editForm.mlCategoryId && !attrLoading && mlCategoryAttrs.length === 0 && (
+                      <p className="text-xs text-gray-400 mb-1">No hay atributos requeridos para esta categoría.</p>
+                    )}
                     <div className="space-y-2">
-                      {(editForm.mlAttributes || []).map((attr: any, i: number) => (
-                        <div key={i} className="flex gap-2 items-center">
-                          <input
-                            value={attr.id}
-                            onChange={e => {
-                              const attrs = [...editForm.mlAttributes];
-                              attrs[i] = { ...attrs[i], id: e.target.value.toUpperCase() };
-                              setEditForm((f: any) => ({ ...f, mlAttributes: attrs }));
-                            }}
-                            placeholder="ID (ej: BRAND)"
-                            className="w-36 px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-mono"
-                          />
-                          <input
-                            value={attr.value_name}
-                            onChange={e => {
-                              const attrs = [...editForm.mlAttributes];
-                              attrs[i] = { ...attrs[i], value_name: e.target.value };
-                              setEditForm((f: any) => ({ ...f, mlAttributes: attrs }));
-                            }}
-                            placeholder="Valor (ej: Samsung)"
-                            className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
-                          />
-                          <button type="button"
-                            onClick={() => setEditForm((f: any) => ({ ...f, mlAttributes: f.mlAttributes.filter((_: any, j: number) => j !== i) }))}
-                            className="text-red-400 hover:text-red-600 text-lg leading-none px-1">×</button>
-                        </div>
-                      ))}
+                      {mlCategoryAttrs.map((attr: any) => {
+                        const val = (editForm.mlAttributes || []).find((a: any) => a.id === attr.id)?.value_name || '';
+                        const updateAttr = (v: string) => {
+                          setEditForm((f: any) => {
+                            const list = [...(f.mlAttributes || [])];
+                            const idx = list.findIndex((a: any) => a.id === attr.id);
+                            if (idx >= 0) list[idx] = { ...list[idx], value_name: v };
+                            else list.push({ id: attr.id, value_name: v });
+                            return { ...f, mlAttributes: list };
+                          });
+                        };
+                        return (
+                          <div key={attr.id} className="flex gap-2 items-center">
+                            <div className="w-44 shrink-0">
+                              <span className="block text-xs font-mono text-blue-700 font-semibold truncate">
+                                {attr.id}{attr.required && <span className="text-red-500">*</span>}
+                              </span>
+                              <span className="block text-xs text-gray-400 truncate">{attr.name}</span>
+                            </div>
+                            {attr.values.length > 0 ? (
+                              <select value={val} onChange={e => updateAttr(e.target.value)}
+                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs">
+                                <option value="">Seleccionar...</option>
+                                {attr.values.map((v: any) => (
+                                  <option key={v.id} value={v.name}>{v.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input value={val} onChange={e => updateAttr(e.target.value)}
+                                placeholder={attr.name}
+                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs" />
+                            )}
+                          </div>
+                        );
+                      })}
+                      {(editForm.mlAttributes || []).map((attr: any, gIdx: number) => {
+                        if (mlCategoryAttrs.find((r: any) => r.id === attr.id)) return null;
+                        return (
+                          <div key={`extra-${gIdx}`} className="flex gap-2 items-center">
+                            <input
+                              value={attr.id}
+                              onChange={e => {
+                                const list = [...(editForm.mlAttributes || [])];
+                                list[gIdx] = { ...list[gIdx], id: e.target.value.toUpperCase() };
+                                setEditForm((f: any) => ({ ...f, mlAttributes: list }));
+                              }}
+                              placeholder="ID (ej: MODEL)"
+                              className="w-44 shrink-0 px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-mono"
+                            />
+                            <input
+                              value={attr.value_name}
+                              onChange={e => {
+                                const list = [...(editForm.mlAttributes || [])];
+                                list[gIdx] = { ...list[gIdx], value_name: e.target.value };
+                                setEditForm((f: any) => ({ ...f, mlAttributes: list }));
+                              }}
+                              placeholder="Valor"
+                              className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                            />
+                            <button type="button"
+                              onClick={() => setEditForm((f: any) => ({ ...f, mlAttributes: f.mlAttributes.filter((_: any, j: number) => j !== gIdx) }))}
+                              className="text-red-400 hover:text-red-600 text-lg leading-none px-1">×</button>
+                          </div>
+                        );
+                      })}
                       <button type="button"
                         onClick={() => setEditForm((f: any) => ({ ...f, mlAttributes: [...(f.mlAttributes || []), { id: '', value_name: '' }] }))}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        + Agregar atributo
+                        + Agregar atributo extra
                       </button>
                     </div>
                   </div>
