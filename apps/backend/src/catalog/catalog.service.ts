@@ -59,7 +59,10 @@ export class CatalogService {
   }
 
   async update(id: string, dto: UpdateProductDto, user: any) {
-    await this.findOne(id, user);
+    const product = await this.findOne(id, user);
+    if (!product.active && dto.active !== true) {
+      throw new BadRequestException('El producto está inactivo. Reactívalo antes de modificarlo.');
+    }
     return this.prisma.product.update({
       where: { id },
       data: dto,

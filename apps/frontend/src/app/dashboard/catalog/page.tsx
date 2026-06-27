@@ -677,6 +677,16 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-2 gap-4">
+                {!selected.active && (
+                  <div className="col-span-2 flex gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-800">
+                    <span className="text-red-500 text-lg leading-none shrink-0">🔒</span>
+                    <div>
+                      <p className="font-semibold mb-0.5">Producto inactivo</p>
+                      <p className="text-xs">Este producto está inactivo y no puede ser modificado. Reactívalo desde el listado para editar sus datos.</p>
+                    </div>
+                  </div>
+                )}
+                <fieldset disabled={!selected.active} className="contents">
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
@@ -817,6 +827,7 @@ export default function CatalogPage() {
                       {editLoading ? 'Guardando...' : 'Guardar cambios'}
                     </button>
                   </div>
+                </fieldset>
                 </form>
               )}
 
