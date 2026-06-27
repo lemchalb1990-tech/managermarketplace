@@ -18,8 +18,10 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Serve uploaded product images at /uploads/*
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  // Servir imágenes bajo /api/uploads/ (pasa por el proxy de EasyPanel) y /uploads/ (local)
+  const uploadsDir = join(process.cwd(), 'uploads');
+  app.useStaticAssets(uploadsDir, { prefix: '/api/uploads' });
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
   const port = process.env.PORT || 3001;
   await app.listen(port);

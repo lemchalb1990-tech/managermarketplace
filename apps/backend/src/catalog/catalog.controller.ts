@@ -63,7 +63,7 @@ export class CatalogController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const url = `/uploads/${file.filename}`;
+    const url = `/api/uploads/${file.filename}`;
     return this.service.addImage(id, file.filename, url, user);
   }
 
