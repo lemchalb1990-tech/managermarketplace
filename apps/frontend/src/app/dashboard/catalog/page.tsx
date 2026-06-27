@@ -4,6 +4,67 @@ import { useEffect, useState, FormEvent, useRef } from 'react';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 
+function MlDescriptionEditor({ value, productId, onChange, images }: {
+  value: string; productId: string; onChange: (html: string) => void; images: any[];
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastId = useRef('');
+
+  useEffect(() => {
+    if (editorRef.current && productId !== lastId.current) {
+      editorRef.current.innerHTML = value || '';
+      lastId.current = productId;
+    }
+  });
+
+  function exec(cmd: string) {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false);
+  }
+
+  function insertImg(url: string) {
+    editorRef.current?.focus();
+    document.execCommand('insertHTML', false,
+      `<img src="${url}" style="max-width:100%;display:block;margin:8px auto" />`
+    );
+    onChange(editorRef.current?.innerHTML || '');
+  }
+
+  return (
+    <div className="border border-gray-300 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap">
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec('bold'); }}
+          className="px-2 py-1 rounded hover:bg-gray-200 text-sm font-bold">B</button>
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec('italic'); }}
+          className="px-2 py-1 rounded hover:bg-gray-200 text-sm italic">I</button>
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList'); }}
+          className="px-2 py-1 rounded hover:bg-gray-200 text-xs">• Lista</button>
+        {images.length > 0 && (
+          <>
+            <div className="w-px h-4 bg-gray-300 mx-1" />
+            <span className="text-xs text-gray-400 mr-0.5">Insertar:</span>
+            {images.map((img: any, i: number) => (
+              <button key={img.id} type="button"
+                onMouseDown={e => { e.preventDefault(); insertImg(imgUrl(img.url)); }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 text-xs text-blue-600 border border-blue-200">
+                <img src={imgUrl(img.url)} className="w-4 h-4 object-cover rounded" alt="" />
+                {img.isPrimary ? 'Principal' : `Img ${i + 1}`}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => onChange(editorRef.current?.innerHTML || '')}
+        className="min-h-[140px] p-3 text-sm focus:outline-none [&_img]:max-w-full [&_img]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
+      />
+    </div>
+  );
+}
+
 function CategoryPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ id: string; name: string }[]>([]);
@@ -449,45 +510,14 @@ export default function CatalogPage() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Descripción HTML para Mercado Libre
-                      <span className="ml-1 text-gray-400 font-normal">(acepta HTML con imágenes)</span>
+                      Descripción detallada para Mercado Libre
                     </label>
-                    {selected.images?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        <span className="text-xs text-gray-400 self-center">Insertar imagen:</span>
-                        {selected.images.map((img: any) => (
-                          <button key={img.id} type="button"
-                            onClick={() => {
-                              const tag = `<img src="${imgUrl(img.url)}" style="max-width:100%" />`;
-                              const ta = document.getElementById('ml-desc-editor') as HTMLTextAreaElement;
-                              const start = ta?.selectionStart ?? editForm.mlDescription.length;
-                              const val = editForm.mlDescription;
-                              setEditForm((f: any) => ({
-                                ...f,
-                                mlDescription: val.slice(0, start) + tag + val.slice(start),
-                              }));
-                            }}
-                            className="px-2 py-0.5 bg-gray-100 hover:bg-blue-50 border border-gray-200 rounded text-xs text-gray-600">
-                            {img.isPrimary ? 'Principal' : `Img ${selected.images.indexOf(img) + 1}`}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <textarea
-                      id="ml-desc-editor"
+                    <MlDescriptionEditor
                       value={editForm.mlDescription}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlDescription: e.target.value }))}
-                      rows={5}
-                      placeholder="<p>Descripción detallada...</p>&#10;<img src=&quot;...&quot; style=&quot;max-width:100%&quot; />"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                      productId={selected.id}
+                      images={selected.images || []}
+                      onChange={(html) => setEditForm((f: any) => ({ ...f, mlDescription: html }))}
                     />
-                    {editForm.mlDescription && (
-                      <details className="mt-1">
-                        <summary className="text-xs text-blue-500 cursor-pointer">Vista previa</summary>
-                        <div className="mt-1 p-3 border border-gray-200 rounded-lg text-sm"
-                          dangerouslySetInnerHTML={{ __html: editForm.mlDescription }} />
-                      </details>
-                    )}
                   </div>
                   {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
                   <div className="col-span-2">
