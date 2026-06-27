@@ -251,22 +251,28 @@ export class MercadolibreService {
   private async upsertMlDescription(itemId: string, token: string, body: object): Promise<string | null> {
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const payload = JSON.stringify(body);
+    this.logger.log(`ML upsertDescription [${itemId}]: ${payload.substring(0, 200)}`);
 
-    let res = await fetch(`${ML_API}/items/${itemId}/description`, {
-      method: 'PUT', headers, body: payload,
-    });
-
-    if (res.status === 404 || res.status === 405) {
-      res = await fetch(`${ML_API}/items/${itemId}/description`, {
-        method: 'POST', headers, body: payload,
+    // Intentar PUT primero; si la descripción no existe aún, usar POST
+    for (const method of ['PUT', 'POST'] as const) {
+      const res = await fetch(`${ML_API}/items/${itemId}/description`, {
+        method, headers, body: payload,
       });
-    }
+      const text = await res.text();
+      this.logger.log(`ML description ${method} [${res.status}]: ${text.substring(0, 200)}`);
 
-    if (!res.ok) {
-      const err = await res.json() as any;
-      const reason = err.message || err.error || 'error desconocido';
-      this.logger.warn(`ML description upsert failed [${res.status}]: ${reason}`);
-      return reason;
+      if (res.ok) return null;
+
+      // Si PUT falla por recurso no encontrado, reintenta con POST
+      if (method === 'PUT' && (res.status === 404 || res.status === 405)) continue;
+
+      // Otro error — reportar
+      try {
+        const err = JSON.parse(text);
+        return err.message || err.error || `HTTP ${res.status}`;
+      } catch {
+        return `HTTP ${res.status}`;
+      }
     }
     return null;
   }
@@ -293,7 +299,7 @@ export class MercadolibreService {
     const mlItem = {
       title: product.name,
       category_id: categoryId,
-      price: Number(product.price),
+      price: Math.round(Number(product.price)),
       currency_id: 'CLP',
       available_quantity: product.stock,
       buying_mode: 'buy_it_now',
@@ -333,17 +339,17 @@ export class MercadolibreService {
 
     const mlData = await res.json() as any;
 
-    // Enviar descripción
+    // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
     const mlDescription = (product as any).mlDescription;
     const descBody = mlDescription
       ? { html_content: mlDescription }
-      : product.description ? { plain_text: product.description } : null;
+      : { plain_text: product.description || product.name };
 
-    if (descBody && mlData.id) {
+    if (mlData.id) {
       const reason = await this.upsertMlDescription(mlData.id, token, descBody);
       if (reason) {
-        descriptionWarning = `La publicación se creó correctamente, pero la descripción fue rechazada por Mercado Libre (${reason}).`;
+        descriptionWarning = `Publicación creada correctamente, pero la descripción fue rechazada por ML (${reason}).`;
       }
     }
 
@@ -383,7 +389,7 @@ export class MercadolibreService {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        price: Number(product.price),
+        price: Math.round(Number(product.price)),
         available_quantity: product.stock,
       }),
     });
