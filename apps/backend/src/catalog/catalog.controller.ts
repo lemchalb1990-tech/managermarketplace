@@ -1,7 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param,
-  UseGuards, UseInterceptors, UploadedFile, ParseFilePipe,
-  MaxFileSizeValidator, FileTypeValidator,
+  UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -56,17 +55,14 @@ export class CatalogController {
   @UseInterceptors(FileInterceptor('file', { storage: imageStorage }))
   async uploadImage(
     @Param('id') id: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /image\/(jpeg|png|webp)/ }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,
   ) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('El archivo supera el límite de 5 MB');
+    if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
+      throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
+    }
     const url = `/uploads/${file.filename}`;
     return this.service.addImage(id, file.filename, url, user);
   }
