@@ -11,57 +11,69 @@ const DEFAULT_PLATFORMS = [
     id: 'mercadolibre', moduleKey: 'ecommerce_ml', name: 'Mercado Libre',
     description: 'Publica y sincroniza productos en Mercado Libre Chile.',
     href: '/dashboard/ecommerce/mercadolibre',
-    border: 'border-yellow-300 hover:border-yellow-400',
+    activeBorder: 'border-yellow-400',
   },
   {
     id: 'shopify', moduleKey: 'ecommerce_shopify', name: 'Shopify',
     description: 'Sincroniza inventario y pedidos con tu tienda Shopify.',
     href: '/dashboard/ecommerce/shopify',
-    border: 'border-green-200 hover:border-green-400',
+    activeBorder: 'border-green-400',
   },
   {
     id: 'woocommerce', moduleKey: 'ecommerce_woocommerce', name: 'WooCommerce',
     description: 'Conecta tu tienda WordPress/WooCommerce para gestionar pedidos y stock.',
     href: '/dashboard/ecommerce/woocommerce',
-    border: 'border-purple-200 hover:border-purple-400',
+    activeBorder: 'border-purple-400',
   },
   {
     id: 'jumpseller', moduleKey: 'ecommerce_jumpseller', name: 'JumpSeller',
     description: 'Gestiona tu tienda JumpSeller con sincronización automática de stock.',
     href: '/dashboard/ecommerce/jumpseller',
-    border: 'border-orange-200 hover:border-orange-400',
+    activeBorder: 'border-orange-400',
   },
   {
     id: 'falabella', moduleKey: 'ecommerce_falabella', name: 'Falabella',
     description: 'Publica en Falabella Marketplace y sincroniza tu inventario.',
     href: '/dashboard/ecommerce/falabella',
-    border: 'border-green-200 hover:border-green-400',
+    activeBorder: 'border-green-500',
   },
   {
     id: 'paris', moduleKey: 'ecommerce_paris', name: 'Paris',
     description: 'Vende en Paris Marketplace (Cencosud) con sincronización de inventario.',
     href: '/dashboard/ecommerce/paris',
-    border: 'border-blue-200 hover:border-blue-400',
+    activeBorder: 'border-blue-400',
   },
   {
     id: 'hites', moduleKey: 'ecommerce_hites', name: 'Hites',
     description: 'Publica en Hites Marketplace y gestiona tu stock automáticamente.',
     href: '/dashboard/ecommerce/hites',
-    border: 'border-red-200 hover:border-red-400',
+    activeBorder: 'border-red-400',
   },
   {
     id: 'ripley', moduleKey: 'ecommerce_ripley', name: 'Ripley',
     description: 'Conecta tu cuenta de Ripley Marketplace para centralizar tu inventario.',
     href: '/dashboard/ecommerce/ripley',
-    border: 'border-purple-200 hover:border-purple-400',
+    activeBorder: 'border-purple-500',
   },
   {
     id: 'walmart', moduleKey: 'ecommerce_walmart', name: 'Walmart',
     description: 'Vende en Walmart Chile con sincronización automática de precios y stock.',
     href: '/dashboard/ecommerce/walmart',
-    border: 'border-blue-200 hover:border-blue-400',
+    activeBorder: 'border-blue-500',
   },
 ];
+
+const PLATFORM_TO_MARKETPLACE: Record<string, string> = {
+  mercadolibre: 'MERCADO_LIBRE',
+  shopify: 'SHOPIFY',
+  woocommerce: 'WOOCOMMERCE',
+  jumpseller: 'JUMPSELLER',
+  falabella: 'FALABELLA',
+  paris: 'PARIS',
+  hites: 'HITES',
+  ripley: 'RIPLEY',
+  walmart: 'WALMART',
+};
 
 function hasModule(user: any, moduleKey: string): boolean {
   if (!user || user.role === 'SUPER_ADMIN') return true;
@@ -77,6 +89,7 @@ const emptyEdit = { displayName: '', description: '', logoUrl: '' };
 export default function EcommercePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customSettings, setCustomSettings] = useState<Record<string, any>>({});
+  const [activeMarketplaces, setActiveMarketplaces] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyEdit);
   const [saving, setSaving] = useState(false);
@@ -89,6 +102,7 @@ export default function EcommercePage() {
     const u = getUser();
     if (!token || !u) return;
     setCurrentUser(u);
+
     api.settings.platforms.list(token)
       .then((rows) => {
         const map: Record<string, any> = {};
@@ -96,6 +110,18 @@ export default function EcommercePage() {
         setCustomSettings(map);
       })
       .catch(() => {});
+
+    Promise.all([
+      api.connections.list(token, {}).catch(() => [] as any[]),
+      api.marketplace.connections(token).catch(() => [] as any[]),
+    ]).then(([nonMl, ml]) => {
+      const active = new Set<string>();
+      (nonMl as any[])
+        .filter((c: any) => c.active)
+        .forEach((c: any) => { if (c.marketplace) active.add(c.marketplace as string); });
+      if ((ml as any[]).length > 0) active.add('MERCADO_LIBRE');
+      setActiveMarketplaces(active);
+    });
   }, []);
 
   function openEdit(id: string) {
@@ -151,41 +177,50 @@ export default function EcommercePage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {visible.map((p) => (
-          <Link key={p.id} href={p.href} className="block group">
-            <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md relative ${p.border}`}>
+        {visible.map((p) => {
+          const isActive = activeMarketplaces.has(PLATFORM_TO_MARKETPLACE[p.id]);
+          return (
+            <Link key={p.id} href={p.href} className="block group">
+              <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md relative ${
+                isActive ? p.activeBorder : 'border-gray-200 hover:border-gray-300'
+              }`}>
 
-              {isSuperAdmin && (
-                <button
-                  onClick={(e) => { e.preventDefault(); openEdit(p.id); }}
-                  className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
-                  title="Editar plataforma"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              )}
+                {isSuperAdmin && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); openEdit(p.id); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
+                    title="Editar plataforma"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
 
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-16 h-10 rounded-lg overflow-hidden">
-                  {p.logoUrl
-                    ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" />
-                    : Logos[p.id]}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-16 h-10 rounded-lg overflow-hidden">
+                    {p.logoUrl
+                      ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" />
+                      : Logos[p.id]}
+                  </div>
+                  {isActive && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                      Activo
+                    </span>
+                  )}
                 </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                  Activo
-                </span>
+                <h2 className="font-semibold text-gray-900 mb-1">{p.displayName}</h2>
+                <p className="text-xs text-gray-500 leading-relaxed">{p.displayDescription}</p>
+                <p className={`mt-3 text-xs font-semibold group-hover:underline ${
+                  isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'
+                }`}>
+                  {isActive ? 'Gestionar →' : 'Conectar →'}
+                </p>
               </div>
-              <h2 className="font-semibold text-gray-900 mb-1">{p.displayName}</h2>
-              <p className="text-xs text-gray-500 leading-relaxed">{p.displayDescription}</p>
-              <p className="mt-3 text-xs font-semibold text-blue-600 group-hover:text-blue-700">
-                Gestionar →
-              </p>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
 
         {visible.length === 0 && (
           <div className="col-span-3 text-center py-12 text-gray-400">
