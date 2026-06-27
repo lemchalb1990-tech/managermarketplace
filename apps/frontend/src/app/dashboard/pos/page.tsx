@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 
 interface CartItem {
   productId: string;
@@ -11,6 +11,7 @@ interface CartItem {
   price: number;
   stock: number;
   quantity: number;
+  imageUrl?: string;
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function PosPage() {
         return updated;
       }
       if (product.stock < 1) return prev;
+      const primaryImg = product.images?.find((i: any) => i.isPrimary) || product.images?.[0];
       return [
         ...prev,
         {
@@ -74,6 +76,7 @@ export default function PosPage() {
           price: Number(product.price),
           stock: product.stock,
           quantity: 1,
+          imageUrl: primaryImg?.url,
         },
       ];
     });
@@ -150,27 +153,47 @@ export default function PosPage() {
         />
 
         <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 content-start">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => addToCart(p)}
-              disabled={p.stock === 0}
-              className={`bg-white border rounded-xl p-3 text-left transition hover:shadow-md hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
-              }`}
-            >
-              <p className="text-xs text-gray-400 mb-0.5">{p.sku}</p>
-              <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">{p.name}</p>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-blue-600 font-bold text-sm">
-                  ${Number(p.price).toLocaleString('es-CL')}
-                </span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                  {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
-                </span>
-              </div>
-            </button>
-          ))}
+          {filtered.map((p) => {
+            const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+            return (
+              <button
+                key={p.id}
+                onClick={() => addToCart(p)}
+                disabled={p.stock === 0}
+                className={`bg-white border rounded-xl overflow-hidden text-left transition hover:shadow-md hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                  p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
+                }`}
+              >
+                {/* Imagen */}
+                <div className="w-full aspect-square bg-gray-100 overflow-hidden">
+                  {primaryImg ? (
+                    <img
+                      src={imgUrl(primaryImg.url)}
+                      alt={p.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">
+                      📦
+                    </div>
+                  )}
+                </div>
+                {/* Info */}
+                <div className="p-2.5">
+                  <p className="text-xs text-gray-400 mb-0.5">{p.sku}</p>
+                  <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">{p.name}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-blue-600 font-bold text-sm">
+                      ${Number(p.price).toLocaleString('es-CL')}
+                    </span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
           {filtered.length === 0 && (
             <p className="col-span-full text-gray-400 text-sm text-center py-12">
               {search ? 'Sin resultados para tu búsqueda.' : 'No hay productos disponibles.'}
@@ -190,7 +213,14 @@ export default function PosPage() {
             <p className="text-gray-400 text-sm text-center py-8">Agrega productos al carrito</p>
           )}
           {cart.map((item) => (
-            <div key={item.productId} className="flex items-start gap-2">
+            <div key={item.productId} className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                {item.imageUrl ? (
+                  <img src={imgUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">📦</div>
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
                 <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL')} c/u</p>
