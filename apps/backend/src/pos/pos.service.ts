@@ -1,14 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MercadolibreService } from '../ecommerce/mercadolibre/mercadolibre.service';
+import { SyncService } from '../ecommerce/sync/sync.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
 export class PosService {
   constructor(
     private prisma: PrismaService,
-    private ml: MercadolibreService,
+    private sync: SyncService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -90,9 +90,9 @@ export class PosService {
       },
     });
 
-    // Sincronizar publicaciones ML de cada producto vendido (sin bloquear la respuesta)
+    // Sincronizar todas las plataformas para cada producto vendido (sin bloquear la respuesta)
     for (const item of result!.items) {
-      this.ml.syncProductListings(item.productId, item.product.stock).catch(() => {});
+      this.sync.syncProduct(item.productId, item.product.stock).catch(() => {});
     }
 
     return result;
@@ -211,8 +211,8 @@ export class PosService {
       }),
     ]);
 
-    // Sincronizar publicaciones ML con el nuevo stock
-    this.ml.syncProductListings(dto.productId, newStock).catch(() => {});
+    // Sincronizar todas las plataformas con el nuevo stock
+    this.sync.syncProduct(dto.productId, newStock).catch(() => {});
 
     return this.prisma.product.findUnique({ where: { id: dto.productId } });
   }

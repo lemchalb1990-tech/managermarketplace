@@ -5,7 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { EcommerceModule } from '../ecommerce/ecommerce.module';
 
 @Module({
-  imports: [PrismaModule, EcommerceModule],
+  imports: [PrismaModule, EcommerceModule],  // EcommerceModule exports SyncService
   controllers: [PosController],
   providers: [PosService],
   exports: [PosService],

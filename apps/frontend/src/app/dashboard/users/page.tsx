@@ -23,8 +23,15 @@ const roleBadge: Record<string, string> = {
 
 const ALL_MODULES = [
   { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
-  { key: 'ecommerce_ml', label: 'Mercado Libre', description: 'Publicaciones y sincronización en Mercado Libre Chile' },
+  { key: 'ecommerce_ml', label: 'Mercado Libre', description: 'Publicaciones en Mercado Libre Chile' },
   { key: 'ecommerce_shopify', label: 'Shopify', description: 'Sincronización con tienda Shopify' },
+  { key: 'ecommerce_woocommerce', label: 'WooCommerce', description: 'Sincronización con WooCommerce' },
+  { key: 'ecommerce_jumpseller', label: 'JumpSeller', description: 'Sincronización con JumpSeller' },
+  { key: 'ecommerce_falabella', label: 'Falabella', description: 'Publicaciones en Falabella Marketplace' },
+  { key: 'ecommerce_paris', label: 'Paris', description: 'Publicaciones en Paris Marketplace' },
+  { key: 'ecommerce_hites', label: 'Hites', description: 'Publicaciones en Hites Marketplace' },
+  { key: 'ecommerce_ripley', label: 'Ripley', description: 'Publicaciones en Ripley Marketplace' },
+  { key: 'ecommerce_walmart', label: 'Walmart', description: 'Publicaciones en Walmart Chile' },
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Emisión de documentos tributarios electrónicos' },

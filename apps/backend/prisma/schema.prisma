@@ -15,6 +15,14 @@ enum Role {
 
 enum MarketplaceType {
   MERCADO_LIBRE
+  SHOPIFY
+  WOOCOMMERCE
+  JUMPSELLER
+  FALABELLA
+  PARIS
+  HITES
+  RIPLEY
+  WALMART
 }
 
 enum ListingStatus {
@@ -28,6 +36,14 @@ enum ListingStatus {
 enum SaleChannel {
   POS
   MERCADO_LIBRE
+  SHOPIFY
+  WOOCOMMERCE
+  JUMPSELLER
+  FALABELLA
+  PARIS
+  HITES
+  RIPLEY
+  WALMART
   MANUAL
 }
 
@@ -93,9 +109,10 @@ model MarketplaceConnection {
   marketplace    MarketplaceType
   mlClientId     String?
   mlClientSecret String?
-  accessToken    String
+  accessToken    String          @default("")
   refreshToken   String?
   expiresAt      DateTime?
+  credentials    Json?
   active         Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt

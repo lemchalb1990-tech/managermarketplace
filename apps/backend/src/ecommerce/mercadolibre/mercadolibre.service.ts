@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
 import { SettingsService } from '../../settings/settings.service';
 import { ListingStatus } from '@prisma/client';
+import { SyncService } from '../sync/sync.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -22,6 +23,7 @@ export class MercadolibreService {
     private config: ConfigService,
     private catalog: CatalogService,
     private settings: SettingsService,
+    private sync: SyncService,
   ) {}
 
   // ─── Credenciales por empresa ────────────────────────────────────────────────
@@ -610,6 +612,14 @@ export class MercadolibreService {
           this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
         }
       });
+
+      // Sincronizar otras plataformas tras la venta de ML
+      for (const { listing, quantity } of resolvedItems) {
+        const newStock = Math.max(0, listing.product.stock - quantity);
+        this.sync.syncProduct(listing.productId, newStock).catch((e) =>
+          this.logger.error(`Sync otras plataformas tras ML webhook: ${e.message}`),
+        );
+      }
     } catch (error) {
       this.logger.error('Error procesando webhook ML', error);
     }
