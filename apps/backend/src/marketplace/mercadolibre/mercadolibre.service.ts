@@ -278,6 +278,7 @@ export class MercadolibreService {
     const mlData = await res.json() as any;
 
     // Enviar descripción HTML si existe
+    let descriptionWarning: string | null = null;
     const mlDescription = (product as any).mlDescription;
     if (mlDescription && mlData.id) {
       const descRes = await fetch(`${ML_API}/items/${mlData.id}/description`, {
@@ -287,11 +288,13 @@ export class MercadolibreService {
       });
       if (!descRes.ok) {
         const descErr = await descRes.json() as any;
-        this.logger.warn(`ML description update failed: ${descErr.message || descErr.error}`);
+        const reason = descErr.message || descErr.error || 'error desconocido';
+        this.logger.warn(`ML description update failed: ${reason}`);
+        descriptionWarning = `La publicación se creó correctamente, pero la descripción HTML fue rechazada por Mercado Libre para esta categoría (${reason}). El producto quedó publicado con la descripción de texto plano.`;
       }
     }
 
-    return this.prisma.listing.upsert({
+    const listing = await this.prisma.listing.upsert({
       where: { productId_connectionId: { productId, connectionId } },
       update: {
         externalId: mlData.id,
@@ -308,6 +311,8 @@ export class MercadolibreService {
         syncedAt: new Date(),
       },
     });
+
+    return { ...listing, descriptionWarning };
   }
 
   async syncStock(productId: string, connectionId: string, user: any) {

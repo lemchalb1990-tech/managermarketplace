@@ -100,6 +100,7 @@ export default function CatalogPage() {
   const [editError, setEditError] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
+  const [mlWarning, setMlWarning] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -128,6 +129,7 @@ export default function CatalogPage() {
     });
     setTab('edit');
     setEditError('');
+    setMlWarning('');
   }
 
   async function refreshSelected(id: string) {
@@ -216,9 +218,11 @@ export default function CatalogPage() {
 
   async function handlePublish(connectionId: string) {
     setMlLoading(l => ({ ...l, [connectionId]: true }));
+    setMlWarning('');
     try {
       const token = getToken()!;
-      await api.marketplace.publish(selected.id, connectionId, token);
+      const result = await api.marketplace.publish(selected.id, connectionId, token);
+      if (result?.descriptionWarning) setMlWarning(result.descriptionWarning);
       await refreshSelected(selected.id);
     } catch (err: any) {
       alert(err.message);
@@ -539,6 +543,15 @@ export default function CatalogPage() {
 
               {tab === 'ml' && (
                 <div className="space-y-3">
+                  {mlWarning && (
+                    <div className="flex gap-3 px-4 py-3 bg-yellow-50 border border-yellow-300 rounded-xl text-sm text-yellow-800">
+                      <span className="text-yellow-500 text-lg leading-none">⚠</span>
+                      <div>
+                        <p className="font-semibold mb-0.5">Advertencia: descripción HTML rechazada</p>
+                        <p>{mlWarning}</p>
+                      </div>
+                    </div>
+                  )}
                   {connections.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                       <p className="text-sm mb-1">No hay cuentas de Mercado Libre conectadas.</p>
