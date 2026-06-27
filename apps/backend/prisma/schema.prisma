@@ -51,6 +51,7 @@ model Company {
   slug      String   @unique
   active          Boolean  @default(true)
   maxUsers        Int      @default(10)
+  modules         Json?
   mlClientId      String?
   mlClientSecret  String?
   createdAt       DateTime @default(now())

@@ -1,14 +1,25 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getUser } from '@/lib/auth';
 
-const platforms = [
+function hasUserModule(user: any, moduleKey: string): boolean {
+  if (!user || user.role === 'SUPER_ADMIN') return true;
+  const companyMods = user.company?.modules;
+  if (companyMods && Array.isArray(companyMods) && !companyMods.some((m: string) => m === moduleKey || m.startsWith(moduleKey + '_'))) return false;
+  const userMods = user.modules;
+  if (!userMods || !Array.isArray(userMods)) return true;
+  return userMods.includes(moduleKey);
+}
+
+const allPlatforms = [
   {
     id: 'mercadolibre',
+    moduleKey: 'ecommerce_ml',
     name: 'Mercado Libre',
     description: 'Publica y sincroniza productos en Mercado Libre Chile.',
     href: '/dashboard/ecommerce/mercadolibre',
-    available: true,
     logo: (
       <svg viewBox="0 0 120 40" className="h-8" aria-label="Mercado Libre">
         <rect width="120" height="40" rx="6" fill="#FFE600" />
@@ -20,13 +31,14 @@ const platforms = [
     color: 'border-yellow-300 hover:border-yellow-400 hover:shadow-yellow-100',
     badge: 'Conectado',
     badgeColor: 'bg-green-100 text-green-700',
+    available: true,
   },
   {
     id: 'shopify',
+    moduleKey: 'ecommerce_shopify',
     name: 'Shopify',
     description: 'Sincroniza inventario y pedidos con tu tienda Shopify.',
     href: '#',
-    available: false,
     logo: (
       <svg viewBox="0 0 120 40" className="h-8" aria-label="Shopify">
         <rect width="120" height="40" rx="6" fill="#96BF48" />
@@ -38,13 +50,14 @@ const platforms = [
     color: 'border-gray-200 opacity-60 cursor-not-allowed',
     badge: 'Próximamente',
     badgeColor: 'bg-gray-100 text-gray-500',
+    available: false,
   },
   {
     id: 'woocommerce',
+    moduleKey: null,
     name: 'WooCommerce',
     description: 'Conecta tu tienda WooCommerce para gestionar pedidos y stock.',
     href: '#',
-    available: false,
     logo: (
       <svg viewBox="0 0 120 40" className="h-8" aria-label="WooCommerce">
         <rect width="120" height="40" rx="6" fill="#7F54B3" />
@@ -56,10 +69,21 @@ const platforms = [
     color: 'border-gray-200 opacity-60 cursor-not-allowed',
     badge: 'Próximamente',
     badgeColor: 'bg-gray-100 text-gray-500',
+    available: false,
   },
 ];
 
 export default function EcommercePage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    setCurrentUser(getUser());
+  }, []);
+
+  const platforms = allPlatforms.filter(
+    (p) => p.moduleKey === null || hasUserModule(currentUser, p.moduleKey),
+  );
+
   return (
     <div className="max-w-3xl">
       <div className="mb-8">

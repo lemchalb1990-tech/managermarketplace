@@ -23,9 +23,11 @@ const roleBadge: Record<string, string> = {
 
 const ALL_MODULES = [
   { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
-  { key: 'ecommerce', label: 'E-commerce', description: 'Publicaciones en Mercado Libre y otras plataformas' },
+  { key: 'ecommerce_ml', label: 'Mercado Libre', description: 'Publicaciones y sincronización en Mercado Libre Chile' },
+  { key: 'ecommerce_shopify', label: 'Shopify', description: 'Sincronización con tienda Shopify' },
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
+  { key: 'billing', label: 'Facturación electrónica', description: 'Emisión de documentos tributarios electrónicos' },
 ];
 
 const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '' };

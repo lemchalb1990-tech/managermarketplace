@@ -49,4 +49,7 @@ export class UpdateCompanyDto {
   @Min(1)
   @Max(500)
   maxUsers?: number;
+
+  @IsOptional()
+  modules?: string[] | null;
 }

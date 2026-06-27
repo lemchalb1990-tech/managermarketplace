@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
 
 // module: null = siempre visible (sin restricción por módulos)
+// module: 'ecommerce' = visible si user tiene ecommerce_ml, ecommerce_shopify, etc. (prefijo)
 const navItems = [
   { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
   { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
@@ -14,16 +15,22 @@ const navItems = [
   { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
   { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'pos' },
   { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'sales' },
+  { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
   { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
 ];
 
+function matchesModule(modules: any, moduleKey: string): boolean {
+  if (!modules || !Array.isArray(modules)) return true;
+  return modules.some((m: string) => m === moduleKey || m.startsWith(moduleKey + '_'));
+}
+
 function hasModule(user: any, moduleKey: string | null): boolean {
   if (moduleKey === null) return true;
-  // SUPER_ADMIN siempre ve todo
   if (user.role === 'SUPER_ADMIN') return true;
-  // null/undefined en modules = todos habilitados (valor por defecto)
-  if (!user.modules || !Array.isArray(user.modules)) return true;
-  return user.modules.includes(moduleKey);
+  // company-level check (null = all licensed)
+  if (!matchesModule(user.company?.modules, moduleKey)) return false;
+  // user-level check (null = all enabled)
+  return matchesModule(user.modules, moduleKey);
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

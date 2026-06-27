@@ -4,8 +4,17 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
+const ALL_COMPANY_MODULES = [
+  { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
+  { key: 'ecommerce_ml', label: 'Mercado Libre', description: 'Publicaciones en ML Chile' },
+  { key: 'ecommerce_shopify', label: 'Shopify', description: 'Sincronización con Shopify' },
+  { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
+  { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
+  { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },
+];
+
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -65,6 +74,22 @@ export default function CompaniesPage() {
     }
   }
 
+  function toggleCompanyModule(key: string) {
+    setEditing((s) => {
+      if (!s) return s;
+      const current = s.modules ?? ALL_COMPANY_MODULES.map((m) => m.key);
+      const has = current.includes(key);
+      const next = has ? current.filter((k) => k !== key) : [...current, key];
+      return { ...s, modules: next.length === ALL_COMPANY_MODULES.length ? null : next };
+    });
+  }
+
+  function isCompanyModuleEnabled(key: string): boolean {
+    if (!editing) return true;
+    if (editing.modules === null) return true;
+    return editing.modules.includes(key);
+  }
+
   async function handleUpdate(e: FormEvent) {
     e.preventDefault();
     if (!editing) return;
@@ -72,7 +97,12 @@ export default function CompaniesPage() {
     setEditLoading(true);
     try {
       const token = getToken()!;
-      await api.companies.update(editing.id, { name: editing.name, active: editing.active, maxUsers: editing.maxUsers }, token);
+      await api.companies.update(editing.id, {
+        name: editing.name,
+        active: editing.active,
+        maxUsers: editing.maxUsers,
+        modules: editing.modules,
+      }, token);
       setEditing(null);
       await load();
     } catch (err: any) {
@@ -171,6 +201,35 @@ export default function CompaniesPage() {
                 </label>
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-gray-600">Módulos licenciados</label>
+                <span className="text-xs text-gray-400">
+                  {editing.modules === null ? 'Todos activos' : `${editing.modules.length} de ${ALL_COMPANY_MODULES.length}`}
+                </span>
+              </div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+                {ALL_COMPANY_MODULES.map((mod) => {
+                  const enabled = isCompanyModuleEnabled(mod.key);
+                  return (
+                    <label key={mod.key}
+                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${enabled ? 'bg-white' : 'bg-gray-50'}`}>
+                      <div onClick={() => toggleCompanyModule(mod.key)}
+                        className={`w-9 h-5 rounded-full transition-colors flex items-center shrink-0 cursor-pointer ${enabled ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform mx-0.5 ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium ${enabled ? 'text-gray-800' : 'text-gray-400'}`}>{mod.label}</p>
+                        <p className="text-xs text-gray-400 truncate">{mod.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">Todos activos por defecto. Desactiva los módulos que la empresa no tiene contratados.</p>
+            </div>
+
             {editError && <p className="text-red-600 text-sm">{editError}</p>}
             <div className="flex gap-2">
               <button type="submit" disabled={editLoading}
@@ -222,7 +281,7 @@ export default function CompaniesPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10 }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>
