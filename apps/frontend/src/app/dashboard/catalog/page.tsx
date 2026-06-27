@@ -39,10 +39,10 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
           className="px-2 py-1 rounded hover:bg-gray-200 text-sm italic">I</button>
         <button type="button" onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList'); }}
           className="px-2 py-1 rounded hover:bg-gray-200 text-xs">• Lista</button>
-        {images.length > 0 && (
+        <div className="w-px h-4 bg-gray-300 mx-1" />
+        {images.length > 0 ? (
           <>
-            <div className="w-px h-4 bg-gray-300 mx-1" />
-            <span className="text-xs text-gray-400 mr-0.5">Insertar:</span>
+            <span className="text-xs text-gray-400 mr-0.5">Insertar imagen:</span>
             {images.map((img: any, i: number) => (
               <button key={img.id} type="button"
                 onMouseDown={e => { e.preventDefault(); insertImg(imgUrl(img.url)); }}
@@ -52,6 +52,10 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
               </button>
             ))}
           </>
+        ) : (
+          <span className="text-xs text-amber-600 italic">
+            Sube imágenes en la pestaña "Imágenes" para poder insertarlas aquí
+          </span>
         )}
       </div>
       <div
