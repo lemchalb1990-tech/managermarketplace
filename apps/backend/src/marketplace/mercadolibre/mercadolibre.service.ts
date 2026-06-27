@@ -378,12 +378,11 @@ export class MercadolibreService {
     const token = await this.getValidToken(connectionId);
     const warnings: string[] = [];
 
-    // Sincronizar título, precio y stock
+    // Sincronizar precio y stock (ML no permite cambiar título de items activos)
     const itemRes = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: product.name,
         price: Number(product.price),
         available_quantity: product.stock,
       }),
@@ -395,16 +394,15 @@ export class MercadolibreService {
       throw new BadRequestException(err.message || 'Error al sincronizar en Mercado Libre');
     }
 
-    // Sincronizar descripción
+    // Sincronizar descripción (siempre enviar, mínimo texto plano)
     const mlDescription = (product as any).mlDescription;
     const descBody = mlDescription
       ? { html_content: mlDescription }
-      : product.description ? { plain_text: product.description } : null;
+      : { plain_text: product.description || product.name };
 
-    if (descBody) {
-      const descErr = await this.upsertMlDescription(listing.externalId, token, descBody);
-      if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
-    }
+    this.logger.log(`ML sync description payload: ${JSON.stringify(descBody).substring(0, 120)}`);
+    const descErr = await this.upsertMlDescription(listing.externalId, token, descBody);
+    if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
 
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
     const updated = await this.prisma.listing.update({
