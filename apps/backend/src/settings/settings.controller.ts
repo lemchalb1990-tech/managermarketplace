@@ -1,5 +1,5 @@
-import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
-import { IsArray, IsString, ValidateNested } from 'class-validator';
+import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { IsArray, IsString, ValidateNested, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
 import { SettingsService } from './settings.service';
@@ -19,6 +19,12 @@ class UpdateSettingsDto {
   settings: SettingItemDto[];
 }
 
+class PlatformSettingDto {
+  @IsOptional() @IsString() displayName?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() logoUrl?: string;
+}
+
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN)
@@ -33,5 +39,16 @@ export class SettingsController {
   @Patch()
   update(@Body() dto: UpdateSettingsDto) {
     return this.service.upsertMany(dto.settings);
+  }
+
+  @Get('platforms')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getPlatforms() {
+    return this.service.getPlatformSettings();
+  }
+
+  @Patch('platforms/:platform')
+  upsertPlatform(@Param('platform') platform: string, @Body() dto: PlatformSettingDto) {
+    return this.service.upsertPlatformSetting(platform, dto);
   }
 }

@@ -250,6 +250,17 @@ model Setting {
   @@map("settings")
 }
 
+model PlatformSetting {
+  id          String   @id @default(cuid())
+  platform    String   @unique
+  displayName String?
+  description String?
+  logoUrl     String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   action    String

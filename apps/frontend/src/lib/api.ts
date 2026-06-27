@@ -137,6 +137,11 @@ export const api = {
     list: (token: string) => apiFetch<any[]>('/settings', {}, token),
     update: (settings: { key: string; value: string }[], token: string) =>
       apiFetch<any>('/settings', { method: 'PATCH', body: JSON.stringify({ settings }) }, token),
+    platforms: {
+      list: (token: string) => apiFetch<any[]>('/settings/platforms', {}, token),
+      update: (platform: string, data: { displayName?: string; description?: string; logoUrl?: string }, token: string) =>
+        apiFetch<any>(`/settings/platforms/${platform}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    },
   },
   pos: {
     createSale: (data: any, token: string) =>
