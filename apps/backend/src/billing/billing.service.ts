@@ -21,7 +21,7 @@ export class BillingService {
     private bsale: BsaleAdapter,
     private stub: BillingStubAdapter,
   ) {
-    this.adapters = new Map([
+    this.adapters = new Map<BillingProvider, BillingAdapter>([
       [BillingProvider.OPENFACTURA, openfactura],
       [BillingProvider.BSALE, bsale],
       [BillingProvider.FACTO, stub],
