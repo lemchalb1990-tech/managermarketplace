@@ -356,8 +356,10 @@ export class MercadolibreService {
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
     const token = await this.getValidToken(connectionId);
+    const warnings: string[] = [];
 
-    const res = await fetch(`${ML_API}/items/${listing.externalId}`, {
+    // Sincronizar título, precio y stock
+    const itemRes = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -367,27 +369,38 @@ export class MercadolibreService {
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.json() as any;
-      throw new BadRequestException(err.message || 'Error al sincronizar');
+    if (!itemRes.ok) {
+      const err = await itemRes.json() as any;
+      this.logger.error(`ML sync item error [${itemRes.status}]: ${JSON.stringify(err)}`);
+      throw new BadRequestException(err.message || 'Error al sincronizar en Mercado Libre');
     }
 
     // Sincronizar descripción
     const mlDescription = (product as any).mlDescription;
     const plainDesc = product.description || product.name;
-    await fetch(`${ML_API}/items/${listing.externalId}/description`, {
+    const descBody = mlDescription
+      ? { html_content: mlDescription }
+      : { plain_text: plainDesc };
+
+    const descRes = await fetch(`${ML_API}/items/${listing.externalId}/description`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        mlDescription ? { html_content: mlDescription } : { plain_text: plainDesc },
-      ),
+      body: JSON.stringify(descBody),
     });
 
+    if (!descRes.ok) {
+      const descErr = await descRes.json() as any;
+      this.logger.warn(`ML sync description error [${descRes.status}]: ${JSON.stringify(descErr)}`);
+      warnings.push(`Descripción no sincronizada: ${descErr.message || 'error desconocido'}`);
+    }
+
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
-    return this.prisma.listing.update({
+    const updated = await this.prisma.listing.update({
       where: { id: listing.id },
       data: { status: newStatus, syncedAt: new Date() },
     });
+
+    return { ...updated, warnings };
   }
 
   // ─── Webhook ─────────────────────────────────────────────────────────────────

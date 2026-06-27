@@ -499,8 +499,11 @@ export default function CatalogPage() {
     setMlLoading(l => ({ ...l, [`sync_${connectionId}`]: true }));
     try {
       const token = getToken()!;
-      await api.marketplace.sync(selected.id, connectionId, token);
+      const result = await api.marketplace.sync(selected.id, connectionId, token);
       await refreshSelected(selected.id);
+      if (result?.warnings?.length) {
+        setMlWarning(result.warnings.join(' | '));
+      }
     } catch (err: any) {
       alert(err.message);
     } finally {
