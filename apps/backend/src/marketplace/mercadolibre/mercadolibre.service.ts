@@ -341,15 +341,24 @@ export class MercadolibreService {
 
     // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
-    const mlDescription = (product as any).mlDescription;
-    const descBody = mlDescription
-      ? { html_content: mlDescription }
-      : { plain_text: product.description || product.name };
+    const mlDescriptionHtml = (product as any).mlDescription;
+    const plainBase = product.description || product.name;
+    const safePlainPublish = plainBase.length < 100
+      ? plainBase + ' '.repeat(100 - plainBase.length)
+      : plainBase;
 
     if (mlData.id) {
-      const reason = await this.upsertMlDescription(mlData.id, token, descBody);
+      const descBody = mlDescriptionHtml
+        ? { html_content: mlDescriptionHtml }
+        : { plain_text: safePlainPublish };
+
+      let reason = await this.upsertMlDescription(mlData.id, token, descBody);
+      // Si html falla, reintentar con plain_text
+      if (reason && mlDescriptionHtml) {
+        reason = await this.upsertMlDescription(mlData.id, token, { plain_text: safePlainPublish });
+      }
       if (reason) {
-        descriptionWarning = `Publicación creada correctamente, pero la descripción fue rechazada por ML (${reason}).`;
+        descriptionWarning = `Publicación creada, pero la descripción fue rechazada por ML (${reason}).`;
       }
     }
 
@@ -400,15 +409,34 @@ export class MercadolibreService {
       throw new BadRequestException(err.message || 'Error al sincronizar en Mercado Libre');
     }
 
-    // Sincronizar descripción (siempre enviar, mínimo texto plano)
+    // Sincronizar descripción — siempre enviar, mínimo texto plano
     const mlDescription = (product as any).mlDescription;
+    const plainText = product.description || product.name;
+
+    // ML requiere mínimo ~100 caracteres en plain_text; si es muy corto, paddear
+    const safePlain = plainText.length < 100
+      ? plainText + ' '.repeat(100 - plainText.length)
+      : plainText;
+
     const descBody = mlDescription
       ? { html_content: mlDescription }
-      : { plain_text: product.description || product.name };
+      : { plain_text: safePlain };
 
-    this.logger.log(`ML sync description payload: ${JSON.stringify(descBody).substring(0, 120)}`);
+    this.logger.log(`ML sync description [${listing.externalId}]: ${JSON.stringify(descBody).substring(0, 200)}`);
     const descErr = await this.upsertMlDescription(listing.externalId, token, descBody);
-    if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
+
+    if (descErr) {
+      this.logger.warn(`ML description failed: ${descErr}`);
+      // Si html falla, reintentar con plain_text
+      if (mlDescription) {
+        const retryErr = await this.upsertMlDescription(listing.externalId, token, { plain_text: safePlain });
+        if (retryErr) {
+          warnings.push(`Descripción no sincronizada: ${retryErr}`);
+        }
+      } else {
+        warnings.push(`Descripción no sincronizada: ${descErr}`);
+      }
+    }
 
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
     const updated = await this.prisma.listing.update({
