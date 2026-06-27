@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
+import { SettingsService } from '../../settings/settings.service';
 import { ListingStatus } from '@prisma/client';
 
 const ML_API = 'https://api.mercadolibre.com';
@@ -20,6 +21,7 @@ export class MercadolibreService {
     private prisma: PrismaService,
     private config: ConfigService,
     private catalog: CatalogService,
+    private settings: SettingsService,
   ) {}
 
   // ─── Credenciales por empresa ────────────────────────────────────────────────
@@ -68,7 +70,7 @@ export class MercadolibreService {
     if (!mlClientId || !mlClientSecret) {
       throw new BadRequestException('Client ID y Client Secret son requeridos');
     }
-    const redirectUri = this.config.get('ML_REDIRECT_URI');
+    const redirectUri = await this.settings.get('ML_REDIRECT_URI');
 
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
@@ -100,7 +102,7 @@ export class MercadolibreService {
 
     const clientId = draft.mlClientId;
     const clientSecret = draft.mlClientSecret;
-    const redirectUri = this.config.get('ML_REDIRECT_URI');
+    const redirectUri = await this.settings.get('ML_REDIRECT_URI');
 
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
@@ -299,14 +301,14 @@ export class MercadolibreService {
 
     const primaryImage = product.images.find((i: any) => i.isPrimary) || product.images[0];
 
-    const categoryId = (product as any).mlCategoryId || this.config.get('ML_DEFAULT_CATEGORY');
+    const categoryId = (product as any).mlCategoryId || await this.settings.get('ML_DEFAULT_CATEGORY');
     if (!categoryId) {
       throw new BadRequestException(
         'Debes asignar una categoría de Mercado Libre al producto antes de publicar.',
       );
     }
 
-    const appUrl = this.config.get('APP_URL') || '';
+    const appUrl = await this.settings.get('APP_URL');
     const toAbsolute = (url: string) =>
       url.startsWith('http') ? url : `${appUrl}${url}`;
 

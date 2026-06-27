@@ -217,6 +217,18 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  label     String
+  group     String
+  hint      String?
+  sensitive Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   action    String

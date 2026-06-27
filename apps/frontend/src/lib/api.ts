@@ -113,6 +113,11 @@ export const api = {
     toggleListing: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
   },
+  settings: {
+    list: (token: string) => apiFetch<any[]>('/settings', {}, token),
+    update: (settings: { key: string; value: string }[], token: string) =>
+      apiFetch<any>('/settings', { method: 'PATCH', body: JSON.stringify({ settings }) }, token),
+  },
   pos: {
     createSale: (data: any, token: string) =>
       apiFetch<any>('/pos/sales', { method: 'POST', body: JSON.stringify(data) }, token),

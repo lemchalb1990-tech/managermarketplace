@@ -11,6 +11,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { EcommerceModule } from './ecommerce/ecommerce.module';
 import { PosModule } from './pos/pos.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PosModule } from './pos/pos.module';
     CatalogModule,
     EcommerceModule,
     PosModule,
+    SettingsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
