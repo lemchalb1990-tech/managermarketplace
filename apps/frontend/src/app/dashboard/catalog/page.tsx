@@ -2,7 +2,7 @@
 
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { getToken } from '@/lib/auth';
-import { api, imgUrl } from '@/lib/api';
+import { api, imgUrl, ApiError } from '@/lib/api';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -65,6 +65,88 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
         onInput={() => onChange(editorRef.current?.innerHTML || '')}
         className="min-h-[140px] p-3 text-sm focus:outline-none [&_img]:max-w-full [&_img]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
       />
+    </div>
+  );
+}
+
+type CheckStatus = 'ok' | 'warn' | 'error';
+interface PreflightCheck { label: string; value?: string | null; status: CheckStatus; }
+interface PublishModalState {
+  connectionId: string;
+  phase: 'preflight' | 'publishing' | 'error';
+  checks: PreflightCheck[];
+  mlErrors: string[];
+}
+
+const checkIcon: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️', error: '❌' };
+
+function PrePublishModal({ state, onConfirm, onClose }: {
+  state: PublishModalState;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const hasErrors = state.checks.some(c => c.status === 'error');
+  const isError = state.phase === 'error';
+  const isPublishing = state.phase === 'publishing';
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900 text-base">
+            {isError ? 'Mercado Libre rechazó la publicación' : 'Verificación antes de publicar'}
+          </h2>
+        </div>
+
+        <div className="p-5 space-y-2.5 overflow-y-auto">
+          {isError ? (
+            <div className="space-y-2">
+              {state.mlErrors.map((e, i) => (
+                <div key={i} className="flex gap-2 items-start text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <span className="text-red-500 shrink-0 mt-0.5">•</span>
+                  <span className="text-red-800">{e}</span>
+                </div>
+              ))}
+              <p className="text-xs text-gray-400 pt-1">Corrige los campos y vuelve a intentarlo.</p>
+            </div>
+          ) : (
+            state.checks.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <span className="w-5 shrink-0 text-base leading-none">{checkIcon[c.status]}</span>
+                <span className="text-gray-700 flex-1">{c.label}</span>
+                {c.value && <span className="text-gray-400 text-xs text-right max-w-[140px] truncate">{c.value}</span>}
+              </div>
+            ))
+          )}
+        </div>
+
+        {!isError && hasErrors && (
+          <div className="px-5 pb-2">
+            <p className="text-xs text-red-600 font-medium">
+              Completa los campos obligatorios (❌) antes de publicar.
+            </p>
+          </div>
+        )}
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
+            {isError ? 'Cerrar' : 'Cancelar'}
+          </button>
+          {!isError && (
+            <button onClick={onConfirm} disabled={hasErrors || isPublishing}
+              className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-gray-900 rounded-lg text-sm font-semibold">
+              {isPublishing ? 'Publicando...' : 'Publicar ahora'}
+            </button>
+          )}
+          {isError && (
+            <button onClick={onConfirm}
+              className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold">
+              Reintentar
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -168,6 +250,7 @@ export default function CatalogPage() {
   const [mlWarning, setMlWarning] = useState('');
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
+  const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -308,18 +391,63 @@ export default function CatalogPage() {
     await refreshSelected(selected.id);
   }
 
-  async function handlePublish(connectionId: string) {
-    setMlLoading(l => ({ ...l, [connectionId]: true }));
+  function buildPreflightChecks(): PreflightCheck[] {
+    const attrs = editForm.mlAttributes || [];
+    const requiredAttrs = mlCategoryAttrs.filter((a: any) => a.required);
+    const checks: PreflightCheck[] = [
+      {
+        label: 'Categoría ML',
+        value: editForm.mlCategoryId || null,
+        status: editForm.mlCategoryId ? 'ok' : 'error',
+      },
+      {
+        label: 'Precio',
+        value: editForm.price ? `$${Number(editForm.price).toLocaleString('es-CL')}` : null,
+        status: Number(editForm.price) > 0 ? 'ok' : 'error',
+      },
+      {
+        label: 'Stock',
+        value: `${editForm.stock ?? 0} unidades`,
+        status: Number(editForm.stock) > 0 ? 'ok' : 'warn',
+      },
+      {
+        label: 'Imagen principal',
+        value: selected?.images?.length > 0 ? `${selected.images.length} imagen(es)` : null,
+        status: selected?.images?.length > 0 ? 'ok' : 'warn',
+      },
+      ...requiredAttrs.map((a: any) => {
+        const found = attrs.find((x: any) => x.id === a.id && x.value_name);
+        return { label: a.name, value: found?.value_name || null, status: (found ? 'ok' : 'error') as CheckStatus };
+      }),
+      {
+        label: 'Descripción detallada ML',
+        value: editForm.mlDescription ? 'Configurada' : null,
+        status: (editForm.mlDescription ? 'ok' : 'warn') as CheckStatus,
+      },
+    ];
+    return checks;
+  }
+
+  function openPublishModal(connectionId: string) {
+    setPublishModal({ connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [] });
+  }
+
+  async function confirmPublish() {
+    if (!publishModal) return;
+    const { connectionId } = publishModal;
+    setPublishModal(m => m ? { ...m, phase: 'publishing' } : m);
     setMlWarning('');
     try {
       const token = getToken()!;
       const result = await api.marketplace.publish(selected.id, connectionId, token);
       if (result?.descriptionWarning) setMlWarning(result.descriptionWarning);
       await refreshSelected(selected.id);
+      setPublishModal(null);
     } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setMlLoading(l => ({ ...l, [connectionId]: false }));
+      const mlErrors = (err instanceof ApiError && err.mlErrors?.length)
+        ? err.mlErrors
+        : [err.message || 'Error desconocido'];
+      setPublishModal(m => m ? { ...m, phase: 'error', mlErrors } : m);
     }
   }
 
@@ -705,7 +833,7 @@ export default function CatalogPage() {
                     </div>
                   ) : connections.map((conn) => {
                     const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
-                    const publishBusy = mlLoading[conn.id];
+                    const publishBusy = publishModal?.connectionId === conn.id && publishModal?.phase === 'publishing';
                     const syncBusy = mlLoading[`sync_${conn.id}`];
                     return (
                       <div key={conn.id} className="border border-gray-200 rounded-xl p-4">
@@ -730,8 +858,14 @@ export default function CatalogPage() {
                             {listing.externalUrl}
                           </a>
                         )}
+                        {listing?.errorMsg && (
+                          <div className="flex gap-2 items-start mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                            <span className="shrink-0 mt-0.5">❌</span>
+                            <span>{listing.errorMsg}</span>
+                          </div>
+                        )}
                         <div className="flex gap-2">
-                          <button onClick={() => handlePublish(conn.id)} disabled={publishBusy}
+                          <button onClick={() => openPublishModal(conn.id)} disabled={publishBusy}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
                             {publishBusy ? 'Publicando...' : listing ? 'Republicar' : 'Publicar'}
                           </button>
@@ -750,6 +884,13 @@ export default function CatalogPage() {
             </div>
           </div>
         </div>
+      )}
+      {publishModal && (
+        <PrePublishModal
+          state={publishModal}
+          onConfirm={confirmPublish}
+          onClose={() => setPublishModal(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,14 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+export class ApiError extends Error {
+  mlErrors?: string[];
+  constructor(message: string, mlErrors?: string[]) {
+    super(message);
+    this.name = 'ApiError';
+    this.mlErrors = mlErrors;
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
@@ -13,8 +22,8 @@ export async function apiFetch<T>(
 
   const res = await fetch(`${API_URL}/api${path}`, { ...options, headers });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Error desconocido' }));
-    throw new Error(err.message || `Error ${res.status}`);
+    const errData = await res.json().catch(() => ({ message: 'Error desconocido' }));
+    throw new ApiError(errData.message || `Error ${res.status}`, errData.mlErrors);
   }
   return res.json();
 }

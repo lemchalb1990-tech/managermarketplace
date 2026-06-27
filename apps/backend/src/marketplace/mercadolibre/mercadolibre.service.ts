@@ -294,21 +294,18 @@ export class MercadolibreService {
       const err = await res.json() as any;
       this.logger.error('ML publish error', JSON.stringify(err));
 
-      let message = err.message || 'Error al publicar en Mercado Libre';
-      if (Array.isArray(err.cause) && err.cause.length > 0) {
-        const details = err.cause
-          .map((c: any) => c.message || c.reference || c.code)
-          .filter(Boolean)
-          .join(' | ');
-        if (details) message = `${message}: ${details}`;
-      }
+      const mlErrors: string[] = Array.isArray(err.cause) && err.cause.length > 0
+        ? err.cause.map((c: any) => c.message || c.reference || c.code).filter(Boolean)
+        : [err.message || 'Error al publicar en Mercado Libre'];
+
+      const summary = mlErrors[0];
 
       await this.prisma.listing.upsert({
         where: { productId_connectionId: { productId, connectionId } },
-        update: { status: ListingStatus.ERROR, errorMsg: message },
-        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: message },
+        update: { status: ListingStatus.ERROR, errorMsg: mlErrors.join(' | ') },
+        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: mlErrors.join(' | ') },
       });
-      throw new BadRequestException(message);
+      throw new BadRequestException({ message: summary, mlErrors });
     }
 
     const mlData = await res.json() as any;
