@@ -1,24 +1,107 @@
 'use client';
 
+import Link from 'next/link';
+import { BillingLogos } from './components/logos';
+
+const PROVIDERS = [
+  {
+    id: 'openfactura', name: 'OpenFactura',
+    description: 'Proveedor DTE de Haulmer. API REST con amplia documentación. Emisión de facturas, boletas y notas de crédito.',
+    href: '/dashboard/billing/openfactura', color: '#1A3C8F',
+    border: 'border-blue-200 hover:border-blue-400', tag: 'Popular', tagColor: 'bg-blue-100 text-blue-700',
+  },
+  {
+    id: 'bsale', name: 'Bsale',
+    description: 'Plataforma de ventas y facturación electrónica. Ideal para comercios con sistema POS integrado.',
+    href: '/dashboard/billing/bsale', color: '#FF6B00',
+    border: 'border-orange-200 hover:border-orange-400', tag: 'Popular', tagColor: 'bg-orange-100 text-orange-700',
+  },
+  {
+    id: 'facto', name: 'Facto',
+    description: 'Solución de facturación electrónica simple y rápida. Autorizada por el SII para emitir DTEs en Chile.',
+    href: '/dashboard/billing/facto', color: '#00B274',
+    border: 'border-emerald-200 hover:border-emerald-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+  },
+  {
+    id: 'defontana', name: 'Defontana',
+    description: 'ERP empresarial chileno con módulo de facturación electrónica. Para empresas con alta demanda operativa.',
+    href: '/dashboard/billing/defontana', color: '#1B2A4A',
+    border: 'border-slate-200 hover:border-slate-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+  },
+  {
+    id: 'nubox', name: 'Nubox',
+    description: 'Software contable y de facturación para PYMES. Integración directa con el SII de Chile.',
+    href: '/dashboard/billing/nubox', color: '#0057B8',
+    border: 'border-blue-200 hover:border-blue-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+  },
+  {
+    id: 'siigo', name: 'Siigo',
+    description: 'Software contable en la nube con facturación electrónica. API moderna y de fácil integración.',
+    href: '/dashboard/billing/siigo', color: '#6B21A8',
+    border: 'border-purple-200 hover:border-purple-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+  },
+];
+
 export default function BillingPage() {
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Facturación electrónica</h1>
-      <p className="text-gray-500 text-sm mb-8">
-        Emite y gestiona documentos tributarios electrónicos: boletas, facturas y notas de crédito.
-      </p>
-
-      <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-          </svg>
+    <div className="max-w-4xl">
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Facturación Electrónica</h1>
+          <p className="text-gray-500 text-sm">
+            Conecta con tu proveedor DTE autorizado por el SII y emite facturas, boletas y notas de crédito directamente desde la plataforma.
+          </p>
         </div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Módulo en desarrollo</h2>
-        <p className="text-sm text-gray-400 max-w-xs mx-auto">
-          La integración con el SII y emisión de documentos electrónicos estará disponible próximamente.
+        <div className="flex gap-2 shrink-0">
+          <Link href="/dashboard/billing/invoices"
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            Ver documentos
+          </Link>
+          <Link href="/dashboard/billing/invoices/new"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold whitespace-nowrap">
+            + Emitir DTE
+          </Link>
+        </div>
+      </div>
+
+      <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+        <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-xs text-amber-700 leading-relaxed">
+          Todos los proveedores son <strong>emisores electrónicos autorizados por el SII</strong>.
+          Asegúrate de que tu empresa esté habilitada para facturación electrónica antes de conectar.
         </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {PROVIDERS.map((p) => (
+          <Link key={p.id} href={p.href} className="block group">
+            <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${p.border}`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-16 h-10 rounded-lg overflow-hidden">{BillingLogos[p.id]}</div>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.tagColor}`}>{p.tag}</span>
+              </div>
+              <h2 className="font-semibold text-gray-900 mb-1">{p.name}</h2>
+              <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
+              <p className="mt-3 text-xs font-semibold text-blue-600 group-hover:text-blue-700">Gestionar →</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-8 grid grid-cols-3 gap-4">
+        {[
+          { icon: '🧾', label: 'Tipos de DTE', desc: 'Facturas, boletas, NC, ND y facturas exentas' },
+          { icon: '⚡', label: 'Emisión automática', desc: 'Genera DTE al cerrar ventas del POS o catálogo' },
+          { icon: '📥', label: 'PDF y XML', desc: 'Descarga y envía documentos directamente al cliente' },
+        ].map((item) => (
+          <div key={item.label} className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="text-2xl mb-2">{item.icon}</div>
+            <p className="text-sm font-semibold text-gray-800">{item.label}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

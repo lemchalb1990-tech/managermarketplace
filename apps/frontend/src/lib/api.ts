@@ -133,6 +133,41 @@ export const api = {
     productListings: (productId: string, token: string) =>
       apiFetch<any[]>(`/ecommerce/connections/products/${productId}/listings`, {}, token),
   },
+  billing: {
+    connections: {
+      list: (token: string, params?: { provider?: string; companyId?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.provider) q.set('provider', params.provider);
+        if (params?.companyId) q.set('companyId', params.companyId);
+        const qs = q.toString();
+        return apiFetch<any[]>(`/billing/connections${qs ? '?' + qs : ''}`, {}, token);
+      },
+      create: (data: { provider: string; name: string; credentials: Record<string, string>; companyId?: string }, token: string) =>
+        apiFetch<any>('/billing/connections', { method: 'POST', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string) =>
+        apiFetch<any>(`/billing/connections/${id}`, { method: 'DELETE' }, token),
+      test: (id: string, token: string) =>
+        apiFetch<{ success: boolean; message?: string }>(`/billing/connections/${id}/test`, { method: 'POST' }, token),
+    },
+    invoices: {
+      list: (token: string, params?: { page?: number; dteType?: string; status?: string; from?: string; to?: string; connectionId?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.page) q.set('page', String(params.page));
+        if (params?.dteType) q.set('dteType', params.dteType);
+        if (params?.status) q.set('status', params.status);
+        if (params?.from) q.set('from', params.from);
+        if (params?.to) q.set('to', params.to);
+        if (params?.connectionId) q.set('connectionId', params.connectionId);
+        return apiFetch<any>(`/billing/invoices?${q}`, {}, token);
+      },
+      issue: (data: any, token: string) =>
+        apiFetch<any>('/billing/invoices', { method: 'POST', body: JSON.stringify(data) }, token),
+      get: (id: string, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}`, {}, token),
+      cancel: (id: string, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}/cancel`, { method: 'POST' }, token),
+    },
+  },
   settings: {
     list: (token: string) => apiFetch<any[]>('/settings', {}, token),
     update: (settings: { key: string; value: string }[], token: string) =>

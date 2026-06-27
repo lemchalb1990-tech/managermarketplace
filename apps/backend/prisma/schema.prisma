@@ -74,10 +74,12 @@ model Company {
   createdAt       DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users       User[]
-  products    Product[]
-  connections MarketplaceConnection[]
-  sales       Sale[]
+  users              User[]
+  products           Product[]
+  connections        MarketplaceConnection[]
+  sales              Sale[]
+  billingConnections BillingConnection[]
+  invoices           Invoice[]
 
   @@map("companies")
 }
@@ -201,7 +203,8 @@ model Sale {
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
 
-  items SaleItem[]
+  items    SaleItem[]
+  invoices Invoice[]
 
   @@map("sales")
 }
@@ -248,6 +251,81 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+enum BillingProvider {
+  OPENFACTURA
+  FACTO
+  BSALE
+  DEFONTANA
+  NUBOX
+  SIIGO
+}
+
+enum DteType {
+  FACTURA
+  BOLETA
+  NOTA_CREDITO
+  NOTA_DEBITO
+  FACTURA_EXENTA
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+model BillingConnection {
+  id          String          @id @default(cuid())
+  name        String
+  provider    BillingProvider
+  credentials Json?
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  invoices  Invoice[]
+
+  @@map("billing_connections")
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  folio       Int?
+  dteType     DteType
+  rut         String
+  razonSocial String
+  giro        String?
+  address     String?
+  commune     String?
+  email       String?
+  netAmount   Decimal       @db.Decimal(12, 2)
+  tax         Decimal       @db.Decimal(12, 2)
+  totalAmount Decimal       @db.Decimal(12, 2)
+  items       Json
+  notes       String?
+  status      InvoiceStatus @default(DRAFT)
+  pdfUrl      String?
+  xmlUrl      String?
+  externalId  String?
+  issuedAt    DateTime?
+  errorMsg    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  connectionId String
+  connection   BillingConnection @relation(fields: [connectionId], references: [id])
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  saleId       String?
+  sale         Sale?             @relation(fields: [saleId], references: [id])
+
+  @@map("invoices")
 }
 
 model PlatformSetting {
