@@ -12,7 +12,7 @@ export default function HitesPage() {
       logoBg: '#E53935',
       logoText: 'HI',
       logoTextColor: '#fff',
-      supportsPublish: false,
+      supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Hites. Contacta a Hites para obtener acceso API.',
       fields: [
         { key: 'sellerId', label: 'Seller ID', placeholder: 'Tu ID de vendedor' },

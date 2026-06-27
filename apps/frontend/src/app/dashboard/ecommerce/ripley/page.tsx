@@ -12,7 +12,7 @@ export default function RipleyPage() {
       logoBg: '#6A1B9A',
       logoText: 'RI',
       logoTextColor: '#fff',
-      supportsPublish: false,
+      supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Ripley. Contacta a Ripley para obtener acceso API.',
       fields: [
         { key: 'sellerId', label: 'Seller ID', placeholder: 'Tu ID de vendedor' },

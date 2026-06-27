@@ -12,7 +12,7 @@ export default function ParisPage() {
       logoBg: '#1565C0',
       logoText: 'PA',
       logoTextColor: '#fff',
-      supportsPublish: false,
+      supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Paris. Contacta a Paris para obtener acceso API.',
       fields: [
         { key: 'sellerId', label: 'Seller ID', placeholder: 'Tu ID de vendedor' },

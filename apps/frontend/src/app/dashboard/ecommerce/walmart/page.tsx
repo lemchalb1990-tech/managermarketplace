@@ -12,7 +12,7 @@ export default function WalmartPage() {
       logoBg: '#0071CE',
       logoText: 'WM',
       logoTextColor: '#fff',
-      supportsPublish: false,
+      supportsPublish: true,
       helpText: 'Obtén tu Client ID y Client Secret desde el portal de vendedores de Walmart Chile.',
       fields: [
         { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID' },

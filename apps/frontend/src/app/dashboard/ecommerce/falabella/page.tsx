@@ -12,7 +12,7 @@ export default function FalabellaPage() {
       logoBg: '#7CB342',
       logoText: 'FA',
       logoTextColor: '#fff',
-      supportsPublish: false,
+      supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso a Falabella Seller Center. Contacta a Falabella para obtener acceso API.',
       fields: [
         { key: 'sellerId', label: 'Seller ID', placeholder: 'Tu ID de vendedor' },
