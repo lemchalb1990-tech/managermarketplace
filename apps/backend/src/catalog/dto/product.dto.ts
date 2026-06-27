@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateProductDto {
@@ -37,6 +37,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   mlDescription?: string;
+
+  @IsOptional()
+  @IsArray()
+  mlAttributes?: { id: string; value_name: string }[];
 }
 
 export class UpdateProductDto {
@@ -77,6 +81,10 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   mlDescription?: string;
+
+  @IsOptional()
+  @IsArray()
+  mlAttributes?: { id: string; value_name: string }[];
 }
 
 export class AdjustStockDto {

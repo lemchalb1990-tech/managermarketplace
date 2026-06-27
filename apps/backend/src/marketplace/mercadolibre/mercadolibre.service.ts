@@ -255,7 +255,10 @@ export class MercadolibreService {
       condition: 'new',
       description: { plain_text: product.description || product.name },
       pictures: primaryImage ? [{ url: toAbsolute(primaryImage.url) }] : [],
-      attributes: [{ id: 'SELLER_SKU', value_name: product.sku }],
+      attributes: [
+        { id: 'SELLER_SKU', value_name: product.sku },
+        ...((product as any).mlAttributes || []),
+      ],
     };
 
     const res = await fetch(`${ML_API}/items`, {
@@ -266,13 +269,23 @@ export class MercadolibreService {
 
     if (!res.ok) {
       const err = await res.json() as any;
-      this.logger.error('ML publish error', err);
+      this.logger.error('ML publish error', JSON.stringify(err));
+
+      let message = err.message || 'Error al publicar en Mercado Libre';
+      if (Array.isArray(err.cause) && err.cause.length > 0) {
+        const details = err.cause
+          .map((c: any) => c.message || c.reference || c.code)
+          .filter(Boolean)
+          .join(' | ');
+        if (details) message = `${message}: ${details}`;
+      }
+
       await this.prisma.listing.upsert({
         where: { productId_connectionId: { productId, connectionId } },
-        update: { status: ListingStatus.ERROR, errorMsg: err.message || 'Error al publicar' },
-        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: err.message },
+        update: { status: ListingStatus.ERROR, errorMsg: message },
+        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: message },
       });
-      throw new BadRequestException(err.message || 'Error al publicar en Mercado Libre');
+      throw new BadRequestException(message);
     }
 
     const mlData = await res.json() as any;

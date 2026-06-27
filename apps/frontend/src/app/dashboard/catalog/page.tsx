@@ -191,6 +191,7 @@ export default function CatalogPage() {
       stock: String(product.stock),
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
+      mlAttributes: product.mlAttributes || [],
     });
     setTab('edit');
     setEditError('');
@@ -244,6 +245,7 @@ export default function CatalogPage() {
         stock: parseInt(editForm.stock),
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
+        mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
       }, token);
       await refreshSelected(selected.id);
     } catch (err: any) {
@@ -512,6 +514,46 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Atributos ML <span className="text-gray-400 font-normal">(ej: BRAND → Samsung, MODEL → Galaxy S24)</span>
+                    </label>
+                    <div className="space-y-2">
+                      {(editForm.mlAttributes || []).map((attr: any, i: number) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input
+                            value={attr.id}
+                            onChange={e => {
+                              const attrs = [...editForm.mlAttributes];
+                              attrs[i] = { ...attrs[i], id: e.target.value.toUpperCase() };
+                              setEditForm((f: any) => ({ ...f, mlAttributes: attrs }));
+                            }}
+                            placeholder="ID (ej: BRAND)"
+                            className="w-36 px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-mono"
+                          />
+                          <input
+                            value={attr.value_name}
+                            onChange={e => {
+                              const attrs = [...editForm.mlAttributes];
+                              attrs[i] = { ...attrs[i], value_name: e.target.value };
+                              setEditForm((f: any) => ({ ...f, mlAttributes: attrs }));
+                            }}
+                            placeholder="Valor (ej: Samsung)"
+                            className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                          />
+                          <button type="button"
+                            onClick={() => setEditForm((f: any) => ({ ...f, mlAttributes: f.mlAttributes.filter((_: any, j: number) => j !== i) }))}
+                            className="text-red-400 hover:text-red-600 text-lg leading-none px-1">×</button>
+                        </div>
+                      ))}
+                      <button type="button"
+                        onClick={() => setEditForm((f: any) => ({ ...f, mlAttributes: [...(f.mlAttributes || []), { id: '', value_name: '' }] }))}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        + Agregar atributo
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
