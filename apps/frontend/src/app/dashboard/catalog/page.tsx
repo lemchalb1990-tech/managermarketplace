@@ -258,6 +258,7 @@ export default function CatalogPage() {
   const [mlWarning, setMlWarning] = useState('');
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
+  const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const originalFormRef = useRef<any>(null);
@@ -292,22 +293,23 @@ export default function CatalogPage() {
   }, [editForm]);
 
   async function fetchCategoryAttrs(categoryId: string, existingAttrs: any[] = []) {
-    if (!categoryId) { setMlCategoryAttrs([]); return; }
+    if (!categoryId) { setMlCategoryAttrs([]); setCategorySupportsHtml(false); return; }
     setAttrLoading(true);
     try {
       const token = getToken()!;
-      const attrs = await api.marketplace.getCategoryAttributes(categoryId, token);
-      setMlCategoryAttrs(attrs);
+      const { attributes, supportsHtml } = await api.marketplace.getCategoryAttributes(categoryId, token);
+      setMlCategoryAttrs(attributes);
+      setCategorySupportsHtml(supportsHtml);
       setEditForm((f: any) => {
         const existing: any[] = existingAttrs.length ? existingAttrs : (f.mlAttributes || []);
-        const required = attrs.map((a: any) => {
+        const required = attributes.map((a: any) => {
           const found = existing.find((e: any) => e.id === a.id);
           return { id: a.id, value_name: found?.value_name || '' };
         });
-        const extras = existing.filter((e: any) => !attrs.find((a: any) => a.id === e.id));
+        const extras = existing.filter((e: any) => !attributes.find((a: any) => a.id === e.id));
         return { ...f, mlAttributes: [...required, ...extras] };
       });
-    } catch { setMlCategoryAttrs([]); }
+    } catch { setMlCategoryAttrs([]); setCategorySupportsHtml(false); }
     finally { setAttrLoading(false); }
   }
 
@@ -339,6 +341,7 @@ export default function CatalogPage() {
       mlAttributes: JSON.stringify(existingAttrs),
     };
     setMlCategoryAttrs([]);
+    setCategorySupportsHtml(false);
     if (product.mlCategoryId) fetchCategoryAttrs(product.mlCategoryId, existingAttrs);
   }
 
@@ -816,12 +819,29 @@ export default function CatalogPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
                     </label>
-                    <MlDescriptionEditor
-                      value={editForm.mlDescription}
-                      productId={selected.id}
-                      images={selected.images || []}
-                      onChange={(html) => setEditForm((f: any) => ({ ...f, mlDescription: html }))}
-                    />
+                    {editForm.mlCategoryId && !attrLoading && !categorySupportsHtml && (
+                      <div className="flex gap-2 items-start px-3 py-2 mb-2 bg-orange-50 border border-orange-300 rounded-lg text-xs text-orange-800">
+                        <span className="shrink-0 mt-0.5">⚠️</span>
+                        <span>Esta categoría no soporta descripción con imágenes ni formato HTML. Solo se enviará texto plano a Mercado Libre.</span>
+                      </div>
+                    )}
+                    {categorySupportsHtml ? (
+                      <MlDescriptionEditor
+                        value={editForm.mlDescription}
+                        productId={selected.id}
+                        images={selected.images || []}
+                        onChange={(html) => setEditForm((f: any) => ({ ...f, mlDescription: html }))}
+                      />
+                    ) : (
+                      <textarea
+                        value={editForm.mlDescription || ''}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, mlDescription: e.target.value }))}
+                        rows={5}
+                        placeholder={editForm.mlCategoryId ? 'Descripción en texto plano para esta categoría...' : 'Selecciona una categoría ML para habilitar la descripción'}
+                        disabled={!editForm.mlCategoryId}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400"
+                      />
+                    )}
                   </div>
                   {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
                   <div className="col-span-2">

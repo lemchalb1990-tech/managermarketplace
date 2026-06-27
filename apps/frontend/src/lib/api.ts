@@ -100,7 +100,8 @@ export const api = {
       apiFetch<{ id: string; name: string }[]>(
         `/marketplace/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),
     getCategoryAttributes: (categoryId: string, token: string) =>
-      apiFetch<any[]>(`/marketplace/ml/categories/${categoryId}/attributes`, {}, token),
+      apiFetch<{ attributes: any[]; supportsHtml: boolean }>(
+        `/marketplace/ml/categories/${categoryId}/attributes`, {}, token),
     connections: (token: string) =>
       apiFetch<any[]>('/marketplace/ml/connections', {}, token),
     deleteConnection: (id: string, token: string) =>

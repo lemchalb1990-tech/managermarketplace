@@ -227,10 +227,18 @@ export class MercadolibreService {
 
   async getCategoryAttributes(categoryId: string) {
     try {
-      const res = await fetch(`${ML_API}/categories/${categoryId}/attributes`);
-      if (!res.ok) return [];
-      const data = await res.json() as any[];
-      return (Array.isArray(data) ? data : [])
+      const [attrsRes, catRes] = await Promise.all([
+        fetch(`${ML_API}/categories/${categoryId}/attributes`),
+        fetch(`${ML_API}/categories/${categoryId}`),
+      ]);
+
+      const attrsData = attrsRes.ok ? await attrsRes.json() as any[] : [];
+      const catData = catRes.ok ? await catRes.json() as any : {};
+
+      const settings = catData.settings || {};
+      const supportsHtml = !!settings.allow_pictures_in_description;
+
+      const attributes = (Array.isArray(attrsData) ? attrsData : [])
         .filter((a: any) => a.tags?.required || a.tags?.catalog_required)
         .map((a: any) => ({
           id: a.id,
@@ -242,9 +250,11 @@ export class MercadolibreService {
           required: !!a.tags?.required,
           catalog_required: !!a.tags?.catalog_required,
         }));
+
+      return { attributes, supportsHtml };
     } catch (err) {
       this.logger.error('ML category attributes error', err);
-      return [];
+      return { attributes: [], supportsHtml: false };
     }
   }
 
