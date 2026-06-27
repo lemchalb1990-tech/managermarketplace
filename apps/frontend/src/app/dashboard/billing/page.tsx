@@ -20,25 +20,25 @@ const PROVIDERS = [
     id: 'facto', name: 'Facto',
     description: 'Solución de facturación electrónica simple y rápida. Autorizada por el SII para emitir DTEs en Chile.',
     href: '/dashboard/billing/facto', color: '#00B274',
-    border: 'border-emerald-200 hover:border-emerald-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
   },
   {
     id: 'defontana', name: 'Defontana',
     description: 'ERP empresarial chileno con módulo de facturación electrónica. Para empresas con alta demanda operativa.',
     href: '/dashboard/billing/defontana', color: '#1B2A4A',
-    border: 'border-slate-200 hover:border-slate-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
   },
   {
     id: 'nubox', name: 'Nubox',
     description: 'Software contable y de facturación para PYMES. Integración directa con el SII de Chile.',
     href: '/dashboard/billing/nubox', color: '#0057B8',
-    border: 'border-blue-200 hover:border-blue-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
   },
   {
     id: 'siigo', name: 'Siigo',
     description: 'Software contable en la nube con facturación electrónica. API moderna y de fácil integración.',
     href: '/dashboard/billing/siigo', color: '#6B21A8',
-    border: 'border-purple-200 hover:border-purple-400', tag: 'Activo', tagColor: 'bg-green-100 text-green-700',
+    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
   },
 ];
 
