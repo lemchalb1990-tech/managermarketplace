@@ -433,6 +433,34 @@ export class MercadolibreService {
     return { ...updated, warnings };
   }
 
+  async syncProductListings(productId: string, newStock: number) {
+    const listings = await this.prisma.listing.findMany({
+      where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] } },
+    });
+    if (!listings.length) return;
+
+    for (const listing of listings) {
+      if (!listing.externalId) continue;
+      try {
+        const token = await this.getValidToken(listing.connectionId);
+        const newMlStatus = newStock === 0 ? 'paused' : 'active';
+        await fetch(`${ML_API}/items/${listing.externalId}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ available_quantity: newStock, status: newMlStatus }),
+        });
+        const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+        await this.prisma.listing.update({
+          where: { id: listing.id },
+          data: { status: newStatus, syncedAt: new Date() },
+        });
+        this.logger.log(`ML post-venta: item=${listing.externalId} stock=${newStock} status=${newMlStatus}`);
+      } catch (err) {
+        this.logger.error(`ML post-venta sync error listing=${listing.id}`, err);
+      }
+    }
+  }
+
   async toggleListingStatus(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
     const listing = await this.prisma.listing.findUnique({

@@ -1,11 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MercadolibreService } from '../marketplace/mercadolibre/mercadolibre.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
 export class PosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private ml: MercadolibreService,
+  ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
     if (user.role === Role.SUPER_ADMIN) {
@@ -78,13 +82,20 @@ export class PosService {
       return created;
     });
 
-    return this.prisma.sale.findUnique({
+    const result = await this.prisma.sale.findUnique({
       where: { id: sale.id },
       include: {
-        items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+        items: { include: { product: { select: { id: true, name: true, sku: true, stock: true } } } },
         user: { select: { id: true, name: true } },
       },
     });
+
+    // Sincronizar publicaciones ML de cada producto vendido (sin bloquear la respuesta)
+    for (const item of result!.items) {
+      this.ml.syncProductListings(item.productId, item.product.stock).catch(() => {});
+    }
+
+    return result;
   }
 
   async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string }) {
@@ -199,6 +210,9 @@ export class PosService {
         },
       }),
     ]);
+
+    // Sincronizar publicaciones ML con el nuevo stock
+    this.ml.syncProductListings(dto.productId, newStock).catch(() => {});
 
     return this.prisma.product.findUnique({ where: { id: dto.productId } });
   }

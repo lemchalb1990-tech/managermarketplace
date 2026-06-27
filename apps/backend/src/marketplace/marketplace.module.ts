@@ -7,5 +7,6 @@ import { CatalogModule } from '../catalog/catalog.module';
   imports: [CatalogModule],
   providers: [MercadolibreService],
   controllers: [MercadolibreController],
+  exports: [MercadolibreService],
 })
 export class MarketplaceModule {}
