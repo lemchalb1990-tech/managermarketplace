@@ -1,48 +1,76 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getToken } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { BillingLogos } from './components/logos';
 
 const PROVIDERS = [
   {
     id: 'openfactura', name: 'OpenFactura',
     description: 'Proveedor DTE de Haulmer. API REST con amplia documentación. Emisión de facturas, boletas y notas de crédito.',
-    href: '/dashboard/billing/openfactura', color: '#1A3C8F',
-    border: 'border-blue-200 hover:border-blue-400', tag: 'Popular', tagColor: 'bg-blue-100 text-blue-700',
+    href: '/dashboard/billing/openfactura',
+    activeColor: '#1A3C8F', activeBorder: 'border-blue-400',
   },
   {
     id: 'bsale', name: 'Bsale',
     description: 'Plataforma de ventas y facturación electrónica. Ideal para comercios con sistema POS integrado.',
-    href: '/dashboard/billing/bsale', color: '#FF6B00',
-    border: 'border-orange-200 hover:border-orange-400', tag: 'Popular', tagColor: 'bg-orange-100 text-orange-700',
+    href: '/dashboard/billing/bsale',
+    activeColor: '#FF6B00', activeBorder: 'border-orange-400',
   },
   {
     id: 'facto', name: 'Facto',
     description: 'Solución de facturación electrónica simple y rápida. Autorizada por el SII para emitir DTEs en Chile.',
-    href: '/dashboard/billing/facto', color: '#00B274',
-    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
+    href: '/dashboard/billing/facto',
+    activeColor: '#00B274', activeBorder: 'border-emerald-400',
   },
   {
     id: 'defontana', name: 'Defontana',
     description: 'ERP empresarial chileno con módulo de facturación electrónica. Para empresas con alta demanda operativa.',
-    href: '/dashboard/billing/defontana', color: '#1B2A4A',
-    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
+    href: '/dashboard/billing/defontana',
+    activeColor: '#1B2A4A', activeBorder: 'border-slate-500',
   },
   {
     id: 'nubox', name: 'Nubox',
     description: 'Software contable y de facturación para PYMES. Integración directa con el SII de Chile.',
-    href: '/dashboard/billing/nubox', color: '#0057B8',
-    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
+    href: '/dashboard/billing/nubox',
+    activeColor: '#0057B8', activeBorder: 'border-blue-500',
   },
   {
     id: 'siigo', name: 'Siigo',
     description: 'Software contable en la nube con facturación electrónica. API moderna y de fácil integración.',
-    href: '/dashboard/billing/siigo', color: '#6B21A8',
-    border: 'border-gray-200 hover:border-gray-300', tag: 'Próximamente', tagColor: 'bg-gray-100 text-gray-500',
+    href: '/dashboard/billing/siigo',
+    activeColor: '#6B21A8', activeBorder: 'border-purple-500',
   },
 ];
 
+// Mapea provider ID del frontend al enum del backend
+const PROVIDER_ENUM: Record<string, string> = {
+  openfactura: 'OPENFACTURA',
+  bsale: 'BSALE',
+  facto: 'FACTO',
+  defontana: 'DEFONTANA',
+  nubox: 'NUBOX',
+  siigo: 'SIIGO',
+};
+
 export default function BillingPage() {
+  const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    api.billing.connections.list(token, {})
+      .then((conns) => {
+        const active = new Set(
+          conns.filter((c: any) => c.active).map((c: any) => c.provider as string)
+        );
+        setActiveProviders(active);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="max-w-4xl">
       <div className="mb-8 flex items-start justify-between gap-4">
@@ -75,19 +103,32 @@ export default function BillingPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {PROVIDERS.map((p) => (
-          <Link key={p.id} href={p.href} className="block group">
-            <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${p.border}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-16 h-10 rounded-lg overflow-hidden">{BillingLogos[p.id]}</div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.tagColor}`}>{p.tag}</span>
+        {PROVIDERS.map((p) => {
+          const isActive = activeProviders.has(PROVIDER_ENUM[p.id]);
+          return (
+            <Link key={p.id} href={p.href} className="block group">
+              <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${
+                isActive ? p.activeBorder : 'border-gray-200 hover:border-gray-300'
+              }`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-16 h-10 rounded-lg overflow-hidden">{BillingLogos[p.id]}</div>
+                  {isActive && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                      Activado
+                    </span>
+                  )}
+                </div>
+                <h2 className="font-semibold text-gray-900 mb-1">{p.name}</h2>
+                <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
+                <p className={`mt-3 text-xs font-semibold group-hover:underline ${
+                  isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'
+                }`}>
+                  {isActive ? 'Gestionar conexión →' : 'Conectar →'}
+                </p>
               </div>
-              <h2 className="font-semibold text-gray-900 mb-1">{p.name}</h2>
-              <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
-              <p className="mt-3 text-xs font-semibold text-blue-600 group-hover:text-blue-700">Gestionar →</p>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="mt-8 grid grid-cols-3 gap-4">
