@@ -102,8 +102,8 @@ export const api = {
     getCategoryAttributes: (categoryId: string, token: string) =>
       apiFetch<{ attributes: any[]; supportsHtml: boolean }>(
         `/ecommerce/ml/categories/${categoryId}/attributes`, {}, token),
-    connections: (token: string) =>
-      apiFetch<any[]>('/ecommerce/ml/connections', {}, token),
+    connections: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/ecommerce/ml/connections${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     deleteConnection: (id: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${id}`, { method: 'DELETE' }, token),
     publish: (productId: string, connectionId: string, token: string) =>

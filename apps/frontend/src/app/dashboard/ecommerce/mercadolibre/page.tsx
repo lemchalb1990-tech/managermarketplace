@@ -22,9 +22,9 @@ export default function MercadoLibrePage() {
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
 
-  async function loadConnections() {
+  async function loadConnections(companyId?: string) {
     const token = getToken()!;
-    const conns = await api.marketplace.connections(token).catch(() => []);
+    const conns = await api.marketplace.connections(token, companyId).catch(() => []);
     setConnections(conns);
   }
 
@@ -48,11 +48,11 @@ export default function MercadoLibrePage() {
 
   useEffect(() => {
     if (isSuperAdmin && selectedCompanyId) {
-      loadConnections();
+      loadConnections(selectedCompanyId);
       setShowConnect(false);
       setError('');
     }
-  }, [selectedCompanyId]);
+  }, [selectedCompanyId, isSuperAdmin]);
 
   async function handleConnect() {
     if (!connName.trim() || !connClientId.trim() || !connClientSecret.trim()) return;
@@ -85,7 +85,7 @@ export default function MercadoLibrePage() {
     if (!confirm(`¿Desconectar la tienda "${name}"?`)) return;
     const token = getToken()!;
     await api.marketplace.deleteConnection(id, token);
-    await loadConnections();
+    await loadConnections(activeCompanyId || undefined);
   }
 
   return (
