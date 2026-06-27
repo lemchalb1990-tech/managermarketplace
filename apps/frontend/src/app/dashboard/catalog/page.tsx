@@ -531,8 +531,8 @@ export default function CatalogPage() {
                     <CategoryPicker
                       value={editForm.mlCategoryId}
                       onChange={(id) => {
-                        setEditForm((f: any) => ({ ...f, mlCategoryId: id }));
-                        fetchCategoryAttrs(id);
+                        setEditForm((f: any) => ({ ...f, mlCategoryId: id, mlAttributes: [] }));
+                        fetchCategoryAttrs(id, []);
                       }}
                     />
                   </div>
