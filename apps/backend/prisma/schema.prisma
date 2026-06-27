@@ -77,6 +77,8 @@ model User {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
+  modules Json?
+
   auditLogs      AuditLog[]
   sales          Sale[]
   stockMovements StockMovement[]

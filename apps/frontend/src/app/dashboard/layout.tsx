@@ -5,16 +5,26 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
 
+// module: null = siempre visible (sin restricción por módulos)
 const navItems = [
-  { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'] },
-  { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'] },
-  { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-  { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'] },
-  { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'] },
-  { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'] },
-  { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'] },
-  { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'] },
+  { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
+  { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
+  { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+  { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+  { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
+  { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'pos' },
+  { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'sales' },
+  { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
 ];
+
+function hasModule(user: any, moduleKey: string | null): boolean {
+  if (moduleKey === null) return true;
+  // SUPER_ADMIN siempre ve todo
+  if (user.role === 'SUPER_ADMIN') return true;
+  // null/undefined en modules = todos habilitados (valor por defecto)
+  if (!user.modules || !Array.isArray(user.modules)) return true;
+  return user.modules.includes(moduleKey);
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -38,7 +48,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
-  const visibleNav = navItems.filter((n) => n.roles.includes(user.role));
+  const visibleNav = navItems.filter(
+    (n) => n.roles.includes(user.role) && hasModule(user, n.module),
+  );
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -52,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               key={item.href}
               href={item.href}
               className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pathname === item.href
+                pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
                   ? 'bg-blue-50 text-blue-700'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
