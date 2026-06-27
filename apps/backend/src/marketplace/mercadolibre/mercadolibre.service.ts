@@ -356,16 +356,32 @@ export class MercadolibreService {
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
     const token = await this.getValidToken(connectionId);
+
     const res = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ available_quantity: product.stock }),
+      body: JSON.stringify({
+        title: product.name,
+        price: Number(product.price),
+        available_quantity: product.stock,
+      }),
     });
 
     if (!res.ok) {
       const err = await res.json() as any;
-      throw new BadRequestException(err.message || 'Error al sincronizar stock');
+      throw new BadRequestException(err.message || 'Error al sincronizar');
     }
+
+    // Sincronizar descripción
+    const mlDescription = (product as any).mlDescription;
+    const plainDesc = product.description || product.name;
+    await fetch(`${ML_API}/items/${listing.externalId}/description`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        mlDescription ? { html_content: mlDescription } : { plain_text: plainDesc },
+      ),
+    });
 
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
     return this.prisma.listing.update({

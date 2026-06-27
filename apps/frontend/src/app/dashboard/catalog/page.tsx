@@ -76,6 +76,7 @@ interface PublishModalState {
   phase: 'preflight' | 'publishing' | 'error';
   checks: PreflightCheck[];
   mlErrors: string[];
+  isRepublish: boolean;
 }
 
 const checkIcon: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️', error: '❌' };
@@ -97,6 +98,13 @@ function PrePublishModal({ state, onConfirm, onClose }: {
             {isError ? 'Mercado Libre rechazó la publicación' : 'Verificación antes de publicar'}
           </h2>
         </div>
+
+        {state.isRepublish && !isError && (
+          <div className="mx-5 mt-4 px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-xs text-yellow-800 flex gap-2 items-start">
+            <span className="shrink-0">⚠️</span>
+            <span>Esta acción <strong>republicará</strong> el producto en Mercado Libre, reemplazando la publicación actual.</span>
+          </div>
+        )}
 
         <div className="p-5 space-y-2.5 overflow-y-auto">
           {isError ? (
@@ -251,6 +259,8 @@ export default function CatalogPage() {
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -265,6 +275,21 @@ export default function CatalogPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!originalFormRef.current || !selected) return;
+    const orig = originalFormRef.current;
+    const dirty =
+      editForm.name !== orig.name ||
+      editForm.description !== orig.description ||
+      editForm.price !== orig.price ||
+      editForm.cost !== orig.cost ||
+      editForm.stock !== orig.stock ||
+      editForm.mlCategoryId !== orig.mlCategoryId ||
+      editForm.mlDescription !== orig.mlDescription ||
+      JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes;
+    setIsDirty(dirty);
+  }, [editForm]);
 
   async function fetchCategoryAttrs(categoryId: string, existingAttrs: any[] = []) {
     if (!categoryId) { setMlCategoryAttrs([]); return; }
@@ -302,6 +327,17 @@ export default function CatalogPage() {
     setTab('edit');
     setEditError('');
     setMlWarning('');
+    setIsDirty(false);
+    originalFormRef.current = {
+      name: product.name,
+      description: product.description || '',
+      price: String(Number(product.price)),
+      cost: product.cost != null ? String(Number(product.cost)) : '',
+      stock: String(product.stock),
+      mlCategoryId: product.mlCategoryId || '',
+      mlDescription: product.mlDescription || '',
+      mlAttributes: JSON.stringify(existingAttrs),
+    };
     setMlCategoryAttrs([]);
     if (product.mlCategoryId) fetchCategoryAttrs(product.mlCategoryId, existingAttrs);
   }
@@ -356,6 +392,7 @@ export default function CatalogPage() {
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
       }, token);
       await refreshSelected(selected.id);
+      setIsDirty(false);
     } catch (err: any) {
       setEditError(err.message);
     } finally {
@@ -428,8 +465,15 @@ export default function CatalogPage() {
     return checks;
   }
 
-  function openPublishModal(connectionId: string) {
-    setPublishModal({ connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [] });
+  function changeTab(newTab: Tab) {
+    if (newTab !== tab && tab === 'edit' && isDirty) {
+      if (!window.confirm('Tienes cambios sin guardar. ¿Salir sin guardar?')) return;
+    }
+    setTab(newTab);
+  }
+
+  function openPublishModal(connectionId: string, isRepublish: boolean) {
+    setPublishModal({ connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [], isRepublish });
   }
 
   async function confirmPublish() {
@@ -615,13 +659,16 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex border-b border-gray-200 px-6">
+            <div className="flex items-center border-b border-gray-200 px-6">
               {(['edit', 'images', 'ml'] as Tab[]).map((t) => (
-                <button key={t} onClick={() => setTab(t)}
+                <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
                   {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : 'Mercado Libre'}
+                  {t === 'edit' && isDirty && (
+                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar" />
+                  )}
                 </button>
               ))}
             </div>
@@ -865,14 +912,14 @@ export default function CatalogPage() {
                           </div>
                         )}
                         <div className="flex gap-2">
-                          <button onClick={() => openPublishModal(conn.id)} disabled={publishBusy}
+                          <button onClick={() => openPublishModal(conn.id, !!listing)} disabled={publishBusy}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
                             {publishBusy ? 'Publicando...' : listing ? 'Republicar' : 'Publicar'}
                           </button>
                           {listing && (
                             <button onClick={() => handleSync(conn.id)} disabled={syncBusy}
                               className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
-                              {syncBusy ? 'Sincronizando...' : 'Sincronizar stock'}
+                              {syncBusy ? 'Sincronizando...' : 'Sincronizar'}
                             </button>
                           )}
                         </div>
