@@ -110,5 +110,30 @@ export const api = {
       apiFetch<any>(`/marketplace/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
     sync: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/marketplace/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
+    toggleListing: (productId: string, connectionId: string, token: string) =>
+      apiFetch<any>(`/marketplace/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
+  },
+  pos: {
+    createSale: (data: any, token: string) =>
+      apiFetch<any>('/pos/sales', { method: 'POST', body: JSON.stringify(data) }, token),
+    listSales: (params: { companyId?: string; channel?: string; from?: string; to?: string; page?: number }, token: string) => {
+      const q = new URLSearchParams();
+      if (params.companyId) q.set('companyId', params.companyId);
+      if (params.channel) q.set('channel', params.channel);
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      if (params.page) q.set('page', String(params.page));
+      return apiFetch<{ sales: any[]; total: number; page: number; pages: number }>(`/pos/sales?${q}`, {}, token);
+    },
+    summary: (params: { companyId?: string; date?: string }, token: string) => {
+      const q = new URLSearchParams();
+      if (params.companyId) q.set('companyId', params.companyId);
+      if (params.date) q.set('date', params.date);
+      return apiFetch<any>(`/pos/sales/summary?${q}`, {}, token);
+    },
+    stockMovements: (productId: string, token: string) =>
+      apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),
+    adjustStock: (data: { productId: string; quantity: number; reason?: string }, token: string) =>
+      apiFetch<any>('/pos/stock/adjust', { method: 'POST', body: JSON.stringify(data) }, token),
   },
 };

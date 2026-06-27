@@ -131,4 +131,15 @@ export class MercadolibreController {
   ) {
     return this.service.syncStock(productId, connectionId, user);
   }
+
+  @Patch('products/:productId/toggle/:connectionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  toggleListing(
+    @Param('productId') productId: string,
+    @Param('connectionId') connectionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.toggleListingStatus(productId, connectionId, user);
+  }
 }

@@ -225,7 +225,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-type Tab = 'edit' | 'images' | 'ml';
+type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
 const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '' };
 
@@ -263,6 +263,8 @@ export default function CatalogPage() {
   const [isDirty, setIsDirty] = useState(false);
   const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockMovLoading, setStockMovLoading] = useState(false);
 
   async function load() {
     const token = getToken();
@@ -468,11 +470,20 @@ export default function CatalogPage() {
     return checks;
   }
 
-  function changeTab(newTab: Tab) {
+  async function changeTab(newTab: Tab) {
     if (newTab !== tab && tab === 'edit' && isDirty) {
       if (!window.confirm('Tienes cambios sin guardar. ¿Salir sin guardar?')) return;
     }
     setTab(newTab);
+    if (newTab === 'stock' && selected) {
+      setStockMovLoading(true);
+      try {
+        const token = getToken()!;
+        const movs = await api.pos.stockMovements(selected.id, token);
+        setStockMovements(movs);
+      } catch { setStockMovements([]); }
+      finally { setStockMovLoading(false); }
+    }
   }
 
   function openPublishModal(connectionId: string, isRepublish: boolean) {
@@ -511,6 +522,19 @@ export default function CatalogPage() {
       alert(err.message);
     } finally {
       setMlLoading(l => ({ ...l, [`sync_${connectionId}`]: false }));
+    }
+  }
+
+  async function handleToggleListing(connectionId: string) {
+    setMlLoading(l => ({ ...l, [`toggle_${connectionId}`]: true }));
+    try {
+      const token = getToken()!;
+      await api.marketplace.toggleListing(selected.id, connectionId, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setMlLoading(l => ({ ...l, [`toggle_${connectionId}`]: false }));
     }
   }
 
@@ -666,12 +690,12 @@ export default function CatalogPage() {
             </div>
 
             <div className="flex items-center border-b border-gray-200 px-6">
-              {(['edit', 'images', 'ml'] as Tab[]).map((t) => (
+              {(['edit', 'images', 'ml', 'stock'] as Tab[]).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : 'Mercado Libre'}
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar" />
                   )}
@@ -896,6 +920,66 @@ export default function CatalogPage() {
                 </div>
               )}
 
+              {tab === 'stock' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm text-gray-600 font-medium">
+                      Últimos 100 movimientos · Stock actual:
+                      <span className={`ml-1 font-bold ${selected.stock === 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        {selected.stock} uds
+                      </span>
+                    </p>
+                    <button
+                      onClick={() => changeTab('stock')}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Actualizar
+                    </button>
+                  </div>
+                  {stockMovLoading ? (
+                    <p className="text-sm text-gray-400 text-center py-8">Cargando movimientos...</p>
+                  ) : stockMovements.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">Sin movimientos registrados para este producto.</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                      {stockMovements.map((mov) => {
+                        const isPositive = mov.quantity > 0;
+                        const typeLabel: Record<string, string> = {
+                          SALE: 'Venta',
+                          RETURN: 'Devolución',
+                          ADJUSTMENT: 'Ajuste',
+                          INITIAL: 'Inicial',
+                        };
+                        const channelLabel: Record<string, string> = {
+                          POS: 'POS',
+                          MERCADO_LIBRE: 'Mercado Libre',
+                          MANUAL: 'Manual',
+                        };
+                        const saleChannel = mov.saleItem?.sale?.channel;
+                        return (
+                          <div key={mov.id} className="flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50">
+                            <span className={`text-sm font-bold w-10 text-right shrink-0 ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                              {isPositive ? '+' : ''}{mov.quantity}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-800">
+                                {typeLabel[mov.type] || mov.type}
+                                {saleChannel && <span className="ml-1 text-gray-400">· {channelLabel[saleChannel] || saleChannel}</span>}
+                              </p>
+                              {mov.reason && <p className="text-xs text-gray-400 truncate">{mov.reason}</p>}
+                              {mov.user && <p className="text-xs text-gray-400">Por: {mov.user.name}</p>}
+                            </div>
+                            <p className="text-xs text-gray-400 shrink-0">
+                              {new Date(mov.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {tab === 'ml' && (
                 <div className="space-y-3">
                   {mlWarning && (
@@ -916,6 +1000,10 @@ export default function CatalogPage() {
                     const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
                     const publishBusy = publishModal?.connectionId === conn.id && publishModal?.phase === 'publishing';
                     const syncBusy = mlLoading[`sync_${conn.id}`];
+                    const toggleBusy = mlLoading[`toggle_${conn.id}`];
+                    const isActive = listing?.status === 'ACTIVE';
+                    const isPaused = listing?.status === 'PAUSED';
+                    const canToggle = listing && (isActive || isPaused);
                     return (
                       <div key={conn.id} className="border border-gray-200 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
@@ -945,7 +1033,7 @@ export default function CatalogPage() {
                             <span>{listing.errorMsg}</span>
                           </div>
                         )}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <button onClick={() => openPublishModal(conn.id, !!listing)} disabled={publishBusy}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
                             {publishBusy ? 'Publicando...' : listing ? 'Republicar' : 'Publicar'}
@@ -954,6 +1042,21 @@ export default function CatalogPage() {
                             <button onClick={() => handleSync(conn.id)} disabled={syncBusy}
                               className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
                               {syncBusy ? 'Sincronizando...' : 'Sincronizar'}
+                            </button>
+                          )}
+                          {canToggle && (
+                            <button
+                              onClick={() => handleToggleListing(conn.id)}
+                              disabled={toggleBusy}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors ${
+                                isActive
+                                  ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100'
+                                  : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                              }`}
+                            >
+                              {toggleBusy
+                                ? (isActive ? 'Pausando...' : 'Activando...')
+                                : (isActive ? 'Pausar publicación' : 'Activar publicación')}
                             </button>
                           )}
                         </div>

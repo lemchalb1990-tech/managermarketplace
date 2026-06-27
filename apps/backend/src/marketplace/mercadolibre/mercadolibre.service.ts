@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
 import { ListingStatus } from '@prisma/client';
@@ -433,6 +433,39 @@ export class MercadolibreService {
     return { ...updated, warnings };
   }
 
+  async toggleListingStatus(productId: string, connectionId: string, user: any) {
+    const product = await this.catalog.findOne(productId, user);
+    const listing = await this.prisma.listing.findUnique({
+      where: { productId_connectionId: { productId, connectionId } },
+    });
+    if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
+
+    const isActive = listing.status === ListingStatus.ACTIVE;
+    const newMlStatus = isActive ? 'paused' : 'active';
+
+    if (!isActive && product.stock === 0) {
+      throw new BadRequestException('No se puede activar la publicación: el producto no tiene stock.');
+    }
+
+    const token = await this.getValidToken(connectionId);
+    const res = await fetch(`${ML_API}/items/${listing.externalId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newMlStatus }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json() as any;
+      throw new BadRequestException(err.message || `Error al ${isActive ? 'pausar' : 'activar'} en Mercado Libre`);
+    }
+
+    const newStatus = newMlStatus === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
+    return this.prisma.listing.update({
+      where: { id: listing.id },
+      data: { status: newStatus, syncedAt: new Date() },
+    });
+  }
+
   // ─── Webhook ─────────────────────────────────────────────────────────────────
 
   async handleWebhook(body: any) {
@@ -443,50 +476,110 @@ export class MercadolibreService {
       const orderId = body.resource?.split('/').pop();
       if (!orderId) return { received: true };
 
-      const listing = await this.prisma.listing.findFirst({
-        where: { externalId: { not: null } },
-        include: { connection: true, product: true },
-      });
-      if (!listing) return { received: true };
+      // Evitar procesar la misma orden dos veces
+      const existing = await this.prisma.sale.findFirst({ where: { externalId: orderId } });
+      if (existing) {
+        this.logger.log(`ML Webhook: orden ${orderId} ya procesada`);
+        return { received: true };
+      }
 
-      const token = await this.getValidToken(listing.connectionId);
+      // Obtener token via cualquier listing activo
+      const anyListing = await this.prisma.listing.findFirst({
+        where: { externalId: { not: null } },
+        include: { connection: true },
+      });
+      if (!anyListing) return { received: true };
+
+      const token = await this.getValidToken(anyListing.connectionId);
       const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!orderRes.ok) return { received: true };
 
       const order = await orderRes.json() as any;
+      const orderTotal = Number(order.total_amount || 0);
+
+      // Resolver companyId desde el primer item de la orden
+      let companyId: string | null = null;
+      const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
 
       for (const orderItem of order.order_items) {
         const itemId = orderItem.item?.id;
         const quantity = orderItem.quantity || 1;
+        const unitPrice = Number(orderItem.unit_price || 0);
 
-        const affected = await this.prisma.listing.findFirst({
+        const listing = await this.prisma.listing.findFirst({
           where: { externalId: itemId },
-          include: { product: true },
+          include: { product: true, connection: true },
         });
-        if (!affected) continue;
+        if (!listing) continue;
 
-        const newStock = Math.max(0, affected.product.stock - quantity);
-        await this.prisma.product.update({ where: { id: affected.productId }, data: { stock: newStock } });
-
-        const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
-        await this.prisma.listing.update({
-          where: { id: affected.id },
-          data: { status: newStatus, syncedAt: new Date() },
-        });
-
-        if (newStock === 0) {
-          const itemToken = await this.getValidToken(affected.connectionId);
-          await fetch(`${ML_API}/items/${itemId}`, {
-            method: 'PUT',
-            headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'paused' }),
-          });
-        }
-
-        this.logger.log(`Stock actualizado: producto=${affected.productId} nuevo_stock=${newStock}`);
+        companyId = companyId || listing.connection.companyId;
+        resolvedItems.push({ listing, quantity, unitPrice });
       }
+
+      if (!resolvedItems.length || !companyId) return { received: true };
+
+      // Crear venta y actualizar stock en transacción atómica
+      await this.prisma.$transaction(async (tx) => {
+        const sale = await tx.sale.create({
+          data: {
+            channel: SaleChannel.MERCADO_LIBRE,
+            externalId: orderId,
+            total: orderTotal,
+            companyId,
+            items: {
+              create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
+                productId: listing.productId,
+                quantity,
+                unitPrice,
+              })),
+            },
+          },
+          include: { items: true },
+        });
+
+        for (let i = 0; i < resolvedItems.length; i++) {
+          const { listing, quantity } = resolvedItems[i];
+          const saleItem = sale.items[i];
+
+          const product = listing.product;
+          const newStock = Math.max(0, product.stock - quantity);
+
+          await tx.product.update({
+            where: { id: listing.productId },
+            data: { stock: newStock },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              type: MovementType.SALE,
+              quantity: -quantity,
+              reason: `Venta Mercado Libre orden #${orderId}`,
+              productId: listing.productId,
+              saleItemId: saleItem.id,
+            },
+          });
+
+          const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+          await tx.listing.update({
+            where: { id: listing.id },
+            data: { status: newStatus, syncedAt: new Date() },
+          });
+
+          // Pausar en ML si se agotó el stock
+          if (newStock === 0) {
+            const itemToken = await this.getValidToken(listing.connectionId);
+            await fetch(`${ML_API}/items/${listing.externalId}`, {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'paused' }),
+            });
+          }
+
+          this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
+        }
+      });
     } catch (error) {
       this.logger.error('Error procesando webhook ML', error);
     }

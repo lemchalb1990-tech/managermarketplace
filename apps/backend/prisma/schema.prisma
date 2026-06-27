@@ -25,6 +25,26 @@ enum ListingStatus {
   ERROR
 }
 
+enum SaleChannel {
+  POS
+  MERCADO_LIBRE
+  MANUAL
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  OTHER
+}
+
+enum MovementType {
+  SALE
+  RETURN
+  ADJUSTMENT
+  INITIAL
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -39,6 +59,7 @@ model Company {
   users       User[]
   products    Product[]
   connections MarketplaceConnection[]
+  sales       Sale[]
 
   @@map("companies")
 }
@@ -56,7 +77,9 @@ model User {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
-  auditLogs AuditLog[]
+  auditLogs      AuditLog[]
+  sales          Sale[]
+  stockMovements StockMovement[]
 
   @@map("users")
 }
@@ -100,8 +123,10 @@ model Product {
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
-  images   ProductImage[]
-  listings Listing[]
+  images         ProductImage[]
+  listings       Listing[]
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -138,6 +163,58 @@ model Listing {
 
   @@unique([productId, connectionId])
   @@map("listings")
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  channel       SaleChannel   @default(POS)
+  externalId    String?
+  total         Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  items SaleItem[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  stockMovements StockMovement[]
+
+  @@map("sale_items")
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  type      MovementType
+  quantity  Int
+  reason    String?
+  createdAt DateTime     @default(now())
+
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id])
+  saleItemId String?
+  saleItem   SaleItem? @relation(fields: [saleItemId], references: [id])
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+
+  @@map("stock_movements")
 }
 
 model AuditLog {
