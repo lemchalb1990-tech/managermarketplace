@@ -57,6 +57,7 @@ export default function DashboardPage() {
     const token = getToken();
     if (!u || !token) return;
     if (u.role === 'VENDEDOR') { router.replace('/dashboard/pos'); return; }
+    if (u.role === 'DESPACHADOR') { router.replace('/dashboard/mis-rutas'); return; }
     setUser(u);
 
     const today = new Date().toISOString().split('T')[0];

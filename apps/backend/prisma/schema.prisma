@@ -12,6 +12,7 @@ enum Role {
   COMPANY_ADMIN
   CATALOG_MANAGER
   VENDEDOR
+  DESPACHADOR
 }
 
 enum MarketplaceType {
@@ -62,6 +63,13 @@ enum MovementType {
   INITIAL
 }
 
+enum RouteStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 enum OrderStatus {
   PENDING
   PREPARING
@@ -92,6 +100,7 @@ model Company {
   products           Product[]
   warehouses         Warehouse[]
   orders             Order[]
+  dispatchRoutes     DispatchRoute[]
   connections        MarketplaceConnection[]
   sales              Sale[]
   billingConnections BillingConnection[]
@@ -120,7 +129,9 @@ model User {
   stockMovements StockMovement[]
   ordersCreated  Order[]          @relation("OrderCreatedBy")
   itemChecks     OrderItemCheck[] @relation("ItemCheckedBy")
-  shipmentPhotos ShipmentPhoto[]
+  shipmentPhotos  ShipmentPhoto[]
+  dispatchRoutes  DispatchRoute[] @relation("DispatcherRoutes")
+  routesCreated   DispatchRoute[] @relation("RouteCreatedBy")
 
   @@map("users")
 }
@@ -416,6 +427,7 @@ model Order {
 
   itemChecks OrderItemCheck[]
   photos     ShipmentPhoto[]
+  routeStop  RouteStop?
 
   @@map("orders")
 }
@@ -453,6 +465,47 @@ model ShipmentPhoto {
   uploadedBy   User?  @relation(fields: [uploadedById], references: [id])
 
   @@map("shipment_photos")
+}
+
+model DispatchRoute {
+  id          String      @id @default(cuid())
+  name        String
+  date        DateTime    @db.Date
+  status      RouteStatus @default(PENDING)
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
+  dispatcherId String?
+  dispatcher   User?         @relation("DispatcherRoutes", fields: [dispatcherId], references: [id])
+  createdById  String?
+  createdBy    User?         @relation("RouteCreatedBy", fields: [createdById], references: [id])
+
+  stops RouteStop[]
+
+  @@map("dispatch_routes")
+}
+
+model RouteStop {
+  id          String    @id @default(cuid())
+  position    Int
+  notes       String?
+  lat         Float?
+  lng         Float?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  routeId String
+  route   DispatchRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  orderId String        @unique
+  order   Order         @relation(fields: [orderId], references: [id])
+
+  @@map("route_stops")
 }
 
 model AuditLog {

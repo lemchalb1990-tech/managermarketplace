@@ -203,6 +203,37 @@ export const api = {
     remove: (id: string, token: string) =>
       apiFetch<any>(`/warehouses/${id}`, { method: 'DELETE' }, token),
   },
+  dispatch: {
+    listRoutes: (token: string, params?: { status?: string; date?: string; dispatcherId?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.set('status', params.status);
+      if (params?.date) q.set('date', params.date);
+      if (params?.dispatcherId) q.set('dispatcherId', params.dispatcherId);
+      return apiFetch<any[]>(`/dispatch/routes?${q}`, {}, token);
+    },
+    getRoute: (id: string, token: string) => apiFetch<any>(`/dispatch/routes/${id}`, {}, token),
+    createRoute: (data: any, token: string) =>
+      apiFetch<any>('/dispatch/routes', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateRoute: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    deleteRoute: (id: string, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${id}`, { method: 'DELETE' }, token),
+    startRoute: (id: string, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${id}/start`, { method: 'PATCH' }, token),
+    cancelRoute: (id: string, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${id}/cancel`, { method: 'PATCH' }, token),
+    optimizeRoute: (id: string, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${id}/optimize`, { method: 'PATCH' }, token),
+    availableOrders: (token: string) => apiFetch<any[]>('/dispatch/routes/available-orders', {}, token),
+    addStop: (routeId: string, data: any, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${routeId}/stops`, { method: 'POST', body: JSON.stringify(data) }, token),
+    removeStop: (routeId: string, stopId: string, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }, token),
+    reorderStops: (routeId: string, positions: { stopId: string; position: number }[], token: string) =>
+      apiFetch<any>(`/dispatch/routes/${routeId}/stops/reorder`, { method: 'PATCH', body: JSON.stringify({ positions }) }, token),
+    deliverStop: (routeId: string, stopId: string, data: any, token: string) =>
+      apiFetch<any>(`/dispatch/routes/${routeId}/stops/${stopId}/deliver`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+  },
   settings: {
     list: (token: string) => apiFetch<any[]>('/settings', {}, token),
     update: (settings: { key: string; value: string }[], token: string) =>

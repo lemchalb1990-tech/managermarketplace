@@ -17,6 +17,8 @@ const navItems = [
   { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
   { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
   { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+  { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
+  { href: '/dashboard/mis-rutas', label: 'Mis Rutas', roles: ['DESPACHADOR'], module: null },
   { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
   { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
 ];
@@ -85,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="px-4 py-4 border-t border-gray-200">
           <p className="text-xs text-gray-500 truncate mb-1">{user.email}</p>
           <p className="text-xs font-medium text-gray-700 mb-3">
-            {{ SUPER_ADMIN: 'Super Admin', COMPANY_ADMIN: 'Admin empresa', CATALOG_MANAGER: 'Gestor catálogo', VENDEDOR: 'Vendedor' }[user.role as string] ?? user.role}
+            {{ SUPER_ADMIN: 'Super Admin', COMPANY_ADMIN: 'Admin empresa', CATALOG_MANAGER: 'Gestor catálogo', VENDEDOR: 'Vendedor', DESPACHADOR: 'Despachador' }[user.role as string] ?? user.role}
           </p>
           <button
             onClick={logout}
