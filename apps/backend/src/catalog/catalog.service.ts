@@ -38,6 +38,7 @@ export class CatalogService {
       include: {
         images: { orderBy: { order: 'asc' } },
         listings: { include: { connection: { select: { id: true, name: true } } } },
+        warehouse: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -49,6 +50,7 @@ export class CatalogService {
       include: {
         images: { orderBy: { order: 'asc' } },
         listings: { include: { connection: true } },
+        warehouse: { select: { id: true, name: true } },
       },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');

@@ -13,6 +13,7 @@ import { EcommerceModule } from './ecommerce/ecommerce.module';
 import { PosModule } from './pos/pos.module';
 import { SettingsModule } from './settings/settings.module';
 import { BillingModule } from './billing/billing.module';
+import { WarehousesModule } from './warehouses/warehouses.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { BillingModule } from './billing/billing.module';
     PosModule,
     SettingsModule,
     BillingModule,
+    WarehousesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

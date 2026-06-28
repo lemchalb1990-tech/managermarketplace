@@ -168,6 +168,15 @@ export const api = {
         apiFetch<any>(`/billing/invoices/${id}/cancel`, { method: 'POST' }, token),
     },
   },
+  warehouses: {
+    list: (token: string) => apiFetch<any[]>('/warehouses', {}, token),
+    create: (data: { name: string; description?: string }, token: string) =>
+      apiFetch<any>('/warehouses', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: { name?: string; description?: string; active?: boolean }, token: string) =>
+      apiFetch<any>(`/warehouses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<any>(`/warehouses/${id}`, { method: 'DELETE' }, token),
+  },
   settings: {
     list: (token: string) => apiFetch<any[]>('/settings', {}, token),
     update: (settings: { key: string; value: string }[], token: string) =>

@@ -41,6 +41,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsArray()
   mlAttributes?: { id: string; value_name: string }[];
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
 }
 
 export class UpdateProductDto {
@@ -85,6 +89,10 @@ export class UpdateProductDto {
   @IsOptional()
   @IsArray()
   mlAttributes?: { id: string; value_name: string }[];
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
 }
 
 export class AdjustStockDto {

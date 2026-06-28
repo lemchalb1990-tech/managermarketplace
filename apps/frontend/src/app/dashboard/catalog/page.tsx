@@ -227,7 +227,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '' };
+const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '', warehouseId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -243,6 +243,7 @@ const statusColor: Record<string, string> = {
 export default function CatalogPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -269,12 +270,14 @@ export default function CatalogPage() {
   async function load() {
     const token = getToken();
     if (!token) return;
-    const [prods, conns] = await Promise.all([
+    const [prods, conns, whs] = await Promise.all([
       api.catalog.list(token),
       api.marketplace.connections(token).catch(() => []),
+      api.warehouses.list(token).catch(() => []),
     ]);
     setProducts(prods);
     setConnections(conns);
+    setWarehouses(whs);
   }
 
   useEffect(() => { load(); }, []);
@@ -290,7 +293,8 @@ export default function CatalogPage() {
       editForm.stock !== orig.stock ||
       editForm.mlCategoryId !== orig.mlCategoryId ||
       editForm.mlDescription !== orig.mlDescription ||
-      JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes;
+      JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
+      editForm.warehouseId !== orig.warehouseId;
     setIsDirty(dirty);
   }, [editForm]);
 
@@ -327,6 +331,7 @@ export default function CatalogPage() {
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
       mlAttributes: existingAttrs,
+      warehouseId: product.warehouseId || '',
     });
     setTab('edit');
     setEditError('');
@@ -341,6 +346,7 @@ export default function CatalogPage() {
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
       mlAttributes: JSON.stringify(existingAttrs),
+      warehouseId: product.warehouseId || '',
     };
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
@@ -369,6 +375,7 @@ export default function CatalogPage() {
         cost: form.cost ? parseFloat(form.cost) : undefined,
         stock: parseInt(form.stock),
         mlCategoryId: form.mlCategoryId || undefined,
+        warehouseId: form.warehouseId || undefined,
       }, token);
       setForm(emptyForm);
       setShowForm(false);
@@ -395,6 +402,7 @@ export default function CatalogPage() {
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
+        warehouseId: editForm.warehouseId || undefined,
       }, token);
       await refreshSelected(selected.id);
       setIsDirty(false);
@@ -586,6 +594,27 @@ export default function CatalogPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
               <CategoryPicker value={form.mlCategoryId} onChange={(id) => setForm({ ...form, mlCategoryId: id })} />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Bodega *
+              </label>
+              <select
+                value={form.warehouseId}
+                onChange={(e) => setForm({ ...form, warehouseId: e.target.value })}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+              >
+                <option value="">— Selecciona una bodega —</option>
+                {warehouses.filter((w) => w.active).map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+              {warehouses.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  <a href="/dashboard/warehouses" className="underline">Crea una bodega primero →</a>
+                </p>
+              )}
+            </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -616,6 +645,7 @@ export default function CatalogPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Costo</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Precio</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Stock</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Bodega</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones ML</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -647,6 +677,11 @@ export default function CatalogPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
+                    {p.warehouse
+                      ? <span className="text-xs text-gray-600 font-medium">{p.warehouse.name}</span>
+                      : <span className="text-gray-300 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {p.listings?.length > 0
                         ? p.listings.map((l: any) => (
@@ -668,7 +703,7 @@ export default function CatalogPage() {
               );
             })}
             {products.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
             )}
           </tbody>
         </table>
@@ -740,6 +775,19 @@ export default function CatalogPage() {
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>
+                    <select
+                      value={editForm.warehouseId || ''}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, warehouseId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="">— Sin bodega asignada —</option>
+                      {warehouses.filter((w) => w.active).map((w: any) => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
