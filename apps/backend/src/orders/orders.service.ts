@@ -1,9 +1,10 @@
 import {
   Injectable, NotFoundException, ForbiddenException,
-  BadRequestException, ConflictException,
+  BadRequestException, ConflictException, Logger,
 } from '@nestjs/common';
 import { OrderStatus, FulfillmentType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { CreateOrderDto, UpdateOrderDto, UpdateStatusDto, CheckItemDto, FindOrdersDto } from './dto/order.dto';
 
 const PAGE_SIZE = 20;
@@ -34,7 +35,12 @@ const ORDER_INCLUDE = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(OrdersService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private email: EmailService,
+  ) {}
 
   private guard(order: any, user: any) {
     if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) {
@@ -135,7 +141,7 @@ export class OrdersService {
       });
     }
 
-    return this.prisma.order.create({
+    const created = await this.prisma.order.create({
       data: {
         fulfillmentType: dto.fulfillmentType ?? autoFulfillmentType ?? FulfillmentType.DELIVERY,
         notes: dto.notes,
@@ -154,6 +160,12 @@ export class OrdersService {
       },
       include: ORDER_INCLUDE,
     });
+
+    this.email.sendOrderEmail({ ...created, status: 'PENDING' }).catch(e =>
+      this.logger.error(`Email ORDER_CONFIRMED failed: ${e.message}`),
+    );
+
+    return created;
   }
 
   async update(id: string, dto: UpdateOrderDto, user: any) {
@@ -192,7 +204,13 @@ export class OrdersService {
     const data: any = { status: dto.status };
     if (dto.status === OrderStatus.DELIVERED) data.deliveredAt = new Date();
 
-    return this.prisma.order.update({ where: { id }, data, include: ORDER_INCLUDE });
+    const updated = await this.prisma.order.update({ where: { id }, data, include: ORDER_INCLUDE });
+
+    this.email.sendOrderEmail(updated).catch(e =>
+      this.logger.error(`Email ${dto.status} failed: ${e.message}`),
+    );
+
+    return updated;
   }
 
   async checkItem(orderId: string, itemId: string, dto: CheckItemDto, user: any) {

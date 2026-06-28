@@ -84,6 +84,15 @@ enum FulfillmentType {
   DELIVERY
 }
 
+enum EmailType {
+  ORDER_CONFIRMED
+  ORDER_PREPARING
+  ORDER_READY_PICKUP
+  ORDER_OUT_FOR_DELIVERY
+  ORDER_DELIVERED
+  SALE_RECEIPT
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -105,6 +114,8 @@ model Company {
   sales              Sale[]
   billingConnections BillingConnection[]
   invoices           Invoice[]
+  emailConfig        EmailConfig?
+  emailTemplates     EmailTemplate[]
 
   @@map("companies")
 }
@@ -520,4 +531,37 @@ model AuditLog {
   user   User   @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+}
+
+model EmailConfig {
+  id        String   @id @default(cuid())
+  companyId String   @unique
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  host      String
+  port      Int      @default(587)
+  secure    Boolean  @default(false)
+  user      String
+  pass      String
+  fromName  String
+  fromEmail String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_configs")
+}
+
+model EmailTemplate {
+  id        String    @id @default(cuid())
+  companyId String?
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type      EmailType
+  subject   String
+  bodyHtml  String    @db.Text
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([companyId, type])
+  @@map("email_templates")
 }

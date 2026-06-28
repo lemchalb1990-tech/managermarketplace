@@ -3,9 +3,10 @@ import { PosController } from './pos.controller';
 import { PosService } from './pos.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { EcommerceModule } from '../ecommerce/ecommerce.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [PrismaModule, EcommerceModule],  // EcommerceModule exports SyncService
+  imports: [PrismaModule, EcommerceModule, EmailModule],
   controllers: [PosController],
   providers: [PosService],
   exports: [PosService],

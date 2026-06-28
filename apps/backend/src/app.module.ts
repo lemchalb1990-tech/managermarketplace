@@ -16,6 +16,7 @@ import { BillingModule } from './billing/billing.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { OrdersModule } from './orders/orders.module';
 import { DispatchModule } from './dispatch/dispatch.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { DispatchModule } from './dispatch/dispatch.module';
     WarehousesModule,
     OrdersModule,
     DispatchModule,
+    EmailModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

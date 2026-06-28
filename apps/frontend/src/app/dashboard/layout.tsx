@@ -19,6 +19,7 @@ const navItems = [
   { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
   { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
   { href: '/dashboard/mis-rutas', label: 'Mis Rutas', roles: ['DESPACHADOR'], module: null },
+  { href: '/dashboard/emails', label: 'Correos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
   { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
   { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
 ];

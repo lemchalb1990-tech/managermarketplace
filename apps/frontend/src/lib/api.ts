@@ -273,4 +273,30 @@ export const api = {
     adjustStock: (data: { productId: string; quantity: number; reason?: string }, token: string) =>
       apiFetch<any>('/pos/stock/adjust', { method: 'POST', body: JSON.stringify(data) }, token),
   },
+  email: {
+    getConfig: (token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any>(`/email/config${q}`, {}, token);
+    },
+    saveConfig: (data: any, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any>(`/email/config${q}`, { method: 'PUT', body: JSON.stringify(data) }, token);
+    },
+    testEmail: (to: string, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any>(`/email/test${q}`, { method: 'POST', body: JSON.stringify({ to }) }, token);
+    },
+    getTemplates: (token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any[]>(`/email/templates${q}`, {}, token);
+    },
+    saveTemplate: (type: string, data: { subject: string; bodyHtml: string; active: boolean }, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any>(`/email/templates/${type}${q}`, { method: 'PUT', body: JSON.stringify(data) }, token);
+    },
+    resetTemplate: (type: string, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<any>(`/email/templates/${type}${q}`, { method: 'DELETE' }, token);
+    },
+  },
 };

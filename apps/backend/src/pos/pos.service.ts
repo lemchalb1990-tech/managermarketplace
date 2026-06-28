@@ -1,14 +1,18 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { FulfillmentType, Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
+import { EmailService } from '../email/email.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
 export class PosService {
+  private readonly logger = new Logger(PosService.name);
+
   constructor(
     private prisma: PrismaService,
     private sync: SyncService,
+    private email: EmailService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -137,6 +141,17 @@ export class PosService {
 
     for (const item of result!.items) {
       this.sync.syncProduct(item.productId, item.product.stock).catch(() => {});
+    }
+
+    if (dto.customerEmail) {
+      const receiptItems = result!.items.map(i => ({
+        productName: i.product.name,
+        quantity: i.quantity,
+        unitPrice: Number(i.unitPrice),
+      }));
+      this.email.sendSaleReceipt({ ...sale, companyId, customerEmail: dto.customerEmail, customerName: dto.customerName, fulfillmentType: dto.fulfillmentType, address: dto.address, commune: dto.commune, city: dto.city }, receiptItems).catch(e =>
+        this.logger.error(`Sale receipt email failed: ${e.message}`),
+      );
     }
 
     return result;
