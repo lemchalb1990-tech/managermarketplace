@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
@@ -20,7 +20,8 @@ const CHANNEL_LABEL: Record<string, string> = {
   PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
 };
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
+export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     if (!token) return;
     setLoading(true);
     try {
-      const data = await api.orders.get(params.id, token);
+      const data = await api.orders.get(id, token);
       setOrder(data);
       setShipForm({
         customerName: data.customerName || '',
@@ -86,14 +87,14 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       load();
       api.warehouses.list(token).then(setWarehouses).catch(() => {});
     }
-  }, [params.id]);
+  }, [id]);
 
   async function handleStatus(status: string) {
     setStatusError('');
     setStatusLoading(true);
     try {
       const token = getToken()!;
-      const updated = await api.orders.updateStatus(params.id, status, token);
+      const updated = await api.orders.updateStatus(id, status, token);
       setOrder(updated);
     } catch (err: any) {
       setStatusError(err.message || 'Error al cambiar estado');
@@ -107,7 +108,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     setCheckLoading((l) => ({ ...l, [item.id]: true }));
     try {
       const token = getToken()!;
-      await api.orders.checkItem(params.id, item.id, {
+      await api.orders.checkItem(id, item.id, {
         checkedQty: qty,
         notes: checkNote[item.id] || undefined,
       }, token);
@@ -123,7 +124,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     setCheckLoading((l) => ({ ...l, [item.id]: true }));
     try {
       const token = getToken()!;
-      await api.orders.uncheckItem(params.id, item.id, token);
+      await api.orders.uncheckItem(id, item.id, token);
       await load();
     } catch (err: any) {
       alert(err.message);
@@ -138,7 +139,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     for (const item of unchecked) {
       const qty = checkQty[item.id] ?? item.expectedQty;
       const token = getToken()!;
-      await api.orders.checkItem(params.id, item.id, { checkedQty: qty }, token).catch(() => {});
+      await api.orders.checkItem(id, item.id, { checkedQty: qty }, token).catch(() => {});
     }
     await load();
   }
@@ -150,7 +151,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     setPhotoError('');
     try {
       const token = getToken()!;
-      await api.orders.uploadPhoto(params.id, file, token);
+      await api.orders.uploadPhoto(id, file, token);
       await load();
     } catch (err: any) {
       setPhotoError(err.message || 'Error al subir foto');
@@ -163,7 +164,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   async function handleDeletePhoto(photoId: string) {
     if (!confirm('¿Eliminar esta foto?')) return;
     const token = getToken()!;
-    await api.orders.deletePhoto(params.id, photoId, token).catch(() => {});
+    await api.orders.deletePhoto(id, photoId, token).catch(() => {});
     await load();
   }
 
@@ -173,7 +174,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     setShipError('');
     try {
       const token = getToken()!;
-      const updated = await api.orders.update(params.id, shipForm, token);
+      const updated = await api.orders.update(id, shipForm, token);
       setOrder(updated);
       setEditShipment(false);
     } catch (err: any) {
