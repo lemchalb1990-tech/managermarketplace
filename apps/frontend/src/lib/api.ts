@@ -231,6 +231,12 @@ export const api = {
       if (params.date) q.set('date', params.date);
       return apiFetch<any>(`/pos/sales/summary?${q}`, {}, token);
     },
+    weeklySales: (token: string, params?: { companyId?: string; days?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.days) q.set('days', String(params.days));
+      return apiFetch<any[]>(`/pos/sales/weekly?${q}`, {}, token);
+    },
     stockMovements: (productId: string, token: string) =>
       apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),
     adjustStock: (data: { productId: string; quantity: number; reason?: string }, token: string) =>

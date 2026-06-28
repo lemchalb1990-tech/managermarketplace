@@ -41,6 +41,16 @@ export class PosController {
     return this.service.getDailySummary(user, companyId, date);
   }
 
+  @Get('sales/weekly')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getWeeklySales(
+    @CurrentUser() user: any,
+    @Query('companyId') companyId?: string,
+    @Query('days') days?: string,
+  ) {
+    return this.service.getWeeklySales(user, companyId, Number(days) || 7);
+  }
+
   @Get('stock/movements/:productId')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getMovements(@Param('productId') productId: string, @CurrentUser() user: any) {

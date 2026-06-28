@@ -142,6 +142,49 @@ export class PosService {
     return result;
   }
 
+  async getWeeklySales(user: any, companyId?: string, days = 7) {
+    const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    const where: any = { createdAt: { gte: from, lt: to } };
+    if (cid) where.companyId = cid;
+
+    const sales = await this.prisma.sale.findMany({
+      where,
+      select: { total: true, channel: true, createdAt: true },
+    });
+
+    const result = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const day = new Date(now);
+      day.setDate(now.getDate() - i);
+      const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+      const daySales = sales.filter(s => s.createdAt >= dayStart && s.createdAt < dayEnd);
+      const posTotal = daySales
+        .filter(s => s.channel === SaleChannel.POS)
+        .reduce((sum, s) => sum + Number(s.total), 0);
+      const ecomTotal = daySales
+        .filter(s => s.channel !== SaleChannel.POS)
+        .reduce((sum, s) => sum + Number(s.total), 0);
+
+      result.push({
+        date: dayStart.toISOString().split('T')[0],
+        label: dayStart.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' }),
+        total: posTotal + ecomTotal,
+        count: daySales.length,
+        posTotal,
+        ecomTotal,
+      });
+    }
+
+    return result;
+  }
+
   async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN
       ? query.companyId
