@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Role, SaleChannel, MovementType } from '@prisma/client';
+import { FulfillmentType, Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
@@ -23,7 +23,6 @@ export class PosService {
   async createSale(dto: CreateSaleDto, user: any) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
 
-    // Validar stock de todos los productos
     const products = await this.prisma.product.findMany({
       where: { id: { in: dto.items.map(i => i.productId) }, companyId },
     });
@@ -39,6 +38,16 @@ export class PosService {
 
     const total = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
+    // Auto-detect warehouse from products weighted by quantity
+    const warehouseCounts: Record<string, number> = {};
+    for (const item of dto.items) {
+      const p = products.find(pr => pr.id === item.productId);
+      if (p?.warehouseId) {
+        warehouseCounts[p.warehouseId] = (warehouseCounts[p.warehouseId] || 0) + item.quantity;
+      }
+    }
+    const autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
+
     const sale = await this.prisma.$transaction(async (tx) => {
       const created = await tx.sale.create({
         data: {
@@ -47,6 +56,13 @@ export class PosService {
           total,
           paymentMethod: dto.paymentMethod,
           notes: dto.notes,
+          customerName: dto.customerName,
+          customerEmail: dto.customerEmail,
+          customerPhone: dto.customerPhone,
+          fulfillmentType: dto.fulfillmentType,
+          address: dto.address,
+          commune: dto.commune,
+          city: dto.city,
           companyId,
           userId: user.id,
           items: {
@@ -60,7 +76,6 @@ export class PosService {
         include: { items: true },
       });
 
-      // Descontar stock y registrar movimientos
       for (const item of created.items) {
         await tx.product.update({
           where: { id: item.productId },
@@ -79,6 +94,36 @@ export class PosService {
         });
       }
 
+      // Auto-create order when fulfillmentType is provided (POS checkout)
+      if (dto.fulfillmentType) {
+        await tx.order.create({
+          data: {
+            fulfillmentType: dto.fulfillmentType,
+            customerName: dto.customerName,
+            customerEmail: dto.customerEmail,
+            customerPhone: dto.customerPhone,
+            address: dto.address,
+            commune: dto.commune,
+            city: dto.city,
+            companyId,
+            saleId: created.id,
+            warehouseId: autoWarehouseId || undefined,
+            createdById: user.id,
+            itemChecks: {
+              create: dto.items.map(i => {
+                const p = products.find(pr => pr.id === i.productId)!;
+                return {
+                  productId: i.productId,
+                  productName: p.name,
+                  productSku: p.sku,
+                  expectedQty: i.quantity,
+                };
+              }),
+            },
+          },
+        });
+      }
+
       return created;
     });
 
@@ -90,7 +135,6 @@ export class PosService {
       },
     });
 
-    // Sincronizar todas las plataformas para cada producto vendido (sin bloquear la respuesta)
     for (const item of result!.items) {
       this.sync.syncProduct(item.productId, item.product.stock).catch(() => {});
     }
@@ -211,7 +255,6 @@ export class PosService {
       }),
     ]);
 
-    // Sincronizar todas las plataformas con el nuevo stock
     this.sync.syncProduct(dto.productId, newStock).catch(() => {});
 
     return this.prisma.product.findUnique({ where: { id: dto.productId } });

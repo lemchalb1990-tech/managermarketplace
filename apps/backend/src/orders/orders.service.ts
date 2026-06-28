@@ -83,6 +83,14 @@ export class OrdersService {
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
 
     let itemChecksData: { productId: string | null; productName: string; productSku: string; expectedQty: number }[] = [];
+    let autoCustomerName: string | undefined;
+    let autoCustomerEmail: string | undefined;
+    let autoCustomerPhone: string | undefined;
+    let autoFulfillmentType: FulfillmentType | undefined;
+    let autoAddress: string | undefined;
+    let autoCommune: string | undefined;
+    let autoCity: string | undefined;
+    let autoWarehouseId: string | undefined;
 
     if (dto.saleId) {
       const sale = await this.prisma.sale.findUnique({
@@ -92,6 +100,24 @@ export class OrdersService {
       if (!sale) throw new NotFoundException('Venta no encontrada');
       if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
       if (sale.order) throw new ConflictException('Esta venta ya tiene una orden asociada');
+
+      // Auto-populate customer fields from sale
+      autoCustomerName = sale.customerName ?? undefined;
+      autoCustomerEmail = sale.customerEmail ?? undefined;
+      autoCustomerPhone = sale.customerPhone ?? undefined;
+      autoFulfillmentType = sale.fulfillmentType ?? undefined;
+      autoAddress = sale.address ?? undefined;
+      autoCommune = sale.commune ?? undefined;
+      autoCity = sale.city ?? undefined;
+
+      // Auto-detect warehouse from products weighted by quantity
+      const warehouseCounts: Record<string, number> = {};
+      for (const item of sale.items) {
+        if (item.product.warehouseId) {
+          warehouseCounts[item.product.warehouseId] = (warehouseCounts[item.product.warehouseId] || 0) + item.quantity;
+        }
+      }
+      autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
 
       itemChecksData = sale.items.map((i) => ({
         productId: i.productId,
@@ -111,18 +137,18 @@ export class OrdersService {
 
     return this.prisma.order.create({
       data: {
-        fulfillmentType: dto.fulfillmentType,
+        fulfillmentType: dto.fulfillmentType ?? autoFulfillmentType ?? FulfillmentType.DELIVERY,
         notes: dto.notes,
-        customerName: dto.customerName,
-        customerEmail: dto.customerEmail,
-        customerPhone: dto.customerPhone,
-        address: dto.address,
-        commune: dto.commune,
-        city: dto.city,
+        customerName: dto.customerName ?? autoCustomerName,
+        customerEmail: dto.customerEmail ?? autoCustomerEmail,
+        customerPhone: dto.customerPhone ?? autoCustomerPhone,
+        address: dto.address ?? autoAddress,
+        commune: dto.commune ?? autoCommune,
+        city: dto.city ?? autoCity,
         region: dto.region,
         companyId: user.companyId,
         saleId: dto.saleId,
-        warehouseId: dto.warehouseId,
+        warehouseId: dto.warehouseId ?? autoWarehouseId,
         createdById: user.id,
         itemChecks: { create: itemChecksData },
       },
@@ -205,7 +231,7 @@ export class OrdersService {
 
   async addPhoto(orderId: string, filename: string, url: string, user: any) {
     const order = await this.findOne(orderId, user);
-    if (![OrderStatus.READY, OrderStatus.IN_TRANSIT].includes(order.status)) {
+    if (!([OrderStatus.READY, OrderStatus.IN_TRANSIT] as OrderStatus[]).includes(order.status)) {
       throw new BadRequestException('Solo se pueden subir fotos cuando la orden está lista o en camino');
     }
     return this.prisma.shipmentPhoto.create({

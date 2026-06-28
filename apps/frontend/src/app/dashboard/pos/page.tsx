@@ -27,11 +27,21 @@ export default function PosPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
-  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Checkout modal state
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [fulfillmentType, setFulfillmentType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [commune, setCommune] = useState('');
+  const [city, setCity] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     const t = getToken();
@@ -99,6 +109,16 @@ export default function PosPage() {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
   }
 
+  function openCheckout() {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setShowCheckout(true);
+  }
+
+  function closeCheckout() {
+    setShowCheckout(false);
+  }
+
   const total = cart.reduce((s, c) => s + c.price * c.quantity, 0);
 
   const checkout = useCallback(async () => {
@@ -111,6 +131,13 @@ export default function PosPage() {
         channel: 'POS',
         paymentMethod,
         notes: notes || undefined,
+        fulfillmentType,
+        customerName: customerName || undefined,
+        customerPhone: customerPhone || undefined,
+        customerEmail: customerEmail || undefined,
+        address: fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
+        commune: fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
+        city: fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
         items: cart.map((c) => ({
           productId: c.productId,
           quantity: c.quantity,
@@ -125,8 +152,15 @@ export default function PosPage() {
       await api.pos.createSale(dto, token);
       setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL')}`);
       setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setAddress('');
+      setCommune('');
+      setCity('');
       setNotes('');
-      // Refrescar productos para stock actualizado
+      setFulfillmentType('PICKUP');
+      setShowCheckout(false);
       const updated = await api.catalog.list(token);
       setProducts(updated);
     } catch (err: any) {
@@ -134,7 +168,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, paymentMethod, notes, token, user, total]);
+  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, user, total]);
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
@@ -164,7 +198,6 @@ export default function PosPage() {
                   p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
                 }`}
               >
-                {/* Imagen */}
                 <div className="w-full aspect-square bg-gray-100 overflow-hidden">
                   {primaryImg ? (
                     <img
@@ -178,7 +211,6 @@ export default function PosPage() {
                     </div>
                   )}
                 </div>
-                {/* Info */}
                 <div className="p-2.5">
                   <p className="text-xs text-gray-400 mb-0.5">{p.sku}</p>
                   <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">{p.name}</p>
@@ -250,7 +282,6 @@ export default function PosPage() {
           ))}
         </div>
 
-        {/* Totales y pago */}
         <div className="px-4 py-3 border-t border-gray-100 space-y-3">
           {cart.length > 0 && (
             <div className="text-xs text-gray-500 space-y-1">
@@ -267,46 +298,202 @@ export default function PosPage() {
             <span>${total.toLocaleString('es-CL')}</span>
           </div>
 
-          <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1">Método de pago</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1">Notas (opcional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observaciones..."
-              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
           {successMsg && (
             <div className="bg-green-50 text-green-700 text-xs rounded-lg px-3 py-2">{successMsg}</div>
           )}
-          {errorMsg && (
-            <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2">{errorMsg}</div>
-          )}
 
           <button
-            onClick={checkout}
-            disabled={loading || cart.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-2.5 text-sm transition"
+            onClick={openCheckout}
+            disabled={cart.length === 0}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
           >
-            {loading ? 'Procesando...' : 'Confirmar venta'}
+            Cobrar
+            <span className="text-base leading-none">→</span>
           </button>
         </div>
       </div>
+
+      {/* Modal de checkout */}
+      {showCheckout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Finalizar compra</h2>
+              <button
+                onClick={closeCheckout}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold transition"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body con scroll */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+              {/* Datos del cliente */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Datos del cliente</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 font-medium mb-1">Nombre</label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Nombre del cliente"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 font-medium mb-1">Teléfono</label>
+                      <input
+                        type="tel"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="+56 9 XXXX XXXX"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 font-medium mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        placeholder="correo@ejemplo.cl"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tipo de entrega */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Tipo de entrega</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFulfillmentType('PICKUP')}
+                    className={`py-3 rounded-xl border-2 text-sm font-semibold transition ${
+                      fulfillmentType === 'PICKUP'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Retiro en tienda
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFulfillmentType('DELIVERY')}
+                    className={`py-3 rounded-xl border-2 text-sm font-semibold transition ${
+                      fulfillmentType === 'DELIVERY'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Despacho a domicilio
+                  </button>
+                </div>
+              </div>
+
+              {/* Dirección (solo si DELIVERY) */}
+              {fulfillmentType === 'DELIVERY' && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Dirección de despacho</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 font-medium mb-1">Dirección</label>
+                      <input
+                        type="text"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Calle y número"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 font-medium mb-1">Comuna</label>
+                        <input
+                          type="text"
+                          value={commune}
+                          onChange={(e) => setCommune(e.target.value)}
+                          placeholder="Comuna"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 font-medium mb-1">Ciudad</label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          placeholder="Ciudad"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Método de pago */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Método de pago</h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setPaymentMethod(v)}
+                      className={`py-2 rounded-lg border-2 text-xs font-semibold transition ${
+                        paymentMethod === v
+                          ? 'border-blue-600 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label className="block text-xs text-gray-500 font-medium mb-1">Notas (opcional)</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Observaciones..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100">
+              {errorMsg && (
+                <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">{errorMsg}</div>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-600">Total a cobrar</span>
+                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL')}</span>
+              </div>
+              <button
+                onClick={checkout}
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
+              >
+                {loading ? 'Procesando...' : 'Confirmar venta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

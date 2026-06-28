@@ -1,6 +1,6 @@
 import { IsString, IsNumber, IsInt, Min, IsOptional, IsEnum, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PaymentMethod, SaleChannel } from '@prisma/client';
+import { FulfillmentType, PaymentMethod, SaleChannel } from '@prisma/client';
 
 export class SaleItemDto {
   @IsString()
@@ -34,6 +34,34 @@ export class CreateSaleDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsEnum(FulfillmentType)
+  fulfillmentType?: FulfillmentType;
+
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  commune?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
