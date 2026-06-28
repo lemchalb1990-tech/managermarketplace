@@ -62,6 +62,20 @@ enum MovementType {
   INITIAL
 }
 
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -77,6 +91,7 @@ model Company {
   users              User[]
   products           Product[]
   warehouses         Warehouse[]
+  orders             Order[]
   connections        MarketplaceConnection[]
   sales              Sale[]
   billingConnections BillingConnection[]
@@ -103,6 +118,9 @@ model User {
   auditLogs      AuditLog[]
   sales          Sale[]
   stockMovements StockMovement[]
+  ordersCreated  Order[]          @relation("OrderCreatedBy")
+  itemChecks     OrderItemCheck[] @relation("ItemCheckedBy")
+  shipmentPhotos ShipmentPhoto[]
 
   @@map("users")
 }
@@ -141,6 +159,7 @@ model Warehouse {
   company   Company @relation(fields: [companyId], references: [id])
 
   products Product[]
+  orders   Order[]
 
   @@map("warehouses")
 }
@@ -165,10 +184,11 @@ model Product {
   warehouseId String?
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
 
-  images         ProductImage[]
-  listings       Listing[]
-  saleItems      SaleItem[]
-  stockMovements StockMovement[]
+  images          ProductImage[]
+  listings        Listing[]
+  saleItems       SaleItem[]
+  stockMovements  StockMovement[]
+  orderItemChecks OrderItemCheck[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -224,6 +244,7 @@ model Sale {
 
   items    SaleItem[]
   invoices Invoice[]
+  order    Order?
 
   @@map("sales")
 }
@@ -356,6 +377,75 @@ model PlatformSetting {
   updatedAt   DateTime @updatedAt
 
   @@map("platform_settings")
+}
+
+model Order {
+  id              String          @id @default(cuid())
+  status          OrderStatus     @default(PENDING)
+  fulfillmentType FulfillmentType @default(DELIVERY)
+  notes           String?
+  customerName    String?
+  customerEmail   String?
+  customerPhone   String?
+  address         String?
+  commune         String?
+  city            String?
+  region          String?
+  courier         String?
+  trackingCode    String?
+  scheduledDate   DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  saleId      String?    @unique
+  sale        Sale?      @relation(fields: [saleId], references: [id])
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  createdById String?
+  createdBy   User?      @relation("OrderCreatedBy", fields: [createdById], references: [id])
+
+  itemChecks OrderItemCheck[]
+  photos     ShipmentPhoto[]
+
+  @@map("orders")
+}
+
+model OrderItemCheck {
+  id          String    @id @default(cuid())
+  productName String
+  productSku  String
+  expectedQty Int
+  checkedQty  Int?
+  checked     Boolean   @default(false)
+  notes       String?
+  checkedAt   DateTime?
+
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  checkedById String?
+  checkedBy   User?    @relation("ItemCheckedBy", fields: [checkedById], references: [id])
+
+  @@map("order_item_checks")
+}
+
+model ShipmentPhoto {
+  id        String   @id @default(cuid())
+  url       String
+  filename  String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  orderId      String
+  order        Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?  @relation(fields: [uploadedById], references: [id])
+
+  @@map("shipment_photos")
 }
 
 model AuditLog {

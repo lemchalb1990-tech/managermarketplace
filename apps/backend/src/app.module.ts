@@ -14,6 +14,7 @@ import { PosModule } from './pos/pos.module';
 import { SettingsModule } from './settings/settings.module';
 import { BillingModule } from './billing/billing.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     SettingsModule,
     BillingModule,
     WarehousesModule,
+    OrdersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -168,6 +168,32 @@ export const api = {
         apiFetch<any>(`/billing/invoices/${id}/cancel`, { method: 'POST' }, token),
     },
   },
+  orders: {
+    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.set('status', params.status);
+      if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
+      if (params?.from) q.set('from', params.from);
+      if (params?.to) q.set('to', params.to);
+      if (params?.page) q.set('page', String(params.page));
+      return apiFetch<any>(`/orders?${q}`, {}, token);
+    },
+    get: (id: string, token: string) => apiFetch<any>(`/orders/${id}`, {}, token),
+    create: (data: any, token: string) =>
+      apiFetch<any>('/orders', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    updateStatus: (id: string, status: string, token: string) =>
+      apiFetch<any>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token),
+    checkItem: (orderId: string, itemId: string, data: { checkedQty: number; notes?: string }, token: string) =>
+      apiFetch<any>(`/orders/${orderId}/items/${itemId}/check`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    uncheckItem: (orderId: string, itemId: string, token: string) =>
+      apiFetch<any>(`/orders/${orderId}/items/${itemId}/uncheck`, { method: 'PATCH' }, token),
+    uploadPhoto: (orderId: string, file: File, token: string) =>
+      apiUpload<any>(`/orders/${orderId}/photos`, file, token),
+    deletePhoto: (orderId: string, photoId: string, token: string) =>
+      apiFetch<any>(`/orders/${orderId}/photos/${photoId}`, { method: 'DELETE' }, token),
+  },
   warehouses: {
     list: (token: string) => apiFetch<any[]>('/warehouses', {}, token),
     create: (data: { name: string; description?: string }, token: string) =>
