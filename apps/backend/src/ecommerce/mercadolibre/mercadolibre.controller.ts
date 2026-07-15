@@ -105,6 +105,13 @@ export class MercadolibreController {
     return this.service.removeConnection(id, user);
   }
 
+  @Post('connections/:id/refresh')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  refreshConnection(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.refreshConnectionToken(id, user);
+  }
+
   // ─── Importación de publicaciones existentes ────────────────────────────────
 
   @Get('connections/:id/import/preview')

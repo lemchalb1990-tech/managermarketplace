@@ -183,14 +183,36 @@ export class MercadolibreService {
     return conn.accessToken;
   }
 
+  async refreshConnectionToken(connectionId: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    const updated = await this.refreshToken(connectionId);
+    return {
+      id: updated.id,
+      name: updated.name,
+      active: updated.active,
+      expiresAt: updated.expiresAt,
+    };
+  }
+
   // ─── Connections ─────────────────────────────────────────────────────────────
 
   async getConnections(user: any, companyId?: string) {
-    const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
-    if (!cid) return [];
+    const where: any = { active: true, marketplace: 'MERCADO_LIBRE' };
+    if (user.role !== Role.SUPER_ADMIN) {
+      where.companyId = user.companyId;
+    } else if (companyId) {
+      where.companyId = companyId;
+    }
     return this.prisma.marketplaceConnection.findMany({
-      where: { companyId: cid, active: true },
-      select: { id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true },
+      where,
+      select: {
+        id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true,
+        company: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

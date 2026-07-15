@@ -106,6 +106,9 @@ export const api = {
       apiFetch<any[]>(`/ecommerce/ml/connections${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     deleteConnection: (id: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${id}`, { method: 'DELETE' }, token),
+    refreshConnection: (id: string, token: string) =>
+      apiFetch<{ id: string; name: string; active: boolean; expiresAt: string | null }>(
+        `/ecommerce/ml/connections/${id}/refresh`, { method: 'POST' }, token),
     publish: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
     sync: (productId: string, connectionId: string, token: string) =>

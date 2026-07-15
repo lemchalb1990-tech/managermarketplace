@@ -91,6 +91,22 @@ export default function MercadoLibrePage() {
     await loadConnections(activeCompanyId || undefined);
   }
 
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  async function handleRefreshToken(id: string) {
+    setRefreshingId(id);
+    setError('');
+    try {
+      const token = getToken()!;
+      await api.marketplace.refreshConnection(id, token);
+      await loadConnections(activeCompanyId || undefined);
+    } catch (err: any) {
+      setError(err.message || 'No se pudo renovar el token.');
+    } finally {
+      setRefreshingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 mb-1">
@@ -230,10 +246,17 @@ export default function MercadoLibrePage() {
                       </td>
                       <td className="px-4 py-3 text-right space-x-3">
                         {c.active && (
-                          <button onClick={() => setImportConn({ id: c.id, name: c.name })}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                            Importar publicaciones
-                          </button>
+                          <>
+                            <button onClick={() => setImportConn({ id: c.id, name: c.name })}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                              Importar publicaciones
+                            </button>
+                            <button onClick={() => handleRefreshToken(c.id)}
+                              disabled={refreshingId === c.id}
+                              className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                              {refreshingId === c.id ? 'Renovando...' : 'Renovar token'}
+                            </button>
+                          </>
                         )}
                         <button onClick={() => handleDelete(c.id, c.name)}
                           className="text-xs text-red-500 hover:text-red-700 font-medium">

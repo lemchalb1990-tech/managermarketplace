@@ -10,6 +10,7 @@ import { getToken, getUser, clearSession } from '@/lib/auth';
 const navItems = [
   { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
   { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
+  { href: '/dashboard/connections', label: 'Conexiones', roles: ['SUPER_ADMIN'], module: null },
   { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
   { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
   { href: '/dashboard/warehouses', label: 'Bodegas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },

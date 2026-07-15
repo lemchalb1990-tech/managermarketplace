@@ -46,14 +46,15 @@ export class ConnectionsService {
   }
 
   async listConnections(user: any, marketplace?: string, companyId?: string) {
-    const cid = user.role !== Role.SUPER_ADMIN ? user.companyId : companyId;
-    if (!cid) return [];
-
     const where: any = {
-      companyId: cid,
       active: true,
       marketplace: { in: NON_ML_TYPES },
     };
+    if (user.role !== Role.SUPER_ADMIN) {
+      where.companyId = user.companyId;
+    } else if (companyId) {
+      where.companyId = companyId;
+    }
     if (marketplace && NON_ML_TYPES.includes(marketplace as MarketplaceType)) {
       where.marketplace = marketplace as MarketplaceType;
     }
@@ -64,6 +65,7 @@ export class ConnectionsService {
         id: true, name: true, marketplace: true, active: true, createdAt: true,
         credentials: false, // no exponer credenciales en listado
         expiresAt: true,
+        company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
