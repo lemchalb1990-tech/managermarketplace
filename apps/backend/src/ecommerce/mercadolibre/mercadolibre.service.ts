@@ -498,6 +498,173 @@ export class MercadolibreService {
     });
   }
 
+  // ─── Importación de publicaciones existentes ─────────────────────────────────
+
+  private async getConnectionForUser(connectionId: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    return conn;
+  }
+
+  private extractSku(attributes: any[]): string | null {
+    const attr = Array.isArray(attributes) ? attributes.find((a) => a.id === 'SELLER_SKU') : null;
+    const value = attr?.value_name?.trim();
+    return value || null;
+  }
+
+  private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
+    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes';
+    const items: any[] = [];
+    for (let i = 0; i < itemIds.length; i += 20) {
+      const batch = itemIds.slice(i, i + 20);
+      const res = await fetch(
+        `${ML_API}/items?ids=${batch.join(',')}&attributes=${attrs}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) continue;
+      const data = await res.json() as any[];
+      for (const entry of data) {
+        if (entry.code === 200 && entry.body) items.push(entry.body);
+      }
+    }
+    return items;
+  }
+
+  async previewImport(connectionId: string, user: any) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
+    const me = await meRes.json() as any;
+
+    const MAX_ITEMS = 300;
+    const itemIds: string[] = [];
+    let offset = 0;
+    let total = 0;
+    do {
+      const searchRes = await fetch(
+        `${ML_API}/users/${me.id}/items/search?offset=${offset}&limit=50`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!searchRes.ok) break;
+      const searchData = await searchRes.json() as any;
+      total = searchData.paging?.total || 0;
+      itemIds.push(...(searchData.results || []));
+      offset += 50;
+    } while (offset < total && itemIds.length < MAX_ITEMS);
+
+    const truncated = total > itemIds.length;
+    const mlItems = await this.fetchMlItems(itemIds.slice(0, MAX_ITEMS), token);
+
+    const skus = mlItems.map((i) => this.extractSku(i.attributes)).filter((s): s is string => !!s);
+    const [existingProducts, existingListings] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { companyId: conn.companyId, sku: { in: skus } },
+        select: { id: true, sku: true, name: true },
+      }),
+      this.prisma.listing.findMany({
+        where: { connectionId, externalId: { in: mlItems.map((i) => i.id) } },
+        select: { externalId: true, productId: true, product: { select: { name: true } } },
+      }),
+    ]);
+    const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
+    const listingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
+
+    const items = mlItems.map((i) => {
+      const sku = this.extractSku(i.attributes);
+      const alreadyLinked = listingByExternalId.get(i.id);
+      const matchedProduct = !alreadyLinked && sku ? productBySku.get(sku) : undefined;
+      return {
+        externalId: i.id,
+        title: i.title,
+        price: i.price,
+        stock: i.available_quantity,
+        thumbnail: i.secure_thumbnail || i.thumbnail,
+        permalink: i.permalink,
+        status: i.status,
+        sku,
+        alreadyLinked: !!alreadyLinked,
+        matchedProductId: matchedProduct?.id || null,
+        matchedProductName: matchedProduct?.name || null,
+      };
+    });
+
+    return { connectionName: conn.name, total, truncated, items };
+  }
+
+  async confirmImport(connectionId: string, externalIds: string[], user: any) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    const mlItems = await this.fetchMlItems(externalIds, token);
+
+    let imported = 0;
+    let linked = 0;
+    let skipped = 0;
+
+    for (const item of mlItems) {
+      const alreadyLinked = await this.prisma.listing.findFirst({
+        where: { connectionId, externalId: item.id },
+      });
+      if (alreadyLinked) { skipped++; continue; }
+
+      const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
+      const sku = this.extractSku(item.attributes) || `ML-${item.id}`;
+
+      const product = await this.prisma.product.findUnique({
+        where: { sku_companyId: { sku, companyId: conn.companyId } },
+      });
+
+      if (product) {
+        await this.prisma.listing.create({
+          data: {
+            productId: product.id,
+            connectionId,
+            externalId: item.id,
+            externalUrl: item.permalink,
+            status,
+            syncedAt: new Date(),
+          },
+        });
+        linked++;
+      } else {
+        const newProduct = await this.prisma.product.create({
+          data: {
+            sku,
+            name: item.title,
+            price: item.price,
+            stock: item.available_quantity,
+            mlCategoryId: item.category_id,
+            companyId: conn.companyId,
+          },
+        });
+        const thumbnail = item.secure_thumbnail || item.thumbnail;
+        if (thumbnail) {
+          await this.prisma.productImage.create({
+            data: { productId: newProduct.id, filename: `${item.id}.jpg`, url: thumbnail, isPrimary: true },
+          });
+        }
+        await this.prisma.listing.create({
+          data: {
+            productId: newProduct.id,
+            connectionId,
+            externalId: item.id,
+            externalUrl: item.permalink,
+            status,
+            syncedAt: new Date(),
+          },
+        });
+        imported++;
+      }
+    }
+
+    return { imported, linked, skipped };
+  }
+
   // ─── Webhook ─────────────────────────────────────────────────────────────────
 
   async handleWebhook(body: any) {

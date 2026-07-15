@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from '../components/logos';
+import { ImportModal } from './components/ImportModal';
 
 export default function MercadoLibrePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -18,6 +19,7 @@ export default function MercadoLibrePage() {
   const [connClientSecret, setConnClientSecret] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
+  const [importConn, setImportConn] = useState<{ id: string; name: string } | null>(null);
   const searchParams = useSearchParams();
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
@@ -226,7 +228,13 @@ export default function MercadoLibrePage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right space-x-3">
+                        {c.active && (
+                          <button onClick={() => setImportConn({ id: c.id, name: c.name })}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            Importar publicaciones
+                          </button>
+                        )}
                         <button onClick={() => handleDelete(c.id, c.name)}
                           className="text-xs text-red-500 hover:text-red-700 font-medium">
                           Desconectar
@@ -247,6 +255,15 @@ export default function MercadoLibrePage() {
             </table>
           </div>
         </div>
+      )}
+
+      {importConn && (
+        <ImportModal
+          connectionId={importConn.id}
+          connectionName={importConn.name}
+          onClose={() => setImportConn(null)}
+          onImported={() => {}}
+        />
       )}
     </div>
   );

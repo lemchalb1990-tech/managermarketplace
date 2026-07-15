@@ -112,6 +112,23 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
     toggleListing: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
+    previewImport: (connectionId: string, token: string) =>
+      apiFetch<{
+        connectionName: string;
+        total: number;
+        truncated: boolean;
+        items: Array<{
+          externalId: string; title: string; price: number; stock: number;
+          thumbnail: string | null; permalink: string; status: string; sku: string | null;
+          alreadyLinked: boolean; matchedProductId: string | null; matchedProductName: string | null;
+        }>;
+      }>(`/ecommerce/ml/connections/${connectionId}/import/preview`, {}, token),
+    confirmImport: (connectionId: string, externalIds: string[], token: string) =>
+      apiFetch<{ imported: number; linked: number; skipped: number }>(
+        `/ecommerce/ml/connections/${connectionId}/import/confirm`,
+        { method: 'POST', body: JSON.stringify({ externalIds }) },
+        token,
+      ),
   },
   connections: {
     list: (token: string, params?: { marketplace?: string; companyId?: string }) => {

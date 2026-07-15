@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
   UseGuards, Res, BadRequestException,
 } from '@nestjs/common';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
@@ -15,6 +15,10 @@ class SaveCredentialsDto {
   @IsString() mlClientId: string;
   @IsString() mlClientSecret: string;
   @IsOptional() @IsString() companyId?: string;
+}
+
+class ConfirmImportDto {
+  @IsArray() @IsString({ each: true }) externalIds: string[];
 }
 
 @Controller('ecommerce/ml')
@@ -99,6 +103,22 @@ export class MercadolibreController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   removeConnection(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.removeConnection(id, user);
+  }
+
+  // ─── Importación de publicaciones existentes ────────────────────────────────
+
+  @Get('connections/:id/import/preview')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  previewImport(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.previewImport(id, user);
+  }
+
+  @Post('connections/:id/import/confirm')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  confirmImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
+    return this.service.confirmImport(id, dto.externalIds, user);
   }
 
   // ─── Webhook ───────────────────────────────────────────────────────────────
