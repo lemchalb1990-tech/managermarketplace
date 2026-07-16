@@ -772,6 +772,126 @@ export class MercadolibreService {
     return { imported, linked, skipped };
   }
 
+  // ─── Importación de ventas históricas (sin descontar stock) ──────────────────
+
+  async previewSalesImport(connectionId: string, user: any, from?: string, to?: string) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
+    const me = await meRes.json() as any;
+
+    const MAX_ORDERS = 300;
+    const baseParams = new URLSearchParams({ seller: String(me.id), sort: 'date_desc', limit: '50' });
+    if (from) baseParams.set('order.date_created.from', new Date(from).toISOString());
+    if (to) baseParams.set('order.date_created.to', new Date(`${to}T23:59:59`).toISOString());
+
+    const orders: any[] = [];
+    let offset = 0;
+    let total = 0;
+    do {
+      const params = new URLSearchParams(baseParams);
+      params.set('offset', String(offset));
+      const res = await fetch(`${ML_API}/orders/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) break;
+      const data = await res.json() as any;
+      total = data.paging?.total || 0;
+      orders.push(...(data.results || []));
+      offset += 50;
+    } while (offset < total && orders.length < MAX_ORDERS);
+
+    const truncated = total > orders.length;
+
+    const orderIds = orders.map((o) => String(o.id));
+    const itemIds = Array.from(new Set(
+      orders.flatMap((o) => (o.order_items || []).map((oi: any) => oi.item?.id).filter(Boolean)),
+    ));
+
+    const [existingSales, listings] = await Promise.all([
+      this.prisma.sale.findMany({ where: { externalId: { in: orderIds } }, select: { externalId: true } }),
+      this.prisma.listing.findMany({
+        where: { connectionId, externalId: { in: itemIds } },
+        select: { externalId: true, productId: true, product: { select: { name: true } } },
+      }),
+    ]);
+    const existingIds = new Set(existingSales.map((s) => s.externalId));
+    const listingByItemId = new Map(listings.map((l) => [l.externalId, l]));
+
+    const unfiltered = orders.map((o) => {
+      const orderItems = (o.order_items || []).map((oi: any) => {
+        const listing = listingByItemId.get(oi.item?.id);
+        return {
+          title: oi.item?.title || 'Ítem',
+          quantity: oi.quantity || 1,
+          unitPrice: Number(oi.unit_price || 0),
+          resolved: !!listing,
+          productName: listing?.product?.name || null,
+        };
+      });
+      const importable = orderItems.length > 0 && orderItems.every((i: any) => i.resolved);
+      return {
+        externalId: String(o.id),
+        date: o.date_created,
+        total: Number(o.total_amount || 0),
+        buyerNickname: o.buyer?.nickname || null,
+        items: orderItems,
+        importable,
+      };
+    });
+
+    const orderResults = unfiltered.filter((o) => !existingIds.has(o.externalId));
+    const alreadyImportedCount = unfiltered.length - orderResults.length;
+
+    return { connectionName: conn.name, total, truncated, alreadyImportedCount, orders: orderResults };
+  }
+
+  async confirmSalesImport(connectionId: string, externalOrderIds: string[], user: any) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const orderId of externalOrderIds) {
+      const existing = await this.prisma.sale.findFirst({ where: { externalId: orderId } });
+      if (existing) { skipped++; continue; }
+
+      const orderRes = await fetch(`${ML_API}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!orderRes.ok) { errors.push(`Orden ${orderId}: no se pudo obtener de Mercado Libre`); continue; }
+      const order = await orderRes.json() as any;
+
+      const resolvedItems: Array<{ productId: string; quantity: number; unitPrice: number }> = [];
+      let allResolved = true;
+      for (const oi of order.order_items || []) {
+        const listing = await this.prisma.listing.findFirst({
+          where: { connectionId, externalId: oi.item?.id },
+        });
+        if (!listing) { allResolved = false; break; }
+        resolvedItems.push({ productId: listing.productId, quantity: oi.quantity || 1, unitPrice: Number(oi.unit_price || 0) });
+      }
+      if (!allResolved || !resolvedItems.length) {
+        errors.push(`Orden ${orderId}: uno o más productos no están vinculados en el catálogo`);
+        continue;
+      }
+
+      await this.prisma.sale.create({
+        data: {
+          channel: SaleChannel.MERCADO_LIBRE,
+          externalId: orderId,
+          total: Number(order.total_amount || 0),
+          companyId: conn.companyId,
+          createdAt: new Date(order.date_created),
+          items: { create: resolvedItems },
+        },
+      });
+      imported++;
+    }
+
+    return { imported, skipped, errors };
+  }
+
   // ─── Webhook ─────────────────────────────────────────────────────────────────
 
   async handleWebhook(body: any) {

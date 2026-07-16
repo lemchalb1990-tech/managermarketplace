@@ -140,6 +140,27 @@ export class MercadolibreController {
     return this.service.confirmImport(id, dto.externalIds, user);
   }
 
+  // ─── Importación de ventas históricas ───────────────────────────────────────
+
+  @Get('connections/:id/sales-import/preview')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  previewSalesImport(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.previewSalesImport(id, user, from, to);
+  }
+
+  @Post('connections/:id/sales-import/confirm')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
+    return this.service.confirmSalesImport(id, dto.externalIds, user);
+  }
+
   // ─── Webhook ───────────────────────────────────────────────────────────────
 
   @Post('webhook')

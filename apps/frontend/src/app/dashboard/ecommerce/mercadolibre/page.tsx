@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from '../components/logos';
 import { ImportModal } from './components/ImportModal';
+import { SalesImportModal } from './components/SalesImportModal';
 
 export default function MercadoLibrePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -20,6 +21,7 @@ export default function MercadoLibrePage() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
   const [importConn, setImportConn] = useState<{ id: string; name: string } | null>(null);
+  const [salesImportConn, setSalesImportConn] = useState<{ id: string; name: string } | null>(null);
   const searchParams = useSearchParams();
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
@@ -284,6 +286,10 @@ export default function MercadoLibrePage() {
                               className="text-xs text-blue-600 hover:text-blue-800 font-medium">
                               Importar publicaciones
                             </button>
+                            <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
+                              className="text-xs text-purple-600 hover:text-purple-800 font-medium">
+                              Importar ventas
+                            </button>
                             <button onClick={() => handleRefreshToken(c.id)}
                               disabled={refreshingId === c.id}
                               className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
@@ -319,6 +325,14 @@ export default function MercadoLibrePage() {
           connectionName={importConn.name}
           onClose={() => setImportConn(null)}
           onImported={() => {}}
+        />
+      )}
+
+      {salesImportConn && (
+        <SalesImportModal
+          connectionId={salesImportConn.id}
+          connectionName={salesImportConn.name}
+          onClose={() => setSalesImportConn(null)}
         />
       )}
     </div>
