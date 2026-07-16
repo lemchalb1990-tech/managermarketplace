@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
-  UseGuards, Res, BadRequestException,
+  UseGuards, Res, BadRequestException, Logger,
 } from '@nestjs/common';
 import { IsString, IsOptional, IsArray } from 'class-validator';
 import type { Response } from 'express';
@@ -23,6 +23,8 @@ class ConfirmImportDto {
 
 @Controller('ecommerce/ml')
 export class MercadolibreController {
+  private readonly logger = new Logger(MercadolibreController.name);
+
   constructor(private service: MercadolibreService) {}
 
   // ─── Credenciales ─────────────────────────────────────────────────────────
@@ -68,7 +70,8 @@ export class MercadolibreController {
       return res.redirect(
         `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre/connected`,
       );
-    } catch {
+    } catch (err: any) {
+      this.logger.error(`ML callback error: ${err?.message || err}`, err?.stack);
       return res.redirect(
         `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre?error=1`,
       );
