@@ -87,6 +87,14 @@ export const api = {
   },
   catalog: {
     list: (token: string) => apiFetch<any[]>('/catalog/products', {}, token),
+    search: (params: { page?: number; search?: string; warehouseId?: string; active?: string }, token: string) => {
+      const q = new URLSearchParams();
+      if (params.page) q.set('page', String(params.page));
+      if (params.search) q.set('search', params.search);
+      if (params.warehouseId) q.set('warehouseId', params.warehouseId);
+      if (params.active) q.set('active', params.active);
+      return apiFetch<{ products: any[]; total: number; page: number; pages: number }>(`/catalog/products/search?${q}`, {}, token);
+    },
     create: (data: any, token: string) =>
       apiFetch<any>('/catalog/products', { method: 'POST', body: JSON.stringify(data) }, token),
     get: (id: string, token: string) => apiFetch<any>(`/catalog/products/${id}`, {}, token),
@@ -154,7 +162,7 @@ export const api = {
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/import/preview${scrollId ? `?scrollId=${encodeURIComponent(scrollId)}` : ''}`, {}, token),
     confirmImport: (connectionId: string, externalIds: string[], token: string) =>
-      apiFetch<{ imported: number; linked: number; skipped: number }>(
+      apiFetch<{ imported: number; linked: number; skipped: number; errors: string[] }>(
         `/ecommerce/ml/connections/${connectionId}/import/confirm`,
         { method: 'POST', body: JSON.stringify({ externalIds }) },
         token,

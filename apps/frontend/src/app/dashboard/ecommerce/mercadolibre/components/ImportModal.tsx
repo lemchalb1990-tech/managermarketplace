@@ -40,7 +40,7 @@ export function ImportModal({
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; linked: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
 
   async function loadPreview(scrollId: string | null, append: boolean) {
@@ -144,11 +144,17 @@ export function ImportModal({
           )}
 
           {!loading && !error && result && (
-            <div className="p-6">
+            <div className="p-6 space-y-3">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
                 <p className="font-semibold mb-1">Importación completada</p>
                 <p>{result.imported} producto(s) nuevo(s) creado(s), {result.linked} vinculado(s) a productos existentes, {result.skipped} omitido(s) (ya importados).</p>
               </div>
+              {result.errors?.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 space-y-1 max-h-40 overflow-y-auto">
+                  <p className="font-semibold">{result.errors.length} publicación(es) no se pudieron importar:</p>
+                  {result.errors.map((e, i) => <p key={i}>{e}</p>)}
+                </div>
+              )}
             </div>
           )}
 

@@ -727,80 +727,92 @@ export class MercadolibreService {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
-    const mlItems = await this.fetchMlItems(externalIds, token);
+    let mlItems: any[];
+    try {
+      mlItems = await this.fetchMlItems(externalIds, token);
+    } catch (err: any) {
+      this.logger.error(`confirmImport fetchMlItems error: ${err?.message || err}`, err?.stack);
+      throw new BadRequestException('No se pudo obtener el detalle de las publicaciones desde Mercado Libre.');
+    }
 
     let imported = 0;
     let linked = 0;
     let skipped = 0;
+    const errors: string[] = [];
 
     for (const item of mlItems) {
-      const alreadyLinked = await this.prisma.listing.findFirst({
-        where: { connectionId, externalId: item.id },
-      });
-      if (alreadyLinked) { skipped++; continue; }
-
-      const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
-      const sku = this.extractSku(item.attributes) || `ML-${item.id}`;
-
-      const product = await this.prisma.product.findUnique({
-        where: { sku_companyId: { sku, companyId: conn.companyId } },
-      });
-
-      if (product) {
-        await this.prisma.listing.create({
-          data: {
-            productId: product.id,
-            connectionId,
-            externalId: item.id,
-            externalUrl: item.permalink,
-            status,
-            syncedAt: new Date(),
-          },
+      try {
+        const alreadyLinked = await this.prisma.listing.findFirst({
+          where: { connectionId, externalId: item.id },
         });
-        linked++;
-      } else {
-        const newProduct = await this.prisma.product.create({
-          data: {
-            sku,
-            name: item.title,
-            price: item.price,
-            stock: item.available_quantity,
-            mlCategoryId: item.category_id,
-            companyId: conn.companyId,
-          },
-        });
-        const pictures: Array<{ secure_url?: string; url?: string }> = Array.isArray(item.pictures) && item.pictures.length
-          ? item.pictures
-          : (item.secure_thumbnail || item.thumbnail ? [{ url: item.secure_thumbnail || item.thumbnail }] : []);
+        if (alreadyLinked) { skipped++; continue; }
 
-        for (let i = 0; i < pictures.length; i++) {
-          const url = pictures[i].secure_url || pictures[i].url;
-          if (!url) continue;
-          await this.prisma.productImage.create({
+        const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
+        const sku = this.extractSku(item.attributes) || `ML-${item.id}`;
+
+        const product = await this.prisma.product.findUnique({
+          where: { sku_companyId: { sku, companyId: conn.companyId } },
+        });
+
+        if (product) {
+          await this.prisma.listing.create({
             data: {
-              productId: newProduct.id,
-              filename: `${item.id}-${i}.jpg`,
-              url,
-              isPrimary: i === 0,
-              order: i,
+              productId: product.id,
+              connectionId,
+              externalId: item.id,
+              externalUrl: item.permalink,
+              status,
+              syncedAt: new Date(),
             },
           });
+          linked++;
+        } else {
+          const newProduct = await this.prisma.product.create({
+            data: {
+              sku,
+              name: item.title,
+              price: item.price,
+              stock: item.available_quantity,
+              mlCategoryId: item.category_id,
+              companyId: conn.companyId,
+            },
+          });
+          const pictures: Array<{ secure_url?: string; url?: string }> = Array.isArray(item.pictures) && item.pictures.length
+            ? item.pictures
+            : (item.secure_thumbnail || item.thumbnail ? [{ url: item.secure_thumbnail || item.thumbnail }] : []);
+
+          for (let i = 0; i < pictures.length; i++) {
+            const url = pictures[i].secure_url || pictures[i].url;
+            if (!url) continue;
+            await this.prisma.productImage.create({
+              data: {
+                productId: newProduct.id,
+                filename: `${item.id}-${i}.jpg`,
+                url,
+                isPrimary: i === 0,
+                order: i,
+              },
+            });
+          }
+          await this.prisma.listing.create({
+            data: {
+              productId: newProduct.id,
+              connectionId,
+              externalId: item.id,
+              externalUrl: item.permalink,
+              status,
+              syncedAt: new Date(),
+            },
+          });
+          imported++;
         }
-        await this.prisma.listing.create({
-          data: {
-            productId: newProduct.id,
-            connectionId,
-            externalId: item.id,
-            externalUrl: item.permalink,
-            status,
-            syncedAt: new Date(),
-          },
-        });
-        imported++;
+      } catch (err: any) {
+        this.logger.error(`confirmImport item ${item?.id} error: ${err?.message || err}`, err?.stack);
+        errors.push(`${item?.id || 'ítem'}: ${err?.message || 'error desconocido'}`);
       }
     }
 
-    return { imported, linked, skipped };
+    return { imported, linked, skipped, errors };
   }
 
   // ─── Importación de ventas históricas (sin descontar stock) ──────────────────
