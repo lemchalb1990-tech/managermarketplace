@@ -332,7 +332,7 @@ export default function PosPage() {
         </div>
 
         {viewMode === 'cards' ? (
-        <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-6 content-start">
+        <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 content-start">
           {productsLoading && (
             <p className="col-span-full text-gray-400 text-sm text-center py-12">Cargando productos...</p>
           )}
@@ -343,16 +343,16 @@ export default function PosPage() {
                 key={p.id}
                 onClick={() => addToCart(p)}
                 disabled={p.stock === 0}
-                className={`bg-white border border-gray-200 rounded-2xl overflow-hidden text-left transition hover:shadow-lg hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                className={`bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden text-left transition hover:shadow-lg hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 flex flex-col h-full ${
                   p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
                 }`}
               >
-                <div className="w-full aspect-square bg-gray-50 overflow-hidden">
+                <div className="w-full aspect-square bg-white flex items-center justify-center p-4 border-b border-gray-100 shrink-0">
                   {primaryImg ? (
                     <img
                       src={imgUrl(primaryImg.url)}
                       alt={p.name}
-                      className="w-full h-full object-cover"
+                      className="max-w-full max-h-full object-contain"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300 text-7xl">
@@ -360,14 +360,14 @@ export default function PosPage() {
                     </div>
                   )}
                 </div>
-                <div className="p-5">
-                  <p className="text-xs text-gray-400 mb-1 font-mono">{p.sku}</p>
-                  <p className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 min-h-[3.5rem]">{p.name}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-blue-600 font-bold text-xl">
+                <div className="p-4 flex flex-col flex-1">
+                  <p className="text-xs text-gray-400 mb-1 font-mono truncate">{p.sku}</p>
+                  <p className="text-base font-bold text-gray-900 leading-snug line-clamp-2 min-h-[2.75rem]">{p.name}</p>
+                  <div className="mt-auto pt-3 flex items-center justify-between gap-2">
+                    <span className="text-blue-600 font-bold text-lg">
                       ${Number(p.price).toLocaleString('es-CL')}
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`text-xs px-2 py-1 rounded-full font-semibold whitespace-nowrap ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                       {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                     </span>
                   </div>
