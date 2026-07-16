@@ -24,6 +24,27 @@ export default function MercadoLibrePage() {
   const [salesImportConn, setSalesImportConn] = useState<{ id: string; name: string } | null>(null);
   const searchParams = useSearchParams();
 
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugConnId, setDebugConnId] = useState('');
+  const [debugOrderId, setDebugOrderId] = useState('');
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugResult, setDebugResult] = useState('');
+
+  async function handleDebugOrder() {
+    if (!debugConnId || !debugOrderId.trim()) return;
+    setDebugLoading(true);
+    setDebugResult('');
+    try {
+      const token = getToken()!;
+      const data = await api.marketplace.debugOrder(debugConnId, debugOrderId.trim(), token);
+      setDebugResult(JSON.stringify(data, null, 2));
+    } catch (err: any) {
+      setDebugResult(`Error: ${err.message}`);
+    } finally {
+      setDebugLoading(false);
+    }
+  }
+
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
 
@@ -334,6 +355,46 @@ export default function MercadoLibrePage() {
           connectionName={salesImportConn.name}
           onClose={() => setSalesImportConn(null)}
         />
+      )}
+
+      {isSuperAdmin && connections.length > 0 && (
+        <div className="mt-8 border-t border-gray-200 pt-4">
+          <button onClick={() => setShowDebug(!showDebug)}
+            className="text-xs text-gray-400 hover:text-gray-600">
+            {showDebug ? '▲ Ocultar' : '▼ Consultar'} diagnóstico de una orden puntual
+          </button>
+          {showDebug && (
+            <div className="mt-3 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+              <div className="flex flex-wrap gap-2 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tienda</label>
+                  <select value={debugConnId} onChange={(e) => setDebugConnId(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                    <option value="">— Selecciona —</option>
+                    {connections.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Número de orden ML (ej. 2000017...)</label>
+                  <input value={debugOrderId} onChange={(e) => setDebugOrderId(e.target.value)}
+                    placeholder="2000017..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <button onClick={handleDebugOrder} disabled={debugLoading || !debugConnId || !debugOrderId.trim()}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                  {debugLoading ? 'Consultando...' : 'Consultar'}
+                </button>
+              </div>
+              {debugResult && (
+                <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                  {debugResult}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

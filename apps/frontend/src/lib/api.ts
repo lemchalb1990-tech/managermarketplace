@@ -137,6 +137,8 @@ export const api = {
     refreshConnection: (id: string, token: string) =>
       apiFetch<{ id: string; name: string; active: boolean; expiresAt: string | null }>(
         `/ecommerce/ml/connections/${id}/refresh`, { method: 'POST' }, token),
+    debugOrder: (connectionId: string, orderId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/debug-order/${orderId}`, {}, token),
     publish: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
     sync: (productId: string, connectionId: string, token: string) =>
