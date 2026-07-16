@@ -22,6 +22,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -62,6 +63,17 @@ export default function SettingsPage() {
   }, {});
 
   const groupOrder = ['sistema', 'mercadolibre', 'otros'];
+  const callbackUri = draft['APP_URL']
+    ? `${draft['APP_URL'].replace(/\/+$/, '')}/api/ecommerce/ml/callback`
+    : '';
+
+  function handleCopyCallback() {
+    if (!callbackUri) return;
+    navigator.clipboard.writeText(callbackUri).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   if (loading) return <p className="text-gray-400 text-sm">Cargando configuración...</p>;
 
@@ -86,6 +98,35 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="divide-y divide-gray-50">
+                {group === 'mercadolibre' && (
+                  <div className="px-5 py-4">
+                    <div className="flex items-start justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">Callback URI de Mercado Libre</label>
+                      <code className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+                        calculado
+                      </code>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-2 leading-relaxed">
+                      Se calcula automáticamente a partir de "URL del backend" (arriba). Copia este valor exacto
+                      y pégalo como "Redirect URI" en tu app de ML Developer — no se edita aquí.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={callbackUri || 'Configura primero la URL del backend'}
+                        className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-mono text-gray-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyCallback}
+                        disabled={!callbackUri}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 shrink-0"
+                      >
+                        {copied ? '✓ Copiado' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {grouped[group].map((s: any) => (
                   <div key={s.key} className="px-5 py-4">
                     <div className="flex items-start justify-between mb-1.5">
@@ -130,8 +171,8 @@ export default function SettingsPage() {
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 leading-relaxed">
           <strong>Nota:</strong> Los cambios guardados aquí tienen prioridad sobre las variables de entorno del servidor.
-          Si actualizas <code className="bg-amber-100 px-1 rounded">ML_REDIRECT_URI</code>, también debes actualizarla
-          en la configuración de tu app en <strong>ML Developer</strong>.
+          Si cambias <code className="bg-amber-100 px-1 rounded">APP_URL</code>, el Callback URI de Mercado Libre
+          cambia con ella — actualízalo también en la configuración de tu app en <strong>ML Developer</strong>.
         </div>
       </form>
     </div>

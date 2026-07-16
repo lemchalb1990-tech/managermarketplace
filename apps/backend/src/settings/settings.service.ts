@@ -18,13 +18,6 @@ export const SETTING_DEFINITIONS = [
     sensitive: false,
   },
   {
-    key: 'ML_REDIRECT_URI',
-    label: 'Callback URI de Mercado Libre',
-    group: 'mercadolibre',
-    hint: 'URL de callback OAuth registrada en la app de ML Developer. Ej: https://api.tudominio.com/api/ecommerce/ml/callback',
-    sensitive: false,
-  },
-  {
     key: 'ML_DEFAULT_CATEGORY',
     label: 'Categoría ML por defecto',
     group: 'mercadolibre',
@@ -41,6 +34,9 @@ export class SettingsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // ML_REDIRECT_URI ya no es editable: se deriva de APP_URL + /api/ecommerce/ml/callback
+    await this.prisma.setting.deleteMany({ where: { key: 'ML_REDIRECT_URI' } });
+
     // Inicializar settings con valores de env si no existen en BD
     for (const def of SETTING_DEFINITIONS) {
       const exists = await this.prisma.setting.findUnique({ where: { key: def.key } });

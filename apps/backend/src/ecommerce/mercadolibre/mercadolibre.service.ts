@@ -92,12 +92,22 @@ export class MercadolibreService {
     return { ...conn, authorized: false };
   }
 
+  private async getRedirectUri(): Promise<string> {
+    const appUrl = await this.settings.get('APP_URL');
+    if (!appUrl) {
+      throw new BadRequestException(
+        'Configura la URL del backend (APP_URL) en Configuración antes de conectar Mercado Libre.',
+      );
+    }
+    return `${appUrl.replace(/\/+$/, '')}/api/ecommerce/ml/callback`;
+  }
+
   async getAuthUrlForConnection(connectionId: string, user: any): Promise<string> {
     const conn = await this.getConnectionForUser(connectionId, user);
     if (!conn.mlClientId || !conn.mlClientSecret) {
       throw new BadRequestException('Esta conexión no tiene credenciales guardadas');
     }
-    const redirectUri = await this.settings.get('ML_REDIRECT_URI');
+    const redirectUri = await this.getRedirectUri();
 
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
@@ -116,7 +126,7 @@ export class MercadolibreService {
 
     const clientId = draft.mlClientId;
     const clientSecret = draft.mlClientSecret;
-    const redirectUri = await this.settings.get('ML_REDIRECT_URI');
+    const redirectUri = await this.getRedirectUri();
 
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
