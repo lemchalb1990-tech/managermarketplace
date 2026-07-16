@@ -43,7 +43,7 @@ export async function apiUpload<T>(path: string, file: File, token: string): Pro
   return res.json();
 }
 
-export const imgUrl = (path: string) => `${API_URL}${path}`;
+export const imgUrl = (path: string) => /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
 
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
   const res = await fetch(`${API_URL}/api${path}`, {

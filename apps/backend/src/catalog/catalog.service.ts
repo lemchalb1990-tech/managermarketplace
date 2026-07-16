@@ -57,7 +57,8 @@ export class CatalogService {
     if (companyId) where.companyId = companyId;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.active === 'true') where.active = true;
-    if (query.active === 'false') where.active = false;
+    else if (query.active === 'false') where.active = false;
+    else if (query.active === 'paused') where.listings = { some: { status: 'PAUSED' } };
     if (query.search?.trim()) {
       const term = query.search.trim();
       where.OR = [

@@ -781,6 +781,7 @@ export default function CatalogPage() {
             <option value="">Todos</option>
             <option value="true">Activos</option>
             <option value="false">Inactivos</option>
+            <option value="paused">Pausados (ML)</option>
           </select>
         </div>
         <button
