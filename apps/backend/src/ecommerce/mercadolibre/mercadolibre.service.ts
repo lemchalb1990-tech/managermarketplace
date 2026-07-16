@@ -841,21 +841,33 @@ export class MercadolibreService {
     not_specified: 'A coordinar',
   };
 
-  private async getMlShippingMethod(order: any, token: string): Promise<string | null> {
+  private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
+    const orderId = order.id;
+    this.logger.log(`ML orden ${orderId} payments: ${JSON.stringify(order.payments || [])}`);
+
     const shippingId = order.shipping?.id;
-    if (!shippingId) return null;
+    if (!shippingId) return { method: null, sellerCost: null };
     try {
       const res = await fetch(`${ML_API}/shipments/${shippingId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return null;
+      if (!res.ok) return { method: null, sellerCost: null };
       const shipment = await res.json() as any;
+      // TEMPORAL: para identificar el campo correcto de costo de envío al vendedor.
+      this.logger.log(`ML shipment ${shippingId} raw: ${JSON.stringify(shipment).slice(0, 3000)}`);
+
       const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
-      if (!logisticType) return null;
-      return MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType;
+      const method = logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
+
+      const rawSellerCost = shipment.shipping_option?.cost
+        ?? shipment.shipping_option?.list_cost
+        ?? shipment.shipping_item?.cost;
+      const sellerCost = rawSellerCost != null ? Number(rawSellerCost) : null;
+
+      return { method, sellerCost };
     } catch (err: any) {
-      this.logger.warn(`No se pudo obtener el método de envío de la orden: ${err?.message || err}`);
-      return null;
+      this.logger.warn(`No se pudo obtener datos de envío de la orden ${orderId}: ${err?.message || err}`);
+      return { method: null, sellerCost: null };
     }
   }
 
@@ -970,7 +982,8 @@ export class MercadolibreService {
       }
 
       const charges = this.computeOrderCharges(order);
-      const shippingMethod = await this.getMlShippingMethod(order, token);
+      const shippingInfo = await this.getMlShippingInfo(order, token);
+      if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
       await this.prisma.sale.create({
         data: {
           channel: SaleChannel.MERCADO_LIBRE,
@@ -981,7 +994,7 @@ export class MercadolibreService {
           taxes: charges.taxes,
           discount: charges.coupon,
           netAmount: charges.totalPaid,
-          shippingMethod,
+          shippingMethod: shippingInfo.method,
           companyId: conn.companyId,
           customerName: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
@@ -1050,7 +1063,8 @@ export class MercadolibreService {
 
       // Crear venta y actualizar stock en transacción atómica
       const charges = this.computeOrderCharges(order);
-      const shippingMethod = await this.getMlShippingMethod(order, token);
+      const shippingInfo = await this.getMlShippingInfo(order, token);
+      if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
 
       await this.prisma.$transaction(async (tx) => {
         const sale = await tx.sale.create({
@@ -1063,7 +1077,7 @@ export class MercadolibreService {
             taxes: charges.taxes,
             discount: charges.coupon,
             netAmount: charges.totalPaid,
-            shippingMethod,
+            shippingMethod: shippingInfo.method,
             companyId,
             customerName: order.buyer?.nickname || null,
             items: {
