@@ -112,15 +112,32 @@ export class CatalogService {
     let deleted = 0;
     const failed: BulkDeleteFailure[] = [];
     for (const p of owned) {
+      const [listingCount, saleItemCount, stockMovementCount] = await Promise.all([
+        this.prisma.listing.count({ where: { productId: p.id } }),
+        this.prisma.saleItem.count({ where: { productId: p.id } }),
+        this.prisma.stockMovement.count({ where: { productId: p.id } }),
+      ]);
+      if (listingCount > 0) {
+        failed.push({
+          id: p.id,
+          name: p.name,
+          reason: 'Tiene una publicación en Mercado Libre (u otra plataforma). Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.',
+        });
+        continue;
+      }
+      if (saleItemCount > 0 || stockMovementCount > 0) {
+        failed.push({
+          id: p.id,
+          name: p.name,
+          reason: 'Tiene ventas o movimientos de stock registrados. Desactívalo en vez de eliminarlo para conservar el historial.',
+        });
+        continue;
+      }
       try {
         await this.prisma.product.delete({ where: { id: p.id } });
         deleted++;
       } catch {
-        failed.push({
-          id: p.id,
-          name: p.name,
-          reason: 'Tiene ventas, publicaciones o movimientos de stock asociados. Desactívalo en vez de eliminarlo.',
-        });
+        failed.push({ id: p.id, name: p.name, reason: 'No se pudo eliminar por registros asociados.' });
       }
     }
     return { deleted, failed };
