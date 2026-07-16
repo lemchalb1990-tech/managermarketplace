@@ -824,18 +824,18 @@ export class MercadolibreService {
     const payment = (order.payments || [])[0] || {};
     const itemFees = (order.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0), 0);
     return {
-      shippingCost: Number(payment.shipping_cost || order.shipping?.cost || 0),
-      marketplaceFee: Number(payment.marketplace_fee || itemFees || 0),
-      taxes: Number(payment.taxes_amount || 0),
-      coupon: Number(payment.coupon_amount || 0),
-      totalPaid: Number(payment.total_paid_amount ?? order.total_amount ?? 0),
+      shippingCost: Math.round(Number(payment.shipping_cost || order.shipping?.cost || 0)),
+      marketplaceFee: Math.round(Number(payment.marketplace_fee || itemFees || 0)),
+      taxes: Math.round(Number(payment.taxes_amount || 0)),
+      coupon: Math.round(Number(payment.coupon_amount || 0)),
+      totalPaid: Math.round(Number(payment.total_paid_amount ?? order.total_amount ?? 0)),
     };
   }
 
   // Neto real que recibe el vendedor: precio del producto - comisión - envío a su cargo - impuestos - cupón.
   // Verificado contra el panel de ML: $8.499 - $1.530 - $799 = $6.170.
   private computeSellerNetAmount(order: any, charges: { marketplaceFee: number; shippingCost: number; taxes: number; coupon: number }): number {
-    const productTotal = Number(order.total_amount || 0);
+    const productTotal = Math.round(Number(order.total_amount || 0));
     return productTotal - charges.marketplaceFee - charges.shippingCost - charges.taxes - charges.coupon;
   }
 
@@ -875,15 +875,17 @@ export class MercadolibreService {
       // 1) Si /costs trae el cargo real al vendedor, se usa directo.
       const sendersCost = Array.isArray(costs?.senders) ? costs.senders[0]?.cost : undefined;
 
-      // 2) Si no, se infiere: costo real de envío menos lo que pagó el comprador
-      //    (verificado contra datos reales: si el comprador cubre el costo total, da 0;
-      //    si el envío es "gratis" para el comprador, el vendedor absorbe la diferencia).
+      // 2) Si no, se infiere: costo real de envío menos lo que pagó el comprador.
+      //    Positivo = se le cobra la diferencia al vendedor (ej. envío "gratis" para el comprador).
+      //    Negativo = Mercado Libre le bonifica el excedente al vendedor (ej. Flex, buyerPaid > costo real)
+      //    — sin Math.max(0, ...): ese excedente debe sumarse al total, no descartarse.
       const actualShippingCost = shipment.shipping_option?.cost;
       const inferredSellerCost = actualShippingCost != null
-        ? Math.max(0, Number(actualShippingCost) - buyerShippingPaid)
+        ? Number(actualShippingCost) - buyerShippingPaid
         : null;
 
-      const sellerCost = sendersCost != null ? Number(sendersCost) : inferredSellerCost;
+      const rawSellerCost = sendersCost != null ? Number(sendersCost) : inferredSellerCost;
+      const sellerCost = rawSellerCost != null ? Math.round(rawSellerCost) : null;
 
       this.logger.log(
         `ML orden ${orderId} envío: pagó comprador=${buyerShippingPaid}, costo real=${actualShippingCost ?? 'n/d'}, ` +

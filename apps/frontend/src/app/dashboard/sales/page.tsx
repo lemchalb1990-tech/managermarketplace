@@ -149,7 +149,7 @@ export default function SalesPage() {
     }
   }, [token, loadSales, loadSummary]);
 
-  const fmt = (v: number) => `$${v.toLocaleString('es-CL')}`;
+  const fmt = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -371,9 +371,15 @@ export default function SalesPage() {
                       <div className="pt-2 mt-2 border-t border-gray-200 space-y-0.5">
                         <p className="text-xs font-semibold text-gray-500 mb-1">Cargos y bonificaciones</p>
                         {sale.shippingCost != null && (
-                          <div className="flex justify-between text-xs text-gray-500">
-                            <span>Envío (a cargo del vendedor)</span>
-                            <span>{Number(sale.shippingCost) > 0 ? `-${fmt(Number(sale.shippingCost))}` : fmt(0)}</span>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-500">
+                              {Number(sale.shippingCost) < 0 ? 'Envío (bonificado por ML)' : 'Envío (a cargo del vendedor)'}
+                            </span>
+                            <span className={Number(sale.shippingCost) < 0 ? 'text-green-600 font-medium' : 'text-gray-500'}>
+                              {Number(sale.shippingCost) > 0 ? `-${fmt(Number(sale.shippingCost))}`
+                                : Number(sale.shippingCost) < 0 ? `+${fmt(Math.abs(Number(sale.shippingCost)))}`
+                                : fmt(0)}
+                            </span>
                           </div>
                         )}
                         {sale.marketplaceFee != null && (
