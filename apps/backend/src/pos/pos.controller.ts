@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import type { Response } from 'express';
 import { Role, SaleChannel } from '@prisma/client';
 import { PosService } from './pos.service';
-import { CreateSaleDto, StockAdjustDto, BulkDeleteSalesDto, SetShippingBonusDto } from './dto/pos.dto';
+import { CreateSaleDto, StockAdjustDto, BulkDeleteSalesDto } from './dto/pos.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -37,12 +37,6 @@ export class PosController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   deleteSale(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteSale(id, user);
-  }
-
-  @Patch('sales/:id/shipping-bonus')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  setShippingBonus(@Param('id') id: string, @Body() dto: SetShippingBonusDto, @CurrentUser() user: any) {
-    return this.service.setShippingBonus(id, dto.amount, user);
   }
 
   @Post('sales/bulk-delete')
