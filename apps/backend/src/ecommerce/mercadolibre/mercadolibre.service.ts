@@ -614,14 +614,21 @@ export class MercadolibreService {
     const items: any[] = [];
     for (let i = 0; i < itemIds.length; i += 20) {
       const batch = itemIds.slice(i, i + 20);
-      const res = await fetch(
-        `${ML_API}/items?ids=${batch.join(',')}&attributes=${attrs}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.ok) continue;
-      const data = await res.json() as any[];
-      for (const entry of data) {
-        if (entry.code === 200 && entry.body) items.push(entry.body);
+      try {
+        const res = await fetch(
+          `${ML_API}/items?ids=${batch.join(',')}&attributes=${attrs}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) {
+          this.logger.warn(`ML items batch fetch HTTP ${res.status}, se omite este lote`);
+          continue;
+        }
+        const data = await res.json() as any[];
+        for (const entry of data) {
+          if (entry.code === 200 && entry.body) items.push(entry.body);
+        }
+      } catch (err: any) {
+        this.logger.warn(`ML items batch fetch error, se omite este lote: ${err?.message || err}`);
       }
     }
     return items;
@@ -631,81 +638,89 @@ export class MercadolibreService {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
-    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
-    const me = await meRes.json() as any;
+    try {
+      const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
+      const me = await meRes.json() as any;
 
-    // Catálogos grandes (>1000) requieren la API de "scan" de ML, que pagina por
-    // cursor (scroll_id) en vez de offset, sin techo de resultados totales.
-    const PAGES_PER_BATCH = 3; // 3 x 100 = hasta 300 publicaciones por llamada
-    const itemIds: string[] = [];
-    let currentScrollId = scrollId;
-    let total = 0;
-    let lastPageEmpty = false;
+      // Catálogos grandes (>1000) requieren la API de "scan" de ML, que pagina por
+      // cursor (scroll_id) en vez de offset, sin techo de resultados totales.
+      const PAGES_PER_BATCH = 3; // 3 x 100 = hasta 300 publicaciones por llamada
+      const itemIds: string[] = [];
+      let currentScrollId = scrollId;
+      let total = 0;
+      let lastPageEmpty = false;
 
-    for (let i = 0; i < PAGES_PER_BATCH; i++) {
-      const params = new URLSearchParams({ search_type: 'scan', limit: '100' });
-      if (currentScrollId) params.set('scroll_id', currentScrollId);
-      const searchRes = await fetch(
-        `${ML_API}/users/${me.id}/items/search?${params}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!searchRes.ok) {
-        const errBody = await searchRes.text();
-        this.logger.error(`ML items scan failed [${searchRes.status}]: ${errBody}`);
-        throw new BadRequestException(
-          `Mercado Libre rechazó la búsqueda de publicaciones (HTTP ${searchRes.status}). Revisa los logs del backend para más detalle.`,
+      for (let i = 0; i < PAGES_PER_BATCH; i++) {
+        const params = new URLSearchParams({ search_type: 'scan', limit: '100' });
+        if (currentScrollId) params.set('scroll_id', currentScrollId);
+        const searchRes = await fetch(
+          `${ML_API}/users/${me.id}/items/search?${params}`,
+          { headers: { Authorization: `Bearer ${token}` } },
         );
+        if (!searchRes.ok) {
+          const errBody = await searchRes.text();
+          this.logger.error(`ML items scan failed [${searchRes.status}]: ${errBody}`);
+          throw new BadRequestException(
+            `Mercado Libre rechazó la búsqueda de publicaciones (HTTP ${searchRes.status}). Revisa los logs del backend para más detalle.`,
+          );
+        }
+        const searchData = await searchRes.json() as any;
+        total = searchData.paging?.total || total;
+        currentScrollId = searchData.scroll_id;
+        const pageResults: string[] = searchData.results || [];
+        itemIds.push(...pageResults);
+        if (pageResults.length === 0) { lastPageEmpty = true; break; }
       }
-      const searchData = await searchRes.json() as any;
-      total = searchData.paging?.total || total;
-      currentScrollId = searchData.scroll_id;
-      const pageResults: string[] = searchData.results || [];
-      itemIds.push(...pageResults);
-      if (pageResults.length === 0) { lastPageEmpty = true; break; }
+
+      const nextScrollId = currentScrollId || null;
+      const hasMore = !lastPageEmpty && !!nextScrollId;
+
+      const mlItems = await this.fetchMlItems(itemIds, token);
+
+      const skus = mlItems.map((i) => this.extractSku(i.attributes)).filter((s): s is string => !!s);
+      const [existingProducts, existingListings] = await Promise.all([
+        this.prisma.product.findMany({
+          where: { companyId: conn.companyId, sku: { in: skus } },
+          select: { id: true, sku: true, name: true },
+        }),
+        this.prisma.listing.findMany({
+          where: { connectionId, externalId: { in: mlItems.map((i) => i.id) } },
+          select: { externalId: true, productId: true, product: { select: { name: true } } },
+        }),
+      ]);
+      const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
+      const listingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
+
+      const items = mlItems
+        .filter((i) => !listingByExternalId.has(i.id))
+        .map((i) => {
+          const sku = this.extractSku(i.attributes);
+          const matchedProduct = sku ? productBySku.get(sku) : undefined;
+          return {
+            externalId: i.id,
+            title: i.title,
+            price: i.price,
+            stock: i.available_quantity,
+            thumbnail: i.secure_thumbnail || i.thumbnail,
+            permalink: i.permalink,
+            status: i.status,
+            sku,
+            matchedProductId: matchedProduct?.id || null,
+            matchedProductName: matchedProduct?.name || null,
+          };
+        });
+
+      const alreadyImportedCount = mlItems.length - items.length;
+
+      return { connectionName: conn.name, total, hasMore, nextScrollId, alreadyImportedCount, items };
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error(`previewImport error: ${err?.message || err}`, err?.stack);
+      throw new BadRequestException(
+        'Ocurrió un error inesperado al buscar publicaciones en Mercado Libre. Revisa los logs del backend.',
+      );
     }
-
-    const nextScrollId = currentScrollId || null;
-    const hasMore = !lastPageEmpty && !!nextScrollId;
-
-    const mlItems = await this.fetchMlItems(itemIds, token);
-
-    const skus = mlItems.map((i) => this.extractSku(i.attributes)).filter((s): s is string => !!s);
-    const [existingProducts, existingListings] = await Promise.all([
-      this.prisma.product.findMany({
-        where: { companyId: conn.companyId, sku: { in: skus } },
-        select: { id: true, sku: true, name: true },
-      }),
-      this.prisma.listing.findMany({
-        where: { connectionId, externalId: { in: mlItems.map((i) => i.id) } },
-        select: { externalId: true, productId: true, product: { select: { name: true } } },
-      }),
-    ]);
-    const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
-    const listingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
-
-    const items = mlItems
-      .filter((i) => !listingByExternalId.has(i.id))
-      .map((i) => {
-        const sku = this.extractSku(i.attributes);
-        const matchedProduct = sku ? productBySku.get(sku) : undefined;
-        return {
-          externalId: i.id,
-          title: i.title,
-          price: i.price,
-          stock: i.available_quantity,
-          thumbnail: i.secure_thumbnail || i.thumbnail,
-          permalink: i.permalink,
-          status: i.status,
-          sku,
-          matchedProductId: matchedProduct?.id || null,
-          matchedProductName: matchedProduct?.name || null,
-        };
-      });
-
-    const alreadyImportedCount = mlItems.length - items.length;
-
-    return { connectionName: conn.name, total, hasMore, nextScrollId, alreadyImportedCount, items };
   }
 
   async confirmImport(connectionId: string, externalIds: string[], user: any) {

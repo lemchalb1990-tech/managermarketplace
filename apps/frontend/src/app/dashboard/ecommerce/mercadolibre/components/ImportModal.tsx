@@ -54,8 +54,11 @@ export function ImportModal({
       let more = true;
       let newItemsFound = false;
       let firstIteration = true;
+      let attempts = 0;
+      const MAX_ATTEMPTS_PER_CLICK = 6; // evita encadenar demasiadas llamadas seguidas en un solo clic
       // Salta automáticamente los lotes ya completamente importados hasta encontrar algo nuevo.
-      while (more && !newItemsFound) {
+      while (more && !newItemsFound && attempts < MAX_ATTEMPTS_PER_CLICK) {
+        attempts++;
         const data = await api.marketplace.previewImport(connectionId, cursor, token);
         const replace = isFreshSearch && firstIteration;
         setItems((prev) => replace ? data.items : [...prev, ...data.items]);
