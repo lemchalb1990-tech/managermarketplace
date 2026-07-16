@@ -77,6 +77,8 @@ export const api = {
       apiFetch<any>(`/companies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     remove: (id: string, token: string) =>
       apiFetch<any>(`/companies/${id}`, { method: 'DELETE' }, token),
+    deleteAllListings: (id: string, token: string) =>
+      apiFetch<{ deleted: number }>(`/companies/${id}/delete-listings`, { method: 'POST' }, token),
   },
   users: {
     list: (token: string) => apiFetch<any[]>('/users', {}, token),

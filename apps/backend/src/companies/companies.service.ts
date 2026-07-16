@@ -75,4 +75,15 @@ export class CompaniesService {
     await this.findOne(id);
     return this.prisma.company.update({ where: { id }, data: { active: false } });
   }
+
+  // Borra el vínculo interno (Listing) de todos los productos de la empresa, sin llamar
+  // a ninguna API de marketplace: las publicaciones siguen vivas en Mercado Libre (u otra
+  // plataforma), el sistema solo deja de rastrearlas.
+  async deleteAllListings(id: string) {
+    await this.findOne(id);
+    const result = await this.prisma.listing.deleteMany({
+      where: { product: { companyId: id } },
+    });
+    return { deleted: result.count };
+  }
 }

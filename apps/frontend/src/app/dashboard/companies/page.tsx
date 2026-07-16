@@ -30,6 +30,7 @@ export default function CompaniesPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [listingsLoadingId, setListingsLoadingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditState>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -52,6 +53,24 @@ export default function CompaniesPage() {
       await load();
     } catch (err: any) {
       setDeleteError(err.message);
+    }
+  }
+
+  async function handleDeleteAllListings(id: string, name: string) {
+    if (!confirm(
+      `¿Eliminar TODAS las publicaciones de "${name}"?\n\n` +
+      `Esto solo borra el vínculo interno con los marketplaces: las publicaciones seguirán vivas en Mercado Libre (u otra plataforma), pero el sistema dejará de rastrearlas para todos los productos de esta empresa.`,
+    )) return;
+    setListingsLoadingId(id);
+    setDeleteError('');
+    try {
+      const token = getToken()!;
+      const res = await api.companies.deleteAllListings(id, token);
+      alert(`${res.deleted} publicación(es) eliminada(s) del sistema.`);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar las publicaciones de la empresa.');
+    } finally {
+      setListingsLoadingId(null);
     }
   }
 
@@ -291,6 +310,12 @@ export default function CompaniesPage() {
                   <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
+                  </button>
+                  <button onClick={() => handleDeleteAllListings(c.id, c.name)}
+                    disabled={listingsLoadingId === c.id}
+                    title="Borra el vínculo interno con los marketplaces sin afectar las publicaciones reales"
+                    className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                    {listingsLoadingId === c.id ? 'Eliminando...' : 'Eliminar publicaciones'}
                   </button>
                   <button onClick={() => handleDelete(c.id, c.name)}
                     className="text-xs text-red-500 hover:text-red-700 font-medium">

@@ -36,4 +36,9 @@ export class CompaniesController {
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }
+
+  @Post(':id/delete-listings')
+  deleteAllListings(@Param('id') id: string) {
+    return this.service.deleteAllListings(id);
+  }
 }
