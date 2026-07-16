@@ -98,7 +98,7 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<string[]>(`/catalog/products/categories?${q}`, {}, token);
     },
-    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: boolean }, token: string) => {
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: boolean; pageSize?: number }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
@@ -107,6 +107,7 @@ export const api = {
       if (params.active) q.set('active', params.active);
       if (params.companyId) q.set('companyId', params.companyId);
       if (params.inStock) q.set('inStock', 'true');
+      if (params.pageSize) q.set('pageSize', String(params.pageSize));
       return apiFetch<{ products: any[]; total: number; page: number; pages: number }>(`/catalog/products/search?${q}`, {}, token);
     },
     create: (data: any, token: string) =>

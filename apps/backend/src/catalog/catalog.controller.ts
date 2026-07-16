@@ -48,8 +48,9 @@ export class CatalogController {
     @Query('active') active?: string,
     @Query('companyId') companyId?: string,
     @Query('inStock') inStock?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, category, active, companyId, inStock });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, active, companyId, inStock, pageSize });
   }
 
   @Get('products/categories')

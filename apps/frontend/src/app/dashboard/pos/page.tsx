@@ -14,6 +14,10 @@ interface CartItem {
   imageUrl?: string;
 }
 
+// Referencia de la grilla en desktop (xl:grid-cols-4): 4 filas x 4 columnas por página.
+const CARD_COLUMNS_DESKTOP = 4;
+const ROWS_PER_PAGE = 4;
+
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Efectivo',
   CARD: 'Tarjeta',
@@ -90,6 +94,7 @@ export default function PosPage() {
         active: 'true',
         inStock: onlyInStock || undefined,
         companyId: isSuperAdmin ? selectedCompanyId : undefined,
+        pageSize: ROWS_PER_PAGE * CARD_COLUMNS_DESKTOP,
       }, token);
       setProducts(res.products);
       setTotalProducts(res.total);

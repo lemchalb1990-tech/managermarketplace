@@ -50,7 +50,7 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
@@ -70,7 +70,7 @@ export class CatalogService {
     }
 
     const page = Math.max(1, parseInt(query.page || '1'));
-    const take = 50;
+    const take = Math.min(100, Math.max(1, parseInt(query.pageSize || '50') || 50));
     const skip = (page - 1) * take;
 
     const [products, total] = await Promise.all([
