@@ -2,7 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Res } fro
 import type { Response } from 'express';
 import { Role, SaleChannel } from '@prisma/client';
 import { PosService } from './pos.service';
-import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
+import { CreateSaleDto, StockAdjustDto, BulkDeleteSalesDto } from './dto/pos.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -37,6 +37,12 @@ export class PosController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   deleteSale(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteSale(id, user);
+  }
+
+  @Post('sales/bulk-delete')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  bulkDeleteSales(@Body() dto: BulkDeleteSalesDto, @CurrentUser() user: any) {
+    return this.service.bulkDeleteSales(dto.ids, user);
   }
 
   @Get('sales/export')

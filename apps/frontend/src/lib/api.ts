@@ -328,6 +328,9 @@ export const api = {
     },
     deleteSale: (id: string, token: string) =>
       apiFetch<{ deleted: boolean }>(`/pos/sales/${id}`, { method: 'DELETE' }, token),
+    bulkDeleteSales: (ids: string[], token: string) =>
+      apiFetch<{ deleted: number; failed: { id: string; reason: string }[] }>(
+        '/pos/sales/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
     summary: (params: { companyId?: string; date?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.companyId) q.set('companyId', params.companyId);

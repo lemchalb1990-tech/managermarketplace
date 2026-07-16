@@ -43,8 +43,42 @@ export default function SalesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) =>
+      prev.size === sales.length ? new Set() : new Set(sales.map((s) => s.id)),
+    );
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`¿Eliminar ${selectedIds.size} venta(s) seleccionada(s)? Esta acción no se puede deshacer.`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await api.pos.bulkDeleteSales(Array.from(selectedIds), token);
+      setSelectedIds(new Set());
+      await loadSales(page);
+      if (res.failed.length > 0) {
+        alert(`${res.deleted} eliminada(s). ${res.failed.length} no se pudieron eliminar (tienen factura, orden o movimientos de stock asociados).`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'No se pudieron eliminar las ventas seleccionadas.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
 
   async function handleExport() {
     if (!token) return;
@@ -226,6 +260,15 @@ export default function SalesPage() {
           <h2 className="font-semibold text-gray-800">Historial de ventas</h2>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{total} registros</span>
+            {isAdmin && selectedIds.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50"
+              >
+                {bulkDeleting ? 'Eliminando...' : `Eliminar seleccionadas (${selectedIds.size})`}
+              </button>
+            )}
             <button
               onClick={handleExport}
               disabled={exporting}
@@ -235,6 +278,15 @@ export default function SalesPage() {
             </button>
           </div>
         </div>
+
+        {isAdmin && sales.length > 0 && (
+          <div className="px-5 py-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50">
+            <input type="checkbox"
+              checked={sales.length > 0 && selectedIds.size === sales.length}
+              onChange={toggleSelectAll} />
+            <span className="text-xs text-gray-500">Seleccionar todas en esta página</span>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-gray-400 text-sm text-center py-10">Cargando...</p>
@@ -248,6 +300,11 @@ export default function SalesPage() {
                   className="flex items-center gap-3 cursor-pointer"
                   onClick={() => setExpandedId(expandedId === sale.id ? null : sale.id)}
                 >
+                  {isAdmin && (
+                    <input type="checkbox" checked={selectedIds.has(sale.id)}
+                      onChange={() => toggleSelect(sale.id)}
+                      onClick={(e) => e.stopPropagation()} />
+                  )}
                   <div className="flex-1 grid grid-cols-4 gap-3 items-center">
                     <div>
                       <p className="text-sm font-medium text-gray-800">

@@ -69,6 +69,12 @@ export class CreateSaleDto {
   items: SaleItemDto[];
 }
 
+export class BulkDeleteSalesDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids: string[];
+}
+
 export class StockAdjustDto {
   @IsString()
   productId: string;

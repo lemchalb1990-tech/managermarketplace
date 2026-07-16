@@ -259,6 +259,29 @@ export class PosService {
     return { deleted: true };
   }
 
+  async bulkDeleteSales(ids: string[], user: any) {
+    const sales = await this.prisma.sale.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, companyId: true, externalId: true },
+    });
+    const owned = sales.filter((s) => user.role === Role.SUPER_ADMIN || s.companyId === user.companyId);
+
+    let deleted = 0;
+    const failed: Array<{ id: string; reason: string }> = [];
+    for (const s of owned) {
+      try {
+        await this.prisma.sale.delete({ where: { id: s.id } });
+        deleted++;
+      } catch {
+        failed.push({
+          id: s.id,
+          reason: 'Tiene movimientos de stock, factura u orden de despacho asociados.',
+        });
+      }
+    }
+    return { deleted, failed };
+  }
+
   async exportSalesCsv(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string }): Promise<string> {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : user.companyId;
 
