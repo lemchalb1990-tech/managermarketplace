@@ -50,12 +50,13 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; active?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
+    if (query.category) where.category = query.category;
     if (query.active === 'true') where.active = true;
     else if (query.active === 'false') where.active = false;
     else if (query.active === 'paused') where.listings = { some: { status: 'PAUSED' } };
@@ -87,6 +88,17 @@ export class CatalogService {
     ]);
 
     return { products, total, page, pages: Math.ceil(total / take) };
+  }
+
+  async listCategories(user: any): Promise<string[]> {
+    const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
+    const rows = await this.prisma.product.findMany({
+      where: { ...(companyId ? { companyId } : {}), category: { not: null } },
+      distinct: ['category'],
+      select: { category: true },
+      orderBy: { category: 'asc' },
+    });
+    return rows.map((r) => r.category!).filter(Boolean);
   }
 
   async findOne(id: string, user: any) {
@@ -150,6 +162,17 @@ export class CatalogService {
       data: { active },
     });
     return { updated: owned.length };
+  }
+
+  // Solo para SUPER_ADMIN: borra el vínculo interno (Listing) de los productos indicados,
+  // sin llamar a la API del marketplace. La publicación sigue viva en Mercado Libre (u otra
+  // plataforma); el sistema simplemente deja de rastrearla.
+  async bulkDeleteListings(ids: string[], user: any) {
+    if (user.role !== Role.SUPER_ADMIN) throw new ForbiddenException();
+    const result = await this.prisma.listing.deleteMany({
+      where: { productId: { in: ids } },
+    });
+    return { deleted: result.count };
   }
 
   async bulkDelete(ids: string[], user: any) {

@@ -196,6 +196,7 @@ model Product {
   price          Decimal  @db.Decimal(10, 2)
   cost           Decimal? @db.Decimal(10, 2)
   stock          Int      @default(0)
+  category       String?
   mlCategoryId   String?
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())

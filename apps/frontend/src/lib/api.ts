@@ -87,11 +87,13 @@ export const api = {
   },
   catalog: {
     list: (token: string) => apiFetch<any[]>('/catalog/products', {}, token),
-    search: (params: { page?: number; search?: string; warehouseId?: string; active?: string }, token: string) => {
+    categories: (token: string) => apiFetch<string[]>('/catalog/products/categories', {}, token),
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
       if (params.warehouseId) q.set('warehouseId', params.warehouseId);
+      if (params.category) q.set('category', params.category);
       if (params.active) q.set('active', params.active);
       return apiFetch<{ products: any[]; total: number; page: number; pages: number }>(`/catalog/products/search?${q}`, {}, token);
     },
@@ -113,6 +115,9 @@ export const api = {
     bulkDelete: (ids: string[], token: string) =>
       apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string }[] }>(
         '/catalog/products/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+    bulkDeleteListings: (ids: string[], token: string) =>
+      apiFetch<{ deleted: number }>(
+        '/catalog/products/bulk/delete-listings', { method: 'POST', body: JSON.stringify({ ids }) }, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>

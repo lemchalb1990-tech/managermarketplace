@@ -227,7 +227,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', mlCategoryId: '', warehouseId: '' };
+const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', category: '', mlCategoryId: '', warehouseId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -245,6 +245,7 @@ export default function CatalogPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -254,6 +255,7 @@ export default function CatalogPage() {
   const [bulkError, setBulkError] = useState('');
   const [search, setSearch] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -288,6 +290,7 @@ export default function CatalogPage() {
         page: p,
         search: search || undefined,
         warehouseId: warehouseFilter || undefined,
+        category: categoryFilter || undefined,
         active: activeFilter || undefined,
       }, token);
       setProducts(res.products);
@@ -302,14 +305,16 @@ export default function CatalogPage() {
   async function load() {
     const token = getToken();
     if (!token) return;
-    const [me, conns, whs] = await Promise.all([
+    const [me, conns, whs, cats] = await Promise.all([
       api.me(token).catch(() => null),
       api.marketplace.connections(token).catch(() => []),
       api.warehouses.list(token).catch(() => []),
+      api.catalog.categories(token).catch(() => []),
     ]);
     setCurrentUser(me);
     setConnections(conns);
     setWarehouses(whs);
+    setCategories(cats);
     await loadProducts(1);
   }
 
@@ -340,6 +345,26 @@ export default function CatalogPage() {
       await loadProducts(page);
     } catch (err: any) {
       setBulkError(err.message || 'Error al actualizar los productos seleccionados.');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleBulkDeleteListings() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(
+      `¿Eliminar la publicación de ${selectedIds.size} producto(s) seleccionado(s)?\n\n` +
+      `Esto solo borra el vínculo interno con Mercado Libre (u otra plataforma): la publicación seguirá viva en el marketplace, pero dejará de estar asociada a estos productos en el sistema.`,
+    )) return;
+    setBulkLoading(true);
+    setBulkError('');
+    try {
+      const token = getToken()!;
+      await api.catalog.bulkDeleteListings(Array.from(selectedIds), token);
+      setSelectedIds(new Set());
+      await loadProducts(page);
+    } catch (err: any) {
+      setBulkError(err.message || 'Error al eliminar las publicaciones seleccionadas.');
     } finally {
       setBulkLoading(false);
     }
@@ -378,6 +403,7 @@ export default function CatalogPage() {
       editForm.price !== orig.price ||
       editForm.cost !== orig.cost ||
       editForm.stock !== orig.stock ||
+      editForm.category !== orig.category ||
       editForm.mlCategoryId !== orig.mlCategoryId ||
       editForm.mlDescription !== orig.mlDescription ||
       JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
@@ -416,6 +442,7 @@ export default function CatalogPage() {
       price: String(Number(product.price)),
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
+      category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
       mlAttributes: existingAttrs,
@@ -432,6 +459,7 @@ export default function CatalogPage() {
       price: String(Number(product.price)),
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
+      category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
       mlAttributes: JSON.stringify(existingAttrs),
@@ -463,6 +491,7 @@ export default function CatalogPage() {
         price: parseFloat(form.price),
         cost: form.cost ? parseFloat(form.cost) : undefined,
         stock: parseInt(form.stock),
+        category: form.category || undefined,
         mlCategoryId: form.mlCategoryId || undefined,
         warehouseId: form.warehouseId || undefined,
       }, token);
@@ -489,6 +518,7 @@ export default function CatalogPage() {
         price: parseFloat(editForm.price),
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         stock: parseInt(editForm.stock),
+        category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
@@ -707,6 +737,13 @@ export default function CatalogPage() {
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
+              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                list="category-suggestions"
+                placeholder="Ej: Electrónica"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
               <CategoryPicker value={form.mlCategoryId} onChange={(id) => setForm({ ...form, mlCategoryId: id })} />
             </div>
@@ -776,6 +813,19 @@ export default function CatalogPage() {
           </select>
         </div>
         <div>
+          <label className="text-xs text-gray-500 block mb-1">Categoría</label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+          >
+            <option value="">Todas</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="text-xs text-gray-500 block mb-1">Estado</label>
           <select
             value={activeFilter}
@@ -795,13 +845,16 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setActiveFilter(''); }}
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setActiveFilter(''); }}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar
         </button>
         <span className="ml-auto text-xs text-gray-500 self-center">{total} producto(s)</span>
       </div>
+      <datalist id="category-suggestions">
+        {categories.map((c) => <option key={c} value={c} />)}
+      </datalist>
 
       {isAdmin && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
@@ -818,6 +871,13 @@ export default function CatalogPage() {
             className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
             Eliminar
           </button>
+          {currentUser?.role === 'SUPER_ADMIN' && (
+            <button onClick={handleBulkDeleteListings} disabled={bulkLoading}
+              title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
+              className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
+              Eliminar publicaciones
+            </button>
+          )}
           <button onClick={() => setSelectedIds(new Set())}
             className="ml-auto text-xs text-blue-600 hover:text-blue-800">
             Limpiar selección
@@ -1024,6 +1084,14 @@ export default function CatalogPage() {
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
+                    <input value={editForm.category || ''}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
+                      list="category-suggestions"
+                      placeholder="Ej: Electrónica"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>

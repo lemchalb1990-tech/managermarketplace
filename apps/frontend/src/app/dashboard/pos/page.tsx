@@ -25,7 +25,12 @@ export default function PosPage() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [onlyInStock, setOnlyInStock] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -55,6 +60,8 @@ export default function PosPage() {
   useEffect(() => {
     if (!token) return;
     api.catalog.list(token).then(setProducts).catch(() => {});
+    api.warehouses.list(token).then(setWarehouses).catch(() => {});
+    api.catalog.categories(token).then(setCategories).catch(() => {});
   }, [token]);
 
   const filtered = products.filter(
@@ -62,7 +69,10 @@ export default function PosPage() {
       p.active &&
       (search === '' ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase())),
+        p.sku.toLowerCase().includes(search.toLowerCase())) &&
+      (warehouseFilter === '' || p.warehouseId === warehouseFilter) &&
+      (categoryFilter === '' || p.category === categoryFilter) &&
+      (!onlyInStock || p.stock > 0),
   );
 
   function addToCart(product: any) {
@@ -178,15 +188,63 @@ export default function PosPage() {
           <h1 className="text-xl font-bold text-gray-900">Punto de Venta</h1>
         </div>
 
-        <input
-          type="text"
-          placeholder="Buscar por nombre o SKU..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-xs text-gray-500 block mb-1">Buscar</label>
+            <input
+              type="text"
+              placeholder="Buscar por nombre o SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Bodega</label>
+            <select
+              value={warehouseFilter}
+              onChange={(e) => setWarehouseFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+            >
+              <option value="">Todas</option>
+              {warehouses.map((w: any) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Categoría</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+            >
+              <option value="">Todas</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 bg-white cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={onlyInStock}
+              onChange={(e) => setOnlyInStock(e.target.checked)}
+              className="rounded"
+            />
+            Solo con stock
+          </label>
+          {(search || warehouseFilter || categoryFilter || onlyInStock) && (
+            <button
+              onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setOnlyInStock(false); }}
+              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
 
-        <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 content-start">
+        <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 content-start">
           {filtered.map((p) => {
             const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
             return (
@@ -194,11 +252,11 @@ export default function PosPage() {
                 key={p.id}
                 onClick={() => addToCart(p)}
                 disabled={p.stock === 0}
-                className={`bg-white border rounded-xl overflow-hidden text-left transition hover:shadow-md hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                className={`bg-white border border-gray-200 rounded-2xl overflow-hidden text-left transition hover:shadow-lg hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
                   p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
                 }`}
               >
-                <div className="w-full aspect-square bg-gray-100 overflow-hidden">
+                <div className="w-full aspect-square bg-gray-50 overflow-hidden">
                   {primaryImg ? (
                     <img
                       src={imgUrl(primaryImg.url)}
@@ -206,19 +264,19 @@ export default function PosPage() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-5xl">
                       📦
                     </div>
                   )}
                 </div>
-                <div className="p-2.5">
-                  <p className="text-xs text-gray-400 mb-0.5">{p.sku}</p>
-                  <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">{p.name}</p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-blue-600 font-bold text-sm">
+                <div className="p-4">
+                  <p className="text-xs text-gray-400 mb-1 font-mono">{p.sku}</p>
+                  <p className="text-base font-bold text-gray-900 leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-blue-600 font-bold text-lg">
                       ${Number(p.price).toLocaleString('es-CL')}
                     </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                       {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                     </span>
                   </div>
@@ -228,7 +286,7 @@ export default function PosPage() {
           })}
           {filtered.length === 0 && (
             <p className="col-span-full text-gray-400 text-sm text-center py-12">
-              {search ? 'Sin resultados para tu búsqueda.' : 'No hay productos disponibles.'}
+              {search || warehouseFilter || categoryFilter || onlyInStock ? 'Sin resultados para los filtros aplicados.' : 'No hay productos disponibles.'}
             </p>
           )}
         </div>

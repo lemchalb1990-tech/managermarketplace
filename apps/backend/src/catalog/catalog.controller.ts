@@ -44,9 +44,16 @@ export class CatalogController {
     @Query('page') page?: string,
     @Query('search') search?: string,
     @Query('warehouseId') warehouseId?: string,
+    @Query('category') category?: string,
     @Query('active') active?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, active });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, active });
+  }
+
+  @Get('products/categories')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  listCategories(@CurrentUser() user: any) {
+    return this.service.listCategories(user);
   }
 
   @Get('products/:id')
@@ -65,6 +72,12 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   bulkDelete(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
     return this.service.bulkDelete(dto.ids, user);
+  }
+
+  @Post('products/bulk/delete-listings')
+  @Roles(Role.SUPER_ADMIN)
+  bulkDeleteListings(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
+    return this.service.bulkDeleteListings(dto.ids, user);
   }
 
   @Patch('products/:id')
