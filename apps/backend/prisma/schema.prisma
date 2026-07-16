@@ -265,6 +265,7 @@ model Sale {
   customerEmail   String?
   customerPhone   String?
   fulfillmentType FulfillmentType?
+  shippingMethod  String?
   address         String?
   commune         String?
   city            String?

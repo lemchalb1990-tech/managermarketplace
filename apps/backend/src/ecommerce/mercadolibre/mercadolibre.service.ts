@@ -832,6 +832,33 @@ export class MercadolibreService {
     };
   }
 
+  private static readonly ML_LOGISTIC_LABELS: Record<string, string> = {
+    fulfillment: 'Full',
+    self_service: 'Flex',
+    drop_off: 'Colecta (agencia)',
+    xd_drop_off: 'Colecta (agencia)',
+    cross_docking: 'Colecta (a domicilio)',
+    not_specified: 'A coordinar',
+  };
+
+  private async getMlShippingMethod(order: any, token: string): Promise<string | null> {
+    const shippingId = order.shipping?.id;
+    if (!shippingId) return null;
+    try {
+      const res = await fetch(`${ML_API}/shipments/${shippingId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const shipment = await res.json() as any;
+      const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
+      if (!logisticType) return null;
+      return MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType;
+    } catch (err: any) {
+      this.logger.warn(`No se pudo obtener el método de envío de la orden: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   async previewSalesImport(connectionId: string, user: any, from?: string, to?: string) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
@@ -943,6 +970,7 @@ export class MercadolibreService {
       }
 
       const charges = this.computeOrderCharges(order);
+      const shippingMethod = await this.getMlShippingMethod(order, token);
       await this.prisma.sale.create({
         data: {
           channel: SaleChannel.MERCADO_LIBRE,
@@ -953,6 +981,7 @@ export class MercadolibreService {
           taxes: charges.taxes,
           discount: charges.coupon,
           netAmount: charges.totalPaid,
+          shippingMethod,
           companyId: conn.companyId,
           customerName: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
@@ -1021,6 +1050,7 @@ export class MercadolibreService {
 
       // Crear venta y actualizar stock en transacción atómica
       const charges = this.computeOrderCharges(order);
+      const shippingMethod = await this.getMlShippingMethod(order, token);
 
       await this.prisma.$transaction(async (tx) => {
         const sale = await tx.sale.create({
@@ -1033,6 +1063,7 @@ export class MercadolibreService {
             taxes: charges.taxes,
             discount: charges.coupon,
             netAmount: charges.totalPaid,
+            shippingMethod,
             companyId,
             customerName: order.buyer?.nickname || null,
             items: {

@@ -307,13 +307,18 @@ export class PosService {
       PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
     };
 
+    const FULFILLMENT_LABEL: Record<string, string> = { PICKUP: 'Retiro en tienda', DELIVERY: 'Entrega a domicilio' };
+
     const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const header = [
-      'Fecha', 'Canal', 'ID Venta', 'ID Externo', 'Comprador', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
+      'Fecha', 'Canal', 'ID Venta', 'ID Externo', 'Comprador', 'Forma de despacho', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
       'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
     ];
     const rows = [header.join(',')];
     for (const sale of sales) {
+      const dispatch = sale.fulfillmentType
+        ? FULFILLMENT_LABEL[sale.fulfillmentType] || sale.fulfillmentType
+        : sale.shippingMethod || '';
       for (const item of sale.items) {
         rows.push([
           sale.createdAt.toISOString(),
@@ -321,6 +326,7 @@ export class PosService {
           sale.id,
           sale.externalId || '',
           sale.customerName || '',
+          dispatch,
           item.product?.sku || '',
           item.product?.name || 'Producto eliminado',
           item.quantity,

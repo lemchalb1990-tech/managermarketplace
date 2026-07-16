@@ -23,6 +23,11 @@ const PAYMENT_LABELS: Record<string, string> = {
   OTHER: 'Otro',
 };
 
+const FULFILLMENT_LABELS: Record<string, string> = {
+  PICKUP: 'Retiro en tienda',
+  DELIVERY: 'Entrega a domicilio',
+};
+
 export default function SalesPage() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
@@ -320,9 +325,16 @@ export default function SalesPage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${CHANNEL_COLORS[sale.channel] || 'bg-gray-100 text-gray-700'}`}>
                       {CHANNEL_LABELS[sale.channel] || sale.channel}
                     </span>
-                    <p className="text-sm text-gray-600">
-                      {sale.paymentMethod ? PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod : '—'}
-                    </p>
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        {sale.paymentMethod ? PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod : '—'}
+                      </p>
+                      {(sale.fulfillmentType || sale.shippingMethod) && (
+                        <p className="text-xs text-gray-400 truncate">
+                          {sale.fulfillmentType ? FULFILLMENT_LABELS[sale.fulfillmentType] || sale.fulfillmentType : sale.shippingMethod}
+                        </p>
+                      )}
+                    </div>
                     <p className="text-sm font-bold text-gray-900 text-right">
                       {fmt(Number(sale.total))}
                     </p>
@@ -344,6 +356,16 @@ export default function SalesPage() {
                     ))}
                     {sale.customerName && (
                       <p className="text-xs text-gray-400">Comprador: {sale.customerName}</p>
+                    )}
+                    {sale.fulfillmentType && (
+                      <p className="text-xs text-gray-400">
+                        Despacho: {FULFILLMENT_LABELS[sale.fulfillmentType] || sale.fulfillmentType}
+                        {sale.fulfillmentType === 'DELIVERY' && [sale.address, sale.commune, sale.city].filter(Boolean).length > 0
+                          && ` · ${[sale.address, sale.commune, sale.city].filter(Boolean).join(', ')}`}
+                      </p>
+                    )}
+                    {sale.shippingMethod && (
+                      <p className="text-xs text-gray-400">Envío Mercado Libre: {sale.shippingMethod}</p>
                     )}
                     {(sale.shippingCost != null || sale.marketplaceFee != null || sale.taxes != null || sale.discount != null || sale.netAmount != null) && (
                       <div className="pt-2 mt-2 border-t border-gray-200 space-y-0.5">
