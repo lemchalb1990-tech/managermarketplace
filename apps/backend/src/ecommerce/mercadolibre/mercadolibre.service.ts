@@ -564,7 +564,7 @@ export class MercadolibreService {
   }
 
   private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
-    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes';
+    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures';
     const items: any[] = [];
     for (let i = 0; i < itemIds.length; i += 20) {
       const batch = itemIds.slice(i, i + 20);
@@ -690,10 +690,21 @@ export class MercadolibreService {
             companyId: conn.companyId,
           },
         });
-        const thumbnail = item.secure_thumbnail || item.thumbnail;
-        if (thumbnail) {
+        const pictures: Array<{ secure_url?: string; url?: string }> = Array.isArray(item.pictures) && item.pictures.length
+          ? item.pictures
+          : (item.secure_thumbnail || item.thumbnail ? [{ url: item.secure_thumbnail || item.thumbnail }] : []);
+
+        for (let i = 0; i < pictures.length; i++) {
+          const url = pictures[i].secure_url || pictures[i].url;
+          if (!url) continue;
           await this.prisma.productImage.create({
-            data: { productId: newProduct.id, filename: `${item.id}.jpg`, url: thumbnail, isPrimary: true },
+            data: {
+              productId: newProduct.id,
+              filename: `${item.id}-${i}.jpg`,
+              url,
+              isPrimary: i === 0,
+              order: i,
+            },
           });
         }
         await this.prisma.listing.create({
