@@ -116,6 +116,11 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, { method: 'POST' }, token),
     sync: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
+    syncAll: (productId: string, token: string) =>
+      apiFetch<{
+        syncedCount: number; failedCount: number;
+        results: Array<{ connectionId: string; connectionName: string; success: boolean; warnings: string[]; error: string | null }>;
+      }>(`/ecommerce/ml/products/${productId}/sync-all`, { method: 'POST' }, token),
     toggleListing: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
     previewImport: (connectionId: string, token: string) =>

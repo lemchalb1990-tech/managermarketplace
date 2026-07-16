@@ -440,14 +440,7 @@ export class MercadolibreService {
     return { ...listing, descriptionWarning };
   }
 
-  async syncStock(productId: string, connectionId: string, user: any) {
-    const product = await this.catalog.findOne(productId, user);
-    const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
-    });
-    if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
-
-    const token = await this.getValidToken(connectionId);
+  private async syncListingCore(product: any, listing: any, token: string): Promise<{ warnings: string[] }> {
     const warnings: string[] = [];
 
     // Sincronizar precio y stock (ML no permite cambiar título de items activos)
@@ -476,6 +469,19 @@ export class MercadolibreService {
     const descErr = await this.upsertMlDescription(listing.externalId, token, safePlain);
     if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
 
+    return { warnings };
+  }
+
+  async syncStock(productId: string, connectionId: string, user: any) {
+    const product = await this.catalog.findOne(productId, user);
+    const listing = await this.prisma.listing.findUnique({
+      where: { productId_connectionId: { productId, connectionId } },
+    });
+    if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
+
+    const token = await this.getValidToken(connectionId);
+    const { warnings } = await this.syncListingCore(product, listing, token);
+
     const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
     const updated = await this.prisma.listing.update({
       where: { id: listing.id },
@@ -483,6 +489,46 @@ export class MercadolibreService {
     });
 
     return { ...updated, warnings };
+  }
+
+  async syncAllListings(productId: string, user: any) {
+    const product = await this.catalog.findOne(productId, user);
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        productId,
+        externalId: { not: null },
+        status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] },
+        connection: { marketplace: 'MERCADO_LIBRE' },
+      },
+      include: { connection: { select: { id: true, name: true } } },
+    });
+
+    if (!listings.length) {
+      throw new BadRequestException('Este producto no tiene publicaciones activas en Mercado Libre.');
+    }
+
+    const results: Array<{ connectionId: string; connectionName: string; success: boolean; warnings: string[]; error: string | null }> = [];
+
+    for (const listing of listings) {
+      try {
+        const token = await this.getValidToken(listing.connectionId);
+        const { warnings } = await this.syncListingCore(product, listing, token);
+        const newStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+        await this.prisma.listing.update({
+          where: { id: listing.id },
+          data: { status: newStatus, syncedAt: new Date() },
+        });
+        results.push({ connectionId: listing.connectionId, connectionName: listing.connection.name, success: true, warnings, error: null });
+      } catch (err: any) {
+        results.push({ connectionId: listing.connectionId, connectionName: listing.connection.name, success: false, warnings: [], error: err.message || 'Error desconocido' });
+      }
+    }
+
+    return {
+      syncedCount: results.filter((r) => r.success).length,
+      failedCount: results.filter((r) => !r.success).length,
+      results,
+    };
   }
 
   async syncProductListings(productId: string, newStock: number) {

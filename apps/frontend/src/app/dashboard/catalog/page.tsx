@@ -594,6 +594,32 @@ export default function CatalogPage() {
     }
   }
 
+  const [syncAllLoading, setSyncAllLoading] = useState<string | null>(null);
+
+  async function handleSyncAll(productId: string) {
+    setSyncAllLoading(productId);
+    try {
+      const token = getToken()!;
+      const result = await api.marketplace.syncAll(productId, token);
+      if (selected?.id === productId) {
+        await refreshSelected(productId);
+        const warnings = result.results.flatMap(r => r.warnings);
+        const errors = result.results.filter(r => !r.success).map(r => `${r.connectionName}: ${r.error}`);
+        setMlWarning([...warnings, ...errors].join(' | '));
+      } else {
+        await load();
+        if (result.failedCount > 0) {
+          const errors = result.results.filter(r => !r.success).map(r => `${r.connectionName}: ${r.error}`);
+          alert(`${result.syncedCount} sincronizada(s), ${result.failedCount} con error:\n${errors.join('\n')}`);
+        }
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSyncAllLoading(null);
+    }
+  }
+
   async function handleToggleListing(connectionId: string) {
     setMlLoading(l => ({ ...l, [`toggle_${connectionId}`]: true }));
     try {
@@ -801,7 +827,13 @@ export default function CatalogPage() {
                       }
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right space-x-3">
+                    {p.listings?.some((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED') && (
+                      <button onClick={() => handleSyncAll(p.id)} disabled={syncAllLoading === p.id}
+                        className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                        {syncAllLoading === p.id ? 'Sincronizando...' : 'Resincronizar'}
+                      </button>
+                    )}
                     <button onClick={() => openModal(p)}
                       className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                       Gestionar
@@ -1145,6 +1177,14 @@ export default function CatalogPage() {
                         <p className="font-semibold mb-0.5">Advertencia: descripción HTML rechazada</p>
                         <p>{mlWarning}</p>
                       </div>
+                    </div>
+                  )}
+                  {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
+                    <div className="flex justify-end">
+                      <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
+                        className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                        {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
+                      </button>
                     </div>
                   )}
                   {connections.length === 0 ? (

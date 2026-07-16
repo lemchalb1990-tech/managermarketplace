@@ -171,6 +171,13 @@ export class MercadolibreController {
     return this.service.syncStock(productId, connectionId, user);
   }
 
+  @Post('products/:productId/sync-all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  syncAll(@Param('productId') productId: string, @CurrentUser() user: any) {
+    return this.service.syncAllListings(productId, user);
+  }
+
   @Patch('products/:productId/toggle/:connectionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
