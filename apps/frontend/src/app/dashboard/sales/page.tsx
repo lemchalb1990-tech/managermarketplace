@@ -110,6 +110,30 @@ export default function SalesPage() {
     }
   }
 
+  const [editingBonusId, setEditingBonusId] = useState<string | null>(null);
+  const [bonusDraft, setBonusDraft] = useState('');
+  const [savingBonus, setSavingBonus] = useState(false);
+
+  function startEditBonus(sale: any) {
+    setEditingBonusId(sale.id);
+    setBonusDraft(sale.shippingBonus != null ? String(Math.round(Number(sale.shippingBonus))) : '');
+  }
+
+  async function saveBonus(id: string) {
+    const amount = Number(bonusDraft);
+    if (Number.isNaN(amount)) { alert('Ingresa un número válido.'); return; }
+    setSavingBonus(true);
+    try {
+      await api.pos.setShippingBonus(id, amount, token);
+      setEditingBonusId(null);
+      await loadSales(page);
+    } catch (err: any) {
+      alert(err.message || 'No se pudo guardar la bonificación.');
+    } finally {
+      setSavingBonus(false);
+    }
+  }
+
   useEffect(() => {
     const t = getToken();
     const u = getUser();
@@ -382,6 +406,32 @@ export default function SalesPage() {
                             </span>
                           </div>
                         )}
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-500">Bonificación de envío (manual)</span>
+                          {editingBonusId === sale.id ? (
+                            <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="number"
+                                value={bonusDraft}
+                                onChange={(e) => setBonusDraft(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') saveBonus(sale.id); }}
+                                className="w-20 px-1.5 py-0.5 border border-gray-300 rounded text-xs text-right"
+                                autoFocus
+                              />
+                              <button onClick={() => saveBonus(sale.id)} disabled={savingBonus}
+                                className="text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50">✓</button>
+                              <button onClick={() => setEditingBonusId(null)}
+                                className="text-gray-400 hover:text-gray-600">×</button>
+                            </span>
+                          ) : (
+                            <span
+                              onClick={(e) => { e.stopPropagation(); if (isAdmin) startEditBonus(sale); }}
+                              className={`${sale.shippingBonus ? 'text-green-600 font-medium' : 'text-gray-400'} ${isAdmin ? 'cursor-pointer hover:underline' : ''}`}
+                            >
+                              {sale.shippingBonus ? `+${fmt(Number(sale.shippingBonus))}` : (isAdmin ? 'agregar' : '—')}
+                            </span>
+                          )}
+                        </div>
                         {sale.marketplaceFee != null && (
                           <div className="flex justify-between text-xs text-gray-500"><span>Comisión marketplace</span><span>-{fmt(Number(sale.marketplaceFee))}</span></div>
                         )}

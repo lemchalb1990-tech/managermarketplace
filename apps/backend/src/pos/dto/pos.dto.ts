@@ -75,6 +75,11 @@ export class BulkDeleteSalesDto {
   ids: string[];
 }
 
+export class SetShippingBonusDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  amount: number;
+}
+
 export class StockAdjustDto {
   @IsString()
   productId: string;

@@ -243,6 +243,24 @@ export class PosService {
     return { sales, total, page, pages: Math.ceil(total / take) };
   }
 
+  async setShippingBonus(saleId: string, amount: number, user: any) {
+    const sale = await this.prisma.sale.findUnique({ where: { id: saleId } });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    const base = Number(sale.total)
+      - Number(sale.marketplaceFee || 0)
+      - Number(sale.shippingCost || 0)
+      - Number(sale.taxes || 0)
+      - Number(sale.discount || 0);
+    const netAmount = Math.round(base + amount);
+    return this.prisma.sale.update({
+      where: { id: saleId },
+      data: { shippingBonus: amount, netAmount },
+    });
+  }
+
   async deleteSale(saleId: string, user: any) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId } });
     if (!sale) throw new NotFoundException('Venta no encontrada');
@@ -312,7 +330,7 @@ export class PosService {
     const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const header = [
       'Fecha', 'Canal', 'ID Venta', 'ID Externo', 'Comprador', 'Forma de despacho', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
-      'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
+      'Envío', 'Bonificación envío (manual)', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
     ];
     const rows = [header.join(',')];
     for (const sale of sales) {
@@ -333,6 +351,7 @@ export class PosService {
           Number(item.unitPrice),
           Number(item.unitPrice) * item.quantity,
           sale.shippingCost != null ? Number(sale.shippingCost) : '',
+          sale.shippingBonus != null ? Number(sale.shippingBonus) : '',
           sale.marketplaceFee != null ? Number(sale.marketplaceFee) : '',
           sale.taxes != null ? Number(sale.taxes) : '',
           sale.discount != null ? Number(sale.discount) : '',

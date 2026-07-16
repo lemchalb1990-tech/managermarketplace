@@ -255,6 +255,7 @@ model Sale {
   externalId      String?
   total           Decimal          @db.Decimal(10, 2)
   shippingCost    Decimal?         @db.Decimal(10, 2)
+  shippingBonus   Decimal?         @db.Decimal(10, 2)
   marketplaceFee  Decimal?         @db.Decimal(10, 2)
   taxes           Decimal?         @db.Decimal(10, 2)
   discount        Decimal?         @db.Decimal(10, 2)
