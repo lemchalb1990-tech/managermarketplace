@@ -783,7 +783,7 @@ export class MercadolibreService {
     const me = await meRes.json() as any;
 
     const MAX_ORDERS = 300;
-    const baseParams = new URLSearchParams({ seller: String(me.id), sort: 'date_desc', limit: '50' });
+    const baseParams = new URLSearchParams({ seller: String(me.id), limit: '50' });
     if (from) baseParams.set('order.date_created.from', new Date(from).toISOString());
     if (to) baseParams.set('order.date_created.to', new Date(`${to}T23:59:59`).toISOString());
 
@@ -794,7 +794,13 @@ export class MercadolibreService {
       const params = new URLSearchParams(baseParams);
       params.set('offset', String(offset));
       const res = await fetch(`${ML_API}/orders/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) break;
+      if (!res.ok) {
+        const errBody = await res.text();
+        this.logger.error(`ML orders/search failed [${res.status}]: ${errBody}`);
+        throw new BadRequestException(
+          `Mercado Libre rechazó la búsqueda de ventas (HTTP ${res.status}). Revisa los logs del backend para más detalle.`,
+        );
+      }
       const data = await res.json() as any;
       total = data.paging?.total || 0;
       orders.push(...(data.results || []));
