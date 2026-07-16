@@ -37,10 +37,14 @@ export default function SalesPage() {
   const [channel, setChannel] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [search, setSearch] = useState('');
   const [summaryDate, setSummaryDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
 
   async function handleExport() {
     if (!token) return;
@@ -51,6 +55,19 @@ export default function SalesPage() {
       alert(err.message || 'No se pudo exportar el archivo.');
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleDeleteSale(id: string) {
+    if (!confirm('¿Eliminar esta venta? Esta acción no se puede deshacer.')) return;
+    setDeletingId(id);
+    try {
+      await api.pos.deleteSale(id, token);
+      await loadSales(page);
+    } catch (err: any) {
+      alert(err.message || 'No se pudo eliminar la venta.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -67,14 +84,14 @@ export default function SalesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.pos.listSales({ channel: channel || undefined, from: from || undefined, to: to || undefined, page: p }, token);
+      const res = await api.pos.listSales({ channel: channel || undefined, from: from || undefined, to: to || undefined, search: search || undefined, page: p }, token);
       setSales(res.sales);
       setTotal(res.total);
       setPage(res.page);
       setPages(res.pages);
     } catch {}
     setLoading(false);
-  }, [token, channel, from, to]);
+  }, [token, channel, from, to, search]);
 
   const loadSummary = useCallback(async () => {
     if (!token) return;
@@ -178,6 +195,16 @@ export default function SalesPage() {
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-xs text-gray-500 block mb-1">Buscar producto o comprador</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') loadSales(1); }}
+              placeholder="Nombre de producto, SKU o comprador..."
+              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <button
             onClick={() => loadSales(1)}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded-lg"
@@ -185,7 +212,7 @@ export default function SalesPage() {
             Filtrar
           </button>
           <button
-            onClick={() => { setChannel(''); setFrom(''); setTo(''); }}
+            onClick={() => { setChannel(''); setFrom(''); setTo(''); setSearch(''); }}
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded-lg"
           >
             Limpiar
@@ -226,6 +253,9 @@ export default function SalesPage() {
                       <p className="text-sm font-medium text-gray-800">
                         {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {sale.customerName && (
+                        <p className="text-xs text-gray-400 truncate">{sale.customerName}</p>
+                      )}
                       {sale.externalId && (
                         <p className="text-xs text-gray-400">ID ext: {sale.externalId}</p>
                       )}
@@ -255,11 +285,25 @@ export default function SalesPage() {
                         </span>
                       </div>
                     ))}
+                    {sale.customerName && (
+                      <p className="text-xs text-gray-400">Comprador: {sale.customerName}</p>
+                    )}
                     {sale.notes && (
                       <p className="text-xs text-gray-400 pt-1 border-t border-gray-200 mt-2">Nota: {sale.notes}</p>
                     )}
                     {sale.user && (
                       <p className="text-xs text-gray-400">Vendedor: {sale.user.name}</p>
+                    )}
+                    {isAdmin && (
+                      <div className="pt-2 mt-2 border-t border-gray-200 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSale(sale.id); }}
+                          disabled={deletingId === sale.id}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
+                        >
+                          {deletingId === sale.id ? 'Eliminando...' : 'Eliminar venta'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}

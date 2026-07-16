@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Role, SaleChannel } from '@prisma/client';
 import { PosService } from './pos.service';
@@ -28,8 +28,15 @@ export class PosController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('page') page?: string,
+    @Query('search') search?: string,
   ) {
-    return this.service.listSales(user, { companyId, channel, from, to, page });
+    return this.service.listSales(user, { companyId, channel, from, to, page, search });
+  }
+
+  @Delete('sales/:id')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  deleteSale(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.deleteSale(id, user);
   }
 
   @Get('sales/export')

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
 type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
+type OrderCharges = { shippingCost: number; marketplaceFee: number; taxes: number; coupon: number; totalPaid: number };
 type OrderPreview = {
   externalId: string; date: string; total: number; buyerNickname: string | null;
-  importable: boolean; items: OrderItem[];
+  importable: boolean; items: OrderItem[]; charges: OrderCharges;
 };
 
 const PAGE_SIZE = 20;
@@ -41,6 +42,15 @@ export function SalesImportModal({
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(externalId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
 
   async function handleSearch() {
     setLoading(true);
@@ -176,38 +186,72 @@ export function SalesImportModal({
                       </th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
-                      <th className="px-2 py-2 text-left text-gray-600 font-medium">Productos</th>
                       <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
+                      <th className="px-2 py-2 w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {pagedOrders.map((o) => (
-                      <tr key={o.externalId} className={o.importable ? 'hover:bg-gray-50' : 'opacity-50'}>
-                        <td className="px-4 py-2">
-                          <input type="checkbox" disabled={!o.importable}
-                            checked={selected.has(o.externalId)} onChange={() => toggle(o.externalId)} />
-                        </td>
-                        <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
-                          {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </td>
-                        <td className="px-2 py-2 text-gray-600">{o.buyerNickname || '—'}</td>
-                        <td className="px-2 py-2 text-gray-700">
-                          {o.items.map((it, i) => (
-                            <div key={i} className="text-xs">
-                              {it.quantity}× {it.productName || it.title}
-                              {!it.resolved && <span className="text-red-500 ml-1">(sin vincular)</span>}
-                            </div>
-                          ))}
-                        </td>
-                        <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
-                        <td className="px-2 py-2">
-                          {o.importable
-                            ? <span className="text-xs text-green-600">Lista</span>
-                            : <span className="text-xs text-red-500">No importable</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {pagedOrders.map((o) => {
+                      const isOpen = expanded.has(o.externalId);
+                      return (
+                        <Fragment key={o.externalId}>
+                          <tr
+                            className={`cursor-pointer ${o.importable ? 'hover:bg-gray-50' : 'opacity-50'}`}
+                            onClick={() => toggleExpanded(o.externalId)}>
+                            <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                              <input type="checkbox" disabled={!o.importable}
+                                checked={selected.has(o.externalId)} onChange={() => toggle(o.externalId)} />
+                            </td>
+                            <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
+                              {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            </td>
+                            <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerNickname || '—'}</td>
+                            <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
+                            <td className="px-2 py-2">
+                              {o.importable
+                                ? <span className="text-xs text-green-600">Lista</span>
+                                : <span className="text-xs text-red-500">No importable</span>}
+                            </td>
+                            <td className="px-2 py-2 text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</td>
+                          </tr>
+                          {isOpen && (
+                            <tr>
+                              <td colSpan={6} className="bg-gray-50 px-6 py-3">
+                                <div className="grid grid-cols-2 gap-6">
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
+                                    <div className="space-y-1">
+                                      {o.items.map((it, i) => (
+                                        <div key={i} className="text-xs text-gray-700 flex justify-between">
+                                          <span>
+                                            {it.quantity}× {it.productName || it.title}
+                                            {!it.resolved && <span className="text-red-500 ml-1">(sin vincular)</span>}
+                                          </span>
+                                          <span className="text-gray-500">${Math.round(it.unitPrice).toLocaleString('es-CL')} c/u</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-600 mb-1.5">Cargos y bonificaciones</p>
+                                    <div className="space-y-1 text-xs text-gray-700">
+                                      <div className="flex justify-between"><span>Envío</span><span>${Math.round(o.charges.shippingCost).toLocaleString('es-CL')}</span></div>
+                                      <div className="flex justify-between"><span>Comisión Mercado Libre</span><span>-${Math.round(o.charges.marketplaceFee).toLocaleString('es-CL')}</span></div>
+                                      <div className="flex justify-between"><span>Impuestos</span><span>${Math.round(o.charges.taxes).toLocaleString('es-CL')}</span></div>
+                                      <div className="flex justify-between"><span>Cupón/descuento</span><span>-${Math.round(o.charges.coupon).toLocaleString('es-CL')}</span></div>
+                                      <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-200">
+                                        <span>Total recibido</span><span>${Math.round(o.charges.totalPaid).toLocaleString('es-CL')}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {pageCount > 1 && (

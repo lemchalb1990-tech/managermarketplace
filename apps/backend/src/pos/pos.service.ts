@@ -200,7 +200,7 @@ export class PosService {
     return result;
   }
 
-  async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string }) {
+  async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string; search?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN
       ? query.companyId
       : user.companyId;
@@ -212,6 +212,14 @@ export class PosService {
       where.createdAt = {};
       if (query.from) where.createdAt.gte = new Date(query.from);
       if (query.to) where.createdAt.lte = new Date(query.to + 'T23:59:59');
+    }
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { customerName: { contains: term, mode: 'insensitive' } },
+        { items: { some: { product: { name: { contains: term, mode: 'insensitive' } } } } },
+        { items: { some: { product: { sku: { contains: term, mode: 'insensitive' } } } } },
+      ];
     }
 
     const page = Math.max(1, parseInt(query.page || '1'));
@@ -233,6 +241,22 @@ export class PosService {
     ]);
 
     return { sales, total, page, pages: Math.ceil(total / take) };
+  }
+
+  async deleteSale(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({ where: { id: saleId } });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    try {
+      await this.prisma.sale.delete({ where: { id: saleId } });
+    } catch {
+      throw new BadRequestException(
+        'No se puede eliminar: esta venta tiene movimientos de stock, factura u orden de despacho asociados.',
+      );
+    }
+    return { deleted: true };
   }
 
   async exportSalesCsv(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string }): Promise<string> {

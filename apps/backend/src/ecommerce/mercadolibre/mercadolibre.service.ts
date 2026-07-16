@@ -836,12 +836,22 @@ export class MercadolibreService {
         };
       });
       const importable = orderItems.length > 0 && orderItems.every((i: any) => i.resolved);
+      const payment = (o.payments || [])[0] || {};
+      const itemFees = (o.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0), 0);
+      const charges = {
+        shippingCost: Number(payment.shipping_cost || o.shipping?.cost || 0),
+        marketplaceFee: Number(payment.marketplace_fee || itemFees || 0),
+        taxes: Number(payment.taxes_amount || 0),
+        coupon: Number(payment.coupon_amount || 0),
+        totalPaid: Number(payment.total_paid_amount ?? o.total_amount ?? 0),
+      };
       return {
         externalId: String(o.id),
         date: o.date_created,
         total: Number(o.total_amount || 0),
         buyerNickname: o.buyer?.nickname || null,
         items: orderItems,
+        charges,
         importable,
       };
     });
@@ -888,6 +898,7 @@ export class MercadolibreService {
           externalId: orderId,
           total: Number(order.total_amount || 0),
           companyId: conn.companyId,
+          customerName: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
           items: { create: resolvedItems },
         },
@@ -960,6 +971,7 @@ export class MercadolibreService {
             externalId: orderId,
             total: orderTotal,
             companyId,
+            customerName: order.buyer?.nickname || null,
             items: {
               create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
                 productId: listing.productId,

@@ -171,6 +171,7 @@ export const api = {
           externalId: string; date: string; total: number; buyerNickname: string | null;
           importable: boolean;
           items: Array<{ title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null }>;
+          charges: { shippingCost: number; marketplaceFee: number; taxes: number; coupon: number; totalPaid: number };
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/sales-import/preview?${q}`, {}, token);
     },
@@ -315,15 +316,18 @@ export const api = {
   pos: {
     createSale: (data: any, token: string) =>
       apiFetch<any>('/pos/sales', { method: 'POST', body: JSON.stringify(data) }, token),
-    listSales: (params: { companyId?: string; channel?: string; from?: string; to?: string; page?: number }, token: string) => {
+    listSales: (params: { companyId?: string; channel?: string; from?: string; to?: string; page?: number; search?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.companyId) q.set('companyId', params.companyId);
       if (params.channel) q.set('channel', params.channel);
       if (params.from) q.set('from', params.from);
       if (params.to) q.set('to', params.to);
       if (params.page) q.set('page', String(params.page));
+      if (params.search) q.set('search', params.search);
       return apiFetch<{ sales: any[]; total: number; page: number; pages: number }>(`/pos/sales?${q}`, {}, token);
     },
+    deleteSale: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/pos/sales/${id}`, { method: 'DELETE' }, token),
     summary: (params: { companyId?: string; date?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.companyId) q.set('companyId', params.companyId);
