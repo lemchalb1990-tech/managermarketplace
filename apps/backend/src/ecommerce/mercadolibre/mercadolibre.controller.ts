@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
-  UseGuards, Res, BadRequestException, Logger,
+  UseGuards, Res, Logger,
 } from '@nestjs/common';
 import { IsString, IsOptional, IsArray } from 'class-validator';
 import type { Response } from 'express';
@@ -12,6 +12,13 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 class SaveCredentialsDto {
+  @IsString() mlClientId: string;
+  @IsString() mlClientSecret: string;
+  @IsOptional() @IsString() companyId?: string;
+}
+
+class CreateMlConnectionDto {
+  @IsString() name: string;
   @IsString() mlClientId: string;
   @IsString() mlClientSecret: string;
   @IsOptional() @IsString() companyId?: string;
@@ -45,16 +52,18 @@ export class MercadolibreController {
 
   // ─── OAuth ─────────────────────────────────────────────────────────────────
 
-  @Post('auth-url')
+  @Post('connections')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  async getAuthUrl(
-    @Body() body: { name?: string; mlClientId: string; mlClientSecret: string; companyId?: string },
-    @CurrentUser() user: any,
-  ) {
-    const cid = user.role === Role.COMPANY_ADMIN ? user.companyId : body.companyId;
-    if (!cid) throw new BadRequestException('companyId requerido');
-    const authUrl = await this.service.getAuthUrl(cid, body.name || 'Conexión ML', body.mlClientId, body.mlClientSecret);
+  createConnection(@Body() dto: CreateMlConnectionDto, @CurrentUser() user: any) {
+    return this.service.createCredentialConnection(user, dto.name || 'Conexión ML', dto.mlClientId, dto.mlClientSecret, dto.companyId);
+  }
+
+  @Post('connections/:id/authorize')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  async authorize(@Param('id') id: string, @CurrentUser() user: any) {
+    const authUrl = await this.service.getAuthUrlForConnection(id, user);
     return { authUrl };
   }
 

@@ -57,22 +57,39 @@ export default function MercadoLibrePage() {
     }
   }, [selectedCompanyId, isSuperAdmin]);
 
-  async function handleConnect() {
+  async function handleSaveCredentials() {
     if (!connName.trim() || !connClientId.trim() || !connClientSecret.trim()) return;
     setConnecting(true);
     setError('');
     try {
       const token = getToken()!;
-      const { authUrl } = await api.marketplace.authUrl({
+      await api.marketplace.createConnection({
         name: connName.trim(),
         mlClientId: connClientId.trim(),
         mlClientSecret: connClientSecret.trim(),
         ...(isSuperAdmin && activeCompanyId ? { companyId: activeCompanyId } : {}),
       }, token);
-      window.location.href = authUrl;
+      resetConnForm();
+      await loadConnections(activeCompanyId || undefined);
     } catch (err: any) {
       setError(err.message);
+    } finally {
       setConnecting(false);
+    }
+  }
+
+  const [authorizingId, setAuthorizingId] = useState<string | null>(null);
+
+  async function handleAuthorize(id: string) {
+    setAuthorizingId(id);
+    setError('');
+    try {
+      const token = getToken()!;
+      const { authUrl } = await api.marketplace.authorize(id, token);
+      window.location.href = authUrl;
+    } catch (err: any) {
+      setError(err.message || 'No se pudo iniciar la autorización.');
+      setAuthorizingId(null);
     }
   }
 
@@ -84,8 +101,9 @@ export default function MercadoLibrePage() {
     setError('');
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`¿Desconectar la tienda "${name}"?`)) return;
+  async function handleDelete(id: string, name: string, authorized: boolean) {
+    const question = authorized ? `¿Desconectar la tienda "${name}"?` : `¿Eliminar las credenciales de "${name}"?`;
+    if (!confirm(question)) return;
     const token = getToken()!;
     await api.marketplace.deleteConnection(id, token);
     await loadConnections(activeCompanyId || undefined);
@@ -143,12 +161,12 @@ export default function MercadoLibrePage() {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Tiendas conectadas</h2>
+            <h2 className="font-semibold text-gray-900">Tiendas</h2>
             <button
               onClick={() => { setShowConnect(!showConnect); setError(''); }}
               className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold"
             >
-              + Conectar tienda
+              + Agregar tienda
             </button>
           </div>
 
@@ -160,9 +178,10 @@ export default function MercadoLibrePage() {
 
           {showConnect && (
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-              <h3 className="font-semibold text-gray-800 mb-1">Conectar tienda de Mercado Libre</h3>
+              <h3 className="font-semibold text-gray-800 mb-1">Guardar credenciales de Mercado Libre</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Cada tienda tiene sus propias credenciales. Serás redirigido a Mercado Libre para autorizar.
+                Cada tienda tiene sus propias credenciales. Se guardan primero y luego autorizas desde la lista
+                — así, si algo falla, no tienes que volver a escribirlas.
               </p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2">
@@ -196,11 +215,11 @@ export default function MercadoLibrePage() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleConnect}
+                  onClick={handleSaveCredentials}
                   disabled={connecting || !connName.trim() || !connClientId.trim() || !connClientSecret.trim()}
                   className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
                 >
-                  {connecting ? 'Redirigiendo...' : 'Autorizar en ML'}
+                  {connecting ? 'Guardando...' : 'Guardar credenciales'}
                 </button>
                 <button onClick={resetConnForm}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
@@ -225,13 +244,19 @@ export default function MercadoLibrePage() {
               <tbody className="divide-y divide-gray-100">
                 {connections.map((c) => {
                   const expired = c.expiresAt && new Date(c.expiresAt) < new Date();
+                  const statusLabel = c.authorized && c.active ? 'Autorizada' : c.authorized ? 'Inactiva' : 'Pendiente de autorizar';
+                  const statusClass = c.authorized && c.active
+                    ? 'bg-green-100 text-green-700'
+                    : c.authorized
+                      ? 'bg-gray-100 text-gray-500'
+                      : 'bg-amber-100 text-amber-700';
                   return (
                     <tr key={c.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-400">{c.mlClientId || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {c.active ? 'Activa' : 'Inactiva'}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}`}>
+                          {statusLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -245,6 +270,13 @@ export default function MercadoLibrePage() {
                         {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
                       <td className="px-4 py-3 text-right space-x-3">
+                        {!c.authorized && (
+                          <button onClick={() => handleAuthorize(c.id)}
+                            disabled={authorizingId === c.id}
+                            className="text-xs text-green-600 hover:text-green-800 font-medium disabled:opacity-50">
+                            {authorizingId === c.id ? 'Redirigiendo...' : 'Autorizar'}
+                          </button>
+                        )}
                         {c.active && (
                           <>
                             <button onClick={() => setImportConn({ id: c.id, name: c.name })}
@@ -258,9 +290,9 @@ export default function MercadoLibrePage() {
                             </button>
                           </>
                         )}
-                        <button onClick={() => handleDelete(c.id, c.name)}
+                        <button onClick={() => handleDelete(c.id, c.name, c.authorized)}
                           className="text-xs text-red-500 hover:text-red-700 font-medium">
-                          Desconectar
+                          {c.authorized ? 'Desconectar' : 'Eliminar'}
                         </button>
                       </td>
                     </tr>
@@ -269,8 +301,8 @@ export default function MercadoLibrePage() {
                 {connections.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
-                      <p className="text-sm mb-1">Sin tiendas conectadas</p>
-                      <p className="text-xs">Haz clic en "+ Conectar tienda" para vincular una cuenta de Mercado Libre.</p>
+                      <p className="text-sm mb-1">Sin tiendas registradas</p>
+                      <p className="text-xs">Haz clic en "+ Agregar tienda" para guardar las credenciales de una cuenta de Mercado Libre.</p>
                     </td>
                   </tr>
                 )}

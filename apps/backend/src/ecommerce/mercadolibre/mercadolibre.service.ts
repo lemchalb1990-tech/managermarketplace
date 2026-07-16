@@ -68,30 +68,42 @@ export class MercadolibreService {
 
   // ─── OAuth ───────────────────────────────────────────────────────────────────
 
-  async getAuthUrl(companyId: string, name: string, mlClientId: string, mlClientSecret: string): Promise<string> {
-    if (!mlClientId || !mlClientSecret) {
+  async createCredentialConnection(user: any, name: string, mlClientId: string, mlClientSecret: string, companyId?: string) {
+    const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+    if (!cid) throw new BadRequestException('companyId requerido');
+    if (!mlClientId?.trim() || !mlClientSecret?.trim()) {
       throw new BadRequestException('Client ID y Client Secret son requeridos');
+    }
+    const conn = await this.prisma.marketplaceConnection.create({
+      data: {
+        name,
+        marketplace: 'MERCADO_LIBRE',
+        mlClientId: mlClientId.trim(),
+        mlClientSecret: mlClientSecret.trim(),
+        accessToken: '',
+        active: false,
+        companyId: cid,
+      },
+      select: {
+        id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+    return { ...conn, authorized: false };
+  }
+
+  async getAuthUrlForConnection(connectionId: string, user: any): Promise<string> {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    if (!conn.mlClientId || !conn.mlClientSecret) {
+      throw new BadRequestException('Esta conexión no tiene credenciales guardadas');
     }
     const redirectUri = await this.settings.get('ML_REDIRECT_URI');
 
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
-    // Crear conexión draft con las credenciales propias
-    const draft = await this.prisma.marketplaceConnection.create({
-      data: {
-        name,
-        marketplace: 'MERCADO_LIBRE',
-        mlClientId,
-        mlClientSecret,
-        accessToken: '',
-        active: false,
-        companyId,
-      },
-    });
-
-    const state = Buffer.from(JSON.stringify({ connectionId: draft.id, codeVerifier })).toString('base64url');
-    return `${ML_AUTH}/authorization?response_type=code&client_id=${mlClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+    const state = Buffer.from(JSON.stringify({ connectionId: conn.id, codeVerifier })).toString('base64url');
+    return `${ML_AUTH}/authorization?response_type=code&client_id=${conn.mlClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
   }
 
   async handleCallback(code: string, state: string, fallbackName: string) {
@@ -120,7 +132,6 @@ export class MercadolibreService {
     });
 
     if (!res.ok) {
-      await this.prisma.marketplaceConnection.delete({ where: { id: connectionId } });
       const err = await res.text();
       this.logger.error(`ML token exchange failed [${res.status}]: ${err}`);
       throw new BadRequestException('Error al conectar con Mercado Libre');
@@ -201,20 +212,22 @@ export class MercadolibreService {
   // ─── Connections ─────────────────────────────────────────────────────────────
 
   async getConnections(user: any, companyId?: string) {
-    const where: any = { active: true, marketplace: 'MERCADO_LIBRE' };
+    const where: any = { marketplace: 'MERCADO_LIBRE', OR: [{ active: true }, { accessToken: '' }] };
     if (user.role !== Role.SUPER_ADMIN) {
       where.companyId = user.companyId;
     } else if (companyId) {
       where.companyId = companyId;
     }
-    return this.prisma.marketplaceConnection.findMany({
+    const rows = await this.prisma.marketplaceConnection.findMany({
       where,
       select: {
-        id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true,
+        id: true, name: true, marketplace: true, mlClientId: true, active: true, accessToken: true,
+        expiresAt: true, createdAt: true,
         company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map(({ accessToken, ...rest }) => ({ ...rest, authorized: !!accessToken }));
   }
 
   async removeConnection(id: string, user: any) {
@@ -222,6 +235,9 @@ export class MercadolibreService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
       throw new ForbiddenException();
+    }
+    if (!conn.accessToken) {
+      return this.prisma.marketplaceConnection.delete({ where: { id } });
     }
     return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
   }

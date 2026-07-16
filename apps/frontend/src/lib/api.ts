@@ -90,12 +90,10 @@ export const api = {
         `/ecommerce/ml/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     saveCredentials: (data: { mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
       apiFetch<any>('/ecommerce/ml/credentials', { method: 'PATCH', body: JSON.stringify(data) }, token),
-    authUrl: (data: { name: string; mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
-      apiFetch<{ authUrl: string }>(
-        '/ecommerce/ml/auth-url',
-        { method: 'POST', body: JSON.stringify(data) },
-        token,
-      ),
+    createConnection: (data: { name: string; mlClientId: string; mlClientSecret: string; companyId?: string }, token: string) =>
+      apiFetch<any>('/ecommerce/ml/connections', { method: 'POST', body: JSON.stringify(data) }, token),
+    authorize: (connectionId: string, token: string) =>
+      apiFetch<{ authUrl: string }>(`/ecommerce/ml/connections/${connectionId}/authorize`, { method: 'POST' }, token),
     searchCategories: (q: string, token: string) =>
       apiFetch<{ id: string; name: string }[]>(
         `/ecommerce/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),

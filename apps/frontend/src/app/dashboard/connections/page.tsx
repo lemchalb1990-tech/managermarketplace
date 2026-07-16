@@ -22,6 +22,7 @@ type Row = {
   platform: string;
   name: string;
   active: boolean;
+  authorized: boolean;
   expiresAt: string | null;
   createdAt: string;
   isMercadoLibre: boolean;
@@ -34,6 +35,7 @@ export default function ConnectionsPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'ecommerce' | 'billing'>('all');
   const [search, setSearch] = useState('');
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [authorizingId, setAuthorizingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -53,6 +55,7 @@ export default function ConnectionsPage() {
         platform: MARKETPLACE_LABEL[c.marketplace] || c.marketplace,
         name: c.name,
         active: c.active,
+        authorized: c.authorized ?? true,
         expiresAt: c.expiresAt || null,
         createdAt: c.createdAt,
         isMercadoLibre: c.marketplace === 'MERCADO_LIBRE',
@@ -65,6 +68,7 @@ export default function ConnectionsPage() {
         platform: BILLING_LABEL[c.provider] || c.provider,
         name: c.name,
         active: c.active,
+        authorized: true,
         expiresAt: null,
         createdAt: c.createdAt,
         isMercadoLibre: false,
@@ -95,6 +99,19 @@ export default function ConnectionsPage() {
       setError(err.message || 'No se pudo renovar el token.');
     } finally {
       setRefreshingId(null);
+    }
+  }
+
+  async function handleAuthorize(id: string) {
+    setAuthorizingId(id);
+    setError('');
+    try {
+      const token = getToken()!;
+      const { authUrl } = await api.marketplace.authorize(id, token);
+      window.location.href = authUrl;
+    } catch (err: any) {
+      setError(err.message || 'No se pudo iniciar la autorización.');
+      setAuthorizingId(null);
     }
   }
 
@@ -170,8 +187,12 @@ export default function ConnectionsPage() {
                   <td className="px-4 py-3 text-gray-600">{r.platform}</td>
                   <td className="px-4 py-3 text-gray-600">{r.name}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {r.active ? 'Activa' : 'Inactiva'}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      r.authorized && r.active ? 'bg-green-100 text-green-700'
+                        : r.authorized ? 'bg-gray-100 text-gray-500'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {r.authorized && r.active ? 'Activa' : r.authorized ? 'Inactiva' : 'Pendiente de autorizar'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -185,6 +206,13 @@ export default function ConnectionsPage() {
                     {new Date(r.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {r.isMercadoLibre && !r.authorized && (
+                      <button onClick={() => handleAuthorize(r.id)}
+                        disabled={authorizingId === r.id}
+                        className="text-xs text-green-600 hover:text-green-800 font-medium disabled:opacity-50">
+                        {authorizingId === r.id ? 'Redirigiendo...' : 'Autorizar'}
+                      </button>
+                    )}
                     {r.isMercadoLibre && r.active && (
                       <button onClick={() => handleRefreshToken(r.id)}
                         disabled={refreshingId === r.id}
