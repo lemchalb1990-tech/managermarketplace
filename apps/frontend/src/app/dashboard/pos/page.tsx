@@ -38,6 +38,7 @@ export default function PosPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [onlyInStock, setOnlyInStock] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -234,9 +235,8 @@ export default function PosPage() {
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
       {/* Productos */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-gray-900">Punto de Venta</h1>
-          {isSuperAdmin && (
+        {isSuperAdmin && (
+          <div className="flex items-center justify-end mb-4">
             <select
               value={selectedCompanyId}
               onChange={(e) => selectCompany(e.target.value)}
@@ -247,8 +247,8 @@ export default function PosPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-          )}
-        </div>
+          </div>
+        )}
 
         {isSuperAdmin && !selectedCompanyId ? (
           <div className="flex-1 flex items-center justify-center text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl">
@@ -313,9 +313,26 @@ export default function PosPage() {
               Limpiar
             </button>
           )}
+          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setViewMode('cards')}
+              title="Vista de tarjetas"
+              className={`px-3 py-2 text-sm ${viewMode === 'cards' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            >
+              ▦
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              title="Vista de lista"
+              className={`px-3 py-2 text-sm border-l border-gray-300 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            >
+              ☰
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 content-start">
+        {viewMode === 'cards' ? (
+        <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-6 content-start">
           {productsLoading && (
             <p className="col-span-full text-gray-400 text-sm text-center py-12">Cargando productos...</p>
           )}
@@ -338,16 +355,16 @@ export default function PosPage() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-5xl">
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-7xl">
                       📦
                     </div>
                   )}
                 </div>
-                <div className="p-4">
+                <div className="p-5">
                   <p className="text-xs text-gray-400 mb-1 font-mono">{p.sku}</p>
-                  <p className="text-base font-bold text-gray-900 leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
+                  <p className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 min-h-[3.5rem]">{p.name}</p>
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-blue-600 font-bold text-lg">
+                    <span className="text-blue-600 font-bold text-xl">
                       ${Number(p.price).toLocaleString('es-CL')}
                     </span>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
@@ -364,6 +381,55 @@ export default function PosPage() {
             </p>
           )}
         </div>
+        ) : (
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-2xl bg-white">
+          {productsLoading && (
+            <p className="text-gray-400 text-sm text-center py-12">Cargando productos...</p>
+          )}
+          {!productsLoading && products.map((p) => {
+            const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+            return (
+              <button
+                key={p.id}
+                onClick={() => addToCart(p)}
+                disabled={p.stock === 0}
+                className={`w-full flex items-center gap-4 px-4 py-3 text-left transition hover:bg-blue-50 focus:outline-none ${
+                  p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
+                }`}
+              >
+                <div className="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0">
+                  {primaryImg ? (
+                    <img
+                      src={imgUrl(primaryImg.url)}
+                      alt={p.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">
+                      📦
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-900 leading-tight truncate">{p.name}</p>
+                  <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
+                </span>
+                <span className="text-blue-600 font-bold text-lg w-24 text-right shrink-0">
+                  ${Number(p.price).toLocaleString('es-CL')}
+                </span>
+              </button>
+            );
+          })}
+          {!productsLoading && products.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-12">
+              {search || warehouseFilter || categoryFilter || onlyInStock ? 'Sin resultados para los filtros aplicados.' : 'No hay productos disponibles.'}
+            </p>
+          )}
+        </div>
+        )}
 
         {pages > 1 && (
           <div className="flex items-center justify-between pt-3 shrink-0">
