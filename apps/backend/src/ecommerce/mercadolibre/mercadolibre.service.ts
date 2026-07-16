@@ -622,26 +622,28 @@ export class MercadolibreService {
     const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
     const listingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
 
-    const items = mlItems.map((i) => {
-      const sku = this.extractSku(i.attributes);
-      const alreadyLinked = listingByExternalId.get(i.id);
-      const matchedProduct = !alreadyLinked && sku ? productBySku.get(sku) : undefined;
-      return {
-        externalId: i.id,
-        title: i.title,
-        price: i.price,
-        stock: i.available_quantity,
-        thumbnail: i.secure_thumbnail || i.thumbnail,
-        permalink: i.permalink,
-        status: i.status,
-        sku,
-        alreadyLinked: !!alreadyLinked,
-        matchedProductId: matchedProduct?.id || null,
-        matchedProductName: matchedProduct?.name || null,
-      };
-    });
+    const items = mlItems
+      .filter((i) => !listingByExternalId.has(i.id))
+      .map((i) => {
+        const sku = this.extractSku(i.attributes);
+        const matchedProduct = sku ? productBySku.get(sku) : undefined;
+        return {
+          externalId: i.id,
+          title: i.title,
+          price: i.price,
+          stock: i.available_quantity,
+          thumbnail: i.secure_thumbnail || i.thumbnail,
+          permalink: i.permalink,
+          status: i.status,
+          sku,
+          matchedProductId: matchedProduct?.id || null,
+          matchedProductName: matchedProduct?.name || null,
+        };
+      });
 
-    return { connectionName: conn.name, total, truncated, items };
+    const alreadyImportedCount = mlItems.length - items.length;
+
+    return { connectionName: conn.name, total, truncated, alreadyImportedCount, items };
   }
 
   async confirmImport(connectionId: string, externalIds: string[], user: any) {

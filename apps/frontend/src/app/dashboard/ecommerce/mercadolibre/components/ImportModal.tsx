@@ -13,10 +13,11 @@ type PreviewItem = {
   permalink: string;
   status: string;
   sku: string | null;
-  alreadyLinked: boolean;
   matchedProductId: string | null;
   matchedProductName: string | null;
 };
+
+const PAGE_SIZE = 20;
 
 export function ImportModal({
   connectionId,
@@ -33,9 +34,11 @@ export function ImportModal({
   const [error, setError] = useState('');
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [truncated, setTruncated] = useState(false);
+  const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number } | null>(null);
+  const [page, setPage] = useState(0);
 
   async function loadPreview() {
     setLoading(true);
@@ -45,7 +48,9 @@ export function ImportModal({
       const data = await api.marketplace.previewImport(connectionId, token);
       setItems(data.items);
       setTruncated(data.truncated);
-      setSelected(new Set(data.items.filter((i) => !i.alreadyLinked).map((i) => i.externalId)));
+      setAlreadyImportedCount(data.alreadyImportedCount);
+      setSelected(new Set(data.items.map((i) => i.externalId)));
+      setPage(0);
     } catch (err: any) {
       setError(err.message || 'No se pudieron obtener las publicaciones de Mercado Libre.');
     } finally {
@@ -64,9 +69,9 @@ export function ImportModal({
   }
 
   function toggleAll() {
-    const selectable = items.filter((i) => !i.alreadyLinked).map((i) => i.externalId);
-    const allSelected = selectable.every((id) => selected.has(id));
-    setSelected(allSelected ? new Set() : new Set(selectable));
+    const allIds = items.map((i) => i.externalId);
+    const allSelected = allIds.every((id) => selected.has(id));
+    setSelected(allSelected ? new Set() : new Set(allIds));
   }
 
   async function handleConfirm() {
@@ -85,9 +90,10 @@ export function ImportModal({
     }
   }
 
-  const selectableCount = items.filter((i) => !i.alreadyLinked).length;
-  const newCount = items.filter((i) => !i.alreadyLinked && !i.matchedProductId).length;
-  const matchCount = items.filter((i) => !i.alreadyLinked && i.matchedProductId).length;
+  const newCount = items.filter((i) => !i.matchedProductId).length;
+  const matchCount = items.filter((i) => i.matchedProductId).length;
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pagedItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -124,20 +130,22 @@ export function ImportModal({
             <>
               {truncated && (
                 <div className="mx-6 mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-                  Se encontraron más publicaciones de las que se muestran aquí. Mostrando las primeras {items.length}.
+                  Se encontraron más publicaciones de las que se muestran aquí. Mostrando las primeras {items.length + alreadyImportedCount}.
                 </div>
               )}
 
               {items.length === 0 ? (
                 <div className="p-12 text-center text-gray-400 text-sm">
-                  No se encontraron publicaciones activas en esta cuenta de Mercado Libre.
+                  {alreadyImportedCount > 0
+                    ? 'Todas las publicaciones de esta cuenta ya fueron importadas.'
+                    : 'No se encontraron publicaciones activas en esta cuenta de Mercado Libre.'}
                 </div>
               ) : (
                 <>
                   <div className="mx-6 mt-4 flex gap-4 text-xs text-gray-500">
                     <span>{newCount} nuevas</span>
                     <span>{matchCount} coinciden por SKU con productos existentes</span>
-                    <span>{items.length - selectableCount} ya importadas</span>
+                    {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importadas (no se muestran)</span>}
                   </div>
                   <table className="w-full text-sm mt-3">
                     <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
@@ -145,7 +153,7 @@ export function ImportModal({
                         <th className="px-4 py-2 text-left">
                           <input
                             type="checkbox"
-                            checked={selectableCount > 0 && selected.size === selectableCount}
+                            checked={items.length > 0 && items.every((i) => selected.has(i.externalId))}
                             onChange={toggleAll}
                           />
                         </th>
@@ -157,12 +165,11 @@ export function ImportModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {items.map((item) => (
-                        <tr key={item.externalId} className={item.alreadyLinked ? 'opacity-50' : 'hover:bg-gray-50'}>
+                      {pagedItems.map((item) => (
+                        <tr key={item.externalId} className="hover:bg-gray-50">
                           <td className="px-4 py-2">
                             <input
                               type="checkbox"
-                              disabled={item.alreadyLinked}
                               checked={selected.has(item.externalId)}
                               onChange={() => toggle(item.externalId)}
                             />
@@ -182,9 +189,7 @@ export function ImportModal({
                           <td className="px-2 py-2 text-right text-gray-700">${Math.round(item.price).toLocaleString('es-CL')}</td>
                           <td className="px-2 py-2 text-right text-gray-700">{item.stock}</td>
                           <td className="px-2 py-2">
-                            {item.alreadyLinked ? (
-                              <span className="text-xs text-gray-400">Ya importada</span>
-                            ) : item.matchedProductId ? (
+                            {item.matchedProductId ? (
                               <span className="text-xs text-blue-600">Vincular a "{item.matchedProductName}"</span>
                             ) : (
                               <span className="text-xs text-green-600">Crear producto nuevo</span>
@@ -194,6 +199,19 @@ export function ImportModal({
                       ))}
                     </tbody>
                   </table>
+                  {pageCount > 1 && (
+                    <div className="flex items-center justify-center gap-3 py-3 border-t border-gray-100">
+                      <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                        ← Anterior
+                      </button>
+                      <span className="text-xs text-gray-500">Página {page + 1} de {pageCount}</span>
+                      <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                        Siguiente →
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </>
