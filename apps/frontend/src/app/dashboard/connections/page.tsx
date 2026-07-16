@@ -108,9 +108,10 @@ export default function ConnectionsPage() {
     try {
       const token = getToken()!;
       const { authUrl } = await api.marketplace.authorize(id, token);
-      window.location.href = authUrl;
+      window.open(authUrl, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       setError(err.message || 'No se pudo iniciar la autorización.');
+    } finally {
       setAuthorizingId(null);
     }
   }

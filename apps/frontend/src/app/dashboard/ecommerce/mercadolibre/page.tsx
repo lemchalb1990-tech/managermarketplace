@@ -86,9 +86,10 @@ export default function MercadoLibrePage() {
     try {
       const token = getToken()!;
       const { authUrl } = await api.marketplace.authorize(id, token);
-      window.location.href = authUrl;
+      window.open(authUrl, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       setError(err.message || 'No se pudo iniciar la autorización.');
+    } finally {
       setAuthorizingId(null);
     }
   }
@@ -274,7 +275,7 @@ export default function MercadoLibrePage() {
                           <button onClick={() => handleAuthorize(c.id)}
                             disabled={authorizingId === c.id}
                             className="text-xs text-green-600 hover:text-green-800 font-medium disabled:opacity-50">
-                            {authorizingId === c.id ? 'Redirigiendo...' : 'Autorizar'}
+                            {authorizingId === c.id ? 'Abriendo...' : 'Autorizar'}
                           </button>
                         )}
                         {c.active && (
