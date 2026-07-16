@@ -843,10 +843,7 @@ export class MercadolibreService {
 
   private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
     const orderId = order.id;
-    // TEMPORAL: diagnóstico para ubicar "Cargos por venta" y "Envíos" del panel de vendedor.
-    const itemFeesSum = (order.order_items || []).reduce((s: number, oi: any) => s + Number(oi.sale_fee || 0), 0);
-    this.logger.log(`ML orden ${orderId} payments: ${JSON.stringify(order.payments || [])}`);
-    this.logger.log(`ML orden ${orderId} order_items sale_fee: ${JSON.stringify((order.order_items || []).map((oi: any) => ({ item: oi.item?.id, sale_fee: oi.sale_fee })))} (suma=${itemFeesSum})`);
+    const buyerShippingPaid = Number((order.payments || [])[0]?.shipping_cost || 0);
 
     const shippingId = order.shipping?.id;
     if (!shippingId) return { method: null, sellerCost: null };
@@ -857,28 +854,34 @@ export class MercadolibreService {
       ]);
 
       let shipment: any = {};
-      if (shipmentRes.ok) {
-        shipment = await shipmentRes.json();
-        this.logger.log(`ML shipment ${shippingId} raw: ${JSON.stringify(shipment).slice(0, 3000)}`);
-      }
+      if (shipmentRes.ok) shipment = await shipmentRes.json();
 
       let costs: any = null;
       if (costsRes.ok) {
         costs = await costsRes.json();
         this.logger.log(`ML shipment ${shippingId} costs: ${JSON.stringify(costs).slice(0, 2000)}`);
-      } else {
-        this.logger.log(`ML shipment ${shippingId} costs HTTP ${costsRes.status}`);
       }
 
       const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
       const method = logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
 
+      // 1) Si /costs trae el cargo real al vendedor, se usa directo.
       const sendersCost = Array.isArray(costs?.senders) ? costs.senders[0]?.cost : undefined;
-      const rawSellerCost = sendersCost
-        ?? shipment.shipping_option?.cost
-        ?? shipment.shipping_option?.list_cost
-        ?? shipment.shipping_item?.cost;
-      const sellerCost = rawSellerCost != null ? Number(rawSellerCost) : null;
+
+      // 2) Si no, se infiere: costo real de envío menos lo que pagó el comprador
+      //    (verificado contra datos reales: si el comprador cubre el costo total, da 0;
+      //    si el envío es "gratis" para el comprador, el vendedor absorbe la diferencia).
+      const actualShippingCost = shipment.shipping_option?.cost;
+      const inferredSellerCost = actualShippingCost != null
+        ? Math.max(0, Number(actualShippingCost) - buyerShippingPaid)
+        : null;
+
+      const sellerCost = sendersCost != null ? Number(sendersCost) : inferredSellerCost;
+
+      this.logger.log(
+        `ML orden ${orderId} envío: pagó comprador=${buyerShippingPaid}, costo real=${actualShippingCost ?? 'n/d'}, ` +
+        `costo vendedor (senders.cost)=${sendersCost ?? 'n/d'}, costo vendedor (inferido)=${inferredSellerCost ?? 'n/d'}`,
+      );
 
       return { method, sellerCost };
     } catch (err: any) {

@@ -371,7 +371,10 @@ export default function SalesPage() {
                       <div className="pt-2 mt-2 border-t border-gray-200 space-y-0.5">
                         <p className="text-xs font-semibold text-gray-500 mb-1">Cargos y bonificaciones</p>
                         {sale.shippingCost != null && (
-                          <div className="flex justify-between text-xs text-gray-500"><span>Envío</span><span>{fmt(Number(sale.shippingCost))}</span></div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Envío (a cargo del vendedor)</span>
+                            <span>{Number(sale.shippingCost) > 0 ? `-${fmt(Number(sale.shippingCost))}` : fmt(0)}</span>
+                          </div>
                         )}
                         {sale.marketplaceFee != null && (
                           <div className="flex justify-between text-xs text-gray-500"><span>Comisión marketplace</span><span>-{fmt(Number(sale.marketplaceFee))}</span></div>
