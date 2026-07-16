@@ -627,7 +627,7 @@ export class MercadolibreService {
     return items;
   }
 
-  async previewImport(connectionId: string, user: any) {
+  async previewImport(connectionId: string, user: any, scrollId?: string) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
@@ -635,24 +635,40 @@ export class MercadolibreService {
     if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
     const me = await meRes.json() as any;
 
-    const MAX_ITEMS = 300;
+    // Catálogos grandes (>1000) requieren la API de "scan" de ML, que pagina por
+    // cursor (scroll_id) en vez de offset, sin techo de resultados totales.
+    const PAGES_PER_BATCH = 3; // 3 x 100 = hasta 300 publicaciones por llamada
     const itemIds: string[] = [];
-    let offset = 0;
+    let currentScrollId = scrollId;
     let total = 0;
-    do {
+    let lastPageEmpty = false;
+
+    for (let i = 0; i < PAGES_PER_BATCH; i++) {
+      const params = new URLSearchParams({ search_type: 'scan', limit: '100' });
+      if (currentScrollId) params.set('scroll_id', currentScrollId);
       const searchRes = await fetch(
-        `${ML_API}/users/${me.id}/items/search?offset=${offset}&limit=50`,
+        `${ML_API}/users/${me.id}/items/search?${params}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (!searchRes.ok) break;
+      if (!searchRes.ok) {
+        const errBody = await searchRes.text();
+        this.logger.error(`ML items scan failed [${searchRes.status}]: ${errBody}`);
+        throw new BadRequestException(
+          `Mercado Libre rechazó la búsqueda de publicaciones (HTTP ${searchRes.status}). Revisa los logs del backend para más detalle.`,
+        );
+      }
       const searchData = await searchRes.json() as any;
-      total = searchData.paging?.total || 0;
-      itemIds.push(...(searchData.results || []));
-      offset += 50;
-    } while (offset < total && itemIds.length < MAX_ITEMS);
+      total = searchData.paging?.total || total;
+      currentScrollId = searchData.scroll_id;
+      const pageResults: string[] = searchData.results || [];
+      itemIds.push(...pageResults);
+      if (pageResults.length === 0) { lastPageEmpty = true; break; }
+    }
 
-    const truncated = total > itemIds.length;
-    const mlItems = await this.fetchMlItems(itemIds.slice(0, MAX_ITEMS), token);
+    const nextScrollId = currentScrollId || null;
+    const hasMore = !lastPageEmpty && !!nextScrollId;
+
+    const mlItems = await this.fetchMlItems(itemIds, token);
 
     const skus = mlItems.map((i) => this.extractSku(i.attributes)).filter((s): s is string => !!s);
     const [existingProducts, existingListings] = await Promise.all([
@@ -689,7 +705,7 @@ export class MercadolibreService {
 
     const alreadyImportedCount = mlItems.length - items.length;
 
-    return { connectionName: conn.name, total, truncated, alreadyImportedCount, items };
+    return { connectionName: conn.name, total, hasMore, nextScrollId, alreadyImportedCount, items };
   }
 
   async confirmImport(connectionId: string, externalIds: string[], user: any) {

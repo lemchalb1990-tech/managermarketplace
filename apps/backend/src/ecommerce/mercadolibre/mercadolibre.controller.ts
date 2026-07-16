@@ -129,8 +129,8 @@ export class MercadolibreController {
   @Get('connections/:id/import/preview')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
-  previewImport(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.service.previewImport(id, user);
+  previewImport(@Param('id') id: string, @Query('scrollId') scrollId: string, @CurrentUser() user: any) {
+    return this.service.previewImport(id, user, scrollId || undefined);
   }
 
   @Post('connections/:id/import/confirm')

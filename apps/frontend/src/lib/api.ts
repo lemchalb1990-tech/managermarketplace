@@ -140,18 +140,19 @@ export const api = {
       }>(`/ecommerce/ml/products/${productId}/sync-all`, { method: 'POST' }, token),
     toggleListing: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
-    previewImport: (connectionId: string, token: string) =>
+    previewImport: (connectionId: string, scrollId: string | null, token: string) =>
       apiFetch<{
         connectionName: string;
         total: number;
-        truncated: boolean;
+        hasMore: boolean;
+        nextScrollId: string | null;
         alreadyImportedCount: number;
         items: Array<{
           externalId: string; title: string; price: number; stock: number;
           thumbnail: string | null; permalink: string; status: string; sku: string | null;
           matchedProductId: string | null; matchedProductName: string | null;
         }>;
-      }>(`/ecommerce/ml/connections/${connectionId}/import/preview`, {}, token),
+      }>(`/ecommerce/ml/connections/${connectionId}/import/preview${scrollId ? `?scrollId=${encodeURIComponent(scrollId)}` : ''}`, {}, token),
     confirmImport: (connectionId: string, externalIds: string[], token: string) =>
       apiFetch<{ imported: number; linked: number; skipped: number }>(
         `/ecommerce/ml/connections/${connectionId}/import/confirm`,

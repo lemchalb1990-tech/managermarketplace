@@ -31,34 +31,44 @@ export function ImportModal({
   onImported: () => void;
 }) {
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [items, setItems] = useState<PreviewItem[]>([]);
-  const [truncated, setTruncated] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextScrollId, setNextScrollId] = useState<string | null>(null);
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number } | null>(null);
   const [page, setPage] = useState(0);
 
-  async function loadPreview() {
-    setLoading(true);
+  async function loadPreview(scrollId: string | null, append: boolean) {
+    if (append) setLoadingMore(true); else setLoading(true);
     setError('');
     try {
       const token = getToken()!;
-      const data = await api.marketplace.previewImport(connectionId, token);
-      setItems(data.items);
-      setTruncated(data.truncated);
-      setAlreadyImportedCount(data.alreadyImportedCount);
-      setSelected(new Set(data.items.map((i) => i.externalId)));
-      setPage(0);
+      const data = await api.marketplace.previewImport(connectionId, scrollId, token);
+      setItems((prev) => append ? [...prev, ...data.items] : data.items);
+      setTotal(data.total);
+      setHasMore(data.hasMore);
+      setNextScrollId(data.nextScrollId);
+      setAlreadyImportedCount((prev) => append ? prev + data.alreadyImportedCount : data.alreadyImportedCount);
+      setSelected((prev) => {
+        const next = append ? new Set(prev) : new Set<string>();
+        data.items.forEach((i) => next.add(i.externalId));
+        return next;
+      });
+      if (!append) setPage(0);
     } catch (err: any) {
       setError(err.message || 'No se pudieron obtener las publicaciones de Mercado Libre.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
-  useEffect(() => { loadPreview(); }, [connectionId]);
+  useEffect(() => { loadPreview(null, false); }, [connectionId]);
 
   function toggle(externalId: string) {
     setSelected((prev) => {
@@ -128,12 +138,6 @@ export function ImportModal({
 
           {!loading && !error && !result && (
             <>
-              {truncated && (
-                <div className="mx-6 mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-                  Se encontraron más publicaciones de las que se muestran aquí. Mostrando las primeras {items.length + alreadyImportedCount}.
-                </div>
-              )}
-
               {items.length === 0 ? (
                 <div className="p-12 text-center text-gray-400 text-sm">
                   {alreadyImportedCount > 0
@@ -209,6 +213,14 @@ export function ImportModal({
                       <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}
                         className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">
                         Siguiente →
+                      </button>
+                    </div>
+                  )}
+                  {hasMore && (
+                    <div className="flex items-center justify-center py-3 border-t border-gray-100">
+                      <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore}
+                        className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                        {loadingMore ? 'Cargando...' : `Cargar más publicaciones (${items.length + alreadyImportedCount} de ${total || '?'})`}
                       </button>
                     </div>
                   )}
