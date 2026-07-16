@@ -235,6 +235,52 @@ export class PosService {
     return { sales, total, page, pages: Math.ceil(total / take) };
   }
 
+  async exportSalesCsv(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string }): Promise<string> {
+    const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : user.companyId;
+
+    const where: any = {};
+    if (companyId) where.companyId = companyId;
+    if (query.channel) where.channel = query.channel;
+    if (query.from || query.to) {
+      where.createdAt = {};
+      if (query.from) where.createdAt.gte = new Date(query.from);
+      if (query.to) where.createdAt.lte = new Date(query.to + 'T23:59:59');
+    }
+
+    const sales = await this.prisma.sale.findMany({
+      where,
+      include: { items: { include: { product: { select: { sku: true, name: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+
+    const CHANNEL_LABEL: Record<string, string> = {
+      POS: 'Punto de Venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
+      WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
+      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+    };
+
+    const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Fecha', 'Canal', 'ID Venta', 'ID Externo', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal'];
+    const rows = [header.join(',')];
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        rows.push([
+          sale.createdAt.toISOString(),
+          CHANNEL_LABEL[sale.channel] || sale.channel,
+          sale.id,
+          sale.externalId || '',
+          item.product?.sku || '',
+          item.product?.name || 'Producto eliminado',
+          item.quantity,
+          Number(item.unitPrice),
+          Number(item.unitPrice) * item.quantity,
+        ].map(escape).join(','));
+      }
+    }
+    return rows.join('\n');
+  }
+
   async getDailySummary(user: any, companyId?: string, date?: string) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     const day = date ? new Date(date) : new Date();

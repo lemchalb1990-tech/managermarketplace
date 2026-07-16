@@ -40,6 +40,19 @@ export default function SalesPage() {
   const [summaryDate, setSummaryDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    if (!token) return;
+    setExporting(true);
+    try {
+      await api.pos.exportSales({ channel: channel || undefined, from: from || undefined, to: to || undefined }, token);
+    } catch (err: any) {
+      alert(err.message || 'No se pudo exportar el archivo.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     const t = getToken();
@@ -184,7 +197,16 @@ export default function SalesPage() {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-semibold text-gray-800">Historial de ventas</h2>
-          <span className="text-sm text-gray-500">{total} registros</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">{total} registros</span>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50"
+            >
+              {exporting ? 'Exportando...' : 'Exportar CSV'}
+            </button>
+          </div>
         </div>
 
         {loading ? (

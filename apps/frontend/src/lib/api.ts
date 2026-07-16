@@ -45,6 +45,23 @@ export async function apiUpload<T>(path: string, file: File, token: string): Pro
 
 export const imgUrl = (path: string) => `${API_URL}${path}`;
 
+export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Error desconocido' }));
+    throw new Error(err.message || `Error ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   login: (email: string, password: string) =>
     apiFetch<{ access_token: string; user: any }>('/auth/login', {
@@ -138,6 +155,28 @@ export const api = {
     confirmImport: (connectionId: string, externalIds: string[], token: string) =>
       apiFetch<{ imported: number; linked: number; skipped: number }>(
         `/ecommerce/ml/connections/${connectionId}/import/confirm`,
+        { method: 'POST', body: JSON.stringify({ externalIds }) },
+        token,
+      ),
+    previewSalesImport: (connectionId: string, params: { from?: string; to?: string }, token: string) => {
+      const q = new URLSearchParams();
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      return apiFetch<{
+        connectionName: string;
+        total: number;
+        truncated: boolean;
+        alreadyImportedCount: number;
+        orders: Array<{
+          externalId: string; date: string; total: number; buyerNickname: string | null;
+          importable: boolean;
+          items: Array<{ title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null }>;
+        }>;
+      }>(`/ecommerce/ml/connections/${connectionId}/sales-import/preview?${q}`, {}, token);
+    },
+    confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>
+      apiFetch<{ imported: number; skipped: number; errors: string[] }>(
+        `/ecommerce/ml/connections/${connectionId}/sales-import/confirm`,
         { method: 'POST', body: JSON.stringify({ externalIds }) },
         token,
       ),
@@ -301,6 +340,14 @@ export const api = {
       apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),
     adjustStock: (data: { productId: string; quantity: number; reason?: string }, token: string) =>
       apiFetch<any>('/pos/stock/adjust', { method: 'POST', body: JSON.stringify(data) }, token),
+    exportSales: (params: { companyId?: string; channel?: string; from?: string; to?: string }, token: string) => {
+      const q = new URLSearchParams();
+      if (params.companyId) q.set('companyId', params.companyId);
+      if (params.channel) q.set('channel', params.channel);
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      return apiDownload(`/pos/sales/export?${q}`, token, `ventas_${params.from || 'todas'}_${params.to || 'todas'}.csv`);
+    },
   },
   email: {
     getConfig: (token: string, companyId?: string) => {

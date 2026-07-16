@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Role, SaleChannel } from '@prisma/client';
 import { PosService } from './pos.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
@@ -29,6 +30,22 @@ export class PosController {
     @Query('page') page?: string,
   ) {
     return this.service.listSales(user, { companyId, channel, from, to, page });
+  }
+
+  @Get('sales/export')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  async exportSales(
+    @CurrentUser() user: any,
+    @Res() res: Response,
+    @Query('companyId') companyId?: string,
+    @Query('channel') channel?: SaleChannel,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const csv = await this.service.exportSalesCsv(user, { companyId, channel, from, to });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="ventas.csv"');
+    res.send(Buffer.from('﻿' + csv, 'utf8'));
   }
 
   @Get('sales/summary')
