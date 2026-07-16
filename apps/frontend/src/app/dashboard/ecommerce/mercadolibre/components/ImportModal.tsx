@@ -39,6 +39,7 @@ export function ImportModal({
   const [nextScrollId, setNextScrollId] = useState<string | null>(null);
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [unlinked, setUnlinked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
@@ -100,13 +101,22 @@ export function ImportModal({
     setSelected(allSelected ? new Set() : new Set(allIds));
   }
 
+  function toggleLink(externalId: string) {
+    setUnlinked((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
+
   async function handleConfirm() {
     if (selected.size === 0) return;
     setImporting(true);
     setError('');
     try {
       const token = getToken()!;
-      const res = await api.marketplace.confirmImport(connectionId, Array.from(selected), token);
+      const unlinkIds = Array.from(selected).filter((id) => unlinked.has(id));
+      const res = await api.marketplace.confirmImport(connectionId, Array.from(selected), unlinkIds, token);
       setResult(res);
       onImported();
     } catch (err: any) {
@@ -116,8 +126,8 @@ export function ImportModal({
     }
   }
 
-  const newCount = items.filter((i) => !i.matchedProductId).length;
-  const matchCount = items.filter((i) => i.matchedProductId).length;
+  const newCount = items.filter((i) => !i.matchedProductId || unlinked.has(i.externalId)).length;
+  const matchCount = items.filter((i) => i.matchedProductId && !unlinked.has(i.externalId)).length;
   const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
@@ -226,7 +236,23 @@ export function ImportModal({
                           <td className="px-2 py-2 text-right text-gray-700">{item.stock}</td>
                           <td className="px-2 py-2">
                             {item.matchedProductId ? (
-                              <span className="text-xs text-blue-600">Vincular a "{item.matchedProductName}"</span>
+                              unlinked.has(item.externalId) ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-green-600">Crear producto nuevo</span>
+                                  <button type="button" onClick={() => toggleLink(item.externalId)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                    deshacer
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-blue-600">Vincular a "{item.matchedProductName}"</span>
+                                  <button type="button" onClick={() => toggleLink(item.externalId)}
+                                    className="text-xs text-red-400 hover:text-red-600 underline">
+                                    quitar vínculo
+                                  </button>
+                                </div>
+                              )
                             ) : (
                               <span className="text-xs text-green-600">Crear producto nuevo</span>
                             )}

@@ -26,6 +26,7 @@ class CreateMlConnectionDto {
 
 class ConfirmImportDto {
   @IsArray() @IsString({ each: true }) externalIds: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) unlinkIds?: string[];
 }
 
 @Controller('ecommerce/ml')
@@ -137,7 +138,7 @@ export class MercadolibreController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   confirmImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
-    return this.service.confirmImport(id, dto.externalIds, user);
+    return this.service.confirmImport(id, dto.externalIds, user, dto.unlinkIds);
   }
 
   // ─── Importación de ventas históricas ───────────────────────────────────────

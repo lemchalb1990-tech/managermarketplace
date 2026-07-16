@@ -161,10 +161,10 @@ export const api = {
           matchedProductId: string | null; matchedProductName: string | null;
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/import/preview${scrollId ? `?scrollId=${encodeURIComponent(scrollId)}` : ''}`, {}, token),
-    confirmImport: (connectionId: string, externalIds: string[], token: string) =>
+    confirmImport: (connectionId: string, externalIds: string[], unlinkIds: string[], token: string) =>
       apiFetch<{ imported: number; linked: number; skipped: number; errors: string[] }>(
         `/ecommerce/ml/connections/${connectionId}/import/confirm`,
-        { method: 'POST', body: JSON.stringify({ externalIds }) },
+        { method: 'POST', body: JSON.stringify({ externalIds, unlinkIds }) },
         token,
       ),
     previewSalesImport: (connectionId: string, params: { from?: string; to?: string }, token: string) => {

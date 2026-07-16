@@ -723,9 +723,10 @@ export class MercadolibreService {
     }
   }
 
-  async confirmImport(connectionId: string, externalIds: string[], user: any) {
+  async confirmImport(connectionId: string, externalIds: string[], user: any, unlinkIds: string[] = []) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
+    const unlinkSet = new Set(unlinkIds);
 
     let mlItems: any[];
     try {
@@ -748,9 +749,11 @@ export class MercadolibreService {
         if (alreadyLinked) { skipped++; continue; }
 
         const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
-        const sku = this.extractSku(item.attributes) || `ML-${item.id}`;
+        const forceNew = unlinkSet.has(item.id);
+        const matchedSku = this.extractSku(item.attributes);
+        const sku = (!forceNew && matchedSku) || `ML-${item.id}`;
 
-        const product = await this.prisma.product.findUnique({
+        const product = forceNew ? null : await this.prisma.product.findUnique({
           where: { sku_companyId: { sku, companyId: conn.companyId } },
         });
 
