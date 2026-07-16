@@ -872,8 +872,18 @@ export class MercadolibreService {
       const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
       const method = logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
 
-      // 1) Si /costs trae el cargo real al vendedor, se usa directo.
-      const sendersCost = Array.isArray(costs?.senders) ? costs.senders[0]?.cost : undefined;
+      const sender = Array.isArray(costs?.senders) ? costs.senders[0] : undefined;
+
+      // Bonificación al vendedor (ej. Flex): compensation directa + suma de compensations[] + charge_flex
+      // negativo si ML lo expresa como cargo negativo. Reduce el costo neto a cargo del vendedor.
+      const compensationsSum = Array.isArray(sender?.compensations)
+        ? sender.compensations.reduce((s: number, c: any) => s + Number(c?.amount ?? c ?? 0), 0)
+        : 0;
+      const flexCharge = Number(sender?.charges?.charge_flex || 0);
+      const bonus = Number(sender?.compensation || 0) + compensationsSum - flexCharge;
+
+      // 1) Si /costs trae el cargo real al vendedor, se usa directo (menos la bonificación, si existe).
+      const sendersCost = sender?.cost != null ? Number(sender.cost) - bonus : undefined;
 
       // 2) Si no, se infiere: costo real de envío menos lo que pagó el comprador.
       //    Positivo = se le cobra la diferencia al vendedor (ej. envío "gratis" para el comprador).
@@ -884,8 +894,12 @@ export class MercadolibreService {
         ? Number(actualShippingCost) - buyerShippingPaid
         : null;
 
-      const rawSellerCost = sendersCost != null ? Number(sendersCost) : inferredSellerCost;
+      const rawSellerCost = sendersCost != null ? sendersCost : inferredSellerCost;
       const sellerCost = rawSellerCost != null ? Math.round(rawSellerCost) : null;
+
+      if (bonus !== 0) {
+        this.logger.log(`ML orden ${orderId} bonificación de envío detectada: ${bonus} (compensation=${sender?.compensation}, compensations=${JSON.stringify(sender?.compensations)}, charge_flex=${flexCharge})`);
+      }
 
       this.logger.log(
         `ML orden ${orderId} envío: pagó comprador=${buyerShippingPaid}, costo real=${actualShippingCost ?? 'n/d'}, ` +
