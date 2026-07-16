@@ -890,38 +890,38 @@ export class MercadolibreService {
   // de la venta -> paginar el detalle de ese período (probando grupos MP y ML) ->
   // filtrar por sales_info[].order_id.
   private async findBillingDetailsForOrder(orderId: string, saleDateIso: string, token: string): Promise<any> {
-    const result: any = { periods_lookup: null, period_key: null, matched_details: [], raw_sample: null, errors: [] };
-
-    let periods: any[] = [];
-    try {
-      const periodsRes = await fetch(`${ML_API}/billing/integration/periods`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!periodsRes.ok) {
-        result.errors.push(`GET /billing/integration/periods -> HTTP ${periodsRes.status}: ${await periodsRes.text()}`);
-        return result;
-      }
-      const periodsData = await periodsRes.json() as any;
-      result.periods_lookup = periodsData;
-      periods = Array.isArray(periodsData) ? periodsData : (periodsData.results || periodsData.periods || []);
-    } catch (err: any) {
-      result.errors.push(`GET /billing/integration/periods error: ${err?.message || err}`);
-      return result;
-    }
-
+    const result: any = { periods_lookup: {}, period_key: {}, matched_details: [], raw_sample: null, errors: [] };
     const saleDate = new Date(saleDateIso);
-    const period = periods.find((p: any) => {
-      const from = p.date_from ? new Date(p.date_from) : null;
-      const to = p.date_to ? new Date(p.date_to) : null;
-      return from && to && saleDate >= from && saleDate <= new Date(to.getTime() + 24 * 60 * 60 * 1000);
-    });
-    if (!period) {
-      result.errors.push('No se encontró un período que contenga la fecha de la venta.');
-      return result;
-    }
-    result.period_key = period.key;
 
     for (const group of ['ML', 'MP']) {
+      let periods: any[] = [];
+      try {
+        const periodsRes = await fetch(`${ML_API}/billing/integration/periods?group=${group}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!periodsRes.ok) {
+          result.errors.push(`GET /billing/integration/periods?group=${group} -> HTTP ${periodsRes.status}: ${await periodsRes.text()}`);
+          continue;
+        }
+        const periodsData = await periodsRes.json() as any;
+        result.periods_lookup[group] = periodsData;
+        periods = Array.isArray(periodsData) ? periodsData : (periodsData.results || periodsData.periods || []);
+      } catch (err: any) {
+        result.errors.push(`GET /billing/integration/periods?group=${group} error: ${err?.message || err}`);
+        continue;
+      }
+
+      const period = periods.find((p: any) => {
+        const from = p.date_from ? new Date(p.date_from) : null;
+        const to = p.date_to ? new Date(p.date_to) : null;
+        return from && to && saleDate >= from && saleDate <= new Date(to.getTime() + 24 * 60 * 60 * 1000);
+      });
+      if (!period) {
+        result.errors.push(`No se encontró un período (group=${group}) que contenga la fecha de la venta.`);
+        continue;
+      }
+      result.period_key[group] = period.key;
+
       let offset = 0;
       const limit = 100;
       let total = Infinity;
@@ -991,7 +991,19 @@ export class MercadolibreService {
         ? sender.compensations.reduce((s: number, c: any) => s + Number(c?.amount ?? c ?? 0), 0)
         : 0;
       const flexCharge = Number(sender?.charges?.charge_flex || 0);
-      const bonus = Number(sender?.compensation || 0) + compensationsSum - flexCharge;
+
+      // Caso confirmado: Flex con descuento "loyal" 100% al comprador (envío gratis) y costo $0
+      // al vendedor en costs.senders — ahí costs.gross_amount es la bonificación real que ML
+      // acredita al vendedor (ej. orden 2000017435932280: gross_amount=3090 = "Bonificación por envío").
+      const isFlex = logisticType === 'self_service';
+      const senderCostRaw = sender?.cost != null ? Number(sender.cost) : null;
+      const grossAmount = costs?.gross_amount != null ? Number(costs.gross_amount) : 0;
+      const flexFullBonus = isFlex && senderCostRaw === 0 && grossAmount > 0 ? grossAmount : 0;
+      if (flexFullBonus > 0) {
+        this.logger.log(`ML orden ${orderId} bonificación Flex por gross_amount detectada: ${flexFullBonus}`);
+      }
+
+      const bonus = Number(sender?.compensation || 0) + compensationsSum - flexCharge + flexFullBonus;
 
       // 1) Si /costs trae el cargo real al vendedor, se usa directo (menos la bonificación, si existe).
       const sendersCost = sender?.cost != null ? Number(sender.cost) - bonus : undefined;
