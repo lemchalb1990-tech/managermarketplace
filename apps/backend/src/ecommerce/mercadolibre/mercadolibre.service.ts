@@ -820,6 +820,18 @@ export class MercadolibreService {
 
   // ─── Importación de ventas históricas (sin descontar stock) ──────────────────
 
+  private computeOrderCharges(order: any) {
+    const payment = (order.payments || [])[0] || {};
+    const itemFees = (order.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0), 0);
+    return {
+      shippingCost: Number(payment.shipping_cost || order.shipping?.cost || 0),
+      marketplaceFee: Number(payment.marketplace_fee || itemFees || 0),
+      taxes: Number(payment.taxes_amount || 0),
+      coupon: Number(payment.coupon_amount || 0),
+      totalPaid: Number(payment.total_paid_amount ?? order.total_amount ?? 0),
+    };
+  }
+
   async previewSalesImport(connectionId: string, user: any, from?: string, to?: string) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
@@ -882,15 +894,7 @@ export class MercadolibreService {
         };
       });
       const importable = orderItems.length > 0 && orderItems.every((i: any) => i.resolved);
-      const payment = (o.payments || [])[0] || {};
-      const itemFees = (o.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0), 0);
-      const charges = {
-        shippingCost: Number(payment.shipping_cost || o.shipping?.cost || 0),
-        marketplaceFee: Number(payment.marketplace_fee || itemFees || 0),
-        taxes: Number(payment.taxes_amount || 0),
-        coupon: Number(payment.coupon_amount || 0),
-        totalPaid: Number(payment.total_paid_amount ?? o.total_amount ?? 0),
-      };
+      const charges = this.computeOrderCharges(o);
       return {
         externalId: String(o.id),
         date: o.date_created,
@@ -938,11 +942,17 @@ export class MercadolibreService {
         continue;
       }
 
+      const charges = this.computeOrderCharges(order);
       await this.prisma.sale.create({
         data: {
           channel: SaleChannel.MERCADO_LIBRE,
           externalId: orderId,
           total: Number(order.total_amount || 0),
+          shippingCost: charges.shippingCost,
+          marketplaceFee: charges.marketplaceFee,
+          taxes: charges.taxes,
+          discount: charges.coupon,
+          netAmount: charges.totalPaid,
           companyId: conn.companyId,
           customerName: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
@@ -1010,12 +1020,19 @@ export class MercadolibreService {
       if (!resolvedItems.length || !companyId) return { received: true };
 
       // Crear venta y actualizar stock en transacción atómica
+      const charges = this.computeOrderCharges(order);
+
       await this.prisma.$transaction(async (tx) => {
         const sale = await tx.sale.create({
           data: {
             channel: SaleChannel.MERCADO_LIBRE,
             externalId: orderId,
             total: orderTotal,
+            shippingCost: charges.shippingCost,
+            marketplaceFee: charges.marketplaceFee,
+            taxes: charges.taxes,
+            discount: charges.coupon,
+            netAmount: charges.totalPaid,
             companyId,
             customerName: order.buyer?.nickname || null,
             items: {

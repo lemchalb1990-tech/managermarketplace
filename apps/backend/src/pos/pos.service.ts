@@ -308,7 +308,10 @@ export class PosService {
     };
 
     const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Fecha', 'Canal', 'ID Venta', 'ID Externo', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal'];
+    const header = [
+      'Fecha', 'Canal', 'ID Venta', 'ID Externo', 'Comprador', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
+      'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
+    ];
     const rows = [header.join(',')];
     for (const sale of sales) {
       for (const item of sale.items) {
@@ -317,11 +320,17 @@ export class PosService {
           CHANNEL_LABEL[sale.channel] || sale.channel,
           sale.id,
           sale.externalId || '',
+          sale.customerName || '',
           item.product?.sku || '',
           item.product?.name || 'Producto eliminado',
           item.quantity,
           Number(item.unitPrice),
           Number(item.unitPrice) * item.quantity,
+          sale.shippingCost != null ? Number(sale.shippingCost) : '',
+          sale.marketplaceFee != null ? Number(sale.marketplaceFee) : '',
+          sale.taxes != null ? Number(sale.taxes) : '',
+          sale.discount != null ? Number(sale.discount) : '',
+          sale.netAmount != null ? Number(sale.netAmount) : '',
         ].map(escape).join(','));
       }
     }

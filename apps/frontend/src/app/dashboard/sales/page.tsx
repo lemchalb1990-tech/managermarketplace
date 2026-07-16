@@ -345,6 +345,26 @@ export default function SalesPage() {
                     {sale.customerName && (
                       <p className="text-xs text-gray-400">Comprador: {sale.customerName}</p>
                     )}
+                    {(sale.shippingCost != null || sale.marketplaceFee != null || sale.taxes != null || sale.discount != null || sale.netAmount != null) && (
+                      <div className="pt-2 mt-2 border-t border-gray-200 space-y-0.5">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Cargos y bonificaciones</p>
+                        {sale.shippingCost != null && (
+                          <div className="flex justify-between text-xs text-gray-500"><span>Envío</span><span>{fmt(Number(sale.shippingCost))}</span></div>
+                        )}
+                        {sale.marketplaceFee != null && (
+                          <div className="flex justify-between text-xs text-gray-500"><span>Comisión marketplace</span><span>-{fmt(Number(sale.marketplaceFee))}</span></div>
+                        )}
+                        {sale.taxes != null && (
+                          <div className="flex justify-between text-xs text-gray-500"><span>Impuestos</span><span>{fmt(Number(sale.taxes))}</span></div>
+                        )}
+                        {sale.discount != null && (
+                          <div className="flex justify-between text-xs text-gray-500"><span>Descuento/Cupón</span><span>-{fmt(Number(sale.discount))}</span></div>
+                        )}
+                        {sale.netAmount != null && (
+                          <div className="flex justify-between text-xs font-semibold text-gray-700"><span>Total neto recibido</span><span>{fmt(Number(sale.netAmount))}</span></div>
+                        )}
+                      </div>
+                    )}
                     {sale.notes && (
                       <p className="text-xs text-gray-400 pt-1 border-t border-gray-200 mt-2">Nota: {sale.notes}</p>
                     )}

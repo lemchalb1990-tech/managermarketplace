@@ -1,0 +1,5 @@
+ALTER TABLE "sales" ADD COLUMN "shippingCost" DECIMAL(10,2);
+ALTER TABLE "sales" ADD COLUMN "marketplaceFee" DECIMAL(10,2);
+ALTER TABLE "sales" ADD COLUMN "taxes" DECIMAL(10,2);
+ALTER TABLE "sales" ADD COLUMN "discount" DECIMAL(10,2);
+ALTER TABLE "sales" ADD COLUMN "netAmount" DECIMAL(10,2);
