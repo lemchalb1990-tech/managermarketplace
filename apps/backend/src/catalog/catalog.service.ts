@@ -37,8 +37,8 @@ export class CatalogService {
     });
   }
 
-  async findAll(user: any) {
-    const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
+  async findAll(user: any, companyIdParam?: string) {
+    const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : this.getCompanyId(user);
     return this.prisma.product.findMany({
       where: companyId ? { companyId } : {},
       include: {
@@ -46,17 +46,18 @@ export class CatalogService {
         listings: { include: { connection: { select: { id: true, name: true } } } },
         warehouse: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { name: 'asc' },
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string }) {
-    const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string }) {
+    const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.category) where.category = query.category;
+    if (query.inStock === 'true') where.stock = { gt: 0 };
     if (query.active === 'true') where.active = true;
     else if (query.active === 'false') where.active = false;
     else if (query.active === 'paused') where.listings = { some: { status: 'PAUSED' } };
@@ -80,7 +81,7 @@ export class CatalogService {
           listings: { include: { connection: { select: { id: true, name: true } } } },
           warehouse: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { name: 'asc' },
         take,
         skip,
       }),
@@ -90,8 +91,8 @@ export class CatalogService {
     return { products, total, page, pages: Math.ceil(total / take) };
   }
 
-  async listCategories(user: any): Promise<string[]> {
-    const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
+  async listCategories(user: any, companyIdParam?: string): Promise<string[]> {
+    const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : this.getCompanyId(user);
     const rows = await this.prisma.product.findMany({
       where: { ...(companyId ? { companyId } : {}), category: { not: null } },
       distinct: ['category'],

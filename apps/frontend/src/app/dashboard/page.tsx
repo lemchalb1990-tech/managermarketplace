@@ -44,6 +44,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [summary, setSummary] = useState<any>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
@@ -59,17 +62,29 @@ export default function DashboardPage() {
     if (u.role === 'VENDEDOR') { router.replace('/dashboard/pos'); return; }
     if (u.role === 'DESPACHADOR') { router.replace('/dashboard/mis-rutas'); return; }
     setUser(u);
+    if (u.role === 'SUPER_ADMIN') {
+      api.companies.list(token).then(setCompanies).catch(() => {});
+      setLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
+    const token = getToken();
+    if (!token || !user) return;
+    if (isSuperAdmin && !selectedCompanyId) return;
+
+    setLoading(true);
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     const today = new Date().toISOString().split('T')[0];
 
     Promise.all([
-      api.pos.summary({ date: today }, token).catch(() => null),
-      api.pos.weeklySales(token).catch(() => []),
-      api.orders.list(token, { status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
-      api.orders.list(token, { status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
-      api.orders.list(token, { status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
-      api.pos.listSales({ page: 1 }, token).catch(() => ({ sales: [] })),
-      api.catalog.list(token).catch(() => []),
+      api.pos.summary({ companyId, date: today }, token).catch(() => null),
+      api.pos.weeklySales(token, { companyId }).catch(() => []),
+      api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
+      api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
+      api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
+      api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
+      api.catalog.list(token, companyId).catch(() => []),
     ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
       setWeeklyData(weekly as any[]);
@@ -94,7 +109,7 @@ export default function DashboardPage() {
         .slice(0, 6);
       setCriticalProducts(critical);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [user, isSuperAdmin, selectedCompanyId]);
 
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
 
@@ -102,6 +117,34 @@ export default function DashboardPage() {
   const dateLabel = now.toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
+
+  if (isSuperAdmin && !selectedCompanyId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Bienvenido, {user?.name}</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Super Administrador</p>
+          </div>
+          <p className="text-sm text-gray-400 capitalize hidden sm:block">{dateLabel}</p>
+        </div>
+        <div className="flex flex-col items-center justify-center gap-4 text-center border border-dashed border-gray-300 rounded-2xl py-20">
+          <p className="text-3xl">🏢</p>
+          <p className="text-sm text-gray-400">Selecciona una empresa para ver su panel.</p>
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+          >
+            <option value="">— Selecciona una empresa —</option>
+            {companies.map((c: any) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -120,9 +163,26 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">
             Bienvenido, {user?.name}
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">{user?.company?.name || 'Super Administrador'}</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {isSuperAdmin
+              ? companies.find((c: any) => c.id === selectedCompanyId)?.name
+              : user?.company?.name || 'Super Administrador'}
+          </p>
         </div>
-        <p className="text-sm text-gray-400 capitalize hidden sm:block">{dateLabel}</p>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => setSelectedCompanyId(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+            >
+              {companies.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          <p className="text-sm text-gray-400 capitalize hidden sm:block">{dateLabel}</p>
+        </div>
       </div>
 
       {/* KPI cards */}

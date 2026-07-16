@@ -52,6 +52,7 @@ export class OrdersService {
     const page = Number(query.page ?? 1);
     const where: any = {};
     if (user.role !== Role.SUPER_ADMIN) where.companyId = user.companyId;
+    else if (query.companyId) where.companyId = query.companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.from || query.to) {

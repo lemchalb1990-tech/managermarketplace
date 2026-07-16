@@ -52,6 +52,9 @@ export default function SalesPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -89,7 +92,7 @@ export default function SalesPage() {
     if (!token) return;
     setExporting(true);
     try {
-      await api.pos.exportSales({ channel: channel || undefined, from: from || undefined, to: to || undefined }, token);
+      await api.pos.exportSales({ companyId: isSuperAdmin ? selectedCompanyId : undefined, channel: channel || undefined, from: from || undefined, to: to || undefined }, token);
     } catch (err: any) {
       alert(err.message || 'No se pudo exportar el archivo.');
     } finally {
@@ -121,40 +124,72 @@ export default function SalesPage() {
 
   const loadSales = useCallback(async (p = 1) => {
     if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) { setSales([]); setTotal(0); setPages(1); return; }
     setLoading(true);
     try {
-      const res = await api.pos.listSales({ channel: channel || undefined, from: from || undefined, to: to || undefined, search: search || undefined, page: p }, token);
+      const res = await api.pos.listSales({
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
+        channel: channel || undefined, from: from || undefined, to: to || undefined, search: search || undefined, page: p,
+      }, token);
       setSales(res.sales);
       setTotal(res.total);
       setPage(res.page);
       setPages(res.pages);
     } catch {}
     setLoading(false);
-  }, [token, channel, from, to, search]);
+  }, [token, channel, from, to, search, isSuperAdmin, selectedCompanyId]);
 
   const loadSummary = useCallback(async () => {
     if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) { setSummary(null); return; }
     setSummaryLoading(true);
     try {
-      const res = await api.pos.summary({ date: summaryDate }, token);
+      const res = await api.pos.summary({ companyId: isSuperAdmin ? selectedCompanyId : undefined, date: summaryDate }, token);
       setSummary(res);
     } catch {}
     setSummaryLoading(false);
-  }, [token, summaryDate]);
+  }, [token, summaryDate, isSuperAdmin, selectedCompanyId]);
+
+  useEffect(() => {
+    if (token && isSuperAdmin) {
+      api.companies.list(token).then(setCompanies).catch(() => {});
+    }
+  }, [token, isSuperAdmin]);
 
   useEffect(() => {
     if (token) {
       loadSales(1);
       loadSummary();
     }
-  }, [token, loadSales, loadSummary]);
+  }, [token, selectedCompanyId, loadSales, loadSummary]);
 
   const fmt = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Ventas</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Ventas</h1>
+        {isSuperAdmin && (
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+          >
+            <option value="">— Selecciona una empresa —</option>
+            {companies.map((c: any) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+      </div>
 
+      {isSuperAdmin && !selectedCompanyId ? (
+        <div className="flex flex-col items-center justify-center text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl py-20">
+          <p className="text-3xl mb-2">🏢</p>
+          <p>Selecciona una empresa arriba para ver sus ventas.</p>
+        </div>
+      ) : (
+      <>
       {/* Resumen del día */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
@@ -441,6 +476,8 @@ export default function SalesPage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

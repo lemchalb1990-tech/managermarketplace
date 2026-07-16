@@ -88,15 +88,25 @@ export const api = {
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
   catalog: {
-    list: (token: string) => apiFetch<any[]>('/catalog/products', {}, token),
-    categories: (token: string) => apiFetch<string[]>('/catalog/products/categories', {}, token),
-    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string }, token: string) => {
+    list: (token: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<any[]>(`/catalog/products?${q}`, {}, token);
+    },
+    categories: (token: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<string[]>(`/catalog/products/categories?${q}`, {}, token);
+    },
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: boolean }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
       if (params.warehouseId) q.set('warehouseId', params.warehouseId);
       if (params.category) q.set('category', params.category);
       if (params.active) q.set('active', params.active);
+      if (params.companyId) q.set('companyId', params.companyId);
+      if (params.inStock) q.set('inStock', 'true');
       return apiFetch<{ products: any[]; total: number; page: number; pages: number }>(`/catalog/products/search?${q}`, {}, token);
     },
     create: (data: any, token: string) =>
@@ -256,13 +266,14 @@ export const api = {
     },
   },
   orders: {
-    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number }) => {
+    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string }) => {
       const q = new URLSearchParams();
       if (params?.status) q.set('status', params.status);
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
       if (params?.from) q.set('from', params.from);
       if (params?.to) q.set('to', params.to);
       if (params?.page) q.set('page', String(params.page));
+      if (params?.companyId) q.set('companyId', params.companyId);
       return apiFetch<any>(`/orders?${q}`, {}, token);
     },
     get: (id: string, token: string) => apiFetch<any>(`/orders/${id}`, {}, token),

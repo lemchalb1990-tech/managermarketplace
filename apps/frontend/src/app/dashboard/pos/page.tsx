@@ -24,7 +24,14 @@ const PAYMENT_LABELS: Record<string, string> = {
 export default function PosPage() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -59,21 +66,66 @@ export default function PosPage() {
 
   useEffect(() => {
     if (!token) return;
-    api.catalog.list(token).then(setProducts).catch(() => {});
-    api.warehouses.list(token).then(setWarehouses).catch(() => {});
-    api.catalog.categories(token).then(setCategories).catch(() => {});
-  }, [token]);
+    if (user?.role === 'SUPER_ADMIN') {
+      api.companies.list(token).then(setCompanies).catch(() => {});
+    }
+  }, [token, user]);
 
-  const filtered = products.filter(
-    (p) =>
-      p.active &&
-      (search === '' ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase())) &&
-      (warehouseFilter === '' || p.warehouseId === warehouseFilter) &&
-      (categoryFilter === '' || p.category === categoryFilter) &&
-      (!onlyInStock || p.stock > 0),
-  );
+  const loadProducts = useCallback(async (p: number) => {
+    if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) {
+      setProducts([]);
+      setTotalProducts(0);
+      setPages(1);
+      return;
+    }
+    setProductsLoading(true);
+    try {
+      const res = await api.catalog.search({
+        page: p,
+        search: search || undefined,
+        warehouseId: warehouseFilter || undefined,
+        category: categoryFilter || undefined,
+        active: 'true',
+        inStock: onlyInStock || undefined,
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
+      }, token);
+      setProducts(res.products);
+      setTotalProducts(res.total);
+      setPage(res.page);
+      setPages(res.pages);
+    } catch {
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [token, search, warehouseFilter, categoryFilter, onlyInStock, isSuperAdmin, selectedCompanyId]);
+
+  useEffect(() => {
+    const t = setTimeout(() => loadProducts(1), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, search, warehouseFilter, categoryFilter, onlyInStock, selectedCompanyId]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) {
+      setWarehouses([]);
+      setCategories([]);
+      return;
+    }
+    api.warehouses.list(token).then((whs) => {
+      setWarehouses(isSuperAdmin ? whs.filter((w: any) => w.companyId === selectedCompanyId) : whs);
+    }).catch(() => {});
+    api.catalog.categories(token, isSuperAdmin ? selectedCompanyId : undefined).then(setCategories).catch(() => {});
+  }, [token, isSuperAdmin, selectedCompanyId]);
+
+  function selectCompany(companyId: string) {
+    setSelectedCompanyId(companyId);
+    setWarehouseFilter('');
+    setCategoryFilter('');
+    setCart([]);
+  }
 
   function addToCart(product: any) {
     setCart((prev) => {
@@ -154,10 +206,9 @@ export default function PosPage() {
           unitPrice: c.price,
         })),
       };
-      if (user?.role === 'SUPER_ADMIN') {
-        const companyId = prompt('Ingresa el ID de empresa para esta venta:');
-        if (!companyId) { setLoading(false); return; }
-        dto.companyId = companyId;
+      if (isSuperAdmin) {
+        if (!selectedCompanyId) { setLoading(false); return; }
+        dto.companyId = selectedCompanyId;
       }
       await api.pos.createSale(dto, token);
       setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL')}`);
@@ -171,14 +222,13 @@ export default function PosPage() {
       setNotes('');
       setFulfillmentType('PICKUP');
       setShowCheckout(false);
-      const updated = await api.catalog.list(token);
-      setProducts(updated);
+      await loadProducts(page);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al procesar la venta');
     } finally {
       setLoading(false);
     }
-  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, user, total]);
+  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page]);
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
@@ -186,8 +236,29 @@ export default function PosPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-gray-900">Punto de Venta</h1>
+          {isSuperAdmin && (
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => selectCompany(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+            >
+              <option value="">— Selecciona una empresa —</option>
+              {companies.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
+        {isSuperAdmin && !selectedCompanyId ? (
+          <div className="flex-1 flex items-center justify-center text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl">
+            <div>
+              <p className="text-3xl mb-2">🏢</p>
+              <p>Selecciona una empresa arriba para ver su catálogo y vender.</p>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div className="flex-1 min-w-[220px]">
             <label className="text-xs text-gray-500 block mb-1">Buscar</label>
@@ -245,7 +316,10 @@ export default function PosPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 content-start">
-          {filtered.map((p) => {
+          {productsLoading && (
+            <p className="col-span-full text-gray-400 text-sm text-center py-12">Cargando productos...</p>
+          )}
+          {!productsLoading && products.map((p) => {
             const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
             return (
               <button
@@ -284,12 +358,34 @@ export default function PosPage() {
               </button>
             );
           })}
-          {filtered.length === 0 && (
+          {!productsLoading && products.length === 0 && (
             <p className="col-span-full text-gray-400 text-sm text-center py-12">
               {search || warehouseFilter || categoryFilter || onlyInStock ? 'Sin resultados para los filtros aplicados.' : 'No hay productos disponibles.'}
             </p>
           )}
         </div>
+
+        {pages > 1 && (
+          <div className="flex items-center justify-between pt-3 shrink-0">
+            <button
+              onClick={() => loadProducts(page - 1)}
+              disabled={page <= 1 || productsLoading}
+              className="text-sm text-blue-600 disabled:text-gray-300 hover:underline"
+            >
+              ← Anterior
+            </button>
+            <span className="text-xs text-gray-500">Página {page} de {pages} · {totalProducts} producto(s)</span>
+            <button
+              onClick={() => loadProducts(page + 1)}
+              disabled={page >= pages || productsLoading}
+              className="text-sm text-blue-600 disabled:text-gray-300 hover:underline"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
+        </>
+        )}
       </div>
 
       {/* Carrito */}

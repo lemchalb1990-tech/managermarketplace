@@ -33,8 +33,8 @@ export class CatalogController {
 
   @Get('products')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
-  findAll(@CurrentUser() user: any) {
-    return this.service.findAll(user);
+  findAll(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.findAll(user, companyId);
   }
 
   @Get('products/search')
@@ -46,14 +46,16 @@ export class CatalogController {
     @Query('warehouseId') warehouseId?: string,
     @Query('category') category?: string,
     @Query('active') active?: string,
+    @Query('companyId') companyId?: string,
+    @Query('inStock') inStock?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, category, active });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, active, companyId, inStock });
   }
 
   @Get('products/categories')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
-  listCategories(@CurrentUser() user: any) {
-    return this.service.listCategories(user);
+  listCategories(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.listCategories(user, companyId);
   }
 
   @Get('products/:id')

@@ -125,6 +125,10 @@ export class CheckItemDto {
 
 export class FindOrdersDto {
   @IsOptional()
+  @IsString()
+  companyId?: string;
+
+  @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
 
