@@ -252,6 +252,12 @@ export default function CatalogPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  const [search, setSearch] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
 
@@ -273,19 +279,38 @@ export default function CatalogPage() {
   const [stockMovements, setStockMovements] = useState<any[]>([]);
   const [stockMovLoading, setStockMovLoading] = useState(false);
 
+  async function loadProducts(p = 1) {
+    const token = getToken();
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await api.catalog.search({
+        page: p,
+        search: search || undefined,
+        warehouseId: warehouseFilter || undefined,
+        active: activeFilter || undefined,
+      }, token);
+      setProducts(res.products);
+      setTotal(res.total);
+      setPage(res.page);
+      setPages(res.pages);
+      setSelectedIds(new Set());
+    } catch {}
+    setLoading(false);
+  }
+
   async function load() {
     const token = getToken();
     if (!token) return;
-    const [me, prods, conns, whs] = await Promise.all([
+    const [me, conns, whs] = await Promise.all([
       api.me(token).catch(() => null),
-      api.catalog.list(token),
       api.marketplace.connections(token).catch(() => []),
       api.warehouses.list(token).catch(() => []),
     ]);
     setCurrentUser(me);
-    setProducts(prods);
     setConnections(conns);
     setWarehouses(whs);
+    await loadProducts(1);
   }
 
   useEffect(() => { load(); }, []);
@@ -312,7 +337,7 @@ export default function CatalogPage() {
       const token = getToken()!;
       await api.catalog.bulkSetActive(Array.from(selectedIds), active, token);
       setSelectedIds(new Set());
-      await load();
+      await loadProducts(page);
     } catch (err: any) {
       setBulkError(err.message || 'Error al actualizar los productos seleccionados.');
     } finally {
@@ -329,7 +354,7 @@ export default function CatalogPage() {
       const token = getToken()!;
       const result = await api.catalog.bulkDelete(Array.from(selectedIds), token);
       setSelectedIds(new Set());
-      await load();
+      await loadProducts(page);
       if (result.failed.length > 0) {
         setBulkError(
           `${result.deleted} eliminado(s). ${result.failed.length} no se pudieron eliminar: ` +
@@ -440,7 +465,7 @@ export default function CatalogPage() {
       }, token);
       setForm(emptyForm);
       setShowForm(false);
-      await load();
+      await loadProducts(1);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -607,7 +632,7 @@ export default function CatalogPage() {
         const errors = result.results.filter(r => !r.success).map(r => `${r.connectionName}: ${r.error}`);
         setMlWarning([...warnings, ...errors].join(' | '));
       } else {
-        await load();
+        await loadProducts(page);
         if (result.failedCount > 0) {
           const errors = result.results.filter(r => !r.success).map(r => `${r.connectionName}: ${r.error}`);
           alert(`${result.syncedCount} sincronizada(s), ${result.failedCount} con error:\n${errors.join('\n')}`);
@@ -722,6 +747,57 @@ export default function CatalogPage() {
         </div>
       )}
 
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs text-gray-500 block mb-1">Buscar por nombre o SKU</label>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') loadProducts(1); }}
+            placeholder="Nombre o SKU del producto..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Bodega</label>
+          <select
+            value={warehouseFilter}
+            onChange={(e) => setWarehouseFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+          >
+            <option value="">Todas</option>
+            {warehouses.map((w: any) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Estado</label>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+          >
+            <option value="">Todos</option>
+            <option value="true">Activos</option>
+            <option value="false">Inactivos</option>
+          </select>
+        </div>
+        <button
+          onClick={() => loadProducts(1)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+        >
+          Filtrar
+        </button>
+        <button
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setActiveFilter(''); }}
+          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
+        >
+          Limpiar
+        </button>
+        <span className="ml-auto text-xs text-gray-500 self-center">{total} producto(s)</span>
+      </div>
+
       {isAdmin && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
           <span className="text-sm text-blue-800 font-medium">{selectedIds.size} seleccionado(s)</span>
@@ -772,7 +848,7 @@ export default function CatalogPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {products.map((p) => {
+            {!loading && products.map((p) => {
               const img = primaryImage(p);
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
@@ -842,11 +918,33 @@ export default function CatalogPage() {
                 </tr>
               );
             })}
-            {products.length === 0 && (
-              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
+            {!loading && products.length === 0 && (
+              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
             )}
           </tbody>
         </table>
+        {pages > 1 && (
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+            <button
+              onClick={() => loadProducts(page - 1)}
+              disabled={page <= 1}
+              className="text-sm text-blue-600 disabled:text-gray-300 hover:underline"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-gray-500">Página {page} de {pages}</span>
+            <button
+              onClick={() => loadProducts(page + 1)}
+              disabled={page >= pages}
+              className="text-sm text-blue-600 disabled:text-gray-300 hover:underline"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal */}

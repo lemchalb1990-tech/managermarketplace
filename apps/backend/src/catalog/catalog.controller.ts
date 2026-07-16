@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -35,6 +35,18 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   findAll(@CurrentUser() user: any) {
     return this.service.findAll(user);
+  }
+
+  @Get('products/search')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  findAllPaginated(
+    @CurrentUser() user: any,
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('active') active?: string,
+  ) {
+    return this.service.findAllPaginated(user, { page, search, warehouseId, active });
   }
 
   @Get('products/:id')

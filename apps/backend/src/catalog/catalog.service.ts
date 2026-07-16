@@ -50,6 +50,44 @@ export class CatalogService {
     });
   }
 
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; active?: string }) {
+    const companyId = user.role === Role.SUPER_ADMIN ? undefined : this.getCompanyId(user);
+
+    const where: any = {};
+    if (companyId) where.companyId = companyId;
+    if (query.warehouseId) where.warehouseId = query.warehouseId;
+    if (query.active === 'true') where.active = true;
+    if (query.active === 'false') where.active = false;
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { sku: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const page = Math.max(1, parseInt(query.page || '1'));
+    const take = 50;
+    const skip = (page - 1) * take;
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: {
+          images: { orderBy: { order: 'asc' } },
+          listings: { include: { connection: { select: { id: true, name: true } } } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return { products, total, page, pages: Math.ceil(total / take) };
+  }
+
   async findOne(id: string, user: any) {
     const product = await this.prisma.product.findUnique({
       where: { id },
