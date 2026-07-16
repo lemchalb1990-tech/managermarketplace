@@ -832,6 +832,13 @@ export class MercadolibreService {
     };
   }
 
+  // Neto real que recibe el vendedor: precio del producto - comisión - envío a su cargo - impuestos - cupón.
+  // Verificado contra el panel de ML: $8.499 - $1.530 - $799 = $6.170.
+  private computeSellerNetAmount(order: any, charges: { marketplaceFee: number; shippingCost: number; taxes: number; coupon: number }): number {
+    const productTotal = Number(order.total_amount || 0);
+    return productTotal - charges.marketplaceFee - charges.shippingCost - charges.taxes - charges.coupon;
+  }
+
   private static readonly ML_LOGISTIC_LABELS: Record<string, string> = {
     fulfillment: 'Full',
     self_service: 'Flex',
@@ -1003,6 +1010,7 @@ export class MercadolibreService {
       const charges = this.computeOrderCharges(order);
       const shippingInfo = await this.getMlShippingInfo(order, token);
       if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
+      charges.totalPaid = this.computeSellerNetAmount(order, charges);
       await this.prisma.sale.create({
         data: {
           channel: SaleChannel.MERCADO_LIBRE,
@@ -1084,6 +1092,7 @@ export class MercadolibreService {
       const charges = this.computeOrderCharges(order);
       const shippingInfo = await this.getMlShippingInfo(order, token);
       if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
+      charges.totalPaid = this.computeSellerNetAmount(order, charges);
 
       await this.prisma.$transaction(async (tx) => {
         const sale = await tx.sale.create({
