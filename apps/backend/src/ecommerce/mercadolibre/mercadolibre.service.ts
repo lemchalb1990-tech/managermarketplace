@@ -871,14 +871,92 @@ export class MercadolibreService {
       costs = costsRes.ok ? await costsRes.json() : { error: `HTTP ${costsRes.status}` };
     }
 
+    const billing = await this.findBillingDetailsForOrder(orderId, order.date_created, token);
+
     return {
       order_total_amount: order.total_amount,
+      order_date_created: order.date_created,
       order_items: (order.order_items || []).map((oi: any) => ({ title: oi.item?.title, sale_fee: oi.sale_fee, unit_price: oi.unit_price })),
       payments: order.payments,
       shipping_id: shippingId,
       shipment,
       costs,
+      billing,
     };
+  }
+
+  // TEMPORAL: recorre la API de Billing de ML para ubicar los cargos/bonificaciones
+  // de una orden puntual. Encadena: listar períodos -> ubicar el que contiene la fecha
+  // de la venta -> paginar el detalle de ese período (probando grupos MP y ML) ->
+  // filtrar por sales_info[].order_id.
+  private async findBillingDetailsForOrder(orderId: string, saleDateIso: string, token: string): Promise<any> {
+    const result: any = { periods_lookup: null, period_key: null, matched_details: [], raw_sample: null, errors: [] };
+
+    let periods: any[] = [];
+    try {
+      const periodsRes = await fetch(`${ML_API}/billing/integration/periods`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!periodsRes.ok) {
+        result.errors.push(`GET /billing/integration/periods -> HTTP ${periodsRes.status}: ${await periodsRes.text()}`);
+        return result;
+      }
+      const periodsData = await periodsRes.json() as any;
+      result.periods_lookup = periodsData;
+      periods = Array.isArray(periodsData) ? periodsData : (periodsData.results || periodsData.periods || []);
+    } catch (err: any) {
+      result.errors.push(`GET /billing/integration/periods error: ${err?.message || err}`);
+      return result;
+    }
+
+    const saleDate = new Date(saleDateIso);
+    const period = periods.find((p: any) => {
+      const from = p.date_from ? new Date(p.date_from) : null;
+      const to = p.date_to ? new Date(p.date_to) : null;
+      return from && to && saleDate >= from && saleDate <= new Date(to.getTime() + 24 * 60 * 60 * 1000);
+    });
+    if (!period) {
+      result.errors.push('No se encontró un período que contenga la fecha de la venta.');
+      return result;
+    }
+    result.period_key = period.key;
+
+    for (const group of ['ML', 'MP']) {
+      let offset = 0;
+      const limit = 100;
+      let total = Infinity;
+      let sampleCaptured = false;
+      while (offset < total && offset < 2000) {
+        try {
+          const url = `${ML_API}/billing/integration/periods/key/${period.key}/group/${group}/details?document_type=BILL&limit=${limit}&offset=${offset}`;
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) {
+            result.errors.push(`GET group=${group} offset=${offset} -> HTTP ${res.status}: ${await res.text()}`);
+            break;
+          }
+          const data = await res.json() as any;
+          total = data.paging?.total ?? data.total ?? 0;
+          const details = data.results || data.details || [];
+          if (!sampleCaptured && details.length > 0) {
+            result.raw_sample = details[0];
+            sampleCaptured = true;
+          }
+          for (const d of details) {
+            const salesInfo = d.sales_info || [];
+            if (salesInfo.some((s: any) => String(s.order_id) === String(orderId))) {
+              result.matched_details.push({ group, ...d });
+            }
+          }
+          offset += limit;
+          if (details.length === 0) break;
+        } catch (err: any) {
+          result.errors.push(`GET group=${group} offset=${offset} error: ${err?.message || err}`);
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 
   private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
