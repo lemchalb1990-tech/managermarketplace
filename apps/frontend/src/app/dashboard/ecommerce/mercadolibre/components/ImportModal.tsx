@@ -46,20 +46,33 @@ export function ImportModal({
   async function loadPreview(scrollId: string | null, append: boolean) {
     if (append) setLoadingMore(true); else setLoading(true);
     setError('');
+    const isFreshSearch = !append;
+    if (isFreshSearch) setPage(0);
     try {
       const token = getToken()!;
-      const data = await api.marketplace.previewImport(connectionId, scrollId, token);
-      setItems((prev) => append ? [...prev, ...data.items] : data.items);
-      setTotal(data.total);
-      setHasMore(data.hasMore);
-      setNextScrollId(data.nextScrollId);
-      setAlreadyImportedCount((prev) => append ? prev + data.alreadyImportedCount : data.alreadyImportedCount);
-      setSelected((prev) => {
-        const next = append ? new Set(prev) : new Set<string>();
-        data.items.forEach((i) => next.add(i.externalId));
-        return next;
-      });
-      if (!append) setPage(0);
+      let cursor = scrollId;
+      let more = true;
+      let newItemsFound = false;
+      let firstIteration = true;
+      // Salta automáticamente los lotes ya completamente importados hasta encontrar algo nuevo.
+      while (more && !newItemsFound) {
+        const data = await api.marketplace.previewImport(connectionId, cursor, token);
+        const replace = isFreshSearch && firstIteration;
+        setItems((prev) => replace ? data.items : [...prev, ...data.items]);
+        setTotal(data.total);
+        setHasMore(data.hasMore);
+        setNextScrollId(data.nextScrollId);
+        setAlreadyImportedCount((prev) => (replace ? 0 : prev) + data.alreadyImportedCount);
+        setSelected((prev) => {
+          const next = replace ? new Set<string>() : new Set(prev);
+          data.items.forEach((i) => next.add(i.externalId));
+          return next;
+        });
+        cursor = data.nextScrollId;
+        more = data.hasMore;
+        newItemsFound = data.items.length > 0;
+        firstIteration = false;
+      }
     } catch (err: any) {
       setError(err.message || 'No se pudieron obtener las publicaciones de Mercado Libre.');
     } finally {
@@ -139,10 +152,20 @@ export function ImportModal({
           {!loading && !error && !result && (
             <>
               {items.length === 0 ? (
-                <div className="p-12 text-center text-gray-400 text-sm">
-                  {alreadyImportedCount > 0
-                    ? 'Todas las publicaciones de esta cuenta ya fueron importadas.'
-                    : 'No se encontraron publicaciones activas en esta cuenta de Mercado Libre.'}
+                <div className="p-12 text-center text-gray-400 text-sm space-y-3">
+                  <p>
+                    {alreadyImportedCount > 0
+                      ? hasMore
+                        ? `Las publicaciones revisadas hasta ahora (${alreadyImportedCount}) ya estaban importadas. Sigue buscando para ver el resto.`
+                        : 'Todas las publicaciones de esta cuenta ya fueron importadas.'
+                      : 'No se encontraron publicaciones activas en esta cuenta de Mercado Libre.'}
+                  </p>
+                  {hasMore && (
+                    <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore}
+                      className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                      {loadingMore ? 'Buscando...' : `Seguir buscando (revisadas ${alreadyImportedCount} de ${total || '?'})`}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
