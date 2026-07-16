@@ -125,6 +125,14 @@ export class MercadolibreController {
     return this.service.refreshConnectionToken(id, user);
   }
 
+  // TEMPORAL: diagnóstico directo de una orden puntual (ver mercadolibre.service.ts).
+  @Get('connections/:id/debug-order/:orderId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  debugOrder(@Param('id') id: string, @Param('orderId') orderId: string, @CurrentUser() user: any) {
+    return this.service.debugOrder(id, orderId, user);
+  }
+
   // ─── Importación de publicaciones existentes ────────────────────────────────
 
   @Get('connections/:id/import/preview')

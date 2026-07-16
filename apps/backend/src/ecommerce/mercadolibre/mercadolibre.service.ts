@@ -848,6 +848,39 @@ export class MercadolibreService {
     not_specified: 'A coordinar',
   };
 
+  // TEMPORAL: diagnóstico directo de una orden puntual, sin pasar por logs.
+  async debugOrder(connectionId: string, orderId: string, user: any) {
+    await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    const orderRes = await fetch(`${ML_API}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!orderRes.ok) {
+      return { error: `No se pudo obtener la orden (HTTP ${orderRes.status})` };
+    }
+    const order = await orderRes.json() as any;
+
+    const shippingId = order.shipping?.id;
+    let shipment: any = null;
+    let costs: any = null;
+    if (shippingId) {
+      const [shipmentRes, costsRes] = await Promise.all([
+        fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${ML_API}/shipments/${shippingId}/costs`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      shipment = shipmentRes.ok ? await shipmentRes.json() : { error: `HTTP ${shipmentRes.status}` };
+      costs = costsRes.ok ? await costsRes.json() : { error: `HTTP ${costsRes.status}` };
+    }
+
+    return {
+      order_total_amount: order.total_amount,
+      order_items: (order.order_items || []).map((oi: any) => ({ title: oi.item?.title, sale_fee: oi.sale_fee, unit_price: oi.unit_price })),
+      payments: order.payments,
+      shipping_id: shippingId,
+      shipment,
+      costs,
+    };
+  }
+
   private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
     const orderId = order.id;
     const buyerShippingPaid = Number((order.payments || [])[0]?.shipping_cost || 0);
