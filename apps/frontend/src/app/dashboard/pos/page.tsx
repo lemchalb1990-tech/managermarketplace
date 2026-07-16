@@ -16,7 +16,7 @@ interface CartItem {
 
 // Referencia de la grilla en desktop (xl:grid-cols-4): 4 filas x 4 columnas por página.
 const CARD_COLUMNS_DESKTOP = 4;
-const ROWS_PER_PAGE = 4;
+const ROWS_PER_PAGE = 3;
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Efectivo',
