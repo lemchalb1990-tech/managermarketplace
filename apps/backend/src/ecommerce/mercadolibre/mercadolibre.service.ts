@@ -843,23 +843,39 @@ export class MercadolibreService {
 
   private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
     const orderId = order.id;
+    // TEMPORAL: diagnóstico para ubicar "Cargos por venta" y "Envíos" del panel de vendedor.
+    const itemFeesSum = (order.order_items || []).reduce((s: number, oi: any) => s + Number(oi.sale_fee || 0), 0);
     this.logger.log(`ML orden ${orderId} payments: ${JSON.stringify(order.payments || [])}`);
+    this.logger.log(`ML orden ${orderId} order_items sale_fee: ${JSON.stringify((order.order_items || []).map((oi: any) => ({ item: oi.item?.id, sale_fee: oi.sale_fee })))} (suma=${itemFeesSum})`);
 
     const shippingId = order.shipping?.id;
     if (!shippingId) return { method: null, sellerCost: null };
     try {
-      const res = await fetch(`${ML_API}/shipments/${shippingId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return { method: null, sellerCost: null };
-      const shipment = await res.json() as any;
-      // TEMPORAL: para identificar el campo correcto de costo de envío al vendedor.
-      this.logger.log(`ML shipment ${shippingId} raw: ${JSON.stringify(shipment).slice(0, 3000)}`);
+      const [shipmentRes, costsRes] = await Promise.all([
+        fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${ML_API}/shipments/${shippingId}/costs`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      let shipment: any = {};
+      if (shipmentRes.ok) {
+        shipment = await shipmentRes.json();
+        this.logger.log(`ML shipment ${shippingId} raw: ${JSON.stringify(shipment).slice(0, 3000)}`);
+      }
+
+      let costs: any = null;
+      if (costsRes.ok) {
+        costs = await costsRes.json();
+        this.logger.log(`ML shipment ${shippingId} costs: ${JSON.stringify(costs).slice(0, 2000)}`);
+      } else {
+        this.logger.log(`ML shipment ${shippingId} costs HTTP ${costsRes.status}`);
+      }
 
       const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
       const method = logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
 
-      const rawSellerCost = shipment.shipping_option?.cost
+      const sendersCost = Array.isArray(costs?.senders) ? costs.senders[0]?.cost : undefined;
+      const rawSellerCost = sendersCost
+        ?? shipment.shipping_option?.cost
         ?? shipment.shipping_option?.list_cost
         ?? shipment.shipping_item?.cost;
       const sellerCost = rawSellerCost != null ? Number(rawSellerCost) : null;
