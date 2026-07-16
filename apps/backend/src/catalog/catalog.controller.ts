@@ -7,7 +7,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { CatalogService } from './catalog.service';
-import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -41,6 +41,18 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.findOne(id, user);
+  }
+
+  @Patch('products/bulk/active')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  bulkSetActive(@Body() dto: BulkSetActiveDto, @CurrentUser() user: any) {
+    return this.service.bulkSetActive(dto.ids, dto.active, user);
+  }
+
+  @Post('products/bulk/delete')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  bulkDelete(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
+    return this.service.bulkDelete(dto.ids, user);
   }
 
   @Patch('products/:id')

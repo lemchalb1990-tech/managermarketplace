@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateProductDto {
@@ -98,4 +98,15 @@ export class UpdateProductDto {
 export class AdjustStockDto {
   @IsInt()
   quantity: number;
+}
+
+export class BulkIdsDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids: string[];
+}
+
+export class BulkSetActiveDto extends BulkIdsDto {
+  @IsBoolean()
+  active: boolean;
 }

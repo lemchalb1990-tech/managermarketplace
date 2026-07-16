@@ -9,6 +9,12 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
 
+export interface BulkDeleteFailure {
+  id: string;
+  name: string;
+  reason: string;
+}
+
 @Injectable()
 export class CatalogService {
   constructor(private prisma: PrismaService) {}
@@ -81,6 +87,43 @@ export class CatalogService {
       where: { id },
       data: { stock: newStock },
     });
+  }
+
+  private async filterOwned(ids: string[], user: any) {
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, companyId: true },
+    });
+    return products.filter((p) => user.role === Role.SUPER_ADMIN || p.companyId === user.companyId);
+  }
+
+  async bulkSetActive(ids: string[], active: boolean, user: any) {
+    const owned = await this.filterOwned(ids, user);
+    if (!owned.length) return { updated: 0 };
+    await this.prisma.product.updateMany({
+      where: { id: { in: owned.map((p) => p.id) } },
+      data: { active },
+    });
+    return { updated: owned.length };
+  }
+
+  async bulkDelete(ids: string[], user: any) {
+    const owned = await this.filterOwned(ids, user);
+    let deleted = 0;
+    const failed: BulkDeleteFailure[] = [];
+    for (const p of owned) {
+      try {
+        await this.prisma.product.delete({ where: { id: p.id } });
+        deleted++;
+      } catch {
+        failed.push({
+          id: p.id,
+          name: p.name,
+          reason: 'Tiene ventas, publicaciones o movimientos de stock asociados. Desactívalo en vez de eliminarlo.',
+        });
+      }
+    }
+    return { deleted, failed };
   }
 
   async addImage(productId: string, filename: string, url: string, user: any) {

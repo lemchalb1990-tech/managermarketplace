@@ -241,6 +241,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function CatalogPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -248,6 +249,11 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+
+  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -270,17 +276,72 @@ export default function CatalogPage() {
   async function load() {
     const token = getToken();
     if (!token) return;
-    const [prods, conns, whs] = await Promise.all([
+    const [me, prods, conns, whs] = await Promise.all([
+      api.me(token).catch(() => null),
       api.catalog.list(token),
       api.marketplace.connections(token).catch(() => []),
       api.warehouses.list(token).catch(() => []),
     ]);
+    setCurrentUser(me);
     setProducts(prods);
     setConnections(conns);
     setWarehouses(whs);
   }
 
   useEffect(() => { load(); }, []);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) =>
+      prev.size === products.length ? new Set() : new Set(products.map((p) => p.id)),
+    );
+  }
+
+  async function handleBulkSetActive(active: boolean) {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    setBulkError('');
+    try {
+      const token = getToken()!;
+      await api.catalog.bulkSetActive(Array.from(selectedIds), active, token);
+      setSelectedIds(new Set());
+      await load();
+    } catch (err: any) {
+      setBulkError(err.message || 'Error al actualizar los productos seleccionados.');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`¿Eliminar ${selectedIds.size} producto(s) seleccionado(s)? Esta acción no se puede deshacer.`)) return;
+    setBulkLoading(true);
+    setBulkError('');
+    try {
+      const token = getToken()!;
+      const result = await api.catalog.bulkDelete(Array.from(selectedIds), token);
+      setSelectedIds(new Set());
+      await load();
+      if (result.failed.length > 0) {
+        setBulkError(
+          `${result.deleted} eliminado(s). ${result.failed.length} no se pudieron eliminar: ` +
+          result.failed.map((f) => `"${f.name}" (${f.reason})`).join(' · '),
+        );
+      }
+    } catch (err: any) {
+      setBulkError(err.message || 'Error al eliminar los productos seleccionados.');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!originalFormRef.current || !selected) return;
@@ -635,10 +696,44 @@ export default function CatalogPage() {
         </div>
       )}
 
+      {isAdmin && selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
+          <span className="text-sm text-blue-800 font-medium">{selectedIds.size} seleccionado(s)</span>
+          <button onClick={() => handleBulkSetActive(true)} disabled={bulkLoading}
+            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
+            Activar
+          </button>
+          <button onClick={() => handleBulkSetActive(false)} disabled={bulkLoading}
+            className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50">
+            Desactivar
+          </button>
+          <button onClick={handleBulkDelete} disabled={bulkLoading}
+            className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
+            Eliminar
+          </button>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="ml-auto text-xs text-blue-600 hover:text-blue-800">
+            Limpiar selección
+          </button>
+        </div>
+      )}
+      {bulkError && (
+        <div className="mb-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {bulkError}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              {isAdmin && (
+                <th className="px-4 py-3 w-10">
+                  <input type="checkbox"
+                    checked={products.length > 0 && selectedIds.size === products.length}
+                    onChange={toggleSelectAll} />
+                </th>
+              )}
               <th className="px-4 py-3 w-14"></th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">SKU</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Producto</th>
@@ -655,6 +750,12 @@ export default function CatalogPage() {
               const img = primaryImage(p);
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
+                  {isAdmin && (
+                    <td className="px-4 py-2">
+                      <input type="checkbox" checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelect(p.id)} />
+                    </td>
+                  )}
                   <td className="px-4 py-2">
                     {img ? (
                       <img src={imgUrl(img.url)} alt={p.name}
@@ -666,7 +767,14 @@ export default function CatalogPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-gray-400 text-xs">{p.sku}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {p.name}
+                    {!p.active && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                        Inactivo
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-500">
                     {p.cost != null ? `$${Number(p.cost).toFixed(2)}` : '—'}
                   </td>
@@ -703,7 +811,7 @@ export default function CatalogPage() {
               );
             })}
             {products.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
+              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Sin productos en el catálogo</td></tr>
             )}
           </tbody>
         </table>

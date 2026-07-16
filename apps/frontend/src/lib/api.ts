@@ -83,6 +83,11 @@ export const api = {
       apiFetch<any>(`/catalog/products/${id}/images/${imageId}`, { method: 'DELETE' }, token),
     setPrimaryImage: (id: string, imageId: string, token: string) =>
       apiFetch<any>(`/catalog/products/${id}/images/${imageId}/primary`, { method: 'PATCH' }, token),
+    bulkSetActive: (ids: string[], active: boolean, token: string) =>
+      apiFetch<{ updated: number }>('/catalog/products/bulk/active', { method: 'PATCH', body: JSON.stringify({ ids, active }) }, token),
+    bulkDelete: (ids: string[], token: string) =>
+      apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string }[] }>(
+        '/catalog/products/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>
@@ -118,10 +123,11 @@ export const api = {
         connectionName: string;
         total: number;
         truncated: boolean;
+        alreadyImportedCount: number;
         items: Array<{
           externalId: string; title: string; price: number; stock: number;
           thumbnail: string | null; permalink: string; status: string; sku: string | null;
-          alreadyLinked: boolean; matchedProductId: string | null; matchedProductName: string | null;
+          matchedProductId: string | null; matchedProductName: string | null;
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/import/preview`, {}, token),
     confirmImport: (connectionId: string, externalIds: string[], token: string) =>
