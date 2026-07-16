@@ -50,6 +50,11 @@ export class CreateProductDto {
 export class UpdateProductDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
   @MinLength(2)
   name?: string;
 

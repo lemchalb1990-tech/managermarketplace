@@ -231,7 +231,9 @@ export function ImportModal({
                               </a>
                             </div>
                           </td>
-                          <td className="px-2 py-2 font-mono text-xs text-gray-500">{item.sku || '—'}</td>
+                          <td className="px-2 py-2 font-mono text-xs text-gray-500">
+                            {item.sku || <span className="italic text-gray-400">se generará automáticamente</span>}
+                          </td>
                           <td className="px-2 py-2 text-right text-gray-700">${Math.round(item.price).toLocaleString('es-CL')}</td>
                           <td className="px-2 py-2 text-right text-gray-700">{item.stock}</td>
                           <td className="px-2 py-2">

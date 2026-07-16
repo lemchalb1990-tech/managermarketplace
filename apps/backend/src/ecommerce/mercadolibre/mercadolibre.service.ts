@@ -609,6 +609,21 @@ export class MercadolibreService {
     return value || null;
   }
 
+  // El ID de publicación de ML (item.id) es solo un identificador externo y se guarda
+  // como externalId del Listing. Nunca debe usarse como SKU: cuando la publicación no
+  // trae SELLER_SKU, se genera un SKU correlativo por empresa, editable luego por el usuario.
+  private async nextSku(companyId: string): Promise<string> {
+    let n = (await this.prisma.product.count({ where: { companyId } })) + 1;
+    let sku = `SKU-${String(n).padStart(6, '0')}`;
+    while (
+      await this.prisma.product.findUnique({ where: { sku_companyId: { sku, companyId } } })
+    ) {
+      n++;
+      sku = `SKU-${String(n).padStart(6, '0')}`;
+    }
+    return sku;
+  }
+
   private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
     const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures';
     const items: any[] = [];
@@ -751,7 +766,7 @@ export class MercadolibreService {
         const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
         const forceNew = unlinkSet.has(item.id);
         const matchedSku = this.extractSku(item.attributes);
-        const sku = (!forceNew && matchedSku) || `ML-${item.id}`;
+        const sku = (!forceNew && matchedSku) || (await this.nextSku(conn.companyId));
 
         const product = forceNew ? null : await this.prisma.product.findUnique({
           where: { sku_companyId: { sku, companyId: conn.companyId } },

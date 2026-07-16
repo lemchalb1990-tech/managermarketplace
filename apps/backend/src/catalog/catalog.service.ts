@@ -110,6 +110,12 @@ export class CatalogService {
     if (!product.active && dto.active !== true) {
       throw new BadRequestException('El producto está inactivo. Reactívalo antes de modificarlo.');
     }
+    if (dto.sku && dto.sku !== product.sku) {
+      const exists = await this.prisma.product.findUnique({
+        where: { sku_companyId: { sku: dto.sku, companyId: product.companyId } },
+      });
+      if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
+    }
     return this.prisma.product.update({
       where: { id },
       data: dto,

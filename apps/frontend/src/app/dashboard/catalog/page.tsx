@@ -372,6 +372,7 @@ export default function CatalogPage() {
     if (!originalFormRef.current || !selected) return;
     const orig = originalFormRef.current;
     const dirty =
+      editForm.sku !== orig.sku ||
       editForm.name !== orig.name ||
       editForm.description !== orig.description ||
       editForm.price !== orig.price ||
@@ -409,6 +410,7 @@ export default function CatalogPage() {
     setSelected(product);
     const existingAttrs = product.mlAttributes || [];
     setEditForm({
+      sku: product.sku,
       name: product.name,
       description: product.description || '',
       price: String(Number(product.price)),
@@ -424,6 +426,7 @@ export default function CatalogPage() {
     setMlWarning('');
     setIsDirty(false);
     originalFormRef.current = {
+      sku: product.sku,
       name: product.name,
       description: product.description || '',
       price: String(Number(product.price)),
@@ -480,6 +483,7 @@ export default function CatalogPage() {
     try {
       const token = getToken()!;
       await api.catalog.update(selected.id, {
+        sku: editForm.sku,
         name: editForm.name,
         description: editForm.description || undefined,
         price: parseFloat(editForm.price),
@@ -991,7 +995,13 @@ export default function CatalogPage() {
                   </div>
                 )}
                 <fieldset disabled={!selected.active} className="contents">
-                  <div className="col-span-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
+                    <input value={editForm.sku || ''}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, sku: e.target.value }))}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
