@@ -103,6 +103,7 @@ model Company {
   mlClientId      String?
   mlClientSecret  String?
   autoSyncSales   Boolean  @default(false)
+  autoSyncIntervalMinutes Int @default(1)
   createdAt       DateTime @default(now())
   updatedAt DateTime @updatedAt
 

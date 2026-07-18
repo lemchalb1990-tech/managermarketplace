@@ -56,4 +56,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   autoSyncSales?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  autoSyncIntervalMinutes?: number;
 }

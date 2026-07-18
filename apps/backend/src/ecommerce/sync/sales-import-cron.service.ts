@@ -5,9 +5,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 
 // Contraparte entrante de SyncService (que empuja stock/precio hacia las plataformas):
-// este servicio trae ventas nuevas desde las plataformas, cada 1 minuto, para las empresas
-// que tengan Company.autoSyncSales activado. Hoy solo Mercado Libre tiene importación de
-// ventas implementada; otras plataformas se agregan sumando un caso al switch de abajo.
+// este servicio trae ventas nuevas desde las plataformas para las empresas que tengan
+// Company.autoSyncSales activado. Hoy solo Mercado Libre tiene importación de ventas
+// implementada; otras plataformas se agregan sumando un caso al switch de abajo.
+//
+// El tick corre cada 1 minuto (la granularidad más fina soportada), pero cada conexión
+// solo se procesa si ya pasó su Company.autoSyncIntervalMinutes desde su última corrida
+// (connection.lastSalesImportAt) — así una empresa configurada a "cada 5 min" no importa
+// en cada tick, sin necesitar un cron distinto por empresa.
 @Injectable()
 export class SalesImportCronService {
   private readonly logger = new Logger(SalesImportCronService.name);
@@ -32,9 +37,17 @@ export class SalesImportCronService {
           accessToken: { not: '' },
           company: { active: true, autoSyncSales: true },
         },
+        include: { company: { select: { autoSyncIntervalMinutes: true } } },
       });
 
+      const now = Date.now();
       for (const connection of connections) {
+        const intervalMinutes = Math.max(1, connection.company.autoSyncIntervalMinutes || 1);
+        const dueAt = connection.lastSalesImportAt
+          ? connection.lastSalesImportAt.getTime() + intervalMinutes * 60 * 1000
+          : 0;
+        if (now < dueAt) continue; // todavía no toca según el intervalo configurado
+
         try {
           switch (connection.marketplace) {
             case MarketplaceType.MERCADO_LIBRE: {

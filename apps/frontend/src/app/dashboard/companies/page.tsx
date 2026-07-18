@@ -21,7 +21,7 @@ const ALL_COMPANY_MODULES = [
 ];
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -129,6 +129,7 @@ export default function CompaniesPage() {
         maxUsers: editing.maxUsers,
         modules: editing.modules,
         autoSyncSales: editing.autoSyncSales,
+        autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
       }, token);
       setEditing(null);
       await load();
@@ -230,12 +231,23 @@ export default function CompaniesPage() {
             </div>
 
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={editing.autoSyncSales}
-                  onChange={(e) => setEditing(s => s && ({ ...s, autoSyncSales: e.target.checked }))}
-                  className="w-4 h-4 accent-blue-600" />
-                <span className="text-sm text-gray-700">Auto-importar ventas de Mercado Libre (cada 1 min)</span>
-              </label>
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={editing.autoSyncSales}
+                    onChange={(e) => setEditing(s => s && ({ ...s, autoSyncSales: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-600" />
+                  <span className="text-sm text-gray-700">Auto-importar ventas de Mercado Libre</span>
+                </label>
+                {editing.autoSyncSales && (
+                  <label className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">cada</span>
+                    <input type="number" min={1} max={1440} value={editing.autoSyncIntervalMinutes}
+                      onChange={(e) => setEditing(s => s && ({ ...s, autoSyncIntervalMinutes: Math.max(1, Number(e.target.value)) }))}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
+                    <span className="text-sm text-gray-600">minuto(s)</span>
+                  </label>
+                )}
+              </div>
               <p className="text-xs text-gray-400 mt-1 ml-6">Trae automáticamente las ventas nuevas de ML aunque el webhook falle; descuenta stock igual que si llegara por webhook.</p>
             </div>
 
@@ -246,12 +258,12 @@ export default function CompaniesPage() {
                   {editing.modules === null ? 'Todos activos' : `${editing.modules.length} de ${ALL_COMPANY_MODULES.length}`}
                 </span>
               </div>
-              <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+              <div className="grid grid-cols-4 gap-2">
                 {ALL_COMPANY_MODULES.map((mod) => {
                   const enabled = isCompanyModuleEnabled(mod.key);
                   return (
                     <label key={mod.key}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${enabled ? 'bg-white' : 'bg-gray-50'}`}>
+                      className={`flex items-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer transition-colors ${enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div onClick={() => toggleCompanyModule(mod.key)}
                         className={`w-9 h-5 rounded-full transition-colors flex items-center shrink-0 cursor-pointer ${enabled ? 'bg-blue-500' : 'bg-gray-200'}`}>
                         <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform mx-0.5 ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -320,11 +332,11 @@ export default function CompaniesPage() {
                 </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.autoSyncSales ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {c.autoSyncSales ? 'Activo' : 'Inactivo'}
+                    {c.autoSyncSales ? `Activo (cada ${c.autoSyncIntervalMinutes ?? 1} min)` : 'Inactivo'}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1 }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>
