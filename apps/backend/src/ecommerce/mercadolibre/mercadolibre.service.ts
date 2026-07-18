@@ -1188,66 +1188,47 @@ export class MercadolibreService {
     return { imported, skipped, errors };
   }
 
-  // ─── Webhook ─────────────────────────────────────────────────────────────────
+  // ─── Procesamiento de órdenes (compartido entre webhook y auto-sync) ─────────
 
-  async handleWebhook(body: any) {
-    this.logger.log(`ML Webhook: topic=${body.topic} resource=${body.resource}`);
-    if (body.topic !== 'orders_v2') return { received: true };
+  // Crea la venta y descuenta stock de forma atómica. Usado tanto por el webhook de ML
+  // como por el cron de auto-sync, para que ambos caminos tengan exactamente el mismo efecto.
+  // companyIdHint: si el caller ya conoce la empresa (p.ej. el cron, que parte de una
+  // MarketplaceConnection concreta), se usa directo; si no (webhook), se infiere del primer
+  // ítem de la orden que resuelva a un Listing.
+  private async processOrder(
+    orderId: string,
+    order: any,
+    token: string,
+    companyIdHint?: string,
+  ): Promise<'imported' | 'skipped'> {
+    const orderTotal = Number(order.total_amount || 0);
+
+    let companyId: string | null = companyIdHint || null;
+    const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
+
+    for (const orderItem of order.order_items || []) {
+      const itemId = orderItem.item?.id;
+      const quantity = orderItem.quantity || 1;
+      const unitPrice = Number(orderItem.unit_price || 0);
+
+      const listing = await this.prisma.listing.findFirst({
+        where: { externalId: itemId },
+        include: { product: true, connection: true },
+      });
+      if (!listing) continue;
+
+      companyId = companyId || listing.connection.companyId;
+      resolvedItems.push({ listing, quantity, unitPrice });
+    }
+
+    if (!resolvedItems.length || !companyId) return 'skipped';
+
+    const charges = this.computeOrderCharges(order);
+    const shippingInfo = await this.getMlShippingInfo(order, token);
+    if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
+    charges.totalPaid = this.computeSellerNetAmount(order, charges);
 
     try {
-      const orderId = body.resource?.split('/').pop();
-      if (!orderId) return { received: true };
-
-      // Evitar procesar la misma orden dos veces
-      const existing = await this.prisma.sale.findFirst({ where: { externalId: orderId } });
-      if (existing) {
-        this.logger.log(`ML Webhook: orden ${orderId} ya procesada`);
-        return { received: true };
-      }
-
-      // Obtener token via cualquier listing activo
-      const anyListing = await this.prisma.listing.findFirst({
-        where: { externalId: { not: null } },
-        include: { connection: true },
-      });
-      if (!anyListing) return { received: true };
-
-      const token = await this.getValidToken(anyListing.connectionId);
-      const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!orderRes.ok) return { received: true };
-
-      const order = await orderRes.json() as any;
-      const orderTotal = Number(order.total_amount || 0);
-
-      // Resolver companyId desde el primer item de la orden
-      let companyId: string | null = null;
-      const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
-
-      for (const orderItem of order.order_items) {
-        const itemId = orderItem.item?.id;
-        const quantity = orderItem.quantity || 1;
-        const unitPrice = Number(orderItem.unit_price || 0);
-
-        const listing = await this.prisma.listing.findFirst({
-          where: { externalId: itemId },
-          include: { product: true, connection: true },
-        });
-        if (!listing) continue;
-
-        companyId = companyId || listing.connection.companyId;
-        resolvedItems.push({ listing, quantity, unitPrice });
-      }
-
-      if (!resolvedItems.length || !companyId) return { received: true };
-
-      // Crear venta y actualizar stock en transacción atómica
-      const charges = this.computeOrderCharges(order);
-      const shippingInfo = await this.getMlShippingInfo(order, token);
-      if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
-      charges.totalPaid = this.computeSellerNetAmount(order, charges);
-
       await this.prisma.$transaction(async (tx) => {
         const sale = await tx.sale.create({
           data: {
@@ -1260,7 +1241,7 @@ export class MercadolibreService {
             discount: charges.coupon,
             netAmount: charges.totalPaid,
             shippingMethod: shippingInfo.method,
-            companyId,
+            companyId: companyId as string,
             customerName: order.buyer?.nickname || null,
             items: {
               create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
@@ -1314,18 +1295,141 @@ export class MercadolibreService {
           this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
         }
       });
-
-      // Sincronizar otras plataformas tras la venta de ML
-      for (const { listing, quantity } of resolvedItems) {
-        const newStock = Math.max(0, listing.product.stock - quantity);
-        this.sync.syncProduct(listing.productId, newStock).catch((e) =>
-          this.logger.error(`Sync otras plataformas tras ML webhook: ${e.message}`),
-        );
+    } catch (err: any) {
+      // Otra corrida (webhook vs cron, o dos ticks del cron solapados) ya insertó esta orden
+      // entre nuestro chequeo previo y este create: el constraint único la frena acá.
+      if (err?.code === 'P2002') {
+        this.logger.log(`ML orden ${orderId} ya fue importada por otro proceso`);
+        return 'skipped';
       }
+      throw err;
+    }
+
+    // Sincronizar otras plataformas tras la venta de ML
+    for (const { listing, quantity } of resolvedItems) {
+      const newStock = Math.max(0, listing.product.stock - quantity);
+      this.sync.syncProduct(listing.productId, newStock).catch((e) =>
+        this.logger.error(`Sync otras plataformas tras venta ML: ${e.message}`),
+      );
+    }
+
+    return 'imported';
+  }
+
+  // ─── Webhook ─────────────────────────────────────────────────────────────────
+
+  async handleWebhook(body: any) {
+    this.logger.log(`ML Webhook: topic=${body.topic} resource=${body.resource}`);
+    if (body.topic !== 'orders_v2') return { received: true };
+
+    try {
+      const orderId = body.resource?.split('/').pop();
+      if (!orderId) return { received: true };
+
+      // Evitar procesar la misma orden dos veces
+      const existing = await this.prisma.sale.findFirst({ where: { externalId: orderId } });
+      if (existing) {
+        this.logger.log(`ML Webhook: orden ${orderId} ya procesada`);
+        return { received: true };
+      }
+
+      // Obtener token via cualquier listing activo
+      const anyListing = await this.prisma.listing.findFirst({
+        where: { externalId: { not: null } },
+        include: { connection: true },
+      });
+      if (!anyListing) return { received: true };
+
+      const token = await this.getValidToken(anyListing.connectionId);
+      const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!orderRes.ok) return { received: true };
+
+      const order = await orderRes.json() as any;
+      await this.processOrder(orderId, order, token);
     } catch (error) {
       this.logger.error('Error procesando webhook ML', error);
     }
 
     return { received: true };
+  }
+
+  // ─── Auto-sync (cron) ────────────────────────────────────────────────────────
+
+  // Busca y procesa las órdenes nuevas de una conexión ML desde la última corrida
+  // (con 2 min de solape), con el mismo efecto que el webhook: descuenta stock,
+  // crea StockMovement y pausa el listing en ML si el stock llega a 0.
+  async importRecentSalesForConnection(connectionId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+    const connection = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!connection) return { imported: 0, skipped: 0, errors: 0 };
+
+    const token = await this.getValidToken(connectionId);
+
+    const to = new Date();
+    const from = connection.lastSalesImportAt
+      ? new Date(connection.lastSalesImportAt.getTime() - 2 * 60 * 1000)
+      : new Date(to.getTime() - 60 * 60 * 1000);
+
+    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) throw new InternalServerErrorException('No se pudo obtener el usuario de Mercado Libre');
+    const me = await meRes.json() as any;
+
+    const MAX_ORDERS = 100;
+    const baseParams = new URLSearchParams({
+      seller: String(me.id),
+      limit: '50',
+      'order.date_created.from': from.toISOString(),
+      'order.date_created.to': to.toISOString(),
+    });
+
+    const orderIds: string[] = [];
+    let offset = 0;
+    let total = 0;
+    do {
+      const params = new URLSearchParams(baseParams);
+      params.set('offset', String(offset));
+      const res = await fetch(`${ML_API}/orders/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const errBody = await res.text();
+        this.logger.error(`Auto-sync ML orders/search falló [${res.status}] conexión ${connectionId}: ${errBody}`);
+        throw new InternalServerErrorException(`Mercado Libre rechazó la búsqueda de ventas (HTTP ${res.status})`);
+      }
+      const data = await res.json() as any;
+      total = data.paging?.total || 0;
+      orderIds.push(...(data.results || []).map((o: any) => String(o.id)));
+      offset += 50;
+    } while (offset < total && orderIds.length < MAX_ORDERS);
+
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const orderId of orderIds) {
+      try {
+        const existing = await this.prisma.sale.findFirst({ where: { externalId: orderId } });
+        if (existing) { skipped++; continue; }
+
+        const orderRes = await fetch(`${ML_API}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!orderRes.ok) { errors++; continue; }
+        const order = await orderRes.json() as any;
+
+        const result = await this.processOrder(orderId, order, token, connection.companyId);
+        if (result === 'imported') imported++; else skipped++;
+      } catch (err: any) {
+        errors++;
+        this.logger.error(`Auto-sync ML: error procesando orden ${orderId} (conexión ${connectionId}): ${err?.message || err}`);
+      }
+    }
+
+    // Solo avanzamos el cursor si la búsqueda en sí funcionó (llegamos hasta acá);
+    // errores de órdenes individuales no impiden avanzar, para no reintentarlas indefinidamente
+    // si el problema es de datos (ej. producto no vinculado) y no transitorio.
+    await this.prisma.marketplaceConnection.update({
+      where: { id: connectionId },
+      data: { lastSalesImportAt: to },
+    });
+
+    return { imported, skipped, errors };
   }
 }

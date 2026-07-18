@@ -102,6 +102,7 @@ model Company {
   modules         Json?
   mlClientId      String?
   mlClientSecret  String?
+  autoSyncSales   Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -158,6 +159,7 @@ model MarketplaceConnection {
   expiresAt      DateTime?
   credentials    Json?
   active         Boolean         @default(true)
+  lastSalesImportAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -282,6 +284,7 @@ model Sale {
   invoices Invoice[]
   order    Order?
 
+  @@unique([channel, externalId])
   @@map("sales")
 }
 

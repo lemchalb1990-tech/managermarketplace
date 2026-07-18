@@ -21,7 +21,7 @@ const ALL_COMPANY_MODULES = [
 ];
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -128,6 +128,7 @@ export default function CompaniesPage() {
         active: editing.active,
         maxUsers: editing.maxUsers,
         modules: editing.modules,
+        autoSyncSales: editing.autoSyncSales,
       }, token);
       setEditing(null);
       await load();
@@ -229,6 +230,16 @@ export default function CompaniesPage() {
             </div>
 
             <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={editing.autoSyncSales}
+                  onChange={(e) => setEditing(s => s && ({ ...s, autoSyncSales: e.target.checked }))}
+                  className="w-4 h-4 accent-blue-600" />
+                <span className="text-sm text-gray-700">Auto-importar ventas de Mercado Libre (cada 1 min)</span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1 ml-6">Trae automáticamente las ventas nuevas de ML aunque el webhook falle; descuenta stock igual que si llegara por webhook.</p>
+            </div>
+
+            <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-medium text-gray-600">Módulos licenciados</label>
                 <span className="text-xs text-gray-400">
@@ -286,6 +297,7 @@ export default function CompaniesPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Usuarios / Límite</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Productos</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Auto-sync ML</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -306,8 +318,13 @@ export default function CompaniesPage() {
                     {c.active ? 'Activa' : 'Inactiva'}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.autoSyncSales ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {c.autoSyncSales ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>
@@ -325,7 +342,7 @@ export default function CompaniesPage() {
               </tr>
             ))}
             {companies.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sin empresas registradas</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Sin empresas registradas</td></tr>
             )}
           </tbody>
         </table>

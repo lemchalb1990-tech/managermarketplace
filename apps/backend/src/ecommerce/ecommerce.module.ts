@@ -4,6 +4,7 @@ import { MercadolibreController } from './mercadolibre/mercadolibre.controller';
 import { ConnectionsService } from './connections/connections.service';
 import { ConnectionsController } from './connections/connections.controller';
 import { SyncService } from './sync/sync.service';
+import { SalesImportCronService } from './sync/sales-import-cron.service';
 import { ShopifyAdapter } from './platforms/shopify.adapter';
 import { WooCommerceAdapter } from './platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from './platforms/jumpseller.adapter';
@@ -16,6 +17,7 @@ import { SettingsModule } from '../settings/settings.module';
   providers: [
     MercadolibreService,
     SyncService,
+    SalesImportCronService,
     ConnectionsService,
     ShopifyAdapter,
     WooCommerceAdapter,

@@ -1,4 +1,4 @@
-import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, Min, Max } from 'class-validator';
+import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, IsBoolean, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AdminDto {
@@ -52,4 +52,8 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   modules?: string[] | null;
+
+  @IsOptional()
+  @IsBoolean()
+  autoSyncSales?: boolean;
 }
