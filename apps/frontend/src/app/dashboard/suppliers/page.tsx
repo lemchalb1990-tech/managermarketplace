@@ -187,54 +187,6 @@ export default function SuppliersPage() {
         </div>
       ) : (
       <>
-      {showCreate && isAdmin && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nuevo proveedor</h2>
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-                <input value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                  required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">RUT</label>
-                <input value={createForm.taxId} onChange={(e) => setCreateForm((f) => ({ ...f, taxId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                <input type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-                <input value={createForm.phone} onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
-                <input value={createForm.address} onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-            </div>
-            {createError && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
-            )}
-            <div className="flex gap-2">
-              <button type="submit" disabled={createLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {createLoading ? 'Creando...' : 'Crear proveedor'}
-              </button>
-              <button type="button" onClick={() => setShowCreate(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
           <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
@@ -311,6 +263,60 @@ export default function SuppliersPage() {
         )}
       </div>
       </>
+      )}
+
+      {showCreate && isAdmin && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="font-bold text-gray-900">Nuevo proveedor</h2>
+              <button onClick={() => setShowCreate(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <form onSubmit={handleCreate} className="overflow-y-auto">
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Nombre *</label>
+                  <input value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                    required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">RUT</label>
+                  <input value={createForm.taxId} onChange={(e) => setCreateForm((f) => ({ ...f, taxId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                  <input type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Teléfono</label>
+                  <input value={createForm.phone} onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Dirección</label>
+                  <input value={createForm.address} onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                {createError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
+                <button type="button" onClick={() => setShowCreate(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={createLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                  {createLoading ? 'Creando...' : 'Crear proveedor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {editingId && (
