@@ -48,6 +48,14 @@ export class OrdersService {
     }
   }
 
+  private async validateWarehouseId(warehouseId: string | null | undefined, companyId: string) {
+    if (!warehouseId) return;
+    const warehouse = await this.prisma.warehouse.findUnique({ where: { id: warehouseId } });
+    if (!warehouse || warehouse.companyId !== companyId) {
+      throw new BadRequestException('La bodega seleccionada no pertenece a esta empresa');
+    }
+  }
+
   async findAll(user: any, query: FindOrdersDto) {
     const page = Number(query.page ?? 1);
     const where: any = {};
@@ -88,6 +96,7 @@ export class OrdersService {
 
   async create(dto: CreateOrderDto, user: any) {
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
+    await this.validateWarehouseId(dto.warehouseId, user.companyId);
 
     let itemChecksData: { productId: string | null; productName: string; productSku: string; expectedQty: number }[] = [];
     let autoCustomerName: string | undefined;
@@ -134,7 +143,7 @@ export class OrdersService {
       }));
     } else if (dto.items?.length) {
       const productIds = dto.items.map((i) => i.productId);
-      const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
+      const products = await this.prisma.product.findMany({ where: { id: { in: productIds }, companyId: user.companyId } });
       itemChecksData = dto.items.map((i) => {
         const p = products.find((pr) => pr.id === i.productId);
         if (!p) throw new BadRequestException(`Producto ${i.productId} no encontrado`);
@@ -174,6 +183,7 @@ export class OrdersService {
     if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
       throw new BadRequestException('No se puede modificar una orden finalizada');
     }
+    await this.validateWarehouseId(dto.warehouseId, order.companyId);
     return this.prisma.order.update({ where: { id }, data: dto, include: ORDER_INCLUDE });
   }
 

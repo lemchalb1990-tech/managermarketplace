@@ -142,6 +142,12 @@ export class BillingService {
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
       throw new ForbiddenException();
     }
+    if (dto.saleId) {
+      const sale = await this.prisma.sale.findUnique({ where: { id: dto.saleId } });
+      if (!sale || sale.companyId !== conn.companyId) {
+        throw new BadRequestException('La venta indicada no pertenece a esta empresa');
+      }
+    }
 
     // Calcular montos
     const isExempt = dto.dteType === DteType.FACTURA_EXENTA || dto.dteType === DteType.BOLETA;

@@ -28,12 +28,21 @@ export class CatalogService {
     return user.companyId;
   }
 
+  private async validateWarehouseId(warehouseId: string | null | undefined, companyId: string) {
+    if (!warehouseId) return;
+    const warehouse = await this.prisma.warehouse.findUnique({ where: { id: warehouseId } });
+    if (!warehouse || warehouse.companyId !== companyId) {
+      throw new BadRequestException('La bodega seleccionada no pertenece a esta empresa');
+    }
+  }
+
   async create(dto: CreateProductDto, user: any) {
     const companyId = this.getCompanyId(user);
     const exists = await this.prisma.product.findUnique({
       where: { sku_companyId: { sku: dto.sku, companyId } },
     });
     if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
+    await this.validateWarehouseId(dto.warehouseId, companyId);
 
     return this.prisma.product.create({
       data: { ...dto, companyId },
@@ -144,6 +153,7 @@ export class CatalogService {
       });
       if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
     }
+    if (dto.warehouseId) await this.validateWarehouseId(dto.warehouseId, product.companyId);
 
     const data = { ...dto };
     // Con el módulo de Compras activo, el costo de un producto que ya tiene lotes se
@@ -257,7 +267,7 @@ export class CatalogService {
       data: { isPrimary: false },
     });
     return this.prisma.productImage.update({
-      where: { id: imageId },
+      where: { id: imageId, productId },
       data: { isPrimary: true },
     });
   }

@@ -349,6 +349,7 @@ export class MercadolibreService {
 
   async publishProduct(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
+    await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
     const primaryImage = product.images.find((i: any) => i.isPrimary) || product.images[0];
@@ -476,6 +477,7 @@ export class MercadolibreService {
 
   async syncStock(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
+    await this.getConnectionForUser(connectionId, user);
     const listing = await this.prisma.listing.findUnique({
       where: { productId_connectionId: { productId, connectionId } },
     });
@@ -563,6 +565,7 @@ export class MercadolibreService {
 
   async toggleListingStatus(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
+    await this.getConnectionForUser(connectionId, user);
     const listing = await this.prisma.listing.findUnique({
       where: { productId_connectionId: { productId, connectionId } },
     });

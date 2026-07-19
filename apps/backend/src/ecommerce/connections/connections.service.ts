@@ -138,6 +138,7 @@ export class ConnectionsService {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+    await this.catalog.findOne(productId, user);
 
     return this.prisma.listing.upsert({
       where: { productId_connectionId: { productId, connectionId } },

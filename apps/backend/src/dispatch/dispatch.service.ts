@@ -42,7 +42,7 @@ export class DispatchService {
   private guard(route: any, user: any) {
     if (user.role === Role.SUPER_ADMIN) return;
     if (user.role === Role.DESPACHADOR) {
-      if (route.dispatcherId !== user.id) throw new ForbiddenException();
+      if (route.dispatcherId !== user.id || route.companyId !== user.companyId) throw new ForbiddenException();
       return;
     }
     if (route.companyId !== user.companyId) throw new ForbiddenException();
@@ -61,6 +61,7 @@ export class DispatchService {
       if (query.companyId) where.companyId = query.companyId;
     } else if (user.role === Role.DESPACHADOR) {
       where.dispatcherId = user.id;
+      where.companyId = user.companyId;
     } else {
       where.companyId = user.companyId;
     }
@@ -97,6 +98,13 @@ export class DispatchService {
       ? (await this.prisma.user.findUnique({ where: { id: dto.dispatcherId || '' } }))?.companyId ?? user.companyId
       : user.companyId;
 
+    if (dto.dispatcherId) {
+      const dispatcher = await this.prisma.user.findUnique({ where: { id: dto.dispatcherId }, select: { companyId: true } });
+      if (!dispatcher || dispatcher.companyId !== companyId) {
+        throw new BadRequestException('El despachador seleccionado no pertenece a esta empresa');
+      }
+    }
+
     return this.prisma.dispatchRoute.create({
       data: {
         name: dto.name,
@@ -115,6 +123,12 @@ export class DispatchService {
     this.requireAdmin(user);
     if (route.status === RouteStatus.COMPLETED || route.status === RouteStatus.CANCELLED) {
       throw new BadRequestException('No se puede modificar una ruta finalizada');
+    }
+    if (dto.dispatcherId) {
+      const dispatcher = await this.prisma.user.findUnique({ where: { id: dto.dispatcherId }, select: { companyId: true } });
+      if (!dispatcher || dispatcher.companyId !== route.companyId) {
+        throw new BadRequestException('El despachador seleccionado no pertenece a esta empresa');
+      }
     }
     return this.prisma.dispatchRoute.update({
       where: { id },
@@ -253,8 +267,13 @@ export class DispatchService {
   }
 
   async reorderStops(routeId: string, dto: ReorderStopsDto, user: any) {
-    await this.findOne(routeId, user);
+    const route = await this.findOne(routeId, user);
     this.requireAdmin(user);
+
+    const validStopIds = new Set((route as any).stops.map((s: any) => s.id));
+    for (const { stopId } of dto.positions) {
+      if (!validStopIds.has(stopId)) throw new NotFoundException('Parada no encontrada en esta ruta');
+    }
 
     await this.prisma.$transaction(
       dto.positions.map(({ stopId, position }) =>

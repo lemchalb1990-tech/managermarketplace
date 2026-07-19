@@ -83,6 +83,9 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto, requestingUser: any) {
     await this.findOne(id, requestingUser);
+    if (dto.role === Role.SUPER_ADMIN && requestingUser.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('No tienes permiso para asignar ese rol');
+    }
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, 10);
     }
