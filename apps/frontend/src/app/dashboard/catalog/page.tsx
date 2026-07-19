@@ -69,6 +69,63 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
   );
 }
 
+interface LinkModalState {
+  connectionId: string;
+  connectionName: string;
+  externalId: string;
+  externalUrl: string;
+}
+
+function LinkListingModal({ state, onChange, onSubmit, onClose, loading, error }: {
+  state: LinkModalState;
+  onChange: (next: LinkModalState) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+  loading: boolean;
+  error: string;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900 text-base">Vincular publicación existente</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{state.connectionName}</p>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-gray-500">
+            Usa esto cuando el producto ya está publicado en la plataforma (fuera del sistema) y solo querés
+            asociarlo, sin crear una publicación nueva ni pasar por el flujo de importación.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ID de la publicación en la plataforma *</label>
+            <input value={state.externalId}
+              onChange={(e) => onChange({ ...state, externalId: e.target.value })}
+              placeholder="Ej: MLC123456789"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">URL de la publicación (opcional)</label>
+            <input value={state.externalUrl}
+              onChange={(e) => onChange({ ...state, externalUrl: e.target.value })}
+              placeholder="https://..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
+            Cancelar
+          </button>
+          <button onClick={onSubmit} disabled={loading || !state.externalId.trim()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+            {loading ? 'Vinculando...' : 'Vincular'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type CheckStatus = 'ok' | 'warn' | 'error';
 interface PreflightCheck { label: string; value?: string | null; status: CheckStatus; }
 interface PublishModalState {
@@ -227,7 +284,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', warehouseId: '' };
+const emptyForm = { sku: '', name: '', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -246,10 +303,7 @@ export default function CatalogPage() {
   const [connections, setConnections] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState('');
@@ -277,6 +331,9 @@ export default function CatalogPage() {
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
+  const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
   const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -489,6 +546,18 @@ export default function CatalogPage() {
     if (product.mlCategoryId) fetchCategoryAttrs(product.mlCategoryId, existingAttrs);
   }
 
+  function openCreateModal() {
+    setSelected({ id: null, sku: '', name: '', active: true, images: [], listings: [] });
+    setEditForm(emptyForm);
+    setTab('edit');
+    setEditError('');
+    setMlWarning('');
+    setIsDirty(false);
+    originalFormRef.current = null;
+    setMlCategoryAttrs([]);
+    setCategorySupportsHtml(false);
+  }
+
   async function refreshSelected(id: string) {
     const token = getToken()!;
     const refreshed = await api.catalog.get(id, token);
@@ -497,41 +566,13 @@ export default function CatalogPage() {
     return refreshed;
   }
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const token = getToken()!;
-      await api.catalog.create({
-        sku: form.sku,
-        name: form.name,
-        description: form.description || undefined,
-        price: parseFloat(form.price),
-        mlPrice: form.mlPrice ? parseFloat(form.mlPrice) : undefined,
-        cost: form.cost ? parseFloat(form.cost) : undefined,
-        stock: parseInt(form.stock),
-        category: form.category || undefined,
-        mlCategoryId: form.mlCategoryId || undefined,
-        warehouseId: form.warehouseId || undefined,
-      }, token);
-      setForm(emptyForm);
-      setShowForm(false);
-      await loadProducts(1);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleEdit(e: FormEvent) {
     e.preventDefault();
     setEditError('');
     setEditLoading(true);
     try {
       const token = getToken()!;
-      await api.catalog.update(selected.id, {
+      const payload = {
         sku: editForm.sku,
         name: editForm.name,
         description: editForm.description || undefined,
@@ -544,9 +585,16 @@ export default function CatalogPage() {
         mlDescription: editForm.mlDescription || undefined,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
         warehouseId: editForm.warehouseId || undefined,
-      }, token);
-      await refreshSelected(selected.id);
-      setIsDirty(false);
+      };
+      if (selected.id) {
+        await api.catalog.update(selected.id, payload, token);
+        await refreshSelected(selected.id);
+        setIsDirty(false);
+      } else {
+        const created = await api.catalog.create(payload, token);
+        await loadProducts(1);
+        openModal(created);
+      }
     } catch (err: any) {
       setEditError(err.message);
     } finally {
@@ -714,108 +762,47 @@ export default function CatalogPage() {
     }
   }
 
+  function openLinkModal(connectionId: string, connectionName: string) {
+    const listing = selected.listings?.find((l: any) => l.connectionId === connectionId);
+    setLinkError('');
+    setLinkModal({
+      connectionId,
+      connectionName,
+      externalId: listing?.externalId || '',
+      externalUrl: listing?.externalUrl || '',
+    });
+  }
+
+  async function handleLinkSubmit() {
+    if (!linkModal) return;
+    setLinkLoading(true);
+    setLinkError('');
+    try {
+      const token = getToken()!;
+      await api.connections.link(linkModal.connectionId, selected.id, {
+        externalId: linkModal.externalId.trim(),
+        externalUrl: linkModal.externalUrl.trim() || undefined,
+      }, token);
+      await refreshSelected(selected.id);
+      setLinkModal(null);
+    } catch (err: any) {
+      setLinkError(err.message || 'No se pudo vincular la publicación.');
+    } finally {
+      setLinkLoading(false);
+    }
+  }
+
   const primaryImage = (p: any) => p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={openCreateModal}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Nuevo producto
         </button>
       </div>
-
-      {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nuevo producto</h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
-              <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
-              <input type="number" step="0.01" min="0" value={form.cost}
-                onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta directa (POS) *</label>
-              <input type="number" step="0.01" min="0" value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
-              <input type="number" step="0.01" min="0" value={form.mlPrice}
-                onChange={(e) => setForm({ ...form, mlPrice: e.target.value })}
-                placeholder="Igual al de venta directa si se deja vacío"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Stock inicial *</label>
-              <input type="number" min="0" value={form.stock}
-                onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-                list="category-suggestions"
-                placeholder="Ej: Electrónica"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
-              <CategoryPicker value={form.mlCategoryId} onChange={(id) => setForm({ ...form, mlCategoryId: id })} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Bodega *
-              </label>
-              <select
-                value={form.warehouseId}
-                onChange={(e) => setForm({ ...form, warehouseId: e.target.value })}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-              >
-                <option value="">— Selecciona una bodega —</option>
-                {warehouses.filter((w) => w.active).map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-              {warehouses.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  <a href="/dashboard/warehouses" className="underline">Crea una bodega primero →</a>
-                </p>
-              )}
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            {error && <p className="col-span-3 text-red-600 text-sm">{error}</p>}
-            <div className="col-span-3 flex gap-2">
-              <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {loading ? 'Guardando...' : 'Crear producto'}
-              </button>
-              <button type="button" onClick={() => { setShowForm(false); setForm(emptyForm); }}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
@@ -1072,8 +1059,14 @@ export default function CatalogPage() {
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <p className="font-mono text-xs text-gray-400 mb-0.5">{selected.sku}</p>
-                <h3 className="font-semibold text-gray-900">{selected.name}</h3>
+                {selected.id ? (
+                  <>
+                    <p className="font-mono text-xs text-gray-400 mb-0.5">{selected.sku}</p>
+                    <h3 className="font-semibold text-gray-900">{selected.name}</h3>
+                  </>
+                ) : (
+                  <h3 className="font-semibold text-gray-900">Nuevo producto</h3>
+                )}
               </div>
               <button onClick={() => setSelected(null)}
                 className="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">
@@ -1082,7 +1075,7 @@ export default function CatalogPage() {
             </div>
 
             <div className="flex items-center border-b border-gray-200 px-6">
-              {(['edit', 'images', 'ml', 'stock'] as Tab[]).map((t) => (
+              {(selected.id ? (['edit', 'images', 'ml', 'stock'] as Tab[]) : (['edit'] as Tab[])).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1099,6 +1092,11 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-2 gap-4">
+                {!selected.id && (
+                  <div className="col-span-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                    Guarda el producto para poder subir imágenes, publicarlo en Mercado Libre o ver sus movimientos de stock.
+                  </div>
+                )}
                 {!selected.active && (
                   <div className="col-span-2 flex gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-800">
                     <span className="text-red-500 text-lg leading-none shrink-0">🔒</span>
@@ -1109,6 +1107,12 @@ export default function CatalogPage() {
                   </div>
                 )}
                 <fieldset disabled={!selected.active} className="contents">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                    <input value={editForm.name}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
                     <input value={editForm.sku || ''}
@@ -1116,16 +1120,12 @@ export default function CatalogPage() {
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-                    <input value={editForm.name}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
-                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
-                    <input type="number" step="0.01" min="0" value={editForm.cost}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, cost: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
+                    <input value={editForm.category || ''}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
+                      list="category-suggestions"
+                      placeholder="Ej: Electrónica"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta directa (POS) *</label>
@@ -1141,18 +1141,16 @@ export default function CatalogPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
+                    <input type="number" step="0.01" min="0" value={editForm.cost}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, cost: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-                    <input value={editForm.category || ''}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
-                      list="category-suggestions"
-                      placeholder="Ej: Electrónica"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>
@@ -1297,7 +1295,9 @@ export default function CatalogPage() {
                   <div className="col-span-2">
                     <button type="submit" disabled={editLoading}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                      {editLoading ? 'Guardando...' : 'Guardar cambios'}
+                      {selected.id
+                        ? (editLoading ? 'Guardando...' : 'Guardar cambios')
+                        : (editLoading ? 'Creando...' : 'Crear producto')}
                     </button>
                   </div>
                 </fieldset>
@@ -1455,6 +1455,19 @@ export default function CatalogPage() {
                             </span>
                           )}
                         </div>
+                        {listing?.externalId && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-400">ID:</span>
+                            <code className="text-xs font-mono bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-gray-600">
+                              {listing.externalId}
+                            </code>
+                            <button type="button"
+                              onClick={() => navigator.clipboard.writeText(listing.externalId)}
+                              className="text-xs text-blue-500 hover:text-blue-700">
+                              Copiar
+                            </button>
+                          </div>
+                        )}
                         {listing?.externalUrl && (
                           <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer"
                             className="text-xs text-blue-500 hover:underline block mb-3 truncate">
@@ -1493,6 +1506,11 @@ export default function CatalogPage() {
                                 : (isActive ? 'Pausar publicación' : 'Activar publicación')}
                             </button>
                           )}
+                          <button onClick={() => openLinkModal(conn.id, conn.name)}
+                            title="Asociar este producto a una publicación que ya existe en la plataforma, sin crear una nueva ni importar catálogo"
+                            className="px-3 py-1.5 border border-gray-300 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-50">
+                            {listing ? 'Editar vínculo' : 'Vincular manualmente'}
+                          </button>
                         </div>
                       </div>
                     );
@@ -1508,6 +1526,16 @@ export default function CatalogPage() {
           state={publishModal}
           onConfirm={confirmPublish}
           onClose={() => setPublishModal(null)}
+        />
+      )}
+      {linkModal && (
+        <LinkListingModal
+          state={linkModal}
+          onChange={setLinkModal}
+          onSubmit={handleLinkSubmit}
+          onClose={() => setLinkModal(null)}
+          loading={linkLoading}
+          error={linkError}
         />
       )}
     </div>
