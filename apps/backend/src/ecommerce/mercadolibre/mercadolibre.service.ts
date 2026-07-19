@@ -365,7 +365,7 @@ export class MercadolibreService {
     const mlItem = {
       title: product.name,
       category_id: categoryId,
-      price: Math.round(Number(product.price)),
+      price: Math.round(Number(product.mlPrice ?? product.price)),
       currency_id: 'CLP',
       available_quantity: product.stock,
       buying_mode: 'buy_it_now',
@@ -448,7 +448,7 @@ export class MercadolibreService {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        price: Math.round(Number(product.price)),
+        price: Math.round(Number(product.mlPrice ?? product.price)),
         available_quantity: product.stock,
       }),
     });
@@ -790,6 +790,7 @@ export class MercadolibreService {
               sku,
               name: item.title,
               price: item.price,
+              mlPrice: item.price,
               stock: item.available_quantity,
               mlCategoryId: item.category_id,
               companyId: conn.companyId,

@@ -227,7 +227,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', cost: '', stock: '', category: '', mlCategoryId: '', warehouseId: '' };
+const emptyForm = { sku: '', name: '', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', warehouseId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -260,6 +260,8 @@ export default function CatalogPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
 
@@ -281,7 +283,7 @@ export default function CatalogPage() {
   const [stockMovements, setStockMovements] = useState<any[]>([]);
   const [stockMovLoading, setStockMovLoading] = useState(false);
 
-  async function loadProducts(p = 1) {
+  async function loadProducts(p = 1, sortOverride?: { sortBy: string; sortDir: 'asc' | 'desc' }) {
     const token = getToken();
     if (!token) return;
     setLoading(true);
@@ -292,6 +294,8 @@ export default function CatalogPage() {
         warehouseId: warehouseFilter || undefined,
         category: categoryFilter || undefined,
         active: activeFilter || undefined,
+        sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
+        sortDir: sortOverride?.sortDir ?? sortDir,
       }, token);
       setProducts(res.products);
       setTotal(res.total);
@@ -300,6 +304,18 @@ export default function CatalogPage() {
       setSelectedIds(new Set());
     } catch {}
     setLoading(false);
+  }
+
+  function handleSort(field: string) {
+    const nextDir: 'asc' | 'desc' = sortBy === field && sortDir === 'asc' ? 'desc' : 'asc';
+    setSortBy(field);
+    setSortDir(nextDir);
+    loadProducts(1, { sortBy: field, sortDir: nextDir });
+  }
+
+  function sortIndicator(field: string) {
+    if (sortBy !== field) return <span className="text-gray-300 text-[10px] ml-1">↕</span>;
+    return <span className="text-blue-600 text-[10px] ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>;
   }
 
   async function load() {
@@ -401,6 +417,7 @@ export default function CatalogPage() {
       editForm.name !== orig.name ||
       editForm.description !== orig.description ||
       editForm.price !== orig.price ||
+      editForm.mlPrice !== orig.mlPrice ||
       editForm.cost !== orig.cost ||
       editForm.stock !== orig.stock ||
       editForm.category !== orig.category ||
@@ -440,6 +457,7 @@ export default function CatalogPage() {
       name: product.name,
       description: product.description || '',
       price: String(Number(product.price)),
+      mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
       category: product.category || '',
@@ -457,6 +475,7 @@ export default function CatalogPage() {
       name: product.name,
       description: product.description || '',
       price: String(Number(product.price)),
+      mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
       cost: product.cost != null ? String(Number(product.cost)) : '',
       stock: String(product.stock),
       category: product.category || '',
@@ -489,6 +508,7 @@ export default function CatalogPage() {
         name: form.name,
         description: form.description || undefined,
         price: parseFloat(form.price),
+        mlPrice: form.mlPrice ? parseFloat(form.mlPrice) : undefined,
         cost: form.cost ? parseFloat(form.cost) : undefined,
         stock: parseInt(form.stock),
         category: form.category || undefined,
@@ -516,6 +536,7 @@ export default function CatalogPage() {
         name: editForm.name,
         description: editForm.description || undefined,
         price: parseFloat(editForm.price),
+        mlPrice: editForm.mlPrice !== '' ? parseFloat(editForm.mlPrice) : undefined,
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         stock: parseInt(editForm.stock),
         category: editForm.category || undefined,
@@ -564,6 +585,7 @@ export default function CatalogPage() {
   function buildPreflightChecks(): PreflightCheck[] {
     const attrs = editForm.mlAttributes || [];
     const requiredAttrs = mlCategoryAttrs.filter((a: any) => a.required);
+    const mlPrice = editForm.mlPrice || editForm.price;
     const checks: PreflightCheck[] = [
       {
         label: 'Categoría ML',
@@ -571,9 +593,9 @@ export default function CatalogPage() {
         status: editForm.mlCategoryId ? 'ok' : 'error',
       },
       {
-        label: 'Precio',
-        value: editForm.price ? `$${Number(editForm.price).toLocaleString('es-CL')}` : null,
-        status: Number(editForm.price) > 0 ? 'ok' : 'error',
+        label: 'Precio ML',
+        value: mlPrice ? `$${Number(mlPrice).toLocaleString('es-CL')}` : null,
+        status: Number(mlPrice) > 0 ? 'ok' : 'error',
       },
       {
         label: 'Stock',
@@ -725,10 +747,17 @@ export default function CatalogPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Precio *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta directa (POS) *</label>
               <input type="number" step="0.01" min="0" value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
+              <input type="number" step="0.01" min="0" value={form.mlPrice}
+                onChange={(e) => setForm({ ...form, mlPrice: e.target.value })}
+                placeholder="Igual al de venta directa si se deja vacío"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Stock inicial *</label>
@@ -902,12 +931,34 @@ export default function CatalogPage() {
                 </th>
               )}
               <th className="px-4 py-3 w-14"></th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">SKU</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Producto</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Costo</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Precio</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Stock</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Bodega</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('sku')}>
+                SKU{sortIndicator('sku')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('name')}>
+                Producto{sortIndicator('name')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('cost')}>
+                Costo{sortIndicator('cost')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('price')}>
+                Precio POS{sortIndicator('price')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('mlPrice')}>
+                Precio ML{sortIndicator('mlPrice')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('stock')}>
+                Stock{sortIndicator('stock')}
+              </th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                onClick={() => handleSort('warehouse')}>
+                Bodega{sortIndicator('warehouse')}
+              </th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones ML</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -946,6 +997,9 @@ export default function CatalogPage() {
                     {p.cost != null ? `$${Number(p.cost).toFixed(2)}` : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-700">${Number(p.price).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-700">
+                    {p.mlPrice != null ? `$${Number(p.mlPrice).toFixed(2)}` : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
                       {p.stock}
@@ -984,10 +1038,10 @@ export default function CatalogPage() {
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={isAdmin ? 11 : 10} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={isAdmin ? 11 : 10} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
             )}
           </tbody>
         </table>
@@ -1074,10 +1128,17 @@ export default function CatalogPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio *</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta directa (POS) *</label>
                     <input type="number" step="0.01" min="0" value={editForm.price}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
+                    <input type="number" step="0.01" min="0" value={editForm.mlPrice}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
+                      placeholder="Igual al de venta directa si se deja vacío"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>

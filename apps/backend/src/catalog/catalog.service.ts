@@ -50,7 +50,7 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
@@ -73,6 +73,15 @@ export class CatalogService {
     const take = Math.min(100, Math.max(1, parseInt(query.pageSize || '50') || 50));
     const skip = (page - 1) * take;
 
+    const SORTABLE_FIELDS = ['sku', 'name', 'cost', 'price', 'mlPrice', 'stock'];
+    const dir = query.sortDir === 'desc' ? 'desc' : 'asc';
+    let orderBy: any = { name: 'asc' };
+    if (query.sortBy === 'warehouse') {
+      orderBy = { warehouse: { name: dir } };
+    } else if (query.sortBy && SORTABLE_FIELDS.includes(query.sortBy)) {
+      orderBy = { [query.sortBy]: dir };
+    }
+
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -81,7 +90,7 @@ export class CatalogService {
           listings: { include: { connection: { select: { id: true, name: true } } } },
           warehouse: { select: { id: true, name: true } },
         },
-        orderBy: { name: 'asc' },
+        orderBy,
         take,
         skip,
       }),
