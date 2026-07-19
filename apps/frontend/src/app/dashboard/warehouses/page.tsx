@@ -181,7 +181,7 @@ export default function WarehousesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
           <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
         ) : warehouses.length === 0 ? (

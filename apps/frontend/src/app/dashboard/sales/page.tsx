@@ -296,9 +296,9 @@ export default function SalesPage() {
 
       {/* Tabla de ventas */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-gray-800">Historial de ventas</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-gray-500">{total} registros</span>
             {isAdmin && selectedIds.size > 0 && (
               <button
@@ -345,7 +345,7 @@ export default function SalesPage() {
                       onChange={() => toggleSelect(sale.id)}
                       onClick={(e) => e.stopPropagation()} />
                   )}
-                  <div className="flex-1 grid grid-cols-4 gap-3 items-center">
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
                     <div>
                       <p className="text-sm font-medium text-gray-800">
                         {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}

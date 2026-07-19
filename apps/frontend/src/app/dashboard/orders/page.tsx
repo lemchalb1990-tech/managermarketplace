@@ -154,7 +154,7 @@ export default function OrdersPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nueva orden</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de entrega *</label>
                 <select
@@ -199,7 +199,7 @@ export default function OrdersPage() {
 
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-semibold text-gray-700 mb-3">Datos del cliente</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
                   <input value={createForm.customerName}
@@ -281,7 +281,7 @@ export default function OrdersPage() {
         <span className="ml-auto text-xs text-gray-400 self-center">{total} órdenes</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>

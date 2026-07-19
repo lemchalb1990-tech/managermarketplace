@@ -183,7 +183,7 @@ export default function ProviderPage({ config }: Props) {
                 <a href={config.helpUrl} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-blue-500 underline mb-4 inline-block">Ver documentación API →</a>
               )}
-              <div className="grid grid-cols-2 gap-3 mt-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 mb-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la conexión *</label>
                   <input value={formName} onChange={(e) => setFormName(e.target.value)}
@@ -220,7 +220,7 @@ export default function ProviderPage({ config }: Props) {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>

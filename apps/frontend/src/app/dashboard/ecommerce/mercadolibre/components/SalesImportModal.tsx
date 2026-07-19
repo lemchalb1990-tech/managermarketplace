@@ -119,7 +119,7 @@ export function SalesImportModal({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
 
-        <div className="px-6 py-4 border-b border-gray-100 flex items-end gap-3 shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3 shrink-0">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Desde</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
@@ -171,11 +171,12 @@ export function SalesImportModal({
                     Se encontraron más ventas de las que se muestran aquí. Acota el rango de fechas para verlas todas.
                   </div>
                 )}
-                <div className="mx-6 mt-4 flex gap-4 text-xs text-gray-500">
+                <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
                   <span>{importableCount} listas para importar</span>
                   {unresolvedCount > 0 && <span>{unresolvedCount} con productos no vinculados en el catálogo</span>}
                   {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importadas (no se muestran)</span>}
                 </div>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm mt-3">
                   <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
                     <tr>
@@ -218,7 +219,7 @@ export function SalesImportModal({
                           {isOpen && (
                             <tr>
                               <td colSpan={6} className="bg-gray-50 px-6 py-3">
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                   <div>
                                     <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
                                     <div className="space-y-1">
@@ -254,6 +255,7 @@ export function SalesImportModal({
                     })}
                   </tbody>
                 </table>
+                </div>
                 {pageCount > 1 && (
                   <div className="flex items-center justify-center gap-3 py-3 border-t border-gray-100">
                     <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}

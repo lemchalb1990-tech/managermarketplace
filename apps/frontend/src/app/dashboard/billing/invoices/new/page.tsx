@@ -116,7 +116,7 @@ export default function NewInvoicePage() {
         {/* Sección proveedor y tipo */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Configuración del documento</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de documento *</label>
               <select value={form.dteType} onChange={(e) => setForm(f => ({ ...f, dteType: e.target.value }))}
@@ -145,7 +145,7 @@ export default function NewInvoicePage() {
         {/* Datos del receptor */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Datos del receptor</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">RUT *</label>
               <input value={form.rut} onChange={(e) => setForm(f => ({ ...f, rut: e.target.value }))}
@@ -193,7 +193,8 @@ export default function NewInvoicePage() {
               className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar ítem</button>
           </div>
 
-          <div className="space-y-3">
+          <div className="overflow-x-auto">
+          <div className="space-y-3 min-w-[560px]">
             <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 pb-1 border-b border-gray-100">
               <span className="col-span-5">Descripción</span>
               <span className="col-span-2 text-center">Cantidad</span>
@@ -232,6 +233,7 @@ export default function NewInvoicePage() {
                 </div>
               </div>
             ))}
+          </div>
           </div>
 
           {/* Totales */}

@@ -878,7 +878,7 @@ export default function CatalogPage() {
       </datalist>
 
       {isAdmin && selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
+        <div className="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
           <span className="text-sm text-blue-800 font-medium">{selectedIds.size} seleccionado(s)</span>
           <button onClick={() => handleBulkSetActive(true)} disabled={bulkLoading}
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
@@ -911,7 +911,7 @@ export default function CatalogPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
@@ -1099,7 +1099,7 @@ export default function CatalogPage() {
             <div className="p-6 max-h-[65vh] overflow-y-auto">
 
               {tab === 'edit' && (
-                <form onSubmit={handleEdit} className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {!selected.id && (
                   <div className="col-span-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
                     Guarda el producto para poder subir imágenes, publicarlo en Mercado Libre o ver sus movimientos de stock.
@@ -1334,7 +1334,7 @@ export default function CatalogPage() {
               {tab === 'images' && (
                 <div>
                   {selected.images?.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-3 mb-5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
                       {selected.images.map((img: any) => (
                         <div key={img.id} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square">
                           <img src={imgUrl(img.url)} alt="" className="w-full h-full object-cover" />

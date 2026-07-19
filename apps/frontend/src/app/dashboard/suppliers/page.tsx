@@ -10,6 +10,8 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
@@ -23,14 +25,20 @@ export default function SuppliersPage() {
 
   const [deleteError, setDeleteError] = useState('');
 
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
 
   async function load() {
     const token = getToken();
     if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) {
+      setSuppliers([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const data = await api.suppliers.list(token);
+      const data = await api.suppliers.list(token, isSuperAdmin ? selectedCompanyId : undefined);
       setSuppliers(data);
     } catch {
       setSuppliers([]);
@@ -42,8 +50,22 @@ export default function SuppliersPage() {
   useEffect(() => {
     const u = getUser();
     setCurrentUser(u);
-    load();
+    const token = getToken();
+    if (token && u?.role === 'SUPER_ADMIN') {
+      api.companies.list(token).then(setCompanies).catch(() => {});
+    }
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, selectedCompanyId]);
+
+  function selectCompany(companyId: string) {
+    setSelectedCompanyId(companyId);
+    setShowCreate(false);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +79,7 @@ export default function SuppliersPage() {
         email: createForm.email.trim() || undefined,
         phone: createForm.phone.trim() || undefined,
         address: createForm.address.trim() || undefined,
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
       }, token);
       setCreateForm(emptyForm);
       setShowCreate(false);
@@ -122,19 +145,33 @@ export default function SuppliersPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Proveedores</h1>
           <p className="text-gray-500 text-sm mt-0.5">Empresas a las que les compras mercadería.</p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => { setShowCreate(!showCreate); setCreateForm(emptyForm); setCreateError(''); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            + Nuevo proveedor
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => selectCompany(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+            >
+              <option value="">— Selecciona una empresa —</option>
+              {companies.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          {isAdmin && (!isSuperAdmin || selectedCompanyId) && (
+            <button
+              onClick={() => { setShowCreate(!showCreate); setCreateForm(emptyForm); setCreateError(''); }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+            >
+              + Nuevo proveedor
+            </button>
+          )}
+        </div>
       </div>
 
       {deleteError && (
@@ -143,11 +180,18 @@ export default function SuppliersPage() {
         </div>
       )}
 
+      {isSuperAdmin && !selectedCompanyId ? (
+        <div className="bg-white rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-gray-400 text-sm">
+          <p className="text-3xl mb-2">🏢</p>
+          <p>Selecciona una empresa arriba para ver y crear sus proveedores.</p>
+        </div>
+      ) : (
+      <>
       {showCreate && isAdmin && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nuevo proveedor</h2>
           <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                 <input value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
@@ -191,7 +235,7 @@ export default function SuppliersPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
           <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
         ) : suppliers.length === 0 ? (
@@ -266,16 +310,18 @@ export default function SuppliersPage() {
           </table>
         )}
       </div>
+      </>
+      )}
 
       {editingId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <h2 className="font-bold text-gray-900">Editar proveedor</h2>
               <button onClick={() => setEditingId(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
-            <form onSubmit={handleEdit}>
+            <form onSubmit={handleEdit} className="overflow-y-auto">
               <div className="px-6 py-5 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Nombre *</label>

@@ -158,9 +158,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 truncate">
             Bienvenido, {user?.name}
           </h1>
           <p className="text-sm text-gray-400 mt-0.5">
@@ -174,7 +174,7 @@ export default function DashboardPage() {
             <select
               value={selectedCompanyId}
               onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium max-w-full"
             >
               {companies.map((c: any) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Ventas hoy"
           value={summary?.totalSales ?? 0}

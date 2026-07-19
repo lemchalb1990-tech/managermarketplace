@@ -184,7 +184,7 @@ export default function PlatformPage({ config }: Props) {
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
               <h3 className="font-semibold text-gray-800 mb-1">Conectar tienda de {config.name}</h3>
               {config.helpText && <p className="text-xs text-gray-500 mb-4">{config.helpText}</p>}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la conexión *</label>
                   <input value={formName} onChange={(e) => setFormName(e.target.value)}
@@ -221,7 +221,7 @@ export default function PlatformPage({ config }: Props) {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>

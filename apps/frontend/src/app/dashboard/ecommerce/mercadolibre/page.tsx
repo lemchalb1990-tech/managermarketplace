@@ -207,7 +207,7 @@ export default function MercadoLibrePage() {
                 Cada tienda tiene sus propias credenciales. Se guardan primero y luego autorizas desde la lista
                 — así, si algo falla, no tienes que volver a escribirlas.
               </p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la tienda *</label>
                   <input
@@ -253,7 +253,7 @@ export default function MercadoLibrePage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>

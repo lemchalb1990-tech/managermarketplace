@@ -131,7 +131,7 @@ export default function BillingPage() {
         })}
       </div>
 
-      <div className="mt-8 grid grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: '🧾', label: 'Tipos de DTE', desc: 'Facturas, boletas, NC, ND y facturas exentas' },
           { icon: '⚡', label: 'Emisión automática', desc: 'Genera DTE al cerrar ventas del POS o catálogo' },

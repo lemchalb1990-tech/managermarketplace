@@ -416,7 +416,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               {order.photos.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                   {order.photos.map((photo: any) => (
                     <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200">
                       <img src={imgUrl(photo.url)} alt="Foto pedido" className="w-full h-full object-cover" />
@@ -507,7 +507,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         onChange={(e) => setShipForm((f: any) => ({ ...f, address: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Comuna</label>
                         <input value={shipForm.commune}

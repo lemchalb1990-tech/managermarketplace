@@ -99,7 +99,7 @@ export default function DespachosPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5 border-b border-gray-200">
+      <div className="flex gap-1 mb-5 border-b border-gray-200 overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.key}
@@ -174,12 +174,12 @@ export default function DespachosPage() {
       {/* Modal crear ruta */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <h2 className="text-base font-bold text-gray-900">Nueva ruta de despacho</h2>
               <button onClick={() => setShowCreate(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-lg flex items-center justify-center">×</button>
             </div>
-            <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleCreate} className="px-6 py-5 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la ruta *</label>
                 <input

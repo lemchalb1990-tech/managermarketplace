@@ -188,11 +188,12 @@ export function ImportModal({
                 </div>
               ) : (
                 <>
-                  <div className="mx-6 mt-4 flex gap-4 text-xs text-gray-500">
+                  <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
                     <span>{newCount} nuevas</span>
                     <span>{matchCount} coinciden por SKU con productos existentes</span>
                     {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importadas (no se muestran)</span>}
                   </div>
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm mt-3">
                     <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
                       <tr>
@@ -263,6 +264,7 @@ export function ImportModal({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   {pageCount > 1 && (
                     <div className="flex items-center justify-center gap-3 py-3 border-t border-gray-100">
                       <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}

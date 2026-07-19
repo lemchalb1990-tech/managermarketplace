@@ -15,6 +15,8 @@ const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 export default function PurchasesPage() {
   const [tab, setTab] = useState<Tab>('purchases');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [purchases, setPurchases] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -33,24 +35,31 @@ export default function PurchasesPage() {
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferError, setTransferError] = useState('');
 
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
 
   async function load() {
     const token = getToken();
     if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) {
+      setPurchases([]); setTransfers([]); setSuppliers([]); setWarehouses([]); setProducts([]);
+      setLoading(false);
+      return;
+    }
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     setLoading(true);
     try {
       const [p, t, s, w, prods] = await Promise.all([
-        api.purchases.list(token).catch(() => ({ purchases: [] })),
-        api.stockTransfers.list(token).catch(() => ({ transfers: [] })),
-        api.suppliers.list(token).catch(() => []),
+        api.purchases.list(token, { companyId }).catch(() => ({ purchases: [] })),
+        api.stockTransfers.list(token, { companyId }).catch(() => ({ transfers: [] })),
+        api.suppliers.list(token, companyId).catch(() => []),
         api.warehouses.list(token).catch(() => []),
-        api.catalog.list(token).catch(() => []),
+        api.catalog.list(token, companyId).catch(() => []),
       ]);
       setPurchases(p.purchases || []);
       setTransfers(t.transfers || []);
       setSuppliers((s || []).filter((x: any) => x.active));
-      setWarehouses((w || []).filter((x: any) => x.active));
+      setWarehouses((w || []).filter((x: any) => x.active && (!isSuperAdmin || x.companyId === selectedCompanyId)));
       setProducts(prods || []);
     } finally {
       setLoading(false);
@@ -58,9 +67,25 @@ export default function PurchasesPage() {
   }
 
   useEffect(() => {
-    setCurrentUser(getUser());
-    load();
+    const u = getUser();
+    setCurrentUser(u);
+    const token = getToken();
+    if (token && u?.role === 'SUPER_ADMIN') {
+      api.companies.list(token).then(setCompanies).catch(() => {});
+    }
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, selectedCompanyId]);
+
+  function selectCompany(companyId: string) {
+    setSelectedCompanyId(companyId);
+    setShowPurchaseForm(false);
+    setShowTransferForm(false);
+  }
 
   function addItemRow() {
     setItems((prev) => [...prev, { ...emptyItem }]);
@@ -88,6 +113,7 @@ export default function PurchasesPage() {
         documentNumber: purchaseForm.documentNumber || undefined,
         notes: purchaseForm.notes || undefined,
         items: validItems.map((it) => ({ productId: it.productId, quantity: Number(it.quantity), unitCost: Number(it.unitCost) || 0 })),
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
       }, token);
       setPurchaseForm(emptyPurchaseForm);
       setItems([{ ...emptyItem }]);
@@ -112,6 +138,7 @@ export default function PurchasesPage() {
         toWarehouseId: transferForm.toWarehouseId,
         quantity: Number(transferForm.quantity),
         reason: transferForm.reason || undefined,
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
       }, token);
       setTransferForm(emptyTransferForm);
       setShowTransferForm(false);
@@ -125,15 +152,34 @@ export default function PurchasesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Compras</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             Registra compras a proveedores por lotes; el costo de cada producto se calcula automáticamente.
           </p>
         </div>
+        {isSuperAdmin && (
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => selectCompany(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
+          >
+            <option value="">— Selecciona una empresa —</option>
+            {companies.map((c: any) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
+      {isSuperAdmin && !selectedCompanyId ? (
+        <div className="bg-white rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-gray-400 text-sm">
+          <p className="text-3xl mb-2">🏢</p>
+          <p>Selecciona una empresa arriba para ver y registrar sus compras y traspasos.</p>
+        </div>
+      ) : (
+      <>
       <div className="flex items-center border-b border-gray-200 mb-6">
         {(['purchases', 'transfers'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -162,7 +208,7 @@ export default function PurchasesPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
               <h2 className="font-semibold text-gray-800 mb-4">Nueva compra</h2>
               <form onSubmit={handleCreatePurchase} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor *</label>
                     <select value={purchaseForm.supplierId} required
@@ -200,10 +246,10 @@ export default function PurchasesPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-2">Productos *</label>
                   <div className="space-y-2">
                     {items.map((it, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
+                      <div key={idx} className="flex flex-wrap gap-2 items-center">
                         <select value={it.productId} required
                           onChange={(e) => updateItem(idx, { productId: e.target.value })}
-                          className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                          className="flex-1 min-w-[160px] px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                           <option value="">— Producto —</option>
                           {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
                         </select>
@@ -243,7 +289,7 @@ export default function PurchasesPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {loading ? (
               <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
             ) : purchases.length === 0 ? (
@@ -301,7 +347,7 @@ export default function PurchasesPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
               <h2 className="font-semibold text-gray-800 mb-4">Nuevo traspaso</h2>
               <form onSubmit={handleCreateTransfer} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Producto *</label>
                     <select value={transferForm.productId} required
@@ -359,7 +405,7 @@ export default function PurchasesPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {loading ? (
               <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
             ) : transfers.length === 0 ? (
@@ -394,6 +440,8 @@ export default function PurchasesPage() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

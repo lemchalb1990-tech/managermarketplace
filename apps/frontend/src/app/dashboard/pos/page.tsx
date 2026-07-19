@@ -234,9 +234,9 @@ export default function PosPage() {
   }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page]);
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-8rem)]">
+    <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-8rem)]">
       {/* Productos */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 lg:min-h-0">
         {isSuperAdmin && (
           <div className="flex items-center justify-end mb-4">
             <select
@@ -389,7 +389,7 @@ export default function PosPage() {
       </div>
 
       {/* Carrito */}
-      <div className="w-80 flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm">
+      <div className="w-full lg:w-80 lg:shrink-0 flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm">
         <div className="px-4 py-3 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Carrito</h2>
         </div>
@@ -499,7 +499,7 @@ export default function PosPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-gray-500 font-medium mb-1">Teléfono</label>
                       <input
@@ -527,7 +527,7 @@ export default function PosPage() {
               {/* Tipo de entrega */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Tipo de entrega</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setFulfillmentType('PICKUP')}
@@ -568,7 +568,7 @@ export default function PosPage() {
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-gray-500 font-medium mb-1">Comuna</label>
                         <input
@@ -597,7 +597,7 @@ export default function PosPage() {
               {/* Método de pago */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Método de pago</h3>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
                     <button
                       key={v}

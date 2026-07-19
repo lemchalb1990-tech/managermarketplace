@@ -366,7 +366,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
                 <p className="text-xs text-gray-400 mt-1">Busca con Nominatim / OpenStreetMap (gratis, sin API key)</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Latitud</label>
                   <input

@@ -164,7 +164,7 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la empresa *</label>
                 <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
@@ -180,7 +180,7 @@ export default function CompaniesPage() {
 
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Administrador de empresa (opcional)</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
                   <input value={form.adminName} onChange={(e) => setForm(f => ({ ...f, adminName: e.target.value }))}
@@ -218,7 +218,7 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-blue-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Editar empresa</h2>
           <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                 <input value={editing.name} onChange={(e) => setEditing(s => s && ({ ...s, name: e.target.value }))}
@@ -268,7 +268,7 @@ export default function CompaniesPage() {
                   {editing.modules === null ? 'Todos activos' : `${editing.modules.length} de ${ALL_COMPANY_MODULES.length}`}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 {ALL_COMPANY_MODULES.map((mod) => {
                   const enabled = isCompanyModuleEnabled(mod.key);
                   return (
@@ -310,7 +310,7 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
