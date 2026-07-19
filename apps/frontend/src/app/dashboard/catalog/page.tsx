@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl, ApiError } from '@/lib/api';
+import { hasModule } from '@/lib/modules';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -318,6 +319,8 @@ export default function CatalogPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
+  const hasMlModule = hasModule(currentUser, 'ecommerce_ml');
+  const hasPosModule = hasModule(currentUser, 'pos');
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -1075,7 +1078,10 @@ export default function CatalogPage() {
             </div>
 
             <div className="flex items-center border-b border-gray-200 px-6">
-              {(selected.id ? (['edit', 'images', 'ml', 'stock'] as Tab[]) : (['edit'] as Tab[])).map((t) => (
+              {(selected.id
+                ? (['edit', 'images', 'ml', 'stock'] as Tab[]).filter((t) => t !== 'ml' || hasMlModule)
+                : (['edit'] as Tab[])
+              ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1128,18 +1134,22 @@ export default function CatalogPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta directa (POS) *</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      {hasPosModule ? 'Precio venta directa (POS) *' : 'Precio *'}
+                    </label>
                     <input type="number" step="0.01" min="0" value={editForm.price}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
-                    <input type="number" step="0.01" min="0" value={editForm.mlPrice}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
-                      placeholder="Igual al de venta directa si se deja vacío"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
+                  {hasMlModule && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
+                      <input type="number" step="0.01" min="0" value={editForm.mlPrice}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
+                        placeholder="Igual al de venta directa si se deja vacío"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
                     <input type="number" step="0.01" min="0" value={editForm.cost}
@@ -1165,22 +1175,25 @@ export default function CatalogPage() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
-                    <CategoryPicker
-                      value={editForm.mlCategoryId}
-                      onChange={(id) => {
-                        setEditForm((f: any) => ({ ...f, mlCategoryId: id, mlAttributes: [] }));
-                        fetchCategoryAttrs(id, []);
-                      }}
-                    />
-                  </div>
+                  {hasMlModule && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
+                      <CategoryPicker
+                        value={editForm.mlCategoryId}
+                        onChange={(id) => {
+                          setEditForm((f: any) => ({ ...f, mlCategoryId: id, mlAttributes: [] }));
+                          fetchCategoryAttrs(id, []);
+                        }}
+                      />
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
                     <textarea value={editForm.description}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
+                  {hasMlModule && (
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Atributos requeridos por ML
@@ -1262,7 +1275,9 @@ export default function CatalogPage() {
                       </button>
                     </div>
                   </div>
+                  )}
 
+                  {hasMlModule && (
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
@@ -1291,6 +1306,7 @@ export default function CatalogPage() {
                       />
                     )}
                   </div>
+                  )}
                   {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
                   <div className="col-span-2">
                     <button type="submit" disabled={editLoading}

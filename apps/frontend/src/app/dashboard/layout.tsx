@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
+import { hasModule } from '@/lib/modules';
 
 // module: null = siempre visible (sin restricción por módulos)
 // module: 'ecommerce' = visible si user tiene ecommerce_ml, ecommerce_shopify, etc. (prefijo)
@@ -24,20 +25,6 @@ const navItems = [
   { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
   { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
 ];
-
-function matchesModule(modules: any, moduleKey: string): boolean {
-  if (!modules || !Array.isArray(modules)) return true;
-  return modules.some((m: string) => m === moduleKey || m.startsWith(moduleKey + '_'));
-}
-
-function hasModule(user: any, moduleKey: string | null): boolean {
-  if (moduleKey === null) return true;
-  if (user.role === 'SUPER_ADMIN') return true;
-  // company-level check (null = all licensed)
-  if (!matchesModule(user.company?.modules, moduleKey)) return false;
-  // user-level check (null = all enabled)
-  return matchesModule(user.modules, moduleKey);
-}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
