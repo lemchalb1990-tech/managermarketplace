@@ -11,9 +11,10 @@ import { JumpSellerAdapter } from './platforms/jumpseller.adapter';
 import { StubAdapter } from './platforms/stub.adapter';
 import { CatalogModule } from '../catalog/catalog.module';
 import { SettingsModule } from '../settings/settings.module';
+import { PurchasesModule } from '../purchases/purchases.module';
 
 @Module({
-  imports: [CatalogModule, SettingsModule],
+  imports: [CatalogModule, SettingsModule, PurchasesModule],
   providers: [
     MercadolibreService,
     SyncService,

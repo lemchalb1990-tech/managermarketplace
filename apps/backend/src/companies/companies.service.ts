@@ -2,10 +2,15 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/create-company.dto';
+import { InventoryCostingService } from '../purchases/inventory-costing.service';
+import { matchesModule } from '../common/modules.util';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private costing: InventoryCostingService,
+  ) {}
 
   async create(dto: CreateCompanyDto) {
     const exists = await this.prisma.company.findUnique({ where: { slug: dto.slug } });
@@ -67,8 +72,22 @@ export class CompaniesService {
   }
 
   async update(id: string, dto: UpdateCompanyDto) {
-    await this.findOne(id);
-    return this.prisma.company.update({ where: { id }, data: dto });
+    const before = await this.findOne(id);
+    const updated = await this.prisma.company.update({ where: { id }, data: dto });
+
+    // Al activar el módulo de Compras por primera vez, migra el stock/costo actual de
+    // cada producto a un lote de apertura, para que el FIFO nunca se quede sin de dónde
+    // descontar.
+    if (dto.modules !== undefined) {
+      const hadPurchases = matchesModule((before as any).modules, 'purchases');
+      const hasPurchasesNow = matchesModule((updated as any).modules, 'purchases');
+      if (hasPurchasesNow && !hadPurchases) {
+        const bootstrap = await this.costing.bootstrapOpeningLots(id);
+        return { ...updated, bootstrap };
+      }
+    }
+
+    return updated;
   }
 
   async remove(id: string) {

@@ -321,6 +321,7 @@ export default function CatalogPage() {
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
   const hasMlModule = hasModule(currentUser, 'ecommerce_ml');
   const hasPosModule = hasModule(currentUser, 'pos');
+  const hasPurchasesModule = hasModule(currentUser, 'purchases');
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -796,6 +797,7 @@ export default function CatalogPage() {
   }
 
   const primaryImage = (p: any) => p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+  const costLockedByLots = hasPurchasesModule && !!selected?.id && (selected?._count?.purchaseItems ?? 0) > 0;
 
   return (
     <div>
@@ -1151,10 +1153,19 @@ export default function CatalogPage() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Costo</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Costo
+                      {costLockedByLots && <span className="ml-1 text-gray-400 font-normal">(calculado por lotes)</span>}
+                    </label>
                     <input type="number" step="0.01" min="0" value={editForm.cost}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, cost: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+                      disabled={costLockedByLots}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" placeholder="0.00" />
+                    {costLockedByLots && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Este producto ya tiene compras registradas — el costo se recalcula automáticamente. Ver <a href="/dashboard/purchases" className="underline hover:text-gray-600">Compras</a>.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>

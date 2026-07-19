@@ -10,6 +10,7 @@ import { CatalogService } from '../../catalog/catalog.service';
 import { SettingsService } from '../../settings/settings.service';
 import { ListingStatus } from '@prisma/client';
 import { SyncService } from '../sync/sync.service';
+import { InventoryCostingService } from '../../purchases/inventory-costing.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -24,6 +25,7 @@ export class MercadolibreService {
     private catalog: CatalogService,
     private settings: SettingsService,
     private sync: SyncService,
+    private costing: InventoryCostingService,
   ) {}
 
   // ─── Credenciales por empresa ────────────────────────────────────────────────
@@ -1262,20 +1264,17 @@ export class MercadolibreService {
           const product = listing.product;
           const newStock = Math.max(0, product.stock - quantity);
 
-          await tx.product.update({
-            where: { id: listing.productId },
-            data: { stock: newStock },
+          const totalCost = await this.costing.consumeForSale(tx, {
+            companyId,
+            productId: listing.productId,
+            warehouseId: product.warehouseId,
+            quantity,
+            saleItemId: saleItem.id,
+            reason: `Venta Mercado Libre orden #${orderId}`,
           });
-
-          await tx.stockMovement.create({
-            data: {
-              type: MovementType.SALE,
-              quantity: -quantity,
-              reason: `Venta Mercado Libre orden #${orderId}`,
-              productId: listing.productId,
-              saleItemId: saleItem.id,
-            },
-          });
+          if (totalCost != null) {
+            await tx.saleItem.update({ where: { id: saleItem.id }, data: { totalCost } });
+          }
 
           const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
           await tx.listing.update({

@@ -15,6 +15,7 @@ import { PosModule } from './pos/pos.module';
 import { SettingsModule } from './settings/settings.module';
 import { BillingModule } from './billing/billing.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
+import { PurchasesModule } from './purchases/purchases.module';
 import { OrdersModule } from './orders/orders.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { EmailModule } from './email/email.module';
@@ -38,6 +39,7 @@ import { EmailModule } from './email/email.module';
     SettingsModule,
     BillingModule,
     WarehousesModule,
+    PurchasesModule,
     OrdersModule,
     DispatchModule,
     EmailModule,

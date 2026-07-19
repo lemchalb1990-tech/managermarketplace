@@ -304,6 +304,43 @@ export const api = {
     remove: (id: string, token: string) =>
       apiFetch<any>(`/warehouses/${id}`, { method: 'DELETE' }, token),
   },
+  suppliers: {
+    list: (token: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<any[]>(`/suppliers?${q}`, {}, token);
+    },
+    create: (data: { name: string; taxId?: string; email?: string; phone?: string; address?: string; companyId?: string }, token: string) =>
+      apiFetch<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: { name?: string; taxId?: string; email?: string; phone?: string; address?: string; active?: boolean }, token: string) =>
+      apiFetch<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<any>(`/suppliers/${id}`, { method: 'DELETE' }, token),
+  },
+  purchases: {
+    list: (token: string, params?: { companyId?: string; page?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.page) q.set('page', String(params.page));
+      return apiFetch<{ purchases: any[]; total: number; page: number; pages: number }>(`/purchases?${q}`, {}, token);
+    },
+    get: (id: string, token: string) => apiFetch<any>(`/purchases/${id}`, {}, token),
+    create: (data: {
+      supplierId: string; warehouseId: string; documentNumber?: string; date?: string; notes?: string; companyId?: string;
+      items: Array<{ productId: string; quantity: number; unitCost: number }>;
+    }, token: string) =>
+      apiFetch<any>('/purchases', { method: 'POST', body: JSON.stringify(data) }, token),
+  },
+  stockTransfers: {
+    list: (token: string, params?: { companyId?: string; page?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.page) q.set('page', String(params.page));
+      return apiFetch<{ transfers: any[]; total: number; page: number; pages: number }>(`/stock-transfers?${q}`, {}, token);
+    },
+    create: (data: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; reason?: string; companyId?: string }, token: string) =>
+      apiFetch<any>('/stock-transfers', { method: 'POST', body: JSON.stringify(data) }, token),
+  },
   dispatch: {
     listRoutes: (token: string, params?: { status?: string; date?: string; dispatcherId?: string }) => {
       const q = new URLSearchParams();

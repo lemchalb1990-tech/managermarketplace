@@ -3,6 +3,7 @@ import { FulfillmentType, Role, SaleChannel, MovementType } from '@prisma/client
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
+import { InventoryCostingService } from '../purchases/inventory-costing.service';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class PosService {
     private prisma: PrismaService,
     private sync: SyncService,
     private email: EmailService,
+    private costing: InventoryCostingService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -81,21 +83,19 @@ export class PosService {
       });
 
       for (const item of created.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
+        const product = products.find(p => p.id === item.productId)!;
+        const totalCost = await this.costing.consumeForSale(tx, {
+          companyId,
+          productId: item.productId,
+          warehouseId: product.warehouseId,
+          quantity: item.quantity,
+          saleItemId: item.id,
+          reason: `Venta ${dto.channel === SaleChannel.POS ? 'POS' : dto.channel}`,
+          userId: user.id,
         });
-
-        await tx.stockMovement.create({
-          data: {
-            type: MovementType.SALE,
-            quantity: -item.quantity,
-            reason: `Venta ${dto.channel === SaleChannel.POS ? 'POS' : dto.channel}`,
-            productId: item.productId,
-            saleItemId: item.id,
-            userId: user.id,
-          },
-        });
+        if (totalCost != null) {
+          await tx.saleItem.update({ where: { id: item.id }, data: { totalCost } });
+        }
       }
 
       // Auto-create order when fulfillmentType is provided (POS checkout)

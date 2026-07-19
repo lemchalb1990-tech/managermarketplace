@@ -18,6 +18,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },
+  { key: 'purchases', label: 'Compras', description: 'Compras a proveedores con costeo por lotes (FIFO)' },
 ];
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
@@ -123,7 +124,7 @@ export default function CompaniesPage() {
     setEditLoading(true);
     try {
       const token = getToken()!;
-      await api.companies.update(editing.id, {
+      const result = await api.companies.update(editing.id, {
         name: editing.name,
         active: editing.active,
         maxUsers: editing.maxUsers,
@@ -131,6 +132,15 @@ export default function CompaniesPage() {
         autoSyncSales: editing.autoSyncSales,
         autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
       }, token);
+      if (result?.bootstrap) {
+        const { migrated, skipped } = result.bootstrap;
+        let msg = `Módulo de Compras activado: se crearon lotes de apertura para ${migrated} producto(s).`;
+        if (skipped?.length) {
+          msg += `\n\n${skipped.length} producto(s) no se migraron (sin bodega asignada):\n` +
+            skipped.map((s: any) => `- ${s.name}`).join('\n');
+        }
+        alert(msg);
+      }
       setEditing(null);
       await load();
     } catch (err: any) {

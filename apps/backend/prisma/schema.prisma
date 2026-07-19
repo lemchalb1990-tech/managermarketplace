@@ -61,6 +61,9 @@ enum MovementType {
   RETURN
   ADJUSTMENT
   INITIAL
+  PURCHASE
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 enum RouteStatus {
@@ -118,6 +121,9 @@ model Company {
   invoices           Invoice[]
   emailConfig        EmailConfig?
   emailTemplates     EmailTemplate[]
+  suppliers          Supplier[]
+  purchases          Purchase[]
+  stockTransfers     StockTransfer[]
 
   @@map("companies")
 }
@@ -145,6 +151,8 @@ model User {
   shipmentPhotos  ShipmentPhoto[]
   dispatchRoutes  DispatchRoute[] @relation("DispatcherRoutes")
   routesCreated   DispatchRoute[] @relation("RouteCreatedBy")
+  purchases       Purchase[]
+  stockTransfers  StockTransfer[]
 
   @@map("users")
 }
@@ -185,6 +193,12 @@ model Warehouse {
 
   products Product[]
   orders   Order[]
+  purchases       Purchase[]
+  purchaseItems   PurchaseItem[]
+  productStocks   ProductStock[]
+  stockMovements  StockMovement[]
+  transfersFrom   StockTransfer[] @relation("TransferFrom")
+  transfersTo     StockTransfer[] @relation("TransferTo")
 
   @@map("warehouses")
 }
@@ -216,6 +230,9 @@ model Product {
   saleItems       SaleItem[]
   stockMovements  StockMovement[]
   orderItemChecks OrderItemCheck[]
+  purchaseItems   PurchaseItem[]
+  productStocks   ProductStock[]
+  stockTransfers  StockTransfer[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -294,6 +311,7 @@ model SaleItem {
   id        String  @id @default(cuid())
   quantity  Int
   unitPrice Decimal @db.Decimal(10, 2)
+  totalCost Decimal? @db.Decimal(10, 2)
 
   saleId    String
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -310,6 +328,7 @@ model StockMovement {
   type      MovementType
   quantity  Int
   reason    String?
+  unitCost  Decimal?     @db.Decimal(10, 2)
   createdAt DateTime     @default(now())
 
   productId  String
@@ -318,8 +337,111 @@ model StockMovement {
   saleItem   SaleItem? @relation(fields: [saleItemId], references: [id])
   userId     String?
   user       User?     @relation(fields: [userId], references: [id])
+  purchaseItemId String?
+  purchaseItem   PurchaseItem? @relation(fields: [purchaseItemId], references: [id])
+  warehouseId    String?
+  warehouse      Warehouse?    @relation(fields: [warehouseId], references: [id])
 
   @@map("stock_movements")
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  taxId     String?
+  email     String?
+  phone     String?
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+model Purchase {
+  id             String   @id @default(cuid())
+  documentNumber String?
+  date           DateTime @default(now())
+  notes          String?
+  total          Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+
+  items PurchaseItem[]
+
+  @@map("purchases")
+}
+
+// Cada línea de compra ES un lote de costeo. purchaseId es opcional porque un
+// traspaso entre bodegas también genera lotes nuevos en la bodega destino
+// (preservando el costo original) sin pertenecer a ninguna Purchase.
+model PurchaseItem {
+  id                String   @id @default(cuid())
+  quantity          Int
+  unitCost          Decimal  @db.Decimal(10, 2)
+  remainingQuantity Int
+  createdAt         DateTime @default(now())
+
+  purchaseId  String?
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  stockMovements StockMovement[]
+
+  @@map("purchase_items")
+}
+
+// Stock real por bodega. Product.stock es un total cacheado (suma de estas
+// filas), mantenido en la misma transacción, para no romper el código
+// existente que ya lee product.stock directo (POS, ML, catálogo).
+model ProductStock {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@map("product_stock")
+}
+
+model StockTransfer {
+  id        String   @id @default(cuid())
+  quantity  Int
+  reason    String?
+  createdAt DateTime @default(now())
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  fromWarehouseId String
+  fromWarehouse   Warehouse @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+
+  @@map("stock_transfers")
 }
 
 model Setting {

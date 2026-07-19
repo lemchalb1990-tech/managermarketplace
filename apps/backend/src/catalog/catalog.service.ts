@@ -8,6 +8,7 @@ import {
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
+import { InventoryCostingService } from '../purchases/inventory-costing.service';
 
 export interface BulkDeleteFailure {
   id: string;
@@ -17,7 +18,10 @@ export interface BulkDeleteFailure {
 
 @Injectable()
 export class CatalogService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private costing: InventoryCostingService,
+  ) {}
 
   private getCompanyId(user: any): string {
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
@@ -89,6 +93,7 @@ export class CatalogService {
           images: { orderBy: { order: 'asc' } },
           listings: { include: { connection: { select: { id: true, name: true } } } },
           warehouse: { select: { id: true, name: true } },
+          _count: { select: { purchaseItems: true } },
         },
         orderBy,
         take,
@@ -118,6 +123,7 @@ export class CatalogService {
         images: { orderBy: { order: 'asc' } },
         listings: { include: { connection: true } },
         warehouse: { select: { id: true, name: true } },
+        _count: { select: { purchaseItems: true } },
       },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
@@ -138,9 +144,19 @@ export class CatalogService {
       });
       if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
     }
+
+    const data = { ...dto };
+    // Con el módulo de Compras activo, el costo de un producto que ya tiene lotes se
+    // calcula automáticamente (promedio ponderado) — no se puede sobreescribir a mano.
+    // Los productos sin lotes todavía (sin compras registradas) siguen aceptando costo
+    // manual hasta su primera compra.
+    if ((product as any)._count?.purchaseItems > 0 && (await this.costing.isPurchasesModuleActive(product.companyId))) {
+      delete data.cost;
+    }
+
     return this.prisma.product.update({
       where: { id },
-      data: dto,
+      data,
       include: { images: true },
     });
   }
