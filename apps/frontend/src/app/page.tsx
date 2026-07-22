@@ -106,31 +106,35 @@ export default function Home() {
           <p className="mt-12 text-center text-sm font-semibold uppercase tracking-wide text-gray-400">
             E-commerce y marketplaces
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-            {ecommercePlatforms.map((platform) => (
-              <div
-                key={platform.key}
-                className="flex h-16 w-28 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
-                title={platform.name}
-              >
-                {Logos[platform.key]}
-              </div>
-            ))}
+          <div className="relative mt-6 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+            <div className="flex w-max animate-marquee gap-4 hover:[animation-play-state:paused]">
+              {[...ecommercePlatforms, ...ecommercePlatforms].map((platform, i) => (
+                <div
+                  key={`${platform.key}-${i}`}
+                  className="flex h-16 w-28 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
+                  title={platform.name}
+                >
+                  {Logos[platform.key]}
+                </div>
+              ))}
+            </div>
           </div>
 
           <p className="mt-12 text-center text-sm font-semibold uppercase tracking-wide text-gray-400">
             Facturación electrónica
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-            {billingPlatforms.map((platform) => (
-              <div
-                key={platform.key}
-                className="flex h-16 w-28 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
-                title={platform.name}
-              >
-                {BillingLogos[platform.key]}
-              </div>
-            ))}
+          <div className="relative mt-6 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+            <div className="flex w-max animate-marquee-reverse gap-4 hover:[animation-play-state:paused]">
+              {[...billingPlatforms, ...billingPlatforms].map((platform, i) => (
+                <div
+                  key={`${platform.key}-${i}`}
+                  className="flex h-16 w-28 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
+                  title={platform.name}
+                >
+                  {BillingLogos[platform.key]}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
