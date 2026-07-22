@@ -1,4 +1,27 @@
 import Link from "next/link";
+import { Logos } from "@/app/dashboard/ecommerce/components/logos";
+import { BillingLogos } from "@/app/dashboard/billing/components/logos";
+
+const ecommercePlatforms = [
+  { key: "mercadolibre", name: "Mercado Libre" },
+  { key: "shopify", name: "Shopify" },
+  { key: "woocommerce", name: "WooCommerce" },
+  { key: "jumpseller", name: "Jumpseller" },
+  { key: "falabella", name: "Falabella" },
+  { key: "paris", name: "Paris" },
+  { key: "hites", name: "Hites" },
+  { key: "ripley", name: "Ripley" },
+  { key: "walmart", name: "Walmart" },
+];
+
+const billingPlatforms = [
+  { key: "openfactura", name: "OpenFactura" },
+  { key: "facto", name: "Facto" },
+  { key: "bsale", name: "Bsale" },
+  { key: "defontana", name: "Defontana" },
+  { key: "nubox", name: "Nubox" },
+  { key: "siigo", name: "Siigo" },
+];
 
 const features = [
   {
@@ -66,6 +89,48 @@ export default function Home() {
             >
               Comenzar
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-gray-100 bg-gray-50 py-16">
+        <div className="mx-auto max-w-6xl px-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
+            Sincroniza con tus plataformas favoritas
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500">
+            Stock, precios, órdenes y documentos tributarios se mantienen al día
+            automáticamente entre tu catálogo y cada canal conectado.
+          </p>
+
+          <p className="mt-12 text-center text-sm font-semibold uppercase tracking-wide text-gray-400">
+            E-commerce y marketplaces
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            {ecommercePlatforms.map((platform) => (
+              <div
+                key={platform.key}
+                className="flex h-16 w-28 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
+                title={platform.name}
+              >
+                {Logos[platform.key]}
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-12 text-center text-sm font-semibold uppercase tracking-wide text-gray-400">
+            Facturación electrónica
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            {billingPlatforms.map((platform) => (
+              <div
+                key={platform.key}
+                className="flex h-16 w-28 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md"
+                title={platform.name}
+              >
+                {BillingLogos[platform.key]}
+              </div>
+            ))}
           </div>
         </div>
       </section>
