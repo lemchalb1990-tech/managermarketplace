@@ -300,6 +300,8 @@ const statusColor: Record<string, string> = {
 
 export default function CatalogPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -319,6 +321,7 @@ export default function CatalogPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const hasMlModule = hasModule(currentUser, 'ecommerce_ml');
   const hasPosModule = hasModule(currentUser, 'pos');
   const hasPurchasesModule = hasModule(currentUser, 'purchases');
@@ -347,6 +350,12 @@ export default function CatalogPage() {
   async function loadProducts(p = 1, sortOverride?: { sortBy: string; sortDir: 'asc' | 'desc' }) {
     const token = getToken();
     if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) {
+      setProducts([]);
+      setTotal(0);
+      setPages(1);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.catalog.search({
@@ -355,6 +364,7 @@ export default function CatalogPage() {
         warehouseId: warehouseFilter || undefined,
         category: categoryFilter || undefined,
         active: activeFilter || undefined,
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
         sortDir: sortOverride?.sortDir ?? sortDir,
       }, token);
@@ -382,13 +392,18 @@ export default function CatalogPage() {
   async function load() {
     const token = getToken();
     if (!token) return;
-    const [me, conns, whs, cats] = await Promise.all([
-      api.me(token).catch(() => null),
+    const me = await api.me(token).catch(() => null);
+    setCurrentUser(me);
+    if (me?.role === 'SUPER_ADMIN') {
+      const comps = await api.companies.list(token).catch(() => []);
+      setCompanies(comps);
+      return;
+    }
+    const [conns, whs, cats] = await Promise.all([
       api.marketplace.connections(token).catch(() => []),
       api.warehouses.list(token).catch(() => []),
       api.catalog.categories(token).catch(() => []),
     ]);
-    setCurrentUser(me);
     setConnections(conns);
     setWarehouses(whs);
     setCategories(cats);
@@ -396,6 +411,25 @@ export default function CatalogPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !selectedCompanyId) return;
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      const [conns, whs, cats] = await Promise.all([
+        api.marketplace.connections(token, selectedCompanyId).catch(() => []),
+        api.warehouses.list(token, selectedCompanyId).catch(() => []),
+        api.catalog.categories(token, selectedCompanyId).catch(() => []),
+      ]);
+      setConnections(conns);
+      setWarehouses(whs);
+      setCategories(cats);
+      setWarehouseFilter('');
+      setCategoryFilter('');
+      await loadProducts(1);
+    })();
+  }, [selectedCompanyId, isSuperAdmin]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -803,12 +837,31 @@ export default function CatalogPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
-        <button onClick={openCreateModal}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-          + Nuevo producto
-        </button>
+        {(!isSuperAdmin || selectedCompanyId) && (
+          <button onClick={openCreateModal}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            + Nuevo producto
+          </button>
+        )}
       </div>
 
+      {isSuperAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <label className="block text-xs font-semibold text-blue-700 mb-1">Empresa a gestionar</label>
+          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="w-full sm:w-96 px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
+            <option value="">— Selecciona una empresa —</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {isSuperAdmin && !selectedCompanyId ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+          <p className="text-sm">Selecciona una empresa para ver su catálogo de productos.</p>
+        </div>
+      ) : (
+      <>
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
           <label className="text-xs text-gray-500 block mb-1">Buscar por nombre o SKU</label>
@@ -1057,6 +1110,8 @@ export default function CatalogPage() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* Modal */}
       {selected && (

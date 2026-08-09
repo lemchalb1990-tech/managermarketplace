@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { WarehousesService } from './warehouses.service';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse.dto';
@@ -14,8 +14,8 @@ export class WarehousesController {
   constructor(private service: WarehousesService) {}
 
   @Get()
-  findAll(@CurrentUser() user: any) {
-    return this.service.findAll(user);
+  findAll(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.findAll(user, companyId);
   }
 
   @Post()

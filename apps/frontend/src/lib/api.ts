@@ -296,7 +296,8 @@ export const api = {
       apiFetch<any>(`/orders/${orderId}/photos/${photoId}`, { method: 'DELETE' }, token),
   },
   warehouses: {
-    list: (token: string) => apiFetch<any[]>('/warehouses', {}, token),
+    list: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/warehouses${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     create: (data: { name: string; description?: string }, token: string) =>
       apiFetch<any>('/warehouses', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: { name?: string; description?: string; active?: boolean }, token: string) =>

@@ -7,8 +7,10 @@ import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse.dto';
 export class WarehousesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(user: any) {
-    const where = user.role === Role.SUPER_ADMIN ? {} : { companyId: user.companyId };
+  async findAll(user: any, companyId?: string) {
+    const where = user.role === Role.SUPER_ADMIN
+      ? (companyId ? { companyId } : {})
+      : { companyId: user.companyId };
     return this.prisma.warehouse.findMany({
       where,
       include: {

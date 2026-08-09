@@ -64,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarContent = (
     <>
-      <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
         <span className="font-bold text-gray-900 text-lg">Marketplace</span>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -74,12 +74,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ✕
         </button>
       </div>
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-3 px-3 space-y-0.5 min-h-0">
         {visibleNav.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
                 ? 'bg-blue-50 text-blue-700'
                 : 'text-gray-600 hover:bg-gray-100'
@@ -89,9 +89,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         ))}
       </nav>
-      <div className="px-4 py-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500 truncate mb-1">{user.email}</p>
-        <p className="text-xs font-medium text-gray-700 mb-3">{roleLabel}</p>
+      <div className="px-4 py-3 border-t border-gray-200 shrink-0">
+        <p className="text-xs text-gray-500 truncate mb-0.5">{user.email}</p>
+        <p className="text-xs font-medium text-gray-700 mb-2">{roleLabel}</p>
         <button
           onClick={logout}
           className="w-full text-xs text-red-600 hover:text-red-700 text-left"
