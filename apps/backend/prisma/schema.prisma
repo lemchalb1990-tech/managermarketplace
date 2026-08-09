@@ -203,10 +203,16 @@ model Warehouse {
   @@map("warehouses")
 }
 
+enum ProductType {
+  ARTICULO
+  SERVICIO
+}
+
 model Product {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   sku         String
   name        String
+  type           ProductType @default(ARTICULO)
   description    String?  @db.Text
   mlDescription  String?  @db.Text
   mlAttributes   Json?

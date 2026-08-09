@@ -285,7 +285,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
+const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
@@ -313,6 +313,7 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -363,6 +364,7 @@ export default function CatalogPage() {
         search: search || undefined,
         warehouseId: warehouseFilter || undefined,
         category: categoryFilter || undefined,
+        type: typeFilter || undefined,
         active: activeFilter || undefined,
         companyId: isSuperAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
@@ -510,6 +512,7 @@ export default function CatalogPage() {
     const dirty =
       editForm.sku !== orig.sku ||
       editForm.name !== orig.name ||
+      editForm.type !== orig.type ||
       editForm.description !== orig.description ||
       editForm.price !== orig.price ||
       editForm.mlPrice !== orig.mlPrice ||
@@ -550,6 +553,7 @@ export default function CatalogPage() {
     setEditForm({
       sku: product.sku,
       name: product.name,
+      type: product.type || 'ARTICULO',
       description: product.description || '',
       price: String(Number(product.price)),
       mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
@@ -568,6 +572,7 @@ export default function CatalogPage() {
     originalFormRef.current = {
       sku: product.sku,
       name: product.name,
+      type: product.type || 'ARTICULO',
       description: product.description || '',
       price: String(Number(product.price)),
       mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
@@ -613,6 +618,7 @@ export default function CatalogPage() {
       const payload = {
         sku: editForm.sku,
         name: editForm.name,
+        type: editForm.type || 'ARTICULO',
         description: editForm.description || undefined,
         price: parseFloat(editForm.price),
         mlPrice: editForm.mlPrice !== '' ? parseFloat(editForm.mlPrice) : undefined,
@@ -900,6 +906,18 @@ export default function CatalogPage() {
           </select>
         </div>
         <div>
+          <label className="text-xs text-gray-500 block mb-1">Tipo</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+          >
+            <option value="">Todos</option>
+            <option value="ARTICULO">Artículos</option>
+            <option value="SERVICIO">Servicios</option>
+          </select>
+        </div>
+        <div>
           <label className="text-xs text-gray-500 block mb-1">Estado</label>
           <select
             value={activeFilter}
@@ -919,7 +937,7 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setActiveFilter(''); }}
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); }}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar
@@ -1032,6 +1050,11 @@ export default function CatalogPage() {
                   <td className="px-4 py-3 font-mono text-gray-400 text-xs">{p.sku}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">
                     {p.name}
+                    {p.type === 'SERVICIO' && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                        Servicio
+                      </span>
+                    )}
                     {!p.active && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
                         Inactivo
@@ -1183,6 +1206,21 @@ export default function CatalogPage() {
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
+                    <select
+                      value={editForm.type || 'ARTICULO'}
+                      onChange={(e) => setEditForm((f: any) => ({
+                        ...f,
+                        type: e.target.value,
+                        ...(e.target.value === 'SERVICIO' ? { stock: '0', warehouseId: '' } : {}),
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="ARTICULO">Artículo</option>
+                      <option value="SERVICIO">Servicio</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
                     <input value={editForm.category || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
@@ -1223,17 +1261,22 @@ export default function CatalogPage() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Stock
+                      {editForm.type === 'SERVICIO' && <span className="ml-1 text-gray-400 font-normal">(no aplica a servicios)</span>}
+                    </label>
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
-                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      disabled={editForm.type === 'SERVICIO'}
+                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>
                     <select
                       value={editForm.warehouseId || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, warehouseId: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                      disabled={editForm.type === 'SERVICIO'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50 disabled:text-gray-400"
                     >
                       <option value="">— Sin bodega asignada —</option>
                       {warehouses.filter((w) => w.active).map((w: any) => (

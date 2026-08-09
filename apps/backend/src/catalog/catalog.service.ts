@@ -63,13 +63,14 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.category) where.category = query.category;
+    if (query.type) where.type = query.type;
     if (query.inStock === 'true') where.stock = { gt: 0 };
     if (query.active === 'true') where.active = true;
     else if (query.active === 'false') where.active = false;

@@ -1,5 +1,6 @@
-import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ProductType } from '@prisma/client';
 
 export class CreateProductDto {
   @IsString()
@@ -9,6 +10,10 @@ export class CreateProductDto {
   @IsString()
   @MinLength(2)
   name: string;
+
+  @IsOptional()
+  @IsEnum(ProductType)
+  type?: ProductType;
 
   @IsOptional()
   @IsString()
@@ -67,6 +72,10 @@ export class UpdateProductDto {
   @IsString()
   @MinLength(2)
   name?: string;
+
+  @IsOptional()
+  @IsEnum(ProductType)
+  type?: ProductType;
 
   @IsOptional()
   @IsString()

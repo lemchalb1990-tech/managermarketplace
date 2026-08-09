@@ -1,0 +1,5 @@
+DO $$ BEGIN
+  CREATE TYPE "ProductType" AS ENUM ('ARTICULO', 'SERVICIO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+ALTER TABLE "products" ADD COLUMN "type" "ProductType" NOT NULL DEFAULT 'ARTICULO';

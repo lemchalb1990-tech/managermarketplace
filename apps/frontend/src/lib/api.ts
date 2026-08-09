@@ -98,12 +98,13 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<string[]>(`/catalog/products/categories?${q}`, {}, token);
     },
-    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; active?: string; companyId?: string; inStock?: boolean; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }, token: string) => {
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; companyId?: string; inStock?: boolean; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
       if (params.warehouseId) q.set('warehouseId', params.warehouseId);
       if (params.category) q.set('category', params.category);
+      if (params.type) q.set('type', params.type);
       if (params.active) q.set('active', params.active);
       if (params.companyId) q.set('companyId', params.companyId);
       if (params.inStock) q.set('inStock', 'true');
