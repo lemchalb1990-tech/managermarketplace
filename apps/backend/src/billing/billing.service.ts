@@ -3,6 +3,7 @@ import { BillingProvider, DteType, InvoiceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenFacturaAdapter } from './providers/openfactura.adapter';
 import { BsaleAdapter } from './providers/bsale.adapter';
+import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
 import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto } from './dto/billing.dto';
@@ -19,12 +20,13 @@ export class BillingService {
     private prisma: PrismaService,
     private openfactura: OpenFacturaAdapter,
     private bsale: BsaleAdapter,
+    private facto: FactoAdapter,
     private stub: BillingStubAdapter,
   ) {
     this.adapters = new Map<BillingProvider, BillingAdapter>([
       [BillingProvider.OPENFACTURA, openfactura],
       [BillingProvider.BSALE, bsale],
-      [BillingProvider.FACTO, stub],
+      [BillingProvider.FACTO, facto],
       [BillingProvider.DEFONTANA, stub],
       [BillingProvider.NUBOX, stub],
       [BillingProvider.SIIGO, stub],
