@@ -21,6 +21,8 @@ const emptyItem = (): Item => ({ name: '', quantity: 1, unitPrice: 0, discount: 
 export default function NewInvoicePage() {
   const router = useRouter();
   const [connections, setConnections] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientId, setClientId] = useState('');
   const [form, setForm] = useState({
     connectionId: '',
     dteType: 'BOLETA',
@@ -39,7 +41,23 @@ export default function NewInvoicePage() {
   useEffect(() => {
     const token = getToken()!;
     api.billing.connections.list(token, {}).then(setConnections).catch(() => {});
+    api.clients.list(token).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
   }, []);
+
+  function selectClient(id: string) {
+    setClientId(id);
+    const c = clients.find((x) => x.id === id);
+    if (c) {
+      setForm((f) => ({
+        ...f,
+        rut: c.rut || f.rut,
+        razonSocial: c.name,
+        address: c.address || f.address,
+        commune: c.commune || f.commune,
+        email: c.email || f.email,
+      }));
+    }
+  }
 
   const dteInfo = DTE_TYPES.find(d => d.value === form.dteType);
   const isTaxed = dteInfo?.taxed ?? true;
@@ -85,6 +103,7 @@ export default function NewInvoicePage() {
         commune: form.commune.trim() || undefined,
         email: form.email.trim() || undefined,
         notes: form.notes.trim() || undefined,
+        clientId: clientId || undefined,
         items: items.map(i => ({
           name: i.name,
           quantity: i.quantity,
@@ -145,6 +164,17 @@ export default function NewInvoicePage() {
         {/* Datos del receptor */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Datos del receptor</h2>
+          {clients.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cliente registrado (opcional)</label>
+              <select value={clientId} onChange={(e) => selectClient(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="">— Ingresar datos manualmente —</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}{c.rut ? ` (${c.rut})` : ''}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Vincula el documento al cliente para llevar el control de deuda por facturas impagas.</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">RUT *</label>

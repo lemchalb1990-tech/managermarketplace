@@ -29,6 +29,15 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Anulado',
 };
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Efectivo',
+  CARD: 'Tarjeta',
+  TRANSFER: 'Transferencia',
+  OTHER: 'Otro',
+};
+
+const emptyPayForm = { paymentMethod: 'TRANSFER', paymentReference: '', paidAt: '' };
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,6 +49,12 @@ export default function InvoicesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
+
+  const [payingInvoice, setPayingInvoice] = useState<any>(null);
+  const [payForm, setPayForm] = useState(emptyPayForm);
+  const [payLoading, setPayLoading] = useState(false);
+  const [payError, setPayError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   async function load(p = 1) {
     setLoading(true);
@@ -65,6 +80,45 @@ export default function InvoicesPage() {
     const token = getToken()!;
     await api.billing.invoices.cancel(id, token).catch(() => {});
     load(page);
+  }
+
+  function openPay(inv: any) {
+    setPayingInvoice(inv);
+    setPayForm(emptyPayForm);
+    setPayError('');
+  }
+
+  async function handlePay(e: React.FormEvent) {
+    e.preventDefault();
+    if (!payingInvoice) return;
+    setPayError('');
+    setPayLoading(true);
+    try {
+      const token = getToken()!;
+      await api.billing.invoices.pay(payingInvoice.id, {
+        paymentMethod: payForm.paymentMethod,
+        paymentReference: payForm.paymentReference.trim() || undefined,
+        paidAt: payForm.paidAt || undefined,
+      }, token);
+      setPayingInvoice(null);
+      await load(page);
+    } catch (err: any) {
+      setPayError(err.message || 'Error al registrar el pago');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function handleUnpay(id: string) {
+    setActionError('');
+    if (!confirm('¿Revertir el pago de este documento? Volverá a contar como deuda del cliente.')) return;
+    const token = getToken()!;
+    try {
+      await api.billing.invoices.unpay(id, token);
+      await load(page);
+    } catch (err: any) {
+      setActionError(err.message || 'Error al revertir el pago');
+    }
   }
 
   const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
@@ -113,6 +167,12 @@ export default function InvoicesPage() {
         <span className="ml-auto text-xs text-gray-400 self-center">{total} documentos</span>
       </div>
 
+      {actionError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
@@ -123,6 +183,7 @@ export default function InvoicesPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">RUT</th>
               <th className="text-right px-4 py-3 text-gray-600 font-medium">Total</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Pago</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Proveedor</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Fecha</th>
               <th className="px-4 py-3"></th>
@@ -130,10 +191,10 @@ export default function InvoicesPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={10} className="px-4 py-10 text-center text-gray-400">
                   <p className="text-sm mb-1">Sin documentos emitidos</p>
                   <p className="text-xs">
                     <a href="/dashboard/billing/invoices/new" className="text-blue-500 hover:underline">Emite tu primer DTE →</a>
@@ -152,6 +213,21 @@ export default function InvoicesPage() {
                     {STATUS_LABELS[inv.status] ?? inv.status}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  {inv.paid ? (
+                    <div>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Pagado</span>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {PAYMENT_METHOD_LABELS[inv.paymentMethod] ?? inv.paymentMethod}
+                        {inv.paymentReference && ` · ${inv.paymentReference}`}
+                      </p>
+                    </div>
+                  ) : ['ISSUED', 'ACCEPTED'].includes(inv.status) ? (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Deuda</span>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-xs text-gray-400">{inv.connection?.provider ?? '—'}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">
                   {new Date(inv.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -165,6 +241,15 @@ export default function InvoicesPage() {
                     {inv.xmlUrl && (
                       <a href={inv.xmlUrl} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</a>
+                    )}
+                    {['ISSUED', 'ACCEPTED'].includes(inv.status) && (
+                      inv.paid ? (
+                        <button onClick={() => handleUnpay(inv.id)}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium">Revertir pago</button>
+                      ) : (
+                        <button onClick={() => openPay(inv)}
+                          className="text-xs text-green-600 hover:text-green-700 font-medium">Marcar pagada</button>
+                      )
                     )}
                     {inv.status !== 'CANCELLED' && (
                       <button onClick={() => handleCancel(inv.id)}
@@ -185,6 +270,59 @@ export default function InvoicesPage() {
           <span className="text-sm text-gray-500">Página {page} de {pages}</span>
           <button disabled={page >= pages} onClick={() => load(page + 1)}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">Siguiente →</button>
+        </div>
+      )}
+
+      {payingInvoice && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Marcar como pagada</h2>
+              <button onClick={() => setPayingInvoice(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <form onSubmit={handlePay}>
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-gray-500">
+                  Folio {payingInvoice.folio ?? '—'} · {payingInvoice.razonSocial} · {fmt(Number(payingInvoice.totalAmount))}
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Método de pago *</label>
+                  <select value={payForm.paymentMethod} onChange={(e) => setPayForm((f) => ({ ...f, paymentMethod: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                    {Object.entries(PAYMENT_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    N° de {payForm.paymentMethod === 'TRANSFER' ? 'transferencia' : payForm.paymentMethod === 'CARD' ? 'voucher' : 'referencia'}
+                  </label>
+                  <input value={payForm.paymentReference} onChange={(e) => setPayForm((f) => ({ ...f, paymentReference: e.target.value }))}
+                    placeholder="Opcional"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha de pago</label>
+                  <input type="date" value={payForm.paidAt} onChange={(e) => setPayForm((f) => ({ ...f, paidAt: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <p className="text-xs text-gray-400 mt-1">Si se deja vacío, se usa la fecha de hoy.</p>
+                </div>
+                {payError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{payError}</p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
+                <button type="button" onClick={() => setPayingInvoice(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={payLoading}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                  {payLoading ? 'Guardando...' : 'Confirmar pago'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

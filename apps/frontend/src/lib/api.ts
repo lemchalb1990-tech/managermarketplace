@@ -267,6 +267,10 @@ export const api = {
         apiFetch<any>(`/billing/invoices/${id}`, {}, token),
       cancel: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}/cancel`, { method: 'POST' }, token),
+      pay: (id: string, data: { paymentMethod: string; paymentReference?: string; paidAt?: string }, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }, token),
+      unpay: (id: string, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}/unpay`, { method: 'POST' }, token),
     },
   },
   orders: {

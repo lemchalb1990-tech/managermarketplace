@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { BillingService } from './billing.service';
-import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto } from './dto/billing.dto';
+import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto } from './dto/billing.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -55,5 +55,15 @@ export class BillingController {
   @Post('invoices/:id/cancel')
   cancelInvoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.cancelInvoice(id, user);
+  }
+
+  @Post('invoices/:id/pay')
+  markInvoicePaid(@Param('id') id: string, @Body() dto: MarkInvoicePaidDto, @CurrentUser() user: any) {
+    return this.service.markInvoicePaid(id, dto, user);
+  }
+
+  @Post('invoices/:id/unpay')
+  unmarkInvoicePaid(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.unmarkInvoicePaid(id, user);
   }
 }

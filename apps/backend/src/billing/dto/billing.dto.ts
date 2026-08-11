@@ -1,9 +1,9 @@
 import {
   IsString, IsEnum, IsOptional, IsEmail, IsArray,
-  ValidateNested, IsNumber, Min, IsPositive,
+  ValidateNested, IsNumber, Min, IsPositive, IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BillingProvider, DteType } from '@prisma/client';
+import { BillingProvider, DteType, PaymentMethod } from '@prisma/client';
 
 export class CreateBillingConnectionDto {
   @IsString() name: string;
@@ -31,6 +31,13 @@ export class IssueInvoiceDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => InvoiceItemDto) items: InvoiceItemDto[];
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() saleId?: string;
+  @IsOptional() @IsString() clientId?: string;
+}
+
+export class MarkInvoicePaidDto {
+  @IsEnum(PaymentMethod) paymentMethod: PaymentMethod;
+  @IsOptional() @IsString() paymentReference?: string;
+  @IsOptional() @IsDateString() paidAt?: string;
 }
 
 export class ListInvoicesDto {

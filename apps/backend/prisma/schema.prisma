@@ -542,8 +542,10 @@ model Invoice {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  paid   Boolean   @default(false)
-  paidAt DateTime?
+  paid             Boolean        @default(false)
+  paidAt           DateTime?
+  paymentMethod    PaymentMethod?
+  paymentReference String?
 
   connectionId String
   connection   BillingConnection @relation(fields: [connectionId], references: [id])

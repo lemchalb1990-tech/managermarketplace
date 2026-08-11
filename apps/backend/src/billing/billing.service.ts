@@ -6,7 +6,7 @@ import { BsaleAdapter } from './providers/bsale.adapter';
 import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
-import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto } from './dto/billing.dto';
+import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto } from './dto/billing.dto';
 
 const PAGE_SIZE = 20;
 
@@ -150,6 +150,12 @@ export class BillingService {
         throw new BadRequestException('La venta indicada no pertenece a esta empresa');
       }
     }
+    if (dto.clientId) {
+      const client = await this.prisma.client.findUnique({ where: { id: dto.clientId } });
+      if (!client || client.companyId !== conn.companyId) {
+        throw new BadRequestException('El cliente indicado no pertenece a esta empresa');
+      }
+    }
 
     // Calcular montos
     const isExempt = dto.dteType === DteType.FACTURA_EXENTA || dto.dteType === DteType.BOLETA;
@@ -179,6 +185,7 @@ export class BillingService {
         connectionId: conn.id,
         companyId: conn.companyId,
         saleId: dto.saleId,
+        clientId: dto.clientId,
       },
     });
 
@@ -226,6 +233,34 @@ export class BillingService {
     return this.prisma.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.CANCELLED },
+    });
+  }
+
+  async markInvoicePaid(id: string, dto: MarkInvoicePaidDto, user: any) {
+    const inv = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!inv) throw new NotFoundException();
+    if (user.role !== Role.SUPER_ADMIN && inv.companyId !== user.companyId) throw new ForbiddenException();
+    if (inv.status === InvoiceStatus.CANCELLED) throw new BadRequestException('No se puede marcar como pagado un documento anulado');
+    if (inv.paid) throw new BadRequestException('Este documento ya está marcado como pagado');
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        paid: true,
+        paidAt: dto.paidAt ? new Date(dto.paidAt) : new Date(),
+        paymentMethod: dto.paymentMethod,
+        paymentReference: dto.paymentReference,
+      },
+    });
+  }
+
+  async unmarkInvoicePaid(id: string, user: any) {
+    const inv = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!inv) throw new NotFoundException();
+    if (user.role !== Role.SUPER_ADMIN && inv.companyId !== user.companyId) throw new ForbiddenException();
+    if (!inv.paid) throw new BadRequestException('Este documento no está marcado como pagado');
+    return this.prisma.invoice.update({
+      where: { id },
+      data: { paid: false, paidAt: null, paymentMethod: null, paymentReference: null },
     });
   }
 }
