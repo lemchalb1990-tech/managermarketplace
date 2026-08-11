@@ -427,6 +427,42 @@ export const api = {
       return apiDownload(`/pos/sales/export?${q}`, token, `ventas_${params.from || 'todas'}_${params.to || 'todas'}.csv`);
     },
   },
+  clients: {
+    list: (token: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<any[]>(`/clients?${q}`, {}, token);
+    },
+    debt: (id: string, token: string) => apiFetch<any>(`/clients/${id}/debt`, {}, token),
+    create: (data: { name: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; companyId?: string }, token: string) =>
+      apiFetch<any>('/clients', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: { name?: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; active?: boolean }, token: string) =>
+      apiFetch<any>(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<any>(`/clients/${id}`, { method: 'DELETE' }, token),
+  },
+  orderRequests: {
+    create: (data: { clientId: string; scheduledDispatchDate?: string; notes?: string; companyId?: string; items: Array<{ productId: string; quantity: number }> }, token: string) =>
+      apiFetch<any>('/order-requests', { method: 'POST', body: JSON.stringify(data) }, token),
+    mine: (token: string, page?: number) => {
+      const q = new URLSearchParams();
+      if (page) q.set('page', String(page));
+      return apiFetch<{ items: any[]; total: number; page: number; pages: number }>(`/order-requests/mine?${q}`, {}, token);
+    },
+    pending: (token: string, params?: { companyId?: string; page?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.page) q.set('page', String(params.page));
+      return apiFetch<{ items: any[]; total: number; page: number; pages: number }>(`/order-requests/pending?${q}`, {}, token);
+    },
+    get: (id: string, token: string) => apiFetch<any>(`/order-requests/${id}`, {}, token),
+    approve: (id: string, token: string) =>
+      apiFetch<any>(`/order-requests/${id}/approve`, { method: 'PATCH' }, token),
+    reject: (id: string, reason: string, token: string) =>
+      apiFetch<any>(`/order-requests/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }, token),
+    cancel: (id: string, token: string) =>
+      apiFetch<any>(`/order-requests/${id}/cancel`, { method: 'PATCH' }, token),
+  },
   email: {
     getConfig: (token: string, companyId?: string) => {
       const q = companyId ? `?companyId=${companyId}` : '';

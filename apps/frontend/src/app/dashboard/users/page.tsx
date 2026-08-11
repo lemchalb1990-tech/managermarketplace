@@ -9,6 +9,7 @@ const ALL_ROLES = [
   { value: 'CATALOG_MANAGER', label: 'Gestor de catálogo' },
   { value: 'VENDEDOR', label: 'Vendedor (solo POS)' },
   { value: 'DESPACHADOR', label: 'Despachador (solo rutas)' },
+  { value: 'ORDER_MANAGER', label: 'Admin. Pedidos (aprueba solicitudes)' },
 ];
 
 const roleLabels: Record<string, string> = {
@@ -17,6 +18,7 @@ const roleLabels: Record<string, string> = {
   CATALOG_MANAGER: 'Gestor catálogo',
   VENDEDOR: 'Vendedor',
   DESPACHADOR: 'Despachador',
+  ORDER_MANAGER: 'Admin. Pedidos',
 };
 
 const roleBadge: Record<string, string> = {
@@ -25,6 +27,7 @@ const roleBadge: Record<string, string> = {
   CATALOG_MANAGER: 'bg-green-100 text-green-700',
   VENDEDOR: 'bg-orange-100 text-orange-700',
   DESPACHADOR: 'bg-teal-100 text-teal-700',
+  ORDER_MANAGER: 'bg-indigo-100 text-indigo-700',
 };
 
 const ALL_MODULES = [

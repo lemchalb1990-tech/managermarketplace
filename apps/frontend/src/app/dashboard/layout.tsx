@@ -21,6 +21,10 @@ const navItems = [
   { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
   { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
   { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+  { href: '/dashboard/clientes', label: 'Clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+  { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva Solicitud', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+  { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis Solicitudes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+  { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de Pedidos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
   { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
   { href: '/dashboard/mis-rutas', label: 'Mis Rutas', roles: ['DESPACHADOR'], module: null },
   { href: '/dashboard/emails', label: 'Correos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
@@ -60,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     (n) => n.roles.includes(user.role) && hasModule(user, n.module),
   );
 
-  const roleLabel = { SUPER_ADMIN: 'Super Admin', COMPANY_ADMIN: 'Admin empresa', CATALOG_MANAGER: 'Gestor catálogo', VENDEDOR: 'Vendedor', DESPACHADOR: 'Despachador' }[user.role as string] ?? user.role;
+  const roleLabel = { SUPER_ADMIN: 'Super Admin', COMPANY_ADMIN: 'Admin empresa', CATALOG_MANAGER: 'Gestor catálogo', VENDEDOR: 'Vendedor', DESPACHADOR: 'Despachador', ORDER_MANAGER: 'Admin. Pedidos' }[user.role as string] ?? user.role;
 
   const sidebarContent = (
     <>
