@@ -44,6 +44,7 @@ const ALL_MODULES = [
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Emisión de documentos tributarios electrónicos' },
+  { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 
 const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '' };

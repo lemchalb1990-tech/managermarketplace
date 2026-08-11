@@ -19,6 +19,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },
   { key: 'purchases', label: 'Compras', description: 'Compras a proveedores con costeo por lotes (FIFO)' },
+  { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
