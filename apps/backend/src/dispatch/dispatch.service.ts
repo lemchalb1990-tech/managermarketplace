@@ -29,6 +29,7 @@ const ROUTE_INCLUDE = {
           fulfillmentType: true,
           sale: { select: { channel: true, total: true } },
           itemChecks: { select: { productName: true, expectedQty: true, checked: true } },
+          _count: { select: { photos: true } },
         },
       },
     },
@@ -328,7 +329,7 @@ export class DispatchService {
     return this.findOne(routeId, user);
   }
 
-  async deliverStop(routeId: string, stopId: string, dto: DeliverStopDto, user: any) {
+  async deliverStop(routeId: string, stopId: string, dto: DeliverStopDto, photo: { filename: string; url: string } | null, user: any) {
     const route = await this.findOne(routeId, user);
 
     if (route.status !== RouteStatus.IN_PROGRESS) {
@@ -344,16 +345,32 @@ export class DispatchService {
 
     const now = new Date();
 
-    await this.prisma.$transaction([
-      this.prisma.routeStop.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routeStop.update({
         where: { id: stopId },
-        data: { deliveredAt: now, notes: dto.notes || stop.notes },
-      }),
-      this.prisma.order.update({
+        data: {
+          deliveredAt: now,
+          notes: dto.notes || stop.notes,
+          deliveredLat: dto.lat,
+          deliveredLng: dto.lng,
+        },
+      });
+      await tx.order.update({
         where: { id: stop.orderId },
         data: { status: OrderStatus.DELIVERED, deliveredAt: now },
-      }),
-    ]);
+      });
+      if (photo) {
+        await tx.shipmentPhoto.create({
+          data: {
+            orderId: stop.orderId,
+            filename: photo.filename,
+            url: photo.url,
+            uploadedById: user.id,
+            notes: 'Foto de cierre de entrega',
+          },
+        });
+      }
+    });
 
     // Auto-complete route if all stops delivered
     const updatedRoute = await this.prisma.dispatchRoute.findUnique({

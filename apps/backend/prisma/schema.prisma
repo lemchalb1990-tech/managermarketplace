@@ -727,14 +727,16 @@ model DispatchRoute {
 }
 
 model RouteStop {
-  id          String    @id @default(cuid())
-  position    Int
-  notes       String?
-  lat         Float?
-  lng         Float?
-  deliveredAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  position     Int
+  notes        String?
+  lat          Float?
+  lng          Float?
+  deliveredAt  DateTime?
+  deliveredLat Float?
+  deliveredLng Float?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   routeId String
   route   DispatchRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)

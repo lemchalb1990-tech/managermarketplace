@@ -43,6 +43,30 @@ export async function apiUpload<T>(path: string, file: File, token: string): Pro
   return res.json();
 }
 
+export async function apiUploadForm<T>(
+  path: string,
+  fields: Record<string, string | undefined>,
+  file: File | null,
+  token: string,
+  method: string = 'POST',
+): Promise<T> {
+  const formData = new FormData();
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) formData.append(k, v);
+  }
+  if (file) formData.append('file', file);
+  const res = await fetch(`${API_URL}/api${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Error desconocido' }));
+    throw new Error(err.message || `Error ${res.status}`);
+  }
+  return res.json();
+}
+
 export const imgUrl = (path: string) => /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
 
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
@@ -375,8 +399,12 @@ export const api = {
       apiFetch<any>(`/dispatch/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }, token),
     reorderStops: (routeId: string, positions: { stopId: string; position: number }[], token: string) =>
       apiFetch<any>(`/dispatch/routes/${routeId}/stops/reorder`, { method: 'PATCH', body: JSON.stringify({ positions }) }, token),
-    deliverStop: (routeId: string, stopId: string, data: any, token: string) =>
-      apiFetch<any>(`/dispatch/routes/${routeId}/stops/${stopId}/deliver`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    deliverStop: (routeId: string, stopId: string, data: { notes?: string; lat?: number; lng?: number }, file: File | null, token: string) =>
+      apiUploadForm<any>(`/dispatch/routes/${routeId}/stops/${stopId}/deliver`, {
+        notes: data.notes,
+        lat: data.lat != null ? String(data.lat) : undefined,
+        lng: data.lng != null ? String(data.lng) : undefined,
+      }, file, token, 'PATCH'),
   },
   settings: {
     list: (token: string) => apiFetch<any[]>('/settings', {}, token),

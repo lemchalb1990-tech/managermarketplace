@@ -11,10 +11,11 @@ const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 type Stop = {
   id: string; position: number; notes?: string | null;
   lat?: number | null; lng?: number | null; deliveredAt?: string | null;
+  deliveredLat?: number | null; deliveredLng?: number | null;
   order: {
     id: string; customerName?: string | null; customerPhone?: string | null;
     address?: string | null; commune?: string | null; city?: string | null;
-    status: string;
+    status: string; _count?: { photos: number };
   };
 };
 
@@ -28,6 +29,9 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
   const [deliverNotes, setDeliverNotes] = useState('');
   const [confirmStop, setConfirmStop] = useState<Stop | null>(null);
   const [starting, setStarting] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'ok' | 'error'>('idle');
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [deliverPhoto, setDeliverPhoto] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     const t = getToken();
@@ -46,6 +50,25 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!confirmStop) return;
+    setDeliverPhoto(null);
+    setGeoCoords(null);
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      return;
+    }
+    setGeoStatus('locating');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('ok');
+      },
+      () => setGeoStatus('error'),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [confirmStop]);
+
   async function handleStart() {
     setStarting(true);
     try {
@@ -58,9 +81,16 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
   async function handleDeliver(stop: Stop) {
     setDelivering(stop.id);
     try {
-      await api.dispatch.deliverStop(id, stop.id, { notes: deliverNotes || undefined }, token);
+      await api.dispatch.deliverStop(id, stop.id, {
+        notes: deliverNotes || undefined,
+        lat: geoCoords?.lat,
+        lng: geoCoords?.lng,
+      }, deliverPhoto, token);
       setConfirmStop(null);
       setDeliverNotes('');
+      setDeliverPhoto(null);
+      setGeoCoords(null);
+      setGeoStatus('idle');
       await load();
     } catch (e: any) { alert(e.message || 'Error al marcar como entregado'); }
     finally { setDelivering(null); }
@@ -238,6 +268,16 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
                     {done && stop.deliveredAt && (
                       <p className="text-xs text-green-600 mt-0.5">
                         Entregado {new Date(stop.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        {stop.deliveredLat != null && stop.deliveredLng != null && (
+                          <a
+                            href={`https://maps.google.com/?q=${stop.deliveredLat},${stop.deliveredLng}`}
+                            target="_blank" rel="noreferrer"
+                            className="ml-1.5 text-blue-500 hover:underline"
+                          >
+                            📍 ubicación
+                          </a>
+                        )}
+                        {!!stop.order._count?.photos && <span className="ml-1.5">📷 {stop.order._count.photos}</span>}
                       </p>
                     )}
                   </div>
@@ -282,8 +322,28 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
                 onChange={e => setDeliverNotes(e.target.value)}
                 placeholder="Notas de entrega (opcional)..."
                 rows={2}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
               />
+
+              <label className="flex items-center gap-2 mb-3 px-3 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 cursor-pointer hover:bg-gray-50">
+                📷 {deliverPhoto ? deliverPhoto.name : 'Adjuntar foto (opcional)'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={e => setDeliverPhoto(e.target.files?.[0] || null)}
+                />
+              </label>
+
+              <div className="flex items-center gap-1.5 mb-4 text-xs">
+                {geoStatus === 'locating' && <span className="text-gray-400">📍 Obteniendo ubicación...</span>}
+                {geoStatus === 'ok' && geoCoords && (
+                  <span className="text-green-600">📍 Ubicación capturada ({geoCoords.lat.toFixed(5)}, {geoCoords.lng.toFixed(5)})</span>
+                )}
+                {geoStatus === 'error' && <span className="text-amber-600">📍 No se pudo obtener la ubicación (se guardará sin geolocalización)</span>}
+              </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={() => handleDeliver(confirmStop)}
