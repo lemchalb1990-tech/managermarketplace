@@ -135,6 +135,7 @@ model Company {
   stockTransfers     StockTransfer[]
   clients            Client[]
   orderRequests      OrderRequest[]
+  billingProfile     BillingProfile?
 
   @@map("companies")
 }
@@ -791,4 +792,28 @@ model EmailTemplate {
 
   @@unique([companyId, type])
   @@map("email_templates")
+}
+
+// Identidad de la empresa como emisora de documentos tributarios (DTE): se usa
+// como fuente única de estos datos al emitir, en vez de repetirlos por conexión.
+model BillingProfile {
+  id               String    @id @default(cuid())
+  companyId        String    @unique
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  razonSocial      String?
+  rut              String?
+  giro             String?
+  address          String?
+  commune          String?
+  city             String?
+  phone            String?
+  email            String?
+  logoUrl          String?
+  resolutionNumber String?
+  resolutionDate   DateTime?
+  footerText       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("billing_profiles")
 }

@@ -6,7 +6,7 @@ import { BsaleAdapter } from './providers/bsale.adapter';
 import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
-import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto } from './dto/billing.dto';
+import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
 
 const PAGE_SIZE = 20;
 
@@ -189,11 +189,26 @@ export class BillingService {
       },
     });
 
-    // Emitir DTE
+    // Emitir DTE — la identidad del emisor sale del Perfil de facturación de la
+    // empresa (si está configurado), completando lo que falte en las credenciales
+    // propias de la conexión para no romper conexiones ya configuradas a mano.
+    const profile = await this.prisma.billingProfile.findUnique({ where: { companyId: conn.companyId } });
+    const baseCredentials = (conn.credentials ?? {}) as Record<string, string>;
+    const credentials: Record<string, string> = {
+      ...baseCredentials,
+      companyRut: profile?.rut || baseCredentials.companyRut,
+      companyName: profile?.razonSocial || baseCredentials.companyName,
+      companyAddress: profile?.address || baseCredentials.companyAddress,
+      companyDistrict: profile?.commune || baseCredentials.companyDistrict,
+      companyCity: profile?.city || baseCredentials.companyCity,
+      companyPhone: profile?.phone || baseCredentials.companyPhone,
+      companyActivity: profile?.giro || baseCredentials.companyActivity,
+    };
+
     try {
       const result = await this.adapter(conn.provider).issueDte(
-        (conn.credentials ?? {}) as Record<string, string>,
-        { ...dto, companyRut: (conn.credentials as any)?.companyRut },
+        credentials,
+        { ...dto, companyRut: credentials.companyRut },
       );
       return this.prisma.invoice.update({
         where: { id: invoice.id },
@@ -261,6 +276,57 @@ export class BillingService {
     return this.prisma.invoice.update({
       where: { id },
       data: { paid: false, paidAt: null, paymentMethod: null, paymentReference: null },
+    });
+  }
+
+  // ── Perfil de facturación (identidad de la empresa emisora) ────────────────
+
+  async getProfile(user: any, companyId?: string) {
+    const cId = this.resolveCompanyId(user, { companyId });
+    return this.prisma.billingProfile.findUnique({ where: { companyId: cId } });
+  }
+
+  async upsertProfile(dto: UpsertBillingProfileDto, user: any) {
+    const companyId = this.resolveCompanyId(user, dto);
+    const { companyId: _omit, ...data } = dto;
+    return this.prisma.billingProfile.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        razonSocial: data.razonSocial,
+        rut: data.rut,
+        giro: data.giro,
+        address: data.address,
+        commune: data.commune,
+        city: data.city,
+        phone: data.phone,
+        email: data.email,
+        resolutionNumber: data.resolutionNumber,
+        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : undefined,
+        footerText: data.footerText,
+      },
+      update: {
+        razonSocial: data.razonSocial,
+        rut: data.rut,
+        giro: data.giro,
+        address: data.address,
+        commune: data.commune,
+        city: data.city,
+        phone: data.phone,
+        email: data.email,
+        resolutionNumber: data.resolutionNumber,
+        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : undefined,
+        footerText: data.footerText,
+      },
+    });
+  }
+
+  async saveProfileLogo(logoUrl: string, user: any, companyId?: string) {
+    const cId = this.resolveCompanyId(user, { companyId });
+    return this.prisma.billingProfile.upsert({
+      where: { companyId: cId },
+      create: { companyId: cId, logoUrl },
+      update: { logoUrl },
     });
   }
 }

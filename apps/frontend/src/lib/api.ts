@@ -296,6 +296,14 @@ export const api = {
       unpay: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}/unpay`, { method: 'POST' }, token),
     },
+    profile: {
+      get: (token: string, companyId?: string) =>
+        apiFetch<any>(`/billing/profile${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      save: (data: any, token: string, companyId?: string) =>
+        apiFetch<any>('/billing/profile', { method: 'PUT', body: JSON.stringify({ ...data, companyId }) }, token),
+      uploadLogo: (file: File, token: string, companyId?: string) =>
+        apiUpload<any>(`/billing/profile/logo${companyId ? `?companyId=${companyId}` : ''}`, file, token),
+    },
   },
   orders: {
     list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string }) => {

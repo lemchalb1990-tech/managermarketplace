@@ -49,3 +49,18 @@ export class ListInvoicesDto {
   @IsOptional() @IsString() connectionId?: string;
   @IsOptional() @IsString() page?: string;
 }
+
+export class UpsertBillingProfileDto {
+  @IsOptional() @IsString() razonSocial?: string;
+  @IsOptional() @IsString() rut?: string;
+  @IsOptional() @IsString() giro?: string;
+  @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() commune?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsString() resolutionNumber?: string;
+  @IsOptional() @IsDateString() resolutionDate?: string;
+  @IsOptional() @IsString() footerText?: string;
+  @IsOptional() @IsString() companyId?: string;
+}

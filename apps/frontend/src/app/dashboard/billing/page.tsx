@@ -80,7 +80,11 @@ export default function BillingPage() {
             Conecta con tu proveedor DTE autorizado por el SII y emite facturas, boletas y notas de crédito directamente desde la plataforma.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+          <Link href="/dashboard/billing/perfil"
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            Perfil de facturación
+          </Link>
           <Link href="/dashboard/billing/invoices"
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             Ver documentos
