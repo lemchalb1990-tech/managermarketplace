@@ -1,4 +1,4 @@
-import { PrismaClient, Role, ProductType, MovementType, BillingProvider } from '@prisma/client';
+import { PrismaClient, Role, ProductType, MovementType, BillingProvider, ProfitabilityStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -6,7 +6,18 @@ const prisma = new PrismaClient();
 const COMPANY_SLUG = 'tienda-demo';
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Demo123!';
 
-const DEMO_MODULES = ['catalog', 'pos', 'sales', 'billing', 'purchases', 'dispatch', 'ecommerce_ml'];
+const DEMO_MODULES = ['catalog', 'pos', 'sales', 'billing', 'purchases', 'dispatch', 'ecommerce_ml', 'rentabilidad'];
+
+const DEMO_PROFITABILITY_ITEMS = [
+  { name: 'Silla Nórdica Roble', cost: 28000, competitorName: 'Silla Escandinava Natural', competitorPrice: 54990, competitorUrl: 'https://competidor-demo.cl/silla-escandinava-natural', myDimensions: '45/52/80/45', competitorDimensions: '45/52/80/45', status: ProfitabilityStatus.CONFIRMADO, note: 'Mismo molde y medidas, proveedor confirmó que es el mismo fabricante.' },
+  { name: 'Taburete Bar Alto Negro', cost: 21000, competitorName: 'Taburete Industrial 75cm', competitorPrice: 39990, competitorUrl: 'https://competidor-demo.cl/taburete-industrial-75', myDimensions: '35/35/75/-', competitorDimensions: '35/35/75/-', status: ProfitabilityStatus.CONFIRMADO, note: 'Verificado por foto y medidas exactas.' },
+  { name: 'Sitial Terciopelo Verde', cost: 65000, competitorName: 'Sillón Terciopelo Esmeralda', competitorPrice: 119990, competitorUrl: 'https://competidor-demo.cl/sillon-terciopelo-esmeralda', myDimensions: '70/75/90/48', competitorDimensions: '72/76/92/48', status: ProfitabilityStatus.DUDOSO, note: 'Medidas muy parecidas pero el tapiz se ve distinto en las fotos, falta confirmar con el proveedor.' },
+  { name: 'Poltrona Reclinable Gris', cost: 98000, competitorName: 'Poltrona Reclinable Manual', competitorPrice: 179990, competitorUrl: 'https://competidor-demo.cl/poltrona-reclinable-manual', myDimensions: '80/90/100/50', competitorDimensions: '82/95/105/52', status: ProfitabilityStatus.DUDOSO, note: 'Diferencia de 5cm en varias medidas, podría ser un modelo distinto.' },
+  { name: 'Silla Plegable Camping', cost: 9500, competitorName: 'Silla Plegable Outdoor', competitorPrice: 14990, competitorUrl: 'https://competidor-demo.cl/silla-plegable-outdoor', myDimensions: '50/50/85/42', competitorDimensions: '60/60/95/45', status: ProfitabilityStatus.RECHAZADO, note: 'Medidas muy distintas, es un modelo más grande. No es el mismo producto.' },
+  { name: 'Taburete Enano Madera', cost: 7000, competitorName: '', competitorPrice: null, competitorUrl: '', myDimensions: '30/30/25/-', competitorDimensions: '', status: ProfitabilityStatus.NO_VERIFICADO, note: 'Aún no se encontró equivalente en la competencia.' },
+  { name: 'Sitial Rattan Natural', cost: 42000, competitorName: 'Silla Rattan Boho', competitorPrice: 76990, competitorUrl: 'https://competidor-demo.cl/silla-rattan-boho', myDimensions: '55/60/85/45', competitorDimensions: '', status: ProfitabilityStatus.NO_VERIFICADO, note: 'Precio de competidor tomado de una publicación antigua, falta re-verificar stock y ficha actual.' },
+  { name: 'Poltrona Orejera Clásica', cost: 115000, competitorName: 'Sillón Orejero Chesterfield', competitorPrice: 138000, competitorUrl: 'https://competidor-demo.cl/sillon-orejero-chesterfield', myDimensions: '85/90/105/50', competitorDimensions: '85/90/105/50', status: ProfitabilityStatus.CONFIRMADO, note: 'Margen bajo pero confirmado: sirve para decidir si conviene publicitarlo.' },
+];
 
 const DEMO_USERS = [
   { email: 'admin@tiendademo.cl', name: 'Admin Demo', role: Role.COMPANY_ADMIN },
@@ -135,6 +146,17 @@ async function main() {
       data: { name: 'Facturación Demo', provider: BillingProvider.DEFONTANA, companyId: company.id, credentials: {} },
     });
     console.log('Conexión de facturación demo creada (proveedor simulado)');
+  }
+
+  // 9. Comparador de rentabilidad (muebles vs. competencia)
+  const hasProfitability = await prisma.profitabilityItem.findFirst({ where: { companyId: company.id } });
+  if (!hasProfitability) {
+    for (const item of DEMO_PROFITABILITY_ITEMS) {
+      await prisma.profitabilityItem.create({ data: { ...item, companyId: company.id } });
+    }
+    console.log(`Comparador de rentabilidad: ${DEMO_PROFITABILITY_ITEMS.length} productos de ejemplo creados`);
+  } else {
+    console.log('Ya existen productos de rentabilidad, se omite');
   }
 
   console.log('\n✅ Empresa demo lista.');

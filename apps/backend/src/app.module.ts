@@ -21,6 +21,7 @@ import { DispatchModule } from './dispatch/dispatch.module';
 import { EmailModule } from './email/email.module';
 import { ClientsModule } from './clients/clients.module';
 import { OrderRequestsModule } from './order-requests/order-requests.module';
+import { ProfitabilityModule } from './profitability/profitability.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { OrderRequestsModule } from './order-requests/order-requests.module';
     EmailModule,
     ClientsModule,
     OrderRequestsModule,
+    ProfitabilityModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

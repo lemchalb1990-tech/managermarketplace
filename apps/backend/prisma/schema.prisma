@@ -96,6 +96,13 @@ enum FulfillmentType {
   DELIVERY
 }
 
+enum ProfitabilityStatus {
+  CONFIRMADO
+  DUDOSO
+  RECHAZADO
+  NO_VERIFICADO
+}
+
 enum EmailType {
   ORDER_CONFIRMED
   ORDER_PREPARING
@@ -136,6 +143,7 @@ model Company {
   clients            Client[]
   orderRequests      OrderRequest[]
   billingProfile     BillingProfile?
+  profitabilityItems ProfitabilityItem[]
 
   @@map("companies")
 }
@@ -816,4 +824,32 @@ model BillingProfile {
   updatedAt        DateTime  @updatedAt
 
   @@map("billing_profiles")
+}
+
+// Comparador de rentabilidad: costo propio vs. precio de venta de la competencia,
+// para decidir qué productos subir/publicitar. myPrice/manualPrice implementan la
+// regla "mi precio = precio competencia - 1000, salvo que lo haya fijado a mano":
+// myPrice queda null mientras siga la sugerencia automática; se guarda un valor
+// solo cuando el usuario lo edita directamente (manualPrice = true).
+model ProfitabilityItem {
+  id                    String              @id @default(cuid())
+  name                  String
+  cost                  Decimal             @db.Decimal(10, 2)
+  competitorName        String?
+  competitorPrice       Decimal?            @db.Decimal(10, 2)
+  competitorUrl         String?
+  myDimensions          String?
+  competitorDimensions  String?
+  status                ProfitabilityStatus @default(NO_VERIFICADO)
+  note                  String?
+  myPrice               Decimal?            @db.Decimal(10, 2)
+  manualPrice           Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@unique([name, companyId])
+  @@map("profitability_items")
 }

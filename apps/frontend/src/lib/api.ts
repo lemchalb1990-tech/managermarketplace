@@ -503,6 +503,25 @@ export const api = {
     cancel: (id: string, token: string) =>
       apiFetch<any>(`/order-requests/${id}/cancel`, { method: 'PATCH' }, token),
   },
+  profitability: {
+    list: (token: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<any[]>(`/profitability?${q}`, {}, token);
+    },
+    create: (data: {
+      name: string; cost: number; competitorName?: string; competitorPrice?: number; competitorUrl?: string;
+      myDimensions?: string; competitorDimensions?: string; note?: string; companyId?: string;
+    }, token: string) =>
+      apiFetch<any>('/profitability', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: {
+      name?: string; cost?: number; competitorName?: string; competitorPrice?: number; competitorUrl?: string;
+      myDimensions?: string; competitorDimensions?: string; note?: string; status?: string; myPrice?: number | null;
+    }, token: string) =>
+      apiFetch<any>(`/profitability/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<any>(`/profitability/${id}`, { method: 'DELETE' }, token),
+  },
   email: {
     getConfig: (token: string, companyId?: string) => {
       const q = companyId ? `?companyId=${companyId}` : '';
