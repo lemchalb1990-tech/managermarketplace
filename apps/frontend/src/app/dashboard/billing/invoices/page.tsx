@@ -384,6 +384,13 @@ export default function InvoicesPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6 bg-gray-100">
+              <p className="max-w-2xl mx-auto mb-3 text-center text-[11px] text-gray-400">
+                {viewingInvoice.status === 'DRAFT'
+                  ? 'Vista previa interna — el timbre electrónico SII se genera recién en el documento real al emitir.'
+                  : viewingInvoice.pdfUrl
+                    ? 'Vista interna de los datos — el documento oficial timbrado por el SII está en el PDF del proveedor (abajo).'
+                    : 'Vista interna de los datos — este documento no tiene PDF del proveedor disponible.'}
+              </p>
               <InvoiceDocument
                 profile={profile}
                 dteLabel={DTE_LABELS[viewingInvoice.dteType] ?? viewingInvoice.dteType}
