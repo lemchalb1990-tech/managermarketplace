@@ -44,6 +44,7 @@ export default function NewInvoicePage() {
   const [profile, setProfile] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
+  const [saveAsClient, setSaveAsClient] = useState(true);
 
   useEffect(() => {
     const token = getToken()!;
@@ -87,6 +88,7 @@ export default function NewInvoicePage() {
         ...f,
         rut: c.rut || f.rut,
         razonSocial: c.name,
+        giro: c.giro || f.giro,
         address: c.address || f.address,
         commune: c.commune || f.commune,
         email: c.email || f.email,
@@ -149,12 +151,38 @@ export default function NewInvoicePage() {
     };
   }
 
+  // Si el receptor se tipeó a mano (no viene de "Cliente registrado"), lo guarda como cliente
+  // nuevo para no tener que volver a escribir sus datos la próxima vez. Si ya existe un
+  // cliente con ese mismo RUT, reutiliza ese en vez de crear uno duplicado.
+  async function resolveClientId(token: string): Promise<string | undefined> {
+    if (clientId) return clientId;
+    if (!saveAsClient || !form.razonSocial.trim()) return undefined;
+    const rutTrim = form.rut.trim();
+    const existing = rutTrim ? clients.find((c) => c.rut && c.rut.trim() === rutTrim) : undefined;
+    if (existing) return existing.id;
+    try {
+      const created = await api.clients.create({
+        name: form.razonSocial.trim(),
+        rut: rutTrim || undefined,
+        giro: form.giro.trim() || undefined,
+        email: form.email.trim() || undefined,
+        address: form.address.trim() || undefined,
+        commune: form.commune.trim() || undefined,
+      }, token);
+      setClients((prev) => [...prev, created]);
+      return created.id;
+    } catch {
+      return undefined;
+    }
+  }
+
   async function handleConfirmIssue() {
     setLoading(true);
     setError('');
     try {
       const token = getToken()!;
-      const invoice = await api.billing.invoices.issue(buildPayload(), token);
+      const resolvedClientId = await resolveClientId(token);
+      const invoice = await api.billing.invoices.issue({ ...buildPayload(), clientId: resolvedClientId }, token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
       setError(err.message || 'Error al emitir el documento');
@@ -168,7 +196,8 @@ export default function NewInvoicePage() {
     setError('');
     try {
       const token = getToken()!;
-      const invoice = await api.billing.invoices.saveDraft(buildPayload(), token);
+      const resolvedClientId = await resolveClientId(token);
+      const invoice = await api.billing.invoices.saveDraft({ ...buildPayload(), clientId: resolvedClientId }, token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
       setError(err.message || 'Error al guardar el borrador');
@@ -254,6 +283,13 @@ export default function NewInvoicePage() {
               </select>
               <p className="text-xs text-gray-400 mt-1">Vincula el documento al cliente para llevar el control de deuda por facturas impagas.</p>
             </div>
+          )}
+          {!clientId && (
+            <label className="flex items-center gap-2 mb-4 text-xs text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={saveAsClient} onChange={(e) => setSaveAsClient(e.target.checked)}
+                className="rounded" />
+              Guardar estos datos como cliente nuevo (así la próxima vez solo lo seleccionas, sin volver a escribirlos)
+            </label>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -429,6 +465,9 @@ export default function NewInvoicePage() {
                   <p className="text-gray-600 text-xs">{[form.address, form.commune].filter(Boolean).join(', ')}</p>
                 )}
                 {form.email && <p className="text-gray-600 text-xs">{form.email}</p>}
+                {!clientId && saveAsClient && (
+                  <p className="text-emerald-600 text-xs mt-1">✓ Se guardará como cliente nuevo</p>
+                )}
               </div>
 
               <div className="space-y-1.5">

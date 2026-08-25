@@ -485,9 +485,9 @@ export const api = {
     },
     debt: (id: string, token: string) => apiFetch<any>(`/clients/${id}/debt`, {}, token),
     history: (id: string, token: string) => apiFetch<any>(`/clients/${id}/history`, {}, token),
-    create: (data: { name: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; companyId?: string }, token: string) =>
+    create: (data: { name: string; rut?: string; giro?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; companyId?: string }, token: string) =>
       apiFetch<any>('/clients', { method: 'POST', body: JSON.stringify(data) }, token),
-    update: (id: string, data: { name?: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; active?: boolean }, token: string) =>
+    update: (id: string, data: { name?: string; rut?: string; giro?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; active?: boolean }, token: string) =>
       apiFetch<any>(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     remove: (id: string, token: string) =>
       apiFetch<any>(`/clients/${id}`, { method: 'DELETE' }, token),

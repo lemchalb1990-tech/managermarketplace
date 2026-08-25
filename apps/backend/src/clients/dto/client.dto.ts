@@ -11,6 +11,10 @@ export class CreateClientDto {
   rut?: string;
 
   @IsOptional()
+  @IsString()
+  giro?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 
@@ -50,6 +54,10 @@ export class UpdateClientDto {
   @IsOptional()
   @IsString()
   rut?: string;
+
+  @IsOptional()
+  @IsString()
+  giro?: string;
 
   @IsOptional()
   @IsEmail()

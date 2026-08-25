@@ -572,6 +572,7 @@ model Client {
   id          String   @id @default(cuid())
   name        String
   rut         String?
+  giro        String?
   email       String?
   phone       String?
   address     String?

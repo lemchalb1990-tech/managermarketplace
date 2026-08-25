@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-const emptyForm = { name: '', rut: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
+const emptyForm = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
 
 const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
@@ -91,6 +91,7 @@ export default function ClientsPage() {
     return {
       name: f.name.trim(),
       rut: f.rut.trim() || undefined,
+      giro: f.giro.trim() || undefined,
       email: f.email.trim() || undefined,
       phone: f.phone.trim() || undefined,
       address: f.address.trim() || undefined,
@@ -120,7 +121,7 @@ export default function ClientsPage() {
   function openEdit(c: any) {
     setEditingId(c.id);
     setEditForm({
-      name: c.name, rut: c.rut || '', email: c.email || '', phone: c.phone || '',
+      name: c.name, rut: c.rut || '', giro: c.giro || '', email: c.email || '', phone: c.phone || '',
       address: c.address || '', commune: c.commune || '', city: c.city || '',
       creditLimit: c.creditLimit != null ? String(c.creditLimit) : '',
     });
@@ -331,6 +332,11 @@ export default function ClientsPage() {
                   </div>
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Giro</label>
+                  <input value={createForm.giro} onChange={(e) => setCreateForm((f) => ({ ...f, giro: e.target.value }))}
+                    placeholder="Actividad económica" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
                   <input type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -403,6 +409,11 @@ export default function ClientsPage() {
                       onChange={(e) => setEditForm((f) => ({ ...f, creditLimit: e.target.value }))}
                       placeholder="Sin límite" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Giro</label>
+                  <input value={editForm.giro} onChange={(e) => setEditForm((f) => ({ ...f, giro: e.target.value }))}
+                    placeholder="Actividad económica" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
