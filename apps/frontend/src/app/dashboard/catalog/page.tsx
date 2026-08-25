@@ -1260,36 +1260,24 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!selected.id && (
-                  <div className="col-span-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-                    Guarda el producto para poder subir imágenes, publicarlo en Mercado Libre o ver sus movimientos de stock.
-                  </div>
-                )}
                 {!selected.id && createPublishWarning && (
                   <div className="col-span-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
                     {createPublishWarning}
                   </div>
                 )}
-                {!selected.id && (
+                {!selected.id && activeConnections.length > 0 && (
                   <div className="col-span-2 border border-gray-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Publicar en marketplaces</p>
-                    {activeConnections.length === 0 ? (
-                      <p className="text-xs text-gray-400">
-                        No tienes conexiones de marketplace activas. Podrás publicarlo después desde{' '}
-                        <a href="/dashboard/connections" className="text-blue-500 hover:underline">Conexiones</a>.
-                      </p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {activeConnections.map((c) => (
-                          <label key={c.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                            <input type="checkbox" checked={!!publishTargets[c.id]}
-                              onChange={(e) => setPublishTargets((p) => ({ ...p, [c.id]: e.target.checked }))} />
-                            <span className="font-medium">{c.name}</span>
-                            <span className="text-xs text-gray-400">({MARKETPLACE_LABELS[c.marketplace] ?? c.marketplace})</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                    <div className="space-y-1.5">
+                      {activeConnections.map((c) => (
+                        <label key={c.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                          <input type="checkbox" checked={!!publishTargets[c.id]}
+                            onChange={(e) => setPublishTargets((p) => ({ ...p, [c.id]: e.target.checked }))} />
+                          <span className="font-medium">{c.name}</span>
+                          <span className="text-xs text-gray-400">({MARKETPLACE_LABELS[c.marketplace] ?? c.marketplace})</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {!selected.active && (
