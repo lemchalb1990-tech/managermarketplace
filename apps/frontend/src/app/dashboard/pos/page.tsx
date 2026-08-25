@@ -12,6 +12,7 @@ interface CartItem {
   stock: number;
   quantity: number;
   imageUrl?: string;
+  type?: string;
 }
 
 const PAGE_SIZE = 20;
@@ -131,16 +132,17 @@ export default function PosPage() {
   }
 
   function addToCart(product: any) {
+    const isService = product.type === 'SERVICIO';
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.productId === product.id);
       if (idx >= 0) {
         const updated = [...prev];
-        if (updated[idx].quantity < product.stock) {
+        if (isService || updated[idx].quantity < product.stock) {
           updated[idx] = { ...updated[idx], quantity: updated[idx].quantity + 1 };
         }
         return updated;
       }
-      if (product.stock < 1) return prev;
+      if (!isService && product.stock < 1) return prev;
       const primaryImg = product.images?.find((i: any) => i.isPrimary) || product.images?.[0];
       return [
         ...prev,
@@ -152,6 +154,7 @@ export default function PosPage() {
           stock: product.stock,
           quantity: 1,
           imageUrl: primaryImg?.url,
+          type: product.type,
         },
       ];
     });
@@ -163,7 +166,7 @@ export default function PosPage() {
       if (idx < 0) return prev;
       const newQty = prev[idx].quantity + delta;
       if (newQty <= 0) return prev.filter((c) => c.productId !== productId);
-      if (newQty > prev[idx].stock) return prev;
+      if (prev[idx].type !== 'SERVICIO' && newQty > prev[idx].stock) return prev;
       const updated = [...prev];
       updated[idx] = { ...updated[idx], quantity: newQty };
       return updated;
@@ -323,13 +326,14 @@ export default function PosPage() {
           )}
           {!productsLoading && products.map((p) => {
             const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+            const isService = p.type === 'SERVICIO';
             return (
               <button
                 key={p.id}
                 onClick={() => addToCart(p)}
-                disabled={p.stock === 0}
+                disabled={!isService && p.stock === 0}
                 className={`w-full flex items-center gap-4 px-4 py-3 text-left transition hover:bg-blue-50 focus:outline-none ${
-                  p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
+                  !isService && p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
                 }`}
               >
                 <div className="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0">
@@ -341,7 +345,7 @@ export default function PosPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">
-                      📦
+                      {isService ? '🛠️' : '📦'}
                     </div>
                   )}
                 </div>
@@ -349,8 +353,8 @@ export default function PosPage() {
                   <p className="text-sm font-bold text-gray-900 leading-tight truncate">{p.name}</p>
                   <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                  {p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
+                <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                 </span>
                 <span className="text-blue-600 font-bold text-lg w-24 text-right shrink-0">
                   ${Number(p.price).toLocaleString('es-CL')}

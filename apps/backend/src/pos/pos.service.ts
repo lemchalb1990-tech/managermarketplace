@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { FulfillmentType, Role, SaleChannel, MovementType } from '@prisma/client';
+import { FulfillmentType, ProductType, Role, SaleChannel, MovementType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
@@ -37,7 +37,7 @@ export class PosService {
       const product = products.find(p => p.id === item.productId);
       if (!product) throw new BadRequestException(`Producto ${item.productId} no encontrado`);
       if (!product.active) throw new BadRequestException(`El producto "${product.name}" está inactivo`);
-      if (product.stock < item.quantity) {
+      if (product.type !== ProductType.SERVICIO && product.stock < item.quantity) {
         throw new BadRequestException(`Stock insuficiente para "${product.name}": disponible ${product.stock}, solicitado ${item.quantity}`);
       }
     }
@@ -84,6 +84,7 @@ export class PosService {
 
       for (const item of created.items) {
         const product = products.find(p => p.id === item.productId)!;
+        if (product.type === ProductType.SERVICIO) continue;
         const totalCost = await this.costing.consumeForSale(tx, {
           companyId,
           productId: item.productId,
