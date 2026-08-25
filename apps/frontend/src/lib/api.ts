@@ -153,8 +153,10 @@ export const api = {
     bulkSetActive: (ids: string[], active: boolean, token: string) =>
       apiFetch<{ updated: number }>('/catalog/products/bulk/active', { method: 'PATCH', body: JSON.stringify({ ids, active }) }, token),
     bulkDelete: (ids: string[], token: string) =>
-      apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string }[] }>(
+      apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string; canForce?: boolean }[] }>(
         '/catalog/products/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+    forceDelete: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/catalog/products/${id}/force`, { method: 'DELETE' }, token),
     bulkDeleteListings: (ids: string[], token: string) =>
       apiFetch<{ deleted: number }>(
         '/catalog/products/bulk/delete-listings', { method: 'POST', body: JSON.stringify({ ids }) }, token),

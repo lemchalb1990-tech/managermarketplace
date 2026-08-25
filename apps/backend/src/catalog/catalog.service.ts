@@ -14,6 +14,7 @@ export interface BulkDeleteFailure {
   id: string;
   name: string;
   reason: string;
+  canForce?: boolean;
 }
 
 @Injectable()
@@ -253,7 +254,13 @@ export class CatalogService {
         failed.push({
           id: p.id,
           name: p.name,
-          reason: 'Tiene ventas o movimientos de stock registrados. Desactívalo en vez de eliminarlo para conservar el historial.',
+          // Si no hay saleItemCount, los movimientos son solo el registro histórico de ventas
+          // que ya fueron eliminadas (StockMovement.saleItemId queda en null al borrar la venta) —
+          // en ese caso es seguro forzar el borrado desde el aplicativo (ver forceDeleteProduct).
+          canForce: saleItemCount === 0,
+          reason: saleItemCount > 0
+            ? 'Tiene ventas registradas. Desactívalo en vez de eliminarlo para conservar el historial.'
+            : 'Tiene movimientos de stock registrados (venta ya eliminada). Puedes forzar la eliminación para borrar también ese historial.',
         });
         continue;
       }
@@ -265,6 +272,38 @@ export class CatalogService {
       }
     }
     return { deleted, failed };
+  }
+
+  // Fuerza el borrado de un producto que quedó bloqueado solo por historial de inventario
+  // (movimientos de stock huérfanos de una venta ya eliminada, lotes de compra, stock por
+  // bodega, traspasos, etc.), nunca si tiene ventas (SaleItem) o una publicación activa —
+  // esos casos siguen bloqueados y deben resolverse desde sus flujos correspondientes.
+  async forceDeleteProduct(id: string, user: any) {
+    const product = await this.findOne(id, user);
+
+    const [listingCount, saleItemCount] = await Promise.all([
+      this.prisma.listing.count({ where: { productId: id } }),
+      this.prisma.saleItem.count({ where: { productId: id } }),
+    ]);
+    if (listingCount > 0) {
+      throw new BadRequestException(
+        'Tiene una publicación en Mercado Libre (u otra plataforma). Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.',
+      );
+    }
+    if (saleItemCount > 0) {
+      throw new BadRequestException('Tiene ventas registradas. Desactívalo en vez de eliminarlo para conservar el historial.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.stockMovement.deleteMany({ where: { productId: id } }),
+      this.prisma.purchaseItem.deleteMany({ where: { productId: id } }),
+      this.prisma.productStock.deleteMany({ where: { productId: id } }),
+      this.prisma.stockTransfer.deleteMany({ where: { productId: id } }),
+      this.prisma.orderRequestItem.deleteMany({ where: { productId: id } }),
+      this.prisma.orderItemCheck.updateMany({ where: { productId: id }, data: { productId: null } }),
+      this.prisma.product.delete({ where: { id: product.id } }),
+    ]);
+    return { deleted: true };
   }
 
   async addImage(productId: string, filename: string, url: string, user: any) {

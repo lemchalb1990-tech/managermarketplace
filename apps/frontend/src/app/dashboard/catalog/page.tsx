@@ -310,6 +310,8 @@ export default function CatalogPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  const [bulkFailed, setBulkFailed] = useState<{ id: string; name: string; reason: string; canForce?: boolean }[]>([]);
+  const [forceDeleteLoading, setForceDeleteLoading] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -488,21 +490,35 @@ export default function CatalogPage() {
     if (!confirm(`¿Eliminar ${selectedIds.size} producto(s) seleccionado(s)? Esta acción no se puede deshacer.`)) return;
     setBulkLoading(true);
     setBulkError('');
+    setBulkFailed([]);
     try {
       const token = getToken()!;
       const result = await api.catalog.bulkDelete(Array.from(selectedIds), token);
       setSelectedIds(new Set());
       await loadProducts(page);
       if (result.failed.length > 0) {
-        setBulkError(
-          `${result.deleted} eliminado(s). ${result.failed.length} no se pudieron eliminar: ` +
-          result.failed.map((f) => `"${f.name}" (${f.reason})`).join(' · '),
-        );
+        setBulkError(`${result.deleted} eliminado(s). ${result.failed.length} no se pudieron eliminar:`);
+        setBulkFailed(result.failed);
       }
     } catch (err: any) {
       setBulkError(err.message || 'Error al eliminar los productos seleccionados.');
     } finally {
       setBulkLoading(false);
+    }
+  }
+
+  async function handleForceDelete(id: string, name: string) {
+    if (!confirm(`¿Eliminar definitivamente "${name}"? Esto borra también su historial de movimientos de stock (no ventas, esas ya no existen). Esta acción no se puede deshacer.`)) return;
+    setForceDeleteLoading(id);
+    try {
+      const token = getToken()!;
+      await api.catalog.forceDelete(id, token);
+      setBulkFailed((prev) => prev.filter((f) => f.id !== id));
+      await loadProducts(page);
+    } catch (err: any) {
+      alert(err.message || 'Error al forzar la eliminación');
+    } finally {
+      setForceDeleteLoading(null);
     }
   }
 
@@ -991,8 +1007,23 @@ export default function CatalogPage() {
         </div>
       )}
       {bulkError && (
-        <div className="mb-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          {bulkError}
+        <div className="mb-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 space-y-2">
+          <p>{bulkError}</p>
+          {bulkFailed.length > 0 && (
+            <ul className="space-y-1.5">
+              {bulkFailed.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 bg-white/60 rounded-lg px-3 py-1.5">
+                  <span><strong>{f.name}</strong>: {f.reason}</span>
+                  {f.canForce && (
+                    <button onClick={() => handleForceDelete(f.id, f.name)} disabled={forceDeleteLoading === f.id}
+                      className="shrink-0 px-2.5 py-1 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
+                      {forceDeleteLoading === f.id ? 'Eliminando...' : 'Forzar eliminación'}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

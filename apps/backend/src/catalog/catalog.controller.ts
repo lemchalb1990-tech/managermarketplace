@@ -96,6 +96,12 @@ export class CatalogController {
     return this.service.deleteListing(id, connectionId, user);
   }
 
+  @Delete('products/:id/force')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  forceDeleteProduct(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.forceDeleteProduct(id, user);
+  }
+
   @Patch('products/:id')
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @CurrentUser() user: any) {
     return this.service.update(id, dto, user);
