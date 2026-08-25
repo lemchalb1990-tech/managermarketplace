@@ -278,10 +278,16 @@ export default function InvoicesPage() {
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</a>
                     )}
                     {inv.status === 'DRAFT' && (
-                      <button onClick={() => handleIssueDraft(inv.id)} disabled={issuingId === inv.id}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50">
-                        {issuingId === inv.id ? 'Emitiendo...' : 'Emitir'}
-                      </button>
+                      <>
+                        <Link href={`/dashboard/billing/invoices/new?draftId=${inv.id}`}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                          Editar
+                        </Link>
+                        <button onClick={() => handleIssueDraft(inv.id)} disabled={issuingId === inv.id}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50">
+                          {issuingId === inv.id ? 'Emitiendo...' : 'Emitir'}
+                        </button>
+                      </>
                     )}
                     {['ISSUED', 'ACCEPTED'].includes(inv.status) && (
                       inv.paid ? (
@@ -410,6 +416,10 @@ export default function InvoicesPage() {
                 {viewingInvoice.xmlUrl && (
                   <a href={viewingInvoice.xmlUrl} target="_blank" rel="noopener noreferrer"
                     className="text-sm text-gray-500 hover:text-gray-700 font-medium">Ver XML</a>
+                )}
+                {viewingInvoice.status === 'DRAFT' && (
+                  <Link href={`/dashboard/billing/invoices/new?draftId=${viewingInvoice.id}`}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">Editar</Link>
                 )}
               </div>
               <button onClick={() => setViewingInvoice(null)}

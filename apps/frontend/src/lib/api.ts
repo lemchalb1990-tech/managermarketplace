@@ -296,6 +296,8 @@ export const api = {
         apiFetch<any>('/billing/invoices/draft', { method: 'POST', body: JSON.stringify(data) }, token),
       issueDraft: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}/issue`, { method: 'POST' }, token),
+      updateDraft: (id: string, data: any, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       get: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}`, {}, token),
       cancel: (id: string, token: string) =>

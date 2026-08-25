@@ -19,10 +19,22 @@ const IVA = 0.19;
 interface Item { name: string; longDescription: string; quantity: number; unitPrice: number; discount: number; productId?: string }
 const emptyItem = (): Item => ({ name: '', longDescription: '', quantity: 1, unitPrice: 0, discount: 0 });
 
+// El nombre guardado combina descripción corta + larga separadas por un salto de línea
+// (ver buildPayload). Al reabrir un borrador para editar, se separan de nuevo.
+function splitItemName(raw: string): { name: string; longDescription: string } {
+  const idx = raw.indexOf('\n');
+  if (idx === -1) return { name: raw, longDescription: '' };
+  return { name: raw.slice(0, idx), longDescription: raw.slice(idx + 1) };
+}
+
 export default function NewInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const saleId = searchParams.get('saleId');
+  const draftId = searchParams.get('draftId');
+  const [draftLoadingInitial, setDraftLoadingInitial] = useState(false);
+  const [draftSaleId, setDraftSaleId] = useState<string | undefined>(undefined);
+  const effectiveSaleId = saleId || draftSaleId;
   const [connections, setConnections] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [clientId, setClientId] = useState('');
@@ -89,6 +101,40 @@ export default function NewInvoicePage() {
       .catch(() => {})
       .finally(() => setSaleLoading(false));
   }, [saleId]);
+
+  useEffect(() => {
+    if (!draftId) return;
+    const token = getToken()!;
+    setDraftLoadingInitial(true);
+    api.billing.invoices.get(draftId, token)
+      .then((inv) => {
+        if (inv.status !== 'DRAFT') { setError('Este documento ya no es un borrador; no se puede editar.'); return; }
+        setForm({
+          connectionId: inv.connectionId || '',
+          dteType: inv.dteType,
+          rut: inv.rut || '',
+          razonSocial: inv.razonSocial || '',
+          giro: inv.giro || '',
+          address: inv.address || '',
+          commune: inv.commune || '',
+          email: inv.email || '',
+          notes: inv.notes || '',
+        });
+        setClientId(inv.clientId || '');
+        setDraftSaleId(inv.saleId || undefined);
+        setSaveAsClient(false);
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+          setItems(inv.items.map((i: any) => ({
+            ...splitItemName(i.name),
+            quantity: i.quantity,
+            unitPrice: Number(i.unitPrice),
+            discount: i.discount || 0,
+          })));
+        }
+      })
+      .catch(() => setError('No se pudo cargar el borrador indicado.'))
+      .finally(() => setDraftLoadingInitial(false));
+  }, [draftId]);
 
   function selectClient(id: string) {
     setClientId(id);
@@ -172,9 +218,9 @@ export default function NewInvoicePage() {
       email: form.email.trim() || undefined,
       notes: form.notes.trim() || undefined,
       clientId: clientId || undefined,
-      saleId: saleId || undefined,
+      saleId: effectiveSaleId || undefined,
       items: items.map(i => ({
-        name: i.longDescription.trim() ? `${i.name} — ${i.longDescription.trim()}` : i.name,
+        name: i.longDescription.trim() ? `${i.name}\n${i.longDescription.trim()}` : i.name,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         discount: i.discount || undefined,
@@ -213,7 +259,10 @@ export default function NewInvoicePage() {
     try {
       const token = getToken()!;
       const resolvedClientId = await resolveClientId(token);
-      const invoice = await api.billing.invoices.issue({ ...buildPayload(), clientId: resolvedClientId }, token);
+      const payload = { ...buildPayload(), clientId: resolvedClientId };
+      const invoice = draftId
+        ? await (async () => { await api.billing.invoices.updateDraft(draftId, payload, token); return api.billing.invoices.issueDraft(draftId, token); })()
+        : await api.billing.invoices.issue(payload, token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
       setError(err.message || 'Error al emitir el documento');
@@ -228,7 +277,10 @@ export default function NewInvoicePage() {
     try {
       const token = getToken()!;
       const resolvedClientId = await resolveClientId(token);
-      const invoice = await api.billing.invoices.saveDraft({ ...buildPayload(), clientId: resolvedClientId }, token);
+      const payload = { ...buildPayload(), clientId: resolvedClientId };
+      const invoice = draftId
+        ? await api.billing.invoices.updateDraft(draftId, payload, token)
+        : await api.billing.invoices.saveDraft(payload, token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
       setError(err.message || 'Error al guardar el borrador');
@@ -247,7 +299,10 @@ export default function NewInvoicePage() {
         <span className="text-sm text-gray-600 font-medium">Emitir DTE</span>
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Emitir Documento Tributario</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
+      {draftLoadingInitial && (
+        <p className="text-sm text-gray-400 mb-4">Cargando borrador...</p>
+      )}
 
       {saleId && (
         <div className="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">

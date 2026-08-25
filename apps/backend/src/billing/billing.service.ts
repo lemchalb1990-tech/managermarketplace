@@ -279,6 +279,44 @@ export class BillingService {
     });
   }
 
+  // Sobrescribe los datos de un documento guardado como borrador (nunca uno ya emitido:
+  // un DTE real no se puede editar, solo corregir con una Nota de Crédito aparte).
+  async updateDraft(id: string, dto: IssueInvoiceDto, user: any) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Documento no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && existing.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    if (existing.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException('Solo se pueden editar documentos en estado borrador');
+    }
+
+    const conn = await this.resolveConnectionAndRefs(dto, user);
+    if (conn.companyId !== existing.companyId) throw new ForbiddenException();
+    const { netAmount, tax, totalAmount } = this.computeAmounts(dto);
+
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        dteType: dto.dteType,
+        rut: dto.rut,
+        razonSocial: dto.razonSocial,
+        giro: dto.giro,
+        address: dto.address,
+        commune: dto.commune,
+        email: dto.email,
+        netAmount,
+        tax,
+        totalAmount,
+        items: dto.items as any,
+        notes: dto.notes,
+        connectionId: conn.id,
+        saleId: dto.saleId,
+        clientId: dto.clientId,
+      },
+    });
+  }
+
   // Emite ante el proveedor real un documento que ya estaba guardado como borrador.
   async issueDraft(id: string, user: any) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id }, include: { connection: true } });

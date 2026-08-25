@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Query,
+  Controller, Get, Post, Put, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -71,6 +71,11 @@ export class BillingController {
   @Post('invoices/:id/issue')
   issueDraft(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.issueDraft(id, user);
+  }
+
+  @Patch('invoices/:id')
+  updateDraft(@Param('id') id: string, @Body() dto: IssueInvoiceDto, @CurrentUser() user: any) {
+    return this.service.updateDraft(id, dto, user);
   }
 
   @Get('invoices/:id')

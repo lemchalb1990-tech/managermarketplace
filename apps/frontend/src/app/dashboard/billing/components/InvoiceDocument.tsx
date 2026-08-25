@@ -95,15 +95,25 @@ export default function InvoiceDocument({
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => (
-            <tr key={idx} className="border-b border-gray-100">
-              <td className="py-2 pr-2 text-gray-800">{item.name}</td>
-              <td className="py-2 text-center text-gray-600">{item.quantity}</td>
-              <td className="py-2 text-right text-gray-600">{fmt(item.unitPrice)}</td>
-              <td className="py-2 text-center text-gray-600">{item.discount ? `${item.discount}%` : '—'}</td>
-              <td className="py-2 text-right font-medium text-gray-900">{fmt(itemTotal(item))}</td>
-            </tr>
-          ))}
+          {items.map((item, idx) => {
+            const breakAt = item.name.indexOf('\n');
+            const shortName = breakAt === -1 ? item.name : item.name.slice(0, breakAt);
+            const longDescription = breakAt === -1 ? '' : item.name.slice(breakAt + 1);
+            return (
+              <tr key={idx} className="border-b border-gray-100">
+                <td className="py-2 pr-2 text-gray-800 align-top">
+                  <span>{shortName}</span>
+                  {longDescription && (
+                    <span className="block text-gray-400 text-[11px] mt-0.5 whitespace-pre-wrap">{longDescription}</span>
+                  )}
+                </td>
+                <td className="py-2 text-center text-gray-600 align-top">{item.quantity}</td>
+                <td className="py-2 text-right text-gray-600 align-top">{fmt(item.unitPrice)}</td>
+                <td className="py-2 text-center text-gray-600 align-top">{item.discount ? `${item.discount}%` : '—'}</td>
+                <td className="py-2 text-right font-medium text-gray-900 align-top">{fmt(itemTotal(item))}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
