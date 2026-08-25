@@ -314,6 +314,8 @@ export const api = {
         apiFetch<any>(`/billing/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       get: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}`, {}, token),
+      remove: (id: string, token: string) =>
+        apiFetch<{ deleted: boolean }>(`/billing/invoices/${id}`, { method: 'DELETE' }, token),
       cancel: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}/cancel`, { method: 'POST' }, token),
       pay: (id: string, data: { paymentMethod: string; paymentReference?: string; paidAt?: string }, token: string) =>

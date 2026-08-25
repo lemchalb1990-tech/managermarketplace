@@ -83,6 +83,11 @@ export class BillingController {
     return this.service.getInvoice(id, user);
   }
 
+  @Delete('invoices/:id')
+  deleteInvoice(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.deleteInvoice(id, user);
+  }
+
   @Post('invoices/:id/cancel')
   cancelInvoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.cancelInvoice(id, user);

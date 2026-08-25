@@ -92,6 +92,19 @@ export default function InvoicesPage() {
     load(page);
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar definitivamente este documento? Nunca se emitió (sin folio), así que se borra por completo y no queda registro. Esta acción no se puede deshacer.')) return;
+    setActionError('');
+    try {
+      const token = getToken()!;
+      await api.billing.invoices.remove(id, token);
+      if (viewingInvoice?.id === id) setViewingInvoice(null);
+      await load(page);
+    } catch (err: any) {
+      setActionError(err.message || 'No se pudo eliminar el documento.');
+    }
+  }
+
   async function handleIssueDraft(id: string) {
     if (!confirm('¿Emitir este borrador? Se emitirá el documento real ante el proveedor y no se puede deshacer.')) return;
     setActionError('');
@@ -298,9 +311,14 @@ export default function InvoicesPage() {
                           className="text-xs text-green-600 hover:text-green-700 font-medium">Marcar pagada</button>
                       )
                     )}
-                    {inv.status !== 'CANCELLED' && (
-                      <button onClick={() => handleCancel(inv.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium">Anular</button>
+                    {inv.folio ? (
+                      inv.status !== 'CANCELLED' && (
+                        <button onClick={() => handleCancel(inv.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium">Anular</button>
+                      )
+                    ) : (
+                      <button onClick={() => handleDelete(inv.id)}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium">Eliminar</button>
                     )}
                   </div>
                 </td>
@@ -427,6 +445,10 @@ export default function InvoicesPage() {
                 {viewingInvoice.status === 'DRAFT' && (
                   <Link href={`/dashboard/billing/invoices/new?draftId=${viewingInvoice.id}`}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium">Editar</Link>
+                )}
+                {!viewingInvoice.folio && (
+                  <button onClick={() => handleDelete(viewingInvoice.id)}
+                    className="text-sm text-red-500 hover:text-red-700 font-medium">Eliminar</button>
                 )}
               </div>
               <button onClick={() => setViewingInvoice(null)}

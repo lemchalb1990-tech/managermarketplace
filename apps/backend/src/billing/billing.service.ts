@@ -340,6 +340,20 @@ export class BillingService {
     return inv;
   }
 
+  // Borra por completo un documento que nunca llegó a emitirse (sin folio asignado por el
+  // proveedor) — borrador o intento fallido. Uno ya emitido (con folio) nunca se borra, solo
+  // se anula, porque es un documento tributario real ante el SII.
+  async deleteInvoice(id: string, user: any) {
+    const inv = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!inv) throw new NotFoundException();
+    if (user.role !== Role.SUPER_ADMIN && inv.companyId !== user.companyId) throw new ForbiddenException();
+    if (inv.folio != null) {
+      throw new BadRequestException('No se puede eliminar un documento ya emitido (tiene folio asignado). Anúlalo en su lugar.');
+    }
+    await this.prisma.invoice.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   async cancelInvoice(id: string, user: any) {
     const inv = await this.prisma.invoice.findUnique({ where: { id } });
     if (!inv) throw new NotFoundException();
