@@ -15,8 +15,8 @@ const DTE_TYPES = [
 
 const IVA = 0.19;
 
-interface Item { name: string; quantity: number; unitPrice: number; discount: number }
-const emptyItem = (): Item => ({ name: '', quantity: 1, unitPrice: 0, discount: 0 });
+interface Item { name: string; longDescription: string; quantity: number; unitPrice: number; discount: number; productId?: string }
+const emptyItem = (): Item => ({ name: '', longDescription: '', quantity: 1, unitPrice: 0, discount: 0 });
 
 export default function NewInvoicePage() {
   const router = useRouter();
@@ -45,6 +45,11 @@ export default function NewInvoicePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [saveAsClient, setSaveAsClient] = useState(true);
+  const [productQuery, setProductQuery] = useState('');
+  const [productResults, setProductResults] = useState<any[]>([]);
+  const [productSearching, setProductSearching] = useState(false);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [expandedDesc, setExpandedDesc] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const token = getToken()!;
@@ -63,9 +68,11 @@ export default function NewInvoicePage() {
         if (s.items?.length > 0) {
           setItems(s.items.map((i: any) => ({
             name: i.product?.name || 'Producto eliminado',
+            longDescription: '',
             quantity: i.quantity,
             unitPrice: Number(i.unitPrice),
             discount: 0,
+            productId: i.product?.id,
           })));
         }
         setForm((f) => ({
@@ -120,6 +127,45 @@ export default function NewInvoicePage() {
     setItems(prev => prev.filter((_, i) => i !== idx));
   }
 
+  useEffect(() => {
+    if (!showProductSearch) return;
+    const q = productQuery.trim();
+    if (!q) { setProductResults([]); return; }
+    const t = setTimeout(async () => {
+      setProductSearching(true);
+      try {
+        const token = getToken()!;
+        const res = await api.catalog.search({ search: q, active: 'true', pageSize: 8 }, token);
+        setProductResults(res.products);
+      } catch {
+        setProductResults([]);
+      } finally {
+        setProductSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [productQuery, showProductSearch]);
+
+  // Agrega un producto del catálogo como ítem: descripción corta y precio vienen del
+  // catálogo; el usuario puede completar una descripción larga aparte si quiere.
+  function addProductItem(product: any) {
+    const newItem: Item = {
+      name: product.name,
+      longDescription: '',
+      quantity: 1,
+      unitPrice: Number(product.price),
+      discount: 0,
+      productId: product.id,
+    };
+    setItems(prev => {
+      const isBlankPlaceholder = prev.length === 1 && !prev[0].name.trim() && prev[0].unitPrice === 0;
+      return isBlankPlaceholder ? [newItem] : [...prev, newItem];
+    });
+    setProductQuery('');
+    setProductResults([]);
+    setShowProductSearch(false);
+  }
+
   function handleOpenPreview(e: React.FormEvent) {
     e.preventDefault();
     if (!form.connectionId) { setError('Selecciona una conexión de facturación'); return; }
@@ -143,7 +189,7 @@ export default function NewInvoicePage() {
       clientId: clientId || undefined,
       saleId: saleId || undefined,
       items: items.map(i => ({
-        name: i.name,
+        name: i.longDescription.trim() ? `${i.name} — ${i.longDescription.trim()}` : i.name,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         discount: i.discount || undefined,
@@ -335,9 +381,41 @@ export default function NewInvoicePage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800">Ítems</h2>
-            <button type="button" onClick={addItem}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar ítem</button>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setShowProductSearch(s => !s)}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar producto del catálogo</button>
+              <button type="button" onClick={addItem}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-700">+ Ítem libre</button>
+            </div>
           </div>
+
+          {showProductSearch && (
+            <div className="mb-4 relative">
+              <input value={productQuery} onChange={(e) => setProductQuery(e.target.value)}
+                placeholder="Buscar producto por nombre o SKU..." autoFocus
+                className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              {(productSearching || productResults.length > 0) && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  {productSearching ? (
+                    <p className="px-3 py-2 text-xs text-gray-400">Buscando...</p>
+                  ) : (
+                    productResults.map((p) => (
+                      <button key={p.id} type="button" onClick={() => addProductItem(p)}
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50 text-sm">
+                        <span className="min-w-0">
+                          <span className="block font-medium text-gray-800 truncate">{p.name}</span>
+                          <span className="block text-xs text-gray-400 font-mono">{p.sku}</span>
+                        </span>
+                        <span className="shrink-0 text-blue-600 font-semibold">
+                          {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Number(p.price))}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
           <div className="space-y-3 min-w-[560px]">
@@ -349,32 +427,44 @@ export default function NewInvoicePage() {
               <span className="col-span-2 text-right">Total</span>
             </div>
             {items.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                <div className="col-span-5">
-                  <input value={item.name} onChange={(e) => updateItem(idx, 'name', e.target.value)}
-                    placeholder="Descripción del ítem"
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+              <div key={idx} className="space-y-1">
+                <div className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-5">
+                    <input value={item.name} onChange={(e) => updateItem(idx, 'name', e.target.value)}
+                      placeholder="Descripción del ítem"
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div className="col-span-2">
+                    <input type="number" min={1} value={item.quantity}
+                      onChange={(e) => updateItem(idx, 'quantity', Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center" />
+                  </div>
+                  <div className="col-span-2">
+                    <input type="number" min={0} value={item.unitPrice}
+                      onChange={(e) => updateItem(idx, 'unitPrice', Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right" />
+                  </div>
+                  <div className="col-span-1">
+                    <input type="number" min={0} max={100} value={item.discount}
+                      onChange={(e) => updateItem(idx, 'discount', Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center" />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-end gap-1">
+                    <span className="text-sm font-medium text-gray-800">{fmt(itemTotals[idx])}</span>
+                    {items.length > 1 && (
+                      <button type="button" onClick={() => removeItem(idx)}
+                        className="text-gray-300 hover:text-red-500 ml-1 text-lg leading-none">×</button>
+                    )}
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <input type="number" min={1} value={item.quantity}
-                    onChange={(e) => updateItem(idx, 'quantity', Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center" />
-                </div>
-                <div className="col-span-2">
-                  <input type="number" min={0} value={item.unitPrice}
-                    onChange={(e) => updateItem(idx, 'unitPrice', Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right" />
-                </div>
-                <div className="col-span-1">
-                  <input type="number" min={0} max={100} value={item.discount}
-                    onChange={(e) => updateItem(idx, 'discount', Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center" />
-                </div>
-                <div className="col-span-2 flex items-center justify-end gap-1">
-                  <span className="text-sm font-medium text-gray-800">{fmt(itemTotals[idx])}</span>
-                  {items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(idx)}
-                      className="text-gray-300 hover:text-red-500 ml-1 text-lg leading-none">×</button>
+                <div>
+                  {expandedDesc.has(idx) || item.longDescription ? (
+                    <textarea value={item.longDescription} onChange={(e) => updateItem(idx, 'longDescription', e.target.value)}
+                      placeholder="Descripción larga (opcional)" rows={2}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 resize-none" />
+                  ) : (
+                    <button type="button" onClick={() => setExpandedDesc(prev => new Set(prev).add(idx))}
+                      className="text-xs text-gray-400 hover:text-blue-600">+ Agregar descripción larga</button>
                   )}
                 </div>
               </div>
@@ -476,6 +566,9 @@ export default function NewInvoicePage() {
                     <span className="text-gray-700 flex-1">
                       {item.name} <span className="text-gray-400">× {item.quantity}</span>
                       {item.discount > 0 && <span className="text-gray-400"> (-{item.discount}%)</span>}
+                      {item.longDescription.trim() && (
+                        <span className="block text-gray-400">{item.longDescription.trim()}</span>
+                      )}
                     </span>
                     <span className="text-gray-800 font-medium shrink-0">{fmt(itemTotals[idx])}</span>
                   </div>
