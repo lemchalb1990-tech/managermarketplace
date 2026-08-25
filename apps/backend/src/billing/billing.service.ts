@@ -159,15 +159,21 @@ export class BillingService {
     return conn;
   }
 
+  // Replica línea por línea el mismo redondeo que hace el proveedor (ver facto.adapter.ts)
+  // para que el total guardado/mostrado en Documentos Emitidos sea siempre el mismo que el
+  // del DTE real emitido. Antes se calculaba el neto sumando los montos sin redondear y (para
+  // documentos exentos) se dividía por 1+IVA, lo que dejaba el total guardado muy por debajo
+  // del monto real timbrado por el proveedor.
   private computeAmounts(dto: Pick<IssueInvoiceDto, 'dteType' | 'items'>) {
     const isExempt = dto.dteType === DteType.FACTURA_EXENTA || dto.dteType === DteType.BOLETA;
-    const netAmount = dto.items.reduce((sum, i) => {
-      const subtotal = i.unitPrice * i.quantity * (1 - (i.discount ?? 0) / 100);
-      return sum + (isExempt ? subtotal / (1 + IVA) : subtotal);
-    }, 0);
-    const tax = isExempt ? 0 : Math.round(netAmount * IVA);
-    const totalAmount = Math.round(netAmount) + tax;
-    return { netAmount, tax, totalAmount };
+    let netAmount = 0;
+    let tax = 0;
+    for (const i of dto.items) {
+      const lineNet = Math.round(i.unitPrice * i.quantity * (1 - (i.discount ?? 0) / 100));
+      netAmount += lineNet;
+      tax += isExempt ? 0 : Math.round(lineNet * IVA);
+    }
+    return { netAmount, tax, totalAmount: netAmount + tax };
   }
 
   // Intenta emitir un Invoice ya guardado (DRAFT) ante el proveedor real. La identidad del
