@@ -45,10 +45,9 @@ export default function NewInvoicePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [saveAsClient, setSaveAsClient] = useState(true);
-  const [productQuery, setProductQuery] = useState('');
-  const [productResults, setProductResults] = useState<any[]>([]);
-  const [productSearching, setProductSearching] = useState(false);
-  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [expandedDesc, setExpandedDesc] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -56,6 +55,9 @@ export default function NewInvoicePage() {
     api.billing.connections.list(token, {}).then(setConnections).catch(() => {});
     api.clients.list(token).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
     api.billing.profile.get(token).then(setProfile).catch(() => {});
+    api.catalog.search({ active: 'true', pageSize: 100, sortBy: 'name', sortDir: 'asc' }, token)
+      .then((res) => setCatalogProducts(res.products))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -127,28 +129,11 @@ export default function NewInvoicePage() {
     setItems(prev => prev.filter((_, i) => i !== idx));
   }
 
-  useEffect(() => {
-    if (!showProductSearch) return;
-    const q = productQuery.trim();
-    if (!q) { setProductResults([]); return; }
-    const t = setTimeout(async () => {
-      setProductSearching(true);
-      try {
-        const token = getToken()!;
-        const res = await api.catalog.search({ search: q, active: 'true', pageSize: 8 }, token);
-        setProductResults(res.products);
-      } catch {
-        setProductResults([]);
-      } finally {
-        setProductSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [productQuery, showProductSearch]);
-
   // Agrega un producto del catálogo como ítem: descripción corta y precio vienen del
   // catálogo; el usuario puede completar una descripción larga aparte si quiere.
-  function addProductItem(product: any) {
+  function handleAddProductItem() {
+    const product = catalogProducts.find(p => p.id === selectedProductId);
+    if (!product) return;
     const newItem: Item = {
       name: product.name,
       longDescription: '',
@@ -161,9 +146,8 @@ export default function NewInvoicePage() {
       const isBlankPlaceholder = prev.length === 1 && !prev[0].name.trim() && prev[0].unitPrice === 0;
       return isBlankPlaceholder ? [newItem] : [...prev, newItem];
     });
-    setProductQuery('');
-    setProductResults([]);
-    setShowProductSearch(false);
+    setSelectedProductId('');
+    setShowProductModal(false);
   }
 
   function handleOpenPreview(e: React.FormEvent) {
@@ -382,40 +366,12 @@ export default function NewInvoicePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800">Ítems</h2>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setShowProductSearch(s => !s)}
+              <button type="button" onClick={() => setShowProductModal(true)}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar producto del catálogo</button>
               <button type="button" onClick={addItem}
                 className="text-xs font-semibold text-gray-500 hover:text-gray-700">+ Ítem libre</button>
             </div>
           </div>
-
-          {showProductSearch && (
-            <div className="mb-4 relative">
-              <input value={productQuery} onChange={(e) => setProductQuery(e.target.value)}
-                placeholder="Buscar producto por nombre o SKU..." autoFocus
-                className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              {(productSearching || productResults.length > 0) && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                  {productSearching ? (
-                    <p className="px-3 py-2 text-xs text-gray-400">Buscando...</p>
-                  ) : (
-                    productResults.map((p) => (
-                      <button key={p.id} type="button" onClick={() => addProductItem(p)}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50 text-sm">
-                        <span className="min-w-0">
-                          <span className="block font-medium text-gray-800 truncate">{p.name}</span>
-                          <span className="block text-xs text-gray-400 font-mono">{p.sku}</span>
-                        </span>
-                        <span className="shrink-0 text-blue-600 font-semibold">
-                          {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Number(p.price))}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="overflow-x-auto">
           <div className="space-y-3 min-w-[560px]">
@@ -618,6 +574,45 @@ export default function NewInvoicePage() {
                   Volver a editar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProductModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900 text-base">Agregar producto del catálogo</h2>
+              <button onClick={() => { setShowProductModal(false); setSelectedProductId(''); }}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Producto o servicio *</label>
+              <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} autoFocus
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="">— Selecciona un producto o servicio —</option>
+                {catalogProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.sku}) — {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Number(p.price))}
+                  </option>
+                ))}
+              </select>
+              {catalogProducts.length === 0 && (
+                <p className="text-xs text-gray-400">No hay productos activos en el catálogo.</p>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
+              <button onClick={() => { setShowProductModal(false); setSelectedProductId(''); }}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
+                Cancelar
+              </button>
+              <button onClick={handleAddProductItem} disabled={!selectedProductId}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                Agregar
+              </button>
             </div>
           </div>
         </div>
