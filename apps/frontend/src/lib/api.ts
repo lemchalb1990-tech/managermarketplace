@@ -442,6 +442,7 @@ export const api = {
       if (params.search) q.set('search', params.search);
       return apiFetch<{ sales: any[]; total: number; page: number; pages: number }>(`/pos/sales?${q}`, {}, token);
     },
+    getSale: (id: string, token: string) => apiFetch<any>(`/pos/sales/${id}`, {}, token),
     deleteSale: (id: string, token: string) =>
       apiFetch<{ deleted: boolean }>(`/pos/sales/${id}`, { method: 'DELETE' }, token),
     bulkDeleteSales: (ids: string[], token: string) =>

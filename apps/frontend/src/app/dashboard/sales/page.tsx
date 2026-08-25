@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
@@ -357,9 +358,16 @@ export default function SalesPage() {
                         <p className="text-xs text-gray-400">ID ext: {sale.externalId}</p>
                       )}
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${CHANNEL_COLORS[sale.channel] || 'bg-gray-100 text-gray-700'}`}>
-                      {CHANNEL_LABELS[sale.channel] || sale.channel}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${CHANNEL_COLORS[sale.channel] || 'bg-gray-100 text-gray-700'}`}>
+                        {CHANNEL_LABELS[sale.channel] || sale.channel}
+                      </span>
+                      {sale.invoices?.length > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700 w-fit">
+                          Facturado
+                        </span>
+                      )}
+                    </div>
                     <div>
                       <p className="text-sm text-gray-600">
                         {sale.paymentMethod ? PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod : '—'}
@@ -437,8 +445,25 @@ export default function SalesPage() {
                     {sale.user && (
                       <p className="text-xs text-gray-400">Vendedor: {sale.user.name}</p>
                     )}
-                    {isAdmin && (
-                      <div className="pt-2 mt-2 border-t border-gray-200 text-right">
+                    {sale.invoices?.length > 0 && (
+                      <div className="pt-1">
+                        {sale.invoices.map((inv: any) => (
+                          <Link key={inv.id} href={`/dashboard/billing/invoices?issued=${inv.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-blue-500 hover:underline block">
+                            Ver documento {inv.dteType}{inv.folio ? ` N° ${inv.folio}` : ''} ({inv.status})
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    <div className="pt-2 mt-2 border-t border-gray-200 flex items-center justify-end gap-4">
+                      <Link href={`/dashboard/billing/invoices/new?saleId=${sale.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Facturar
+                      </Link>
+                      {isAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteSale(sale.id); }}
                           disabled={deletingId === sale.id}
@@ -446,8 +471,8 @@ export default function SalesPage() {
                         >
                           {deletingId === sale.id ? 'Eliminando...' : 'Eliminar venta'}
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

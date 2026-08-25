@@ -233,6 +233,7 @@ export class PosService {
         include: {
           items: { include: { product: { select: { id: true, name: true, sku: true } } } },
           user: { select: { id: true, name: true } },
+          invoices: { select: { id: true, dteType: true, status: true, folio: true } },
         },
         orderBy: { createdAt: 'desc' },
         take,
@@ -242,6 +243,22 @@ export class PosService {
     ]);
 
     return { sales, total, page, pages: Math.ceil(total / take) };
+  }
+
+  async getSale(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+        invoices: { select: { id: true, dteType: true, status: true, folio: true, createdAt: true } },
+        user: { select: { id: true, name: true } },
+      },
+    });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    return sale;
   }
 
   async deleteSale(saleId: string, user: any) {

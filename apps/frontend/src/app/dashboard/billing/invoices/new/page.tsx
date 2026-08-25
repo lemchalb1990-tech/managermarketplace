@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
@@ -20,9 +20,13 @@ const emptyItem = (): Item => ({ name: '', quantity: 1, unitPrice: 0, discount: 
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const saleId = searchParams.get('saleId');
   const [connections, setConnections] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [clientId, setClientId] = useState('');
+  const [sale, setSale] = useState<any>(null);
+  const [saleLoading, setSaleLoading] = useState(false);
   const [form, setForm] = useState({
     connectionId: '',
     dteType: 'BOLETA',
@@ -43,6 +47,33 @@ export default function NewInvoicePage() {
     api.billing.connections.list(token, {}).then(setConnections).catch(() => {});
     api.clients.list(token).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!saleId) return;
+    const token = getToken()!;
+    setSaleLoading(true);
+    api.pos.getSale(saleId, token)
+      .then((s) => {
+        setSale(s);
+        if (s.items?.length > 0) {
+          setItems(s.items.map((i: any) => ({
+            name: i.product?.name || 'Producto eliminado',
+            quantity: i.quantity,
+            unitPrice: Number(i.unitPrice),
+            discount: 0,
+          })));
+        }
+        setForm((f) => ({
+          ...f,
+          razonSocial: s.customerName || f.razonSocial,
+          email: s.customerEmail || f.email,
+          address: s.address || f.address,
+          commune: s.commune || f.commune,
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setSaleLoading(false));
+  }, [saleId]);
 
   function selectClient(id: string) {
     setClientId(id);
@@ -104,6 +135,7 @@ export default function NewInvoicePage() {
         email: form.email.trim() || undefined,
         notes: form.notes.trim() || undefined,
         clientId: clientId || undefined,
+        saleId: saleId || undefined,
         items: items.map(i => ({
           name: i.name,
           quantity: i.quantity,
@@ -130,6 +162,28 @@ export default function NewInvoicePage() {
       </div>
 
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Emitir Documento Tributario</h1>
+
+      {saleId && (
+        <div className="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          {saleLoading ? (
+            'Cargando datos de la venta...'
+          ) : sale ? (
+            <>
+              Facturando la venta del{' '}
+              {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {' '}por <strong>${Math.round(Number(sale.total)).toLocaleString('es-CL')}</strong>.
+              {' '}Los ítems se precargaron abajo; completa el RUT del receptor.
+              {sale.invoices?.length > 0 && (
+                <p className="mt-1 text-amber-700">
+                  ⚠️ Esta venta ya tiene {sale.invoices.length} documento(s) emitido(s).
+                </p>
+              )}
+            </>
+          ) : (
+            'No se pudo cargar la venta indicada; completa el documento manualmente.'
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Sección proveedor y tipo */}
