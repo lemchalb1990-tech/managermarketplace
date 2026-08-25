@@ -41,11 +41,14 @@ export default function NewInvoicePage() {
   const [items, setItems] = useState<Item[]>([emptyItem()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [profile, setProfile] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     const token = getToken()!;
     api.billing.connections.list(token, {}).then(setConnections).catch(() => {});
     api.clients.list(token).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
+    api.billing.profile.get(token).then(setProfile).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -114,12 +117,16 @@ export default function NewInvoicePage() {
     setItems(prev => prev.filter((_, i) => i !== idx));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleOpenPreview(e: React.FormEvent) {
     e.preventDefault();
     if (!form.connectionId) { setError('Selecciona una conexión de facturación'); return; }
     if (!form.rut.trim() || !form.razonSocial.trim()) { setError('RUT y razón social son requeridos'); return; }
     if (items.some(i => !i.name.trim() || i.unitPrice <= 0)) { setError('Completa todos los ítems'); return; }
+    setError('');
+    setShowPreview(true);
+  }
 
+  async function handleConfirmIssue() {
     setLoading(true);
     setError('');
     try {
@@ -185,7 +192,7 @@ export default function NewInvoicePage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleOpenPreview} className="space-y-6">
         {/* Sección proveedor y tipo */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Configuración del documento</h2>
@@ -355,9 +362,9 @@ export default function NewInvoicePage() {
         )}
 
         <div className="flex gap-3">
-          <button type="submit" disabled={loading}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm">
-            {loading ? 'Emitiendo...' : `Emitir ${dteInfo?.label ?? 'DTE'}`}
+          <button type="submit"
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm">
+            Vista previa y emitir →
           </button>
           <a href="/dashboard/billing/invoices"
             className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 font-medium">
@@ -365,6 +372,100 @@ export default function NewInvoicePage() {
           </a>
         </div>
       </form>
+
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="font-bold text-gray-900 text-base">Vista previa del documento</h2>
+              <button onClick={() => setShowPreview(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 font-mono text-sm">
+              <div className="flex items-start justify-between border-b border-dashed border-gray-300 pb-3">
+                <div>
+                  <p className="font-bold text-gray-900 text-base">{profile?.razonSocial || 'Tu empresa'}</p>
+                  {profile?.rut && <p className="text-gray-500 text-xs">RUT: {profile.rut}</p>}
+                  {profile?.giro && <p className="text-gray-500 text-xs">{profile.giro}</p>}
+                  {(profile?.address || profile?.commune) && (
+                    <p className="text-gray-500 text-xs">{[profile?.address, profile?.commune].filter(Boolean).join(', ')}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-gray-900">{dteInfo?.label ?? form.dteType}</p>
+                  <p className="text-xs text-gray-400">{connections.find(c => c.id === form.connectionId)?.name}</p>
+                  <p className="text-xs text-gray-400">{connections.find(c => c.id === form.connectionId)?.provider}</p>
+                </div>
+              </div>
+
+              <div className="border-b border-dashed border-gray-300 pb-3">
+                <p className="text-xs text-gray-400 mb-1">SEÑOR(ES)</p>
+                <p className="font-semibold text-gray-800">{form.razonSocial}</p>
+                <p className="text-gray-600 text-xs">RUT: {form.rut}</p>
+                {form.giro && <p className="text-gray-600 text-xs">Giro: {form.giro}</p>}
+                {(form.address || form.commune) && (
+                  <p className="text-gray-600 text-xs">{[form.address, form.commune].filter(Boolean).join(', ')}</p>
+                )}
+                {form.email && <p className="text-gray-600 text-xs">{form.email}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between gap-2 text-xs">
+                    <span className="text-gray-700 flex-1">
+                      {item.name} <span className="text-gray-400">× {item.quantity}</span>
+                      {item.discount > 0 && <span className="text-gray-400"> (-{item.discount}%)</span>}
+                    </span>
+                    <span className="text-gray-800 font-medium shrink-0">{fmt(itemTotals[idx])}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-dashed border-gray-300 pt-3 space-y-1">
+                {isTaxed && (
+                  <>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Neto</span><span>{fmt(netAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>IVA (19%)</span><span>{fmt(tax)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
+                  <span>TOTAL</span><span>{fmt(totalAmount)}</span>
+                </div>
+              </div>
+
+              {form.notes && (
+                <p className="text-xs text-gray-400 pt-2 border-t border-dashed border-gray-300">Obs: {form.notes}</p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+              <p className="text-xs text-gray-400 mb-3">
+                Esta es una vista previa. Al confirmar, se emitirá el documento real ante {connections.find(c => c.id === form.connectionId)?.provider || 'el proveedor'} y no se puede deshacer.
+              </p>
+              {error && (
+                <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={handleConfirmIssue} disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm">
+                  {loading ? 'Emitiendo...' : 'Confirmar y emitir'}
+                </button>
+                <button onClick={() => setShowPreview(false)} disabled={loading}
+                  className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 font-medium disabled:opacity-50">
+                  Volver a editar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
