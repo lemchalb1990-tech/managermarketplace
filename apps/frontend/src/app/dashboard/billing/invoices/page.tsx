@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import InvoiceDocument from '../components/InvoiceDocument';
+
+const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
 
 const DTE_LABELS: Record<string, string> = {
   FACTURA: 'Factura (33)',
@@ -56,6 +59,8 @@ export default function InvoicesPage() {
   const [payError, setPayError] = useState('');
   const [actionError, setActionError] = useState('');
   const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<any>(null);
 
   async function load(p = 1) {
     setLoading(true);
@@ -74,7 +79,11 @@ export default function InvoicesPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(1); }, []);
+  useEffect(() => {
+    load(1);
+    const token = getToken();
+    if (token) api.billing.profile.get(token).then(setProfile).catch(() => {});
+  }, []);
 
   async function handleCancel(id: string) {
     if (!confirm('¿Anular este documento?')) return;
@@ -249,7 +258,17 @@ export default function InvoicesPage() {
                   {new Date(inv.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-2 justify-end items-center">
+                    <button onClick={() => setViewingInvoice(inv)} title="Ver documento"
+                      className="text-gray-400 hover:text-blue-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth={1.75} className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round"
+                          d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14 2v6h6" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6M9 17h6M9 9h1" />
+                      </svg>
+                    </button>
                     {inv.pdfUrl && (
                       <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium">PDF</a>
@@ -344,6 +363,60 @@ export default function InvoicesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {viewingInvoice && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="font-bold text-gray-900 text-base">Vista del documento</h2>
+              <button onClick={() => setViewingInvoice(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6 bg-gray-100">
+              <InvoiceDocument
+                profile={profile}
+                dteLabel={DTE_LABELS[viewingInvoice.dteType] ?? viewingInvoice.dteType}
+                folio={viewingInvoice.folio}
+                statusBadge={
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_STYLES[viewingInvoice.status] || ''}`}>
+                    {STATUS_LABELS[viewingInvoice.status] ?? viewingInvoice.status}
+                  </span>
+                }
+                connectionName={viewingInvoice.connection?.name}
+                connectionProvider={viewingInvoice.connection?.provider}
+                receptor={{
+                  razonSocial: viewingInvoice.razonSocial, rut: viewingInvoice.rut, giro: viewingInvoice.giro,
+                  address: viewingInvoice.address, commune: viewingInvoice.commune, email: viewingInvoice.email,
+                }}
+                items={viewingInvoice.items || []}
+                isTaxed={!EXEMPT_DTE_TYPES.has(viewingInvoice.dteType)}
+                netAmount={Number(viewingInvoice.netAmount)}
+                tax={Number(viewingInvoice.tax)}
+                totalAmount={Number(viewingInvoice.totalAmount)}
+                notes={viewingInvoice.notes}
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between">
+              <div className="flex gap-3">
+                {viewingInvoice.pdfUrl && (
+                  <a href={viewingInvoice.pdfUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">Ver PDF real del proveedor</a>
+                )}
+                {viewingInvoice.xmlUrl && (
+                  <a href={viewingInvoice.xmlUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-gray-500 hover:text-gray-700 font-medium">Ver XML</a>
+                )}
+              </div>
+              <button onClick={() => setViewingInvoice(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 font-medium">
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

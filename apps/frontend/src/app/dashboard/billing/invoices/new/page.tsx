@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
-import { api, imgUrl } from '@/lib/api';
+import { api } from '@/lib/api';
+import InvoiceDocument from '../../components/InvoiceDocument';
 
 const DTE_TYPES = [
   { value: 'FACTURA', label: 'Factura Electrónica (33)', taxed: true },
@@ -487,114 +488,25 @@ export default function NewInvoicePage() {
 
             {/* "Hoja" de la factura */}
             <div className="flex-1 overflow-y-auto px-6 py-6 bg-gray-100">
-              <div className="bg-white mx-auto max-w-2xl shadow-sm border border-gray-200 rounded-lg p-8 text-gray-800">
-                {/* Encabezado: emisor + recuadro tipo documento */}
-                <div className="flex items-start justify-between gap-6 pb-5 mb-5 border-b-2 border-gray-800">
-                  <div className="flex items-start gap-3 min-w-0">
-                    {profile?.logoUrl && (
-                      <img src={imgUrl(profile.logoUrl)} alt="Logo" className="w-14 h-14 object-contain shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-900 text-lg leading-tight">{profile?.razonSocial || 'Tu empresa'}</p>
-                      {profile?.giro && <p className="text-gray-500 text-xs mt-0.5">{profile.giro}</p>}
-                      {(profile?.address || profile?.commune || profile?.city) && (
-                        <p className="text-gray-500 text-xs">{[profile?.address, profile?.commune, profile?.city].filter(Boolean).join(', ')}</p>
-                      )}
-                      {(profile?.phone || profile?.email) && (
-                        <p className="text-gray-500 text-xs">{[profile?.phone, profile?.email].filter(Boolean).join(' · ')}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0 border-2 border-red-700 rounded-md px-4 py-3 text-center w-56">
-                    <p className="text-red-700 font-bold text-xs tracking-wide">R.U.T. {profile?.rut || '—'}</p>
-                    <p className="text-red-700 font-extrabold text-sm mt-1 uppercase leading-snug">{dteInfo?.label ?? form.dteType}</p>
-                    <p className="text-gray-400 text-xs mt-1">N° folio pendiente de emisión</p>
-                    {profile?.resolutionNumber && (
-                      <p className="text-gray-400 text-[10px] mt-1">
-                        Res. {profile.resolutionNumber}
-                        {profile.resolutionDate && ` del ${new Date(profile.resolutionDate).toLocaleDateString('es-CL')}`}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Receptor */}
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-6 pb-5 border-b border-gray-200">
-                  <div className="col-span-2">
-                    <span className="text-gray-400">Señor(es): </span>
-                    <span className="font-semibold text-gray-900">{form.razonSocial || '—'}</span>
-                  </div>
-                  <div><span className="text-gray-400">R.U.T.: </span><span className="text-gray-800 font-medium">{form.rut || '—'}</span></div>
-                  <div><span className="text-gray-400">Giro: </span><span className="text-gray-800">{form.giro || '—'}</span></div>
-                  <div className="col-span-2">
-                    <span className="text-gray-400">Dirección: </span>
-                    <span className="text-gray-800">{[form.address, form.commune].filter(Boolean).join(', ') || '—'}</span>
-                  </div>
-                  {form.email && <div className="col-span-2"><span className="text-gray-400">Contacto: </span><span className="text-gray-800">{form.email}</span></div>}
-                  {!clientId && saveAsClient && (
-                    <p className="col-span-2 text-emerald-600 mt-1">✓ Se guardará como cliente nuevo para tus próximas facturas</p>
-                  )}
-                </div>
-
-                {/* Ítems */}
-                <table className="w-full text-xs mb-6">
-                  <thead>
-                    <tr className="border-b-2 border-gray-800 text-gray-500">
-                      <th className="text-left font-semibold py-1.5">Descripción</th>
-                      <th className="text-center font-semibold py-1.5 w-16">Cant.</th>
-                      <th className="text-right font-semibold py-1.5 w-24">P. Unit.</th>
-                      <th className="text-center font-semibold py-1.5 w-14">Dscto</th>
-                      <th className="text-right font-semibold py-1.5 w-24">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, idx) => (
-                      <tr key={idx} className="border-b border-gray-100">
-                        <td className="py-2 pr-2 text-gray-800">
-                          {item.name}
-                          {item.longDescription.trim() && (
-                            <span className="block text-gray-400 text-[11px] mt-0.5">{item.longDescription.trim()}</span>
-                          )}
-                        </td>
-                        <td className="py-2 text-center text-gray-600">{item.quantity}</td>
-                        <td className="py-2 text-right text-gray-600">{fmt(item.unitPrice)}</td>
-                        <td className="py-2 text-center text-gray-600">{item.discount > 0 ? `${item.discount}%` : '—'}</td>
-                        <td className="py-2 text-right font-medium text-gray-900">{fmt(itemTotals[idx])}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Totales */}
-                <div className="flex justify-end mb-6">
-                  <div className="w-56 space-y-1 text-xs">
-                    {isTaxed && (
-                      <>
-                        <div className="flex justify-between text-gray-500">
-                          <span>Neto</span><span>{fmt(netAmount)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-500">
-                          <span>IVA (19%)</span><span>{fmt(tax)}</span>
-                        </div>
-                      </>
-                    )}
-                    <div className="flex justify-between font-bold text-gray-900 text-sm pt-1.5 border-t-2 border-gray-800">
-                      <span>TOTAL</span><span>{fmt(totalAmount)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {form.notes && (
-                  <p className="text-xs text-gray-500 pt-3 border-t border-dashed border-gray-200 mb-2">
-                    <span className="text-gray-400">Observaciones: </span>{form.notes}
-                  </p>
+              <InvoiceDocument
+                profile={profile}
+                dteLabel={dteInfo?.label ?? form.dteType}
+                connectionName={connections.find(c => c.id === form.connectionId)?.name}
+                connectionProvider={connections.find(c => c.id === form.connectionId)?.provider}
+                receptor={{
+                  razonSocial: form.razonSocial, rut: form.rut, giro: form.giro,
+                  address: form.address, commune: form.commune, email: form.email,
+                }}
+                items={buildPayload().items}
+                isTaxed={isTaxed}
+                netAmount={netAmount}
+                tax={tax}
+                totalAmount={totalAmount}
+                notes={form.notes}
+                extraNote={!clientId && saveAsClient && (
+                  <p className="col-span-2 text-emerald-600 mt-1">✓ Se guardará como cliente nuevo para tus próximas facturas</p>
                 )}
-
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
-                  <span>{profile?.footerText || 'Documento generado electrónicamente'}</span>
-                  <span>{connections.find(c => c.id === form.connectionId)?.name} · {connections.find(c => c.id === form.connectionId)?.provider}</span>
-                </div>
-              </div>
+              />
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 shrink-0">
