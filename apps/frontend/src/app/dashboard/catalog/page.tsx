@@ -925,11 +925,23 @@ export default function CatalogPage() {
       </div>
 
       {listNotice && (
-        <div className={`flex items-start justify-between gap-3 px-4 py-2.5 mb-4 rounded-xl text-xs ${
-          listNoticeIsWarning ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-green-50 border border-green-200 text-green-800'
-        }`}>
-          <span>{listNotice}</span>
-          <button onClick={() => setListNotice('')} className="hover:opacity-70 leading-none">×</button>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-6 py-5 text-center">
+              <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center text-2xl ${
+                listNoticeIsWarning ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'
+              }`}>
+                {listNoticeIsWarning ? '⚠' : '✓'}
+              </div>
+              <p className="text-sm text-gray-800">{listNotice}</p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-center">
+              <button onClick={() => setListNotice('')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
