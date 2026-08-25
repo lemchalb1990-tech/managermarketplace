@@ -350,7 +350,8 @@ export default function CatalogPage() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
   const [mlWarning, setMlWarning] = useState('');
-  const [createPublishWarning, setCreatePublishWarning] = useState('');
+  const [listNotice, setListNotice] = useState('');
+  const [listNoticeIsWarning, setListNoticeIsWarning] = useState(false);
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
@@ -602,7 +603,6 @@ export default function CatalogPage() {
     setTab('edit');
     setEditError('');
     setMlWarning('');
-    setCreatePublishWarning('');
     setIsDirty(false);
     originalFormRef.current = {
       sku: product.sku,
@@ -630,7 +630,7 @@ export default function CatalogPage() {
     setTab('edit');
     setEditError('');
     setMlWarning('');
-    setCreatePublishWarning('');
+    setListNotice('');
     setIsDirty(false);
     originalFormRef.current = null;
     setMlCategoryAttrs([]);
@@ -686,12 +686,16 @@ export default function CatalogPage() {
           }
         }
         await loadProducts(1);
-        const refreshed = await api.catalog.get(created.id, token);
-        openModal(refreshed);
+        setSelected(null);
         if (publishErrors.length) {
-          setCreatePublishWarning(`Producto creado. No se pudo publicar en: ${publishErrors.join(' · ')}`);
+          setListNoticeIsWarning(true);
+          setListNotice(`Producto "${created.name}" creado. No se pudo publicar en: ${publishErrors.join(' · ')}`);
         } else if (targetIds.length) {
-          setCreatePublishWarning(`Producto creado y publicado en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+          setListNoticeIsWarning(false);
+          setListNotice(`Producto "${created.name}" creado y publicado en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+        } else {
+          setListNoticeIsWarning(false);
+          setListNotice(`Producto "${created.name}" creado.`);
         }
       }
     } catch (err: any) {
@@ -919,6 +923,15 @@ export default function CatalogPage() {
           </button>
         )}
       </div>
+
+      {listNotice && (
+        <div className={`flex items-start justify-between gap-3 px-4 py-2.5 mb-4 rounded-xl text-xs ${
+          listNoticeIsWarning ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-green-50 border border-green-200 text-green-800'
+        }`}>
+          <span>{listNotice}</span>
+          <button onClick={() => setListNotice('')} className="hover:opacity-70 leading-none">×</button>
+        </div>
+      )}
 
       {isSuperAdmin && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
@@ -1270,11 +1283,6 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!selected.id && createPublishWarning && (
-                  <div className="col-span-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                    {createPublishWarning}
-                  </div>
-                )}
                 {!selected.id && activeConnections.length > 0 && (
                   <div className="col-span-2 border border-gray-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Publicar en marketplaces</p>
