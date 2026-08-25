@@ -69,6 +69,20 @@ export async function apiUploadForm<T>(
 
 export const imgUrl = (path: string) => /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
 
+// Algunos proveedores DTE (ej. Facto) devuelven el PDF/XML embebido como data: URI en vez
+// de una URL hosteada. Chrome bloquea la navegación directa a un data: URI abierto desde un
+// link (sale en blanco) — hay que convertirlo a blob: primero para poder abrirlo/descargarlo.
+export async function openDocumentUrl(url: string): Promise<void> {
+  if (!url.startsWith('data:')) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const blob = await fetch(url).then((r) => r.blob());
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
   const res = await fetch(`${API_URL}/api${path}`, {
     headers: { Authorization: `Bearer ${token}` },

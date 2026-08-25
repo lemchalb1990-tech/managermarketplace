@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, openDocumentUrl } from '@/lib/api';
 import InvoiceDocument from '../components/InvoiceDocument';
 
 const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
@@ -270,12 +270,12 @@ export default function InvoicesPage() {
                       </svg>
                     </button>
                     {inv.pdfUrl && (
-                      <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium">PDF</a>
+                      <button onClick={() => openDocumentUrl(inv.pdfUrl)}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium">PDF</button>
                     )}
                     {inv.xmlUrl && (
-                      <a href={inv.xmlUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</a>
+                      <button onClick={() => openDocumentUrl(inv.xmlUrl)}
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</button>
                     )}
                     {inv.status === 'DRAFT' && (
                       <>
@@ -410,12 +410,12 @@ export default function InvoicesPage() {
             <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex gap-3">
                 {viewingInvoice.pdfUrl && (
-                  <a href={viewingInvoice.pdfUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">Ver PDF real del proveedor</a>
+                  <button onClick={() => openDocumentUrl(viewingInvoice.pdfUrl)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">Ver PDF real del proveedor</button>
                 )}
                 {viewingInvoice.xmlUrl && (
-                  <a href={viewingInvoice.xmlUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-gray-500 hover:text-gray-700 font-medium">Ver XML</a>
+                  <button onClick={() => openDocumentUrl(viewingInvoice.xmlUrl)}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-medium">Ver XML</button>
                 )}
                 {viewingInvoice.status === 'DRAFT' && (
                   <Link href={`/dashboard/billing/invoices/new?draftId=${viewingInvoice.id}`}
