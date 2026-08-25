@@ -287,6 +287,12 @@ type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
 const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
+const MARKETPLACE_LABELS: Record<string, string> = {
+  MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
+  JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella', PARIS: 'Paris',
+  HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart',
+};
+
 const statusLabel: Record<string, string> = {
   ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
 };
@@ -304,6 +310,8 @@ export default function CatalogPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
+  const [genericConnections, setGenericConnections] = useState<any[]>([]);
+  const [publishTargets, setPublishTargets] = useState<Record<string, boolean>>({});
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -329,6 +337,9 @@ export default function CatalogPage() {
   const hasPosModule = hasModule(currentUser, 'pos');
   const hasPurchasesModule = hasModule(currentUser, 'purchases');
 
+  const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
+  const mlChecked = connections.some((c) => publishTargets[c.id]);
+
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
   const [editForm, setEditForm] = useState<any>({});
@@ -337,6 +348,7 @@ export default function CatalogPage() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
   const [mlWarning, setMlWarning] = useState('');
+  const [createPublishWarning, setCreatePublishWarning] = useState('');
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
@@ -403,12 +415,14 @@ export default function CatalogPage() {
       setCompanies(comps);
       return;
     }
-    const [conns, whs, cats] = await Promise.all([
+    const [conns, generic, whs, cats] = await Promise.all([
       api.marketplace.connections(token).catch(() => []),
+      api.connections.list(token).catch(() => []),
       api.warehouses.list(token).catch(() => []),
       api.catalog.categories(token).catch(() => []),
     ]);
     setConnections(conns);
+    setGenericConnections(generic);
     setWarehouses(whs);
     setCategories(cats);
     await loadProducts(1);
@@ -421,12 +435,14 @@ export default function CatalogPage() {
     (async () => {
       const token = getToken();
       if (!token) return;
-      const [conns, whs, cats] = await Promise.all([
+      const [conns, generic, whs, cats] = await Promise.all([
         api.marketplace.connections(token, selectedCompanyId).catch(() => []),
+        api.connections.list(token, { companyId: selectedCompanyId }).catch(() => []),
         api.warehouses.list(token, selectedCompanyId).catch(() => []),
         api.catalog.categories(token, selectedCompanyId).catch(() => []),
       ]);
       setConnections(conns);
+      setGenericConnections(generic);
       setWarehouses(whs);
       setCategories(cats);
       setWarehouseFilter('');
@@ -584,6 +600,7 @@ export default function CatalogPage() {
     setTab('edit');
     setEditError('');
     setMlWarning('');
+    setCreatePublishWarning('');
     setIsDirty(false);
     originalFormRef.current = {
       sku: product.sku,
@@ -611,10 +628,12 @@ export default function CatalogPage() {
     setTab('edit');
     setEditError('');
     setMlWarning('');
+    setCreatePublishWarning('');
     setIsDirty(false);
     originalFormRef.current = null;
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
+    setPublishTargets({});
   }
 
   async function refreshSelected(id: string) {
@@ -652,8 +671,26 @@ export default function CatalogPage() {
         setIsDirty(false);
       } else {
         const created = await api.catalog.create(payload, token);
+        const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
+        const publishErrors: string[] = [];
+        for (const connId of targetIds) {
+          const isMl = connections.some((c) => c.id === connId);
+          try {
+            if (isMl) await api.marketplace.publish(created.id, connId, token);
+            else await api.connections.publish(connId, created.id, token);
+          } catch (err: any) {
+            const conn = activeConnections.find((c) => c.id === connId);
+            publishErrors.push(`${conn?.name ?? connId}: ${err.message}`);
+          }
+        }
         await loadProducts(1);
-        openModal(created);
+        const refreshed = await api.catalog.get(created.id, token);
+        openModal(refreshed);
+        if (publishErrors.length) {
+          setCreatePublishWarning(`Producto creado. No se pudo publicar en: ${publishErrors.join(' · ')}`);
+        } else if (targetIds.length) {
+          setCreatePublishWarning(`Producto creado y publicado en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+        }
       }
     } catch (err: any) {
       setEditError(err.message);
@@ -1228,6 +1265,33 @@ export default function CatalogPage() {
                     Guarda el producto para poder subir imágenes, publicarlo en Mercado Libre o ver sus movimientos de stock.
                   </div>
                 )}
+                {!selected.id && createPublishWarning && (
+                  <div className="col-span-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                    {createPublishWarning}
+                  </div>
+                )}
+                {!selected.id && (
+                  <div className="col-span-2 border border-gray-200 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Publicar en marketplaces</p>
+                    {activeConnections.length === 0 ? (
+                      <p className="text-xs text-gray-400">
+                        No tienes conexiones de marketplace activas. Podrás publicarlo después desde{' '}
+                        <a href="/dashboard/connections" className="text-blue-500 hover:underline">Conexiones</a>.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {activeConnections.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input type="checkbox" checked={!!publishTargets[c.id]}
+                              onChange={(e) => setPublishTargets((p) => ({ ...p, [c.id]: e.target.checked }))} />
+                            <span className="font-medium">{c.name}</span>
+                            <span className="text-xs text-gray-400">({MARKETPLACE_LABELS[c.marketplace] ?? c.marketplace})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {!selected.active && (
                   <div className="col-span-2 flex gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-800">
                     <span className="text-red-500 text-lg leading-none shrink-0">🔒</span>
@@ -1281,7 +1345,7 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
-                  {hasMlModule && (
+                  {hasMlModule && (selected.id || mlChecked) && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
                       <input type="number" step="0.01" min="0" value={editForm.mlPrice}
@@ -1329,7 +1393,7 @@ export default function CatalogPage() {
                       ))}
                     </select>
                   </div>
-                  {hasMlModule && (
+                  {hasMlModule && (selected.id || mlChecked) && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
                       <CategoryPicker
@@ -1347,7 +1411,7 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
-                  {hasMlModule && (
+                  {hasMlModule && (selected.id || mlChecked) && (
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Atributos requeridos por ML
@@ -1431,7 +1495,7 @@ export default function CatalogPage() {
                   </div>
                   )}
 
-                  {hasMlModule && (
+                  {hasMlModule && (selected.id || mlChecked) && (
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
