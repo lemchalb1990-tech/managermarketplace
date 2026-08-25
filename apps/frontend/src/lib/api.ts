@@ -177,6 +177,14 @@ export const api = {
     deleteListing: (productId: string, connectionId: string, token: string) =>
       apiFetch<{ deleted: boolean }>(
         `/catalog/products/${productId}/listings/${connectionId}`, { method: 'DELETE' }, token),
+    downloadBulkTemplate: (token: string, companyId?: string) =>
+      apiDownload(
+        `/catalog/products/bulk/import-template${companyId ? `?companyId=${companyId}` : ''}`,
+        token, 'plantilla-stock-precios.xlsx',
+      ),
+    bulkImport: (file: File, token: string, companyId?: string) =>
+      apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
+        `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>

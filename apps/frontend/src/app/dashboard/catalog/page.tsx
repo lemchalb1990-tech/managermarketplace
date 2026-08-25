@@ -322,6 +322,12 @@ export default function CatalogPage() {
   const [bulkError, setBulkError] = useState('');
   const [bulkFailed, setBulkFailed] = useState<{ id: string; name: string; reason: string; canForce?: boolean }[]>([]);
   const [forceDeleteLoading, setForceDeleteLoading] = useState<string | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importTemplateLoading, setImportTemplateLoading] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] } | null>(null);
   const [search, setSearch] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -705,6 +711,44 @@ export default function CatalogPage() {
     }
   }
 
+  function openImportModal() {
+    setImportModalOpen(true);
+    setImportFile(null);
+    setImportError('');
+    setImportResult(null);
+  }
+
+  async function handleDownloadTemplate() {
+    setImportTemplateLoading(true);
+    setImportError('');
+    try {
+      const token = getToken()!;
+      await api.catalog.downloadBulkTemplate(token, isSuperAdmin ? selectedCompanyId : undefined);
+    } catch (err: any) {
+      setImportError(err.message || 'No se pudo descargar la plantilla');
+    } finally {
+      setImportTemplateLoading(false);
+    }
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) return;
+    setImportLoading(true);
+    setImportError('');
+    setImportResult(null);
+    try {
+      const token = getToken()!;
+      const result = await api.catalog.bulkImport(importFile, token, isSuperAdmin ? selectedCompanyId : undefined);
+      setImportResult(result);
+      setImportFile(null);
+      await loadProducts(page);
+    } catch (err: any) {
+      setImportError(err.message || 'No se pudo procesar el archivo');
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -917,10 +961,16 @@ export default function CatalogPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
         {(!isSuperAdmin || selectedCompanyId) && (
-          <button onClick={openCreateModal}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            + Nuevo producto
-          </button>
+          <div className="flex gap-2">
+            <button onClick={openImportModal}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+              Cargar stock/precios
+            </button>
+            <button onClick={openCreateModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+              + Nuevo producto
+            </button>
+          </div>
         )}
       </div>
 
@@ -939,6 +989,67 @@ export default function CatalogPage() {
               <button onClick={() => setListNotice('')}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {importModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Cargar stock y precios</h2>
+              <button onClick={() => setImportModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-xs text-gray-500">
+                Descarga la plantilla con tu catálogo actual, edita las columnas <b>Precio</b> y/o <b>Stock</b> y súbela de vuelta.
+                Solo se actualizan productos que ya existen (por SKU) — esto nunca crea productos nuevos.
+              </p>
+              <button type="button" onClick={handleDownloadTemplate} disabled={importTemplateLoading}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+                {importTemplateLoading ? 'Generando...' : '⬇ Descargar plantilla'}
+              </button>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Archivo Excel (.xlsx) editado</label>
+                <input type="file" accept=".xlsx"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm" />
+              </div>
+              {importError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{importError}</p>
+              )}
+              {importResult && (
+                <div className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 space-y-1.5">
+                  <p className="text-green-700 font-medium">{importResult.updated} producto(s) actualizado(s).</p>
+                  {importResult.skipped > 0 && (
+                    <p className="text-gray-500">{importResult.skipped} fila(s) sin cambios (omitidas).</p>
+                  )}
+                  {importResult.errors.length > 0 && (
+                    <div className="text-amber-700">
+                      <p className="font-medium">{importResult.errors.length} fila(s) con error:</p>
+                      <ul className="list-disc list-inside max-h-32 overflow-y-auto">
+                        {importResult.errors.map((e, i) => (
+                          <li key={i}>Fila {e.row} ({e.sku}): {e.reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setImportModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                Cerrar
+              </button>
+              <button onClick={handleImportSubmit} disabled={!importFile || importLoading}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                {importLoading ? 'Subiendo...' : 'Subir y actualizar'}
               </button>
             </div>
           </div>

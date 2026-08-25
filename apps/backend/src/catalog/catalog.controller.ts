@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  UseGuards, UseInterceptors, UploadedFile, BadRequestException,
+  UseGuards, UseInterceptors, UploadedFile, BadRequestException, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -62,6 +63,18 @@ export class CatalogController {
     return this.service.listCategories(user, companyId);
   }
 
+  @Get('products/bulk/import-template')
+  async downloadBulkTemplate(
+    @CurrentUser() user: any,
+    @Res() res: Response,
+    @Query('companyId') companyId?: string,
+  ) {
+    const buffer = await this.service.exportBulkTemplate(user, companyId);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-stock-precios.xlsx"');
+    res.send(buffer);
+  }
+
   @Get('products/:id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
@@ -84,6 +97,21 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   bulkDeleteListings(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
     return this.service.bulkDeleteListings(dto.ids, user);
+  }
+
+  @Post('products/bulk/import')
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImport(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: any,
+    @Query('companyId') companyId?: string,
+  ) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('El archivo supera el límite de 5 MB');
+    if (!file.originalname.match(/\.xlsx$/i)) {
+      throw new BadRequestException('Sube un archivo Excel (.xlsx)');
+    }
+    return this.service.bulkImportStockPrice(file.buffer, user, companyId);
   }
 
   @Delete('products/:id/listings/:connectionId')

@@ -6,9 +6,22 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
+
+export interface BulkImportError {
+  row: number;
+  sku: string;
+  reason: string;
+}
+
+export interface BulkImportResult {
+  updated: number;
+  skipped: number;
+  errors: BulkImportError[];
+}
 
 export interface BulkDeleteFailure {
   id: string;
@@ -27,6 +40,14 @@ export class CatalogService {
   private getCompanyId(user: any): string {
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
     return user.companyId;
+  }
+
+  private resolveCompanyId(user: any, companyIdParam?: string): string {
+    if (user.role === Role.SUPER_ADMIN) {
+      if (!companyIdParam) throw new BadRequestException('companyId requerido para Super Admin');
+      return companyIdParam;
+    }
+    return this.getCompanyId(user);
   }
 
   private async validateWarehouseId(warehouseId: string | null | undefined, companyId: string) {
@@ -329,5 +350,86 @@ export class CatalogService {
       where: { id: imageId, productId },
       data: { isPrimary: true },
     });
+  }
+
+  // Plantilla con el catálogo activo actual (SKU, nombre, precio, stock) para que el usuario
+  // edite Precio/Stock en Excel y la vuelva a subir — el nombre solo es referencia visual.
+  async exportBulkTemplate(user: any, companyIdParam?: string): Promise<Buffer> {
+    const companyId = this.resolveCompanyId(user, companyIdParam);
+    const products = await this.prisma.product.findMany({
+      where: { companyId, active: true },
+      orderBy: { name: 'asc' },
+      select: { sku: true, name: true, price: true, stock: true },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Stock y precios');
+    sheet.columns = [
+      { header: 'SKU', key: 'sku', width: 22 },
+      { header: 'Nombre', key: 'name', width: 45 },
+      { header: 'Precio', key: 'price', width: 15 },
+      { header: 'Stock', key: 'stock', width: 12 },
+    ];
+    sheet.getRow(1).font = { bold: true };
+    for (const p of products) {
+      sheet.addRow({ sku: p.sku, name: p.name, price: Number(p.price), stock: p.stock });
+    }
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  // Sube la plantilla editada y actualiza precio y/o stock solo de productos que ya existen
+  // en el catálogo (emparejados por SKU) — nunca crea productos nuevos. Reutiliza update()
+  // para que el efecto sea idéntico a editar el producto a mano (mismas reglas y permisos).
+  async bulkImportStockPrice(buffer: Buffer, user: any, companyIdParam?: string): Promise<BulkImportResult> {
+    const companyId = this.resolveCompanyId(user, companyIdParam);
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(buffer as any);
+    } catch {
+      throw new BadRequestException('No se pudo leer el archivo. Asegúrate de subir un Excel (.xlsx) válido.');
+    }
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw new BadRequestException('El archivo no tiene ninguna hoja con datos');
+
+    let updated = 0;
+    let skipped = 0;
+    const errors: BulkImportError[] = [];
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      const rawSku = row.getCell(1).value;
+      const sku = rawSku != null ? String(rawSku).trim() : '';
+      if (!sku) continue;
+
+      const dto: { price?: number; stock?: number } = {};
+      const rawPrice = row.getCell(3).value;
+      if (rawPrice !== null && rawPrice !== undefined && rawPrice !== '') {
+        const n = Number(rawPrice);
+        if (!Number.isNaN(n)) dto.price = n;
+      }
+      const rawStock = row.getCell(4).value;
+      if (rawStock !== null && rawStock !== undefined && rawStock !== '') {
+        const n = Number(rawStock);
+        if (!Number.isNaN(n)) dto.stock = Math.trunc(n);
+      }
+      if (dto.price === undefined && dto.stock === undefined) {
+        skipped++;
+        continue;
+      }
+
+      const product = await this.prisma.product.findUnique({ where: { sku_companyId: { sku, companyId } } });
+      if (!product) {
+        errors.push({ row: rowNumber, sku, reason: 'SKU no encontrado en tu catálogo' });
+        continue;
+      }
+      try {
+        await this.update(product.id, dto, user);
+        updated++;
+      } catch (err: any) {
+        errors.push({ row: rowNumber, sku, reason: err.message || 'Error al actualizar' });
+      }
+    }
+
+    return { updated, skipped, errors };
   }
 }
