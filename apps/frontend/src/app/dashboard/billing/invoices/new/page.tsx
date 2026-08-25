@@ -73,6 +73,15 @@ export default function NewInvoicePage() {
       .catch(() => {});
   }, []);
 
+  const activeConnections = connections.filter((c: any) => c.active);
+
+  // Si hay un solo proveedor activo, se usa directo sin obligar a elegirlo a mano.
+  useEffect(() => {
+    if (activeConnections.length === 1 && !form.connectionId) {
+      setForm((f) => ({ ...f, connectionId: activeConnections[0].id }));
+    }
+  }, [connections]);
+
   useEffect(() => {
     if (!saleId) return;
     const token = getToken()!;
@@ -343,11 +352,11 @@ export default function NewInvoicePage() {
               <select value={form.connectionId} onChange={(e) => setForm(f => ({ ...f, connectionId: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
                 <option value="">— Selecciona una conexión —</option>
-                {connections.map(c => (
+                {activeConnections.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.provider})</option>
                 ))}
               </select>
-              {connections.length === 0 && (
+              {activeConnections.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
                   <a href="/dashboard/billing" className="underline">Conecta un proveedor de facturación primero →</a>
                 </p>
