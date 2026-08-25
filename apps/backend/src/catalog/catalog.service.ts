@@ -212,6 +212,18 @@ export class CatalogService {
     return { deleted: result.count };
   }
 
+  // Igual que bulkDeleteListings pero para un solo producto/conexión, desde la ficha del
+  // producto: borra el vínculo interno sin llamar a la API del marketplace.
+  async deleteListing(productId: string, connectionId: string, user: any) {
+    if (user.role !== Role.SUPER_ADMIN) throw new ForbiddenException();
+    const listing = await this.prisma.listing.findUnique({
+      where: { productId_connectionId: { productId, connectionId } },
+    });
+    if (!listing) throw new NotFoundException('Publicación no encontrada');
+    await this.prisma.listing.delete({ where: { id: listing.id } });
+    return { deleted: true };
+  }
+
   async bulkDelete(ids: string[], user: any) {
     const owned = await this.filterOwned(ids, user);
     let deleted = 0;

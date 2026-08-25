@@ -158,6 +158,9 @@ export const api = {
     bulkDeleteListings: (ids: string[], token: string) =>
       apiFetch<{ deleted: number }>(
         '/catalog/products/bulk/delete-listings', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+    deleteListing: (productId: string, connectionId: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(
+        `/catalog/products/${productId}/listings/${connectionId}`, { method: 'DELETE' }, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>

@@ -86,6 +86,16 @@ export class CatalogController {
     return this.service.bulkDeleteListings(dto.ids, user);
   }
 
+  @Delete('products/:id/listings/:connectionId')
+  @Roles(Role.SUPER_ADMIN)
+  deleteListing(
+    @Param('id') id: string,
+    @Param('connectionId') connectionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.deleteListing(id, connectionId, user);
+  }
+
   @Patch('products/:id')
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @CurrentUser() user: any) {
     return this.service.update(id, dto, user);

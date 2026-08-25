@@ -806,6 +806,20 @@ export default function CatalogPage() {
     }
   }
 
+  async function handleDeleteListing(connectionId: string) {
+    if (!confirm('¿Eliminar el vínculo con esta publicación? La publicación seguirá viva en Mercado Libre (u otra plataforma); el sistema solo dejará de rastrearla.')) return;
+    setMlLoading(l => ({ ...l, [`delete_${connectionId}`]: true }));
+    try {
+      const token = getToken()!;
+      await api.catalog.deleteListing(selected.id, connectionId, token);
+      await refreshSelected(selected.id);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setMlLoading(l => ({ ...l, [`delete_${connectionId}`]: false }));
+    }
+  }
+
   function openLinkModal(connectionId: string, connectionName: string) {
     const listing = selected.listings?.find((l: any) => l.connectionId === connectionId);
     setLinkError('');
@@ -1636,6 +1650,14 @@ export default function CatalogPage() {
                             className="px-3 py-1.5 border border-gray-300 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-50">
                             {listing ? 'Editar vínculo' : 'Vincular manualmente'}
                           </button>
+                          {listing && currentUser?.role === 'SUPER_ADMIN' && (
+                            <button onClick={() => handleDeleteListing(conn.id)}
+                              disabled={mlLoading[`delete_${conn.id}`]}
+                              title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
+                              className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
+                              {mlLoading[`delete_${conn.id}`] ? 'Eliminando...' : 'Eliminar publicación'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
