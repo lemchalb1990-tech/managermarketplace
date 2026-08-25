@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { BillingProvider, DteType, InvoiceStatus, Role } from '@prisma/client';
+import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenFacturaAdapter } from './providers/openfactura.adapter';
 import { BsaleAdapter } from './providers/bsale.adapter';
@@ -138,7 +138,7 @@ export class BillingService {
     return { invoices, total, page, pages: Math.ceil(total / PAGE_SIZE) };
   }
 
-  async issueInvoice(dto: IssueInvoiceDto, user: any) {
+  private async resolveConnectionAndRefs(dto: IssueInvoiceDto, user: any) {
     const conn = await this.prisma.billingConnection.findUnique({ where: { id: dto.connectionId } });
     if (!conn) throw new NotFoundException('Conexión de facturación no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
@@ -156,8 +156,10 @@ export class BillingService {
         throw new BadRequestException('El cliente indicado no pertenece a esta empresa');
       }
     }
+    return conn;
+  }
 
-    // Calcular montos
+  private computeAmounts(dto: Pick<IssueInvoiceDto, 'dteType' | 'items'>) {
     const isExempt = dto.dteType === DteType.FACTURA_EXENTA || dto.dteType === DteType.BOLETA;
     const netAmount = dto.items.reduce((sum, i) => {
       const subtotal = i.unitPrice * i.quantity * (1 - (i.discount ?? 0) / 100);
@@ -165,8 +167,64 @@ export class BillingService {
     }, 0);
     const tax = isExempt ? 0 : Math.round(netAmount * IVA);
     const totalAmount = Math.round(netAmount) + tax;
+    return { netAmount, tax, totalAmount };
+  }
 
-    // Crear registro draft
+  // Intenta emitir un Invoice ya guardado (DRAFT) ante el proveedor real. La identidad del
+  // emisor sale del Perfil de facturación de la empresa (si está configurado), completando
+  // lo que falte en las credenciales propias de la conexión para no romper conexiones ya
+  // configuradas a mano.
+  private async emitToProvider(invoice: Invoice, conn: BillingConnection) {
+    const profile = await this.prisma.billingProfile.findUnique({ where: { companyId: conn.companyId } });
+    const baseCredentials = (conn.credentials ?? {}) as Record<string, string>;
+    const credentials: Record<string, string> = {
+      ...baseCredentials,
+      companyRut: profile?.rut || baseCredentials.companyRut,
+      companyName: profile?.razonSocial || baseCredentials.companyName,
+      companyAddress: profile?.address || baseCredentials.companyAddress,
+      companyDistrict: profile?.commune || baseCredentials.companyDistrict,
+      companyCity: profile?.city || baseCredentials.companyCity,
+      companyPhone: profile?.phone || baseCredentials.companyPhone,
+      companyActivity: profile?.giro || baseCredentials.companyActivity,
+    };
+
+    try {
+      const result = await this.adapter(conn.provider).issueDte(credentials, {
+        dteType: invoice.dteType,
+        rut: invoice.rut,
+        razonSocial: invoice.razonSocial,
+        giro: invoice.giro ?? undefined,
+        address: invoice.address ?? undefined,
+        commune: invoice.commune ?? undefined,
+        email: invoice.email ?? undefined,
+        items: invoice.items as any,
+        notes: invoice.notes ?? undefined,
+        companyRut: credentials.companyRut,
+      });
+      return this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          externalId: result.externalId,
+          folio: result.folio,
+          pdfUrl: result.pdfUrl,
+          xmlUrl: result.xmlUrl,
+          status: InvoiceStatus.ISSUED,
+          issuedAt: new Date(),
+        },
+      });
+    } catch (err: any) {
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.REJECTED, errorMsg: err.message },
+      });
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async issueInvoice(dto: IssueInvoiceDto, user: any) {
+    const conn = await this.resolveConnectionAndRefs(dto, user);
+    const { netAmount, tax, totalAmount } = this.computeAmounts(dto);
+
     const invoice = await this.prisma.invoice.create({
       data: {
         dteType: dto.dteType,
@@ -189,45 +247,49 @@ export class BillingService {
       },
     });
 
-    // Emitir DTE — la identidad del emisor sale del Perfil de facturación de la
-    // empresa (si está configurado), completando lo que falte en las credenciales
-    // propias de la conexión para no romper conexiones ya configuradas a mano.
-    const profile = await this.prisma.billingProfile.findUnique({ where: { companyId: conn.companyId } });
-    const baseCredentials = (conn.credentials ?? {}) as Record<string, string>;
-    const credentials: Record<string, string> = {
-      ...baseCredentials,
-      companyRut: profile?.rut || baseCredentials.companyRut,
-      companyName: profile?.razonSocial || baseCredentials.companyName,
-      companyAddress: profile?.address || baseCredentials.companyAddress,
-      companyDistrict: profile?.commune || baseCredentials.companyDistrict,
-      companyCity: profile?.city || baseCredentials.companyCity,
-      companyPhone: profile?.phone || baseCredentials.companyPhone,
-      companyActivity: profile?.giro || baseCredentials.companyActivity,
-    };
+    return this.emitToProvider(invoice, conn);
+  }
 
-    try {
-      const result = await this.adapter(conn.provider).issueDte(
-        credentials,
-        { ...dto, companyRut: credentials.companyRut },
-      );
-      return this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          externalId: result.externalId,
-          folio: result.folio,
-          pdfUrl: result.pdfUrl,
-          xmlUrl: result.xmlUrl,
-          status: InvoiceStatus.ISSUED,
-          issuedAt: new Date(),
-        },
-      });
-    } catch (err: any) {
-      await this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: InvoiceStatus.REJECTED, errorMsg: err.message },
-      });
-      throw new BadRequestException(err.message);
+  // Guarda el documento como borrador sin emitirlo ante el proveedor — se puede retomar
+  // más tarde desde el listado de documentos con issueDraft.
+  async saveDraft(dto: IssueInvoiceDto, user: any) {
+    const conn = await this.resolveConnectionAndRefs(dto, user);
+    const { netAmount, tax, totalAmount } = this.computeAmounts(dto);
+
+    return this.prisma.invoice.create({
+      data: {
+        dteType: dto.dteType,
+        rut: dto.rut,
+        razonSocial: dto.razonSocial,
+        giro: dto.giro,
+        address: dto.address,
+        commune: dto.commune,
+        email: dto.email,
+        netAmount,
+        tax,
+        totalAmount,
+        items: dto.items as any,
+        notes: dto.notes,
+        status: InvoiceStatus.DRAFT,
+        connectionId: conn.id,
+        companyId: conn.companyId,
+        saleId: dto.saleId,
+        clientId: dto.clientId,
+      },
+    });
+  }
+
+  // Emite ante el proveedor real un documento que ya estaba guardado como borrador.
+  async issueDraft(id: string, user: any) {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id }, include: { connection: true } });
+    if (!invoice) throw new NotFoundException('Documento no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && invoice.companyId !== user.companyId) {
+      throw new ForbiddenException();
     }
+    if (invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException('Solo se pueden emitir documentos en estado borrador');
+    }
+    return this.emitToProvider(invoice, invoice.connection);
   }
 
   async getInvoice(id: string, user: any) {

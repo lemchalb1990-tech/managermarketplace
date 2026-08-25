@@ -292,6 +292,10 @@ export const api = {
       },
       issue: (data: any, token: string) =>
         apiFetch<any>('/billing/invoices', { method: 'POST', body: JSON.stringify(data) }, token),
+      saveDraft: (data: any, token: string) =>
+        apiFetch<any>('/billing/invoices/draft', { method: 'POST', body: JSON.stringify(data) }, token),
+      issueDraft: (id: string, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}/issue`, { method: 'POST' }, token),
       get: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}`, {}, token),
       cancel: (id: string, token: string) =>
@@ -480,6 +484,7 @@ export const api = {
       return apiFetch<any[]>(`/clients?${q}`, {}, token);
     },
     debt: (id: string, token: string) => apiFetch<any>(`/clients/${id}/debt`, {}, token),
+    history: (id: string, token: string) => apiFetch<any>(`/clients/${id}/history`, {}, token),
     create: (data: { name: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; companyId?: string }, token: string) =>
       apiFetch<any>('/clients', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: { name?: string; rut?: string; email?: string; phone?: string; address?: string; commune?: string; city?: string; creditLimit?: number; active?: boolean }, token: string) =>

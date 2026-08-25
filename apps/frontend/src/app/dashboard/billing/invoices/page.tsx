@@ -55,6 +55,7 @@ export default function InvoicesPage() {
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [issuingId, setIssuingId] = useState<string | null>(null);
 
   async function load(p = 1) {
     setLoading(true);
@@ -80,6 +81,21 @@ export default function InvoicesPage() {
     const token = getToken()!;
     await api.billing.invoices.cancel(id, token).catch(() => {});
     load(page);
+  }
+
+  async function handleIssueDraft(id: string) {
+    if (!confirm('¿Emitir este borrador? Se emitirá el documento real ante el proveedor y no se puede deshacer.')) return;
+    setActionError('');
+    setIssuingId(id);
+    try {
+      const token = getToken()!;
+      await api.billing.invoices.issueDraft(id, token);
+      await load(page);
+    } catch (err: any) {
+      setActionError(err.message || 'Error al emitir el borrador');
+    } finally {
+      setIssuingId(null);
+    }
   }
 
   function openPay(inv: any) {
@@ -241,6 +257,12 @@ export default function InvoicesPage() {
                     {inv.xmlUrl && (
                       <a href={inv.xmlUrl} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</a>
+                    )}
+                    {inv.status === 'DRAFT' && (
+                      <button onClick={() => handleIssueDraft(inv.id)} disabled={issuingId === inv.id}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50">
+                        {issuingId === inv.id ? 'Emitiendo...' : 'Emitir'}
+                      </button>
                     )}
                     {['ISSUED', 'ACCEPTED'].includes(inv.status) && (
                       inv.paid ? (

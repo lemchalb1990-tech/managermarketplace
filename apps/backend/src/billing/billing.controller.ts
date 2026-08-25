@@ -63,6 +63,16 @@ export class BillingController {
     return this.service.issueInvoice(dto, user);
   }
 
+  @Post('invoices/draft')
+  saveDraft(@Body() dto: IssueInvoiceDto, @CurrentUser() user: any) {
+    return this.service.saveDraft(dto, user);
+  }
+
+  @Post('invoices/:id/issue')
+  issueDraft(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.issueDraft(id, user);
+  }
+
   @Get('invoices/:id')
   getInvoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.getInvoice(id, user);

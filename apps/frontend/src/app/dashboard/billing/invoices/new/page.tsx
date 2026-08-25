@@ -43,6 +43,7 @@ export default function NewInvoicePage() {
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
 
   useEffect(() => {
     const token = getToken()!;
@@ -126,35 +127,53 @@ export default function NewInvoicePage() {
     setShowPreview(true);
   }
 
+  function buildPayload() {
+    return {
+      connectionId: form.connectionId,
+      dteType: form.dteType,
+      rut: form.rut.trim(),
+      razonSocial: form.razonSocial.trim(),
+      giro: form.giro.trim() || undefined,
+      address: form.address.trim() || undefined,
+      commune: form.commune.trim() || undefined,
+      email: form.email.trim() || undefined,
+      notes: form.notes.trim() || undefined,
+      clientId: clientId || undefined,
+      saleId: saleId || undefined,
+      items: items.map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        discount: i.discount || undefined,
+      })),
+    };
+  }
+
   async function handleConfirmIssue() {
     setLoading(true);
     setError('');
     try {
       const token = getToken()!;
-      const invoice = await api.billing.invoices.issue({
-        connectionId: form.connectionId,
-        dteType: form.dteType,
-        rut: form.rut.trim(),
-        razonSocial: form.razonSocial.trim(),
-        giro: form.giro.trim() || undefined,
-        address: form.address.trim() || undefined,
-        commune: form.commune.trim() || undefined,
-        email: form.email.trim() || undefined,
-        notes: form.notes.trim() || undefined,
-        clientId: clientId || undefined,
-        saleId: saleId || undefined,
-        items: items.map(i => ({
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          discount: i.discount || undefined,
-        })),
-      }, token);
+      const invoice = await api.billing.invoices.issue(buildPayload(), token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
       setError(err.message || 'Error al emitir el documento');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    setDraftLoading(true);
+    setError('');
+    try {
+      const token = getToken()!;
+      const invoice = await api.billing.invoices.saveDraft(buildPayload(), token);
+      router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
+    } catch (err: any) {
+      setError(err.message || 'Error al guardar el borrador');
+    } finally {
+      setDraftLoading(false);
     }
   }
 
@@ -453,11 +472,16 @@ export default function NewInvoicePage() {
                 <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
               )}
               <div className="flex gap-3">
-                <button onClick={handleConfirmIssue} disabled={loading}
+                <button onClick={handleConfirmIssue} disabled={loading || draftLoading}
                   className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm">
                   {loading ? 'Emitiendo...' : 'Confirmar y emitir'}
                 </button>
-                <button onClick={() => setShowPreview(false)} disabled={loading}
+                <button onClick={handleSaveDraft} disabled={loading || draftLoading}
+                  title="Guarda el documento sin emitirlo ante el proveedor; podrás emitirlo después desde Documentos"
+                  className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 font-medium disabled:opacity-50">
+                  {draftLoading ? 'Guardando...' : 'Guardar como borrador'}
+                </button>
+                <button onClick={() => setShowPreview(false)} disabled={loading || draftLoading}
                   className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 font-medium disabled:opacity-50">
                   Volver a editar
                 </button>
