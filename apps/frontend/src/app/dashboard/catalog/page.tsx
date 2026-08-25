@@ -287,6 +287,8 @@ type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
 const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
+const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
+
 const MARKETPLACE_LABELS: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
   JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella', PARIS: 'Paris',
@@ -1092,10 +1094,12 @@ export default function CatalogPage() {
                 onClick={() => handleSort('price')}>
                 Precio POS{sortIndicator('price')}
               </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
-                onClick={() => handleSort('mlPrice')}>
-                Precio ML{sortIndicator('mlPrice')}
-              </th>
+              {activeConnections.length > 0 && (
+                <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+                  onClick={() => handleSort('mlPrice')}>
+                  Precio ML{sortIndicator('mlPrice')}
+                </th>
+              )}
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('stock')}>
                 Stock{sortIndicator('stock')}
@@ -1104,7 +1108,9 @@ export default function CatalogPage() {
                 onClick={() => handleSort('warehouse')}>
                 Bodega{sortIndicator('warehouse')}
               </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones ML</th>
+              {activeConnections.length > 0 && (
+                <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones</th>
+              )}
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -1144,12 +1150,14 @@ export default function CatalogPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {p.cost != null ? `$${Number(p.cost).toFixed(2)}` : '—'}
+                    {p.cost != null ? fmtCLP(Number(p.cost)) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-700">${Number(p.price).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {p.mlPrice != null ? `$${Number(p.mlPrice).toFixed(2)}` : <span className="text-gray-300">—</span>}
-                  </td>
+                  <td className="px-4 py-3 text-gray-700">{fmtCLP(Number(p.price))}</td>
+                  {activeConnections.length > 0 && (
+                    <td className="px-4 py-3 text-gray-700">
+                      {p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : <span className="text-gray-300">—</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
                       {p.stock}
@@ -1160,18 +1168,20 @@ export default function CatalogPage() {
                       ? <span className="text-xs text-gray-600 font-medium">{p.warehouse.name}</span>
                       : <span className="text-gray-300 text-xs">—</span>}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {p.listings?.length > 0
-                        ? p.listings.map((l: any) => (
-                            <span key={l.id} className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColor[l.status] || 'bg-gray-100'}`}>
-                              {l.connection?.name || 'ML'}: {statusLabel[l.status] || l.status}
-                            </span>
-                          ))
-                        : <span className="text-gray-400 text-xs">Sin publicar</span>
-                      }
-                    </div>
-                  </td>
+                  {activeConnections.length > 0 && (
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {p.listings?.length > 0
+                          ? p.listings.map((l: any) => (
+                              <span key={l.id} className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColor[l.status] || 'bg-gray-100'}`}>
+                                {l.connection?.name || 'ML'}: {statusLabel[l.status] || l.status}
+                              </span>
+                            ))
+                          : <span className="text-gray-400 text-xs">Sin publicar</span>
+                        }
+                      </div>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right space-x-3">
                     {p.listings?.some((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED') && (
                       <button onClick={() => handleSyncAll(p.id)} disabled={syncAllLoading === p.id}
@@ -1188,10 +1198,10 @@ export default function CatalogPage() {
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={isAdmin ? 11 : 10} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={(isAdmin ? 9 : 8) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={isAdmin ? 11 : 10} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={(isAdmin ? 9 : 8) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
             )}
           </tbody>
         </table>
