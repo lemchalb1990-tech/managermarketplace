@@ -8,6 +8,18 @@ const emptyForm = { name: '', rut: '', email: '', phone: '', address: '', commun
 
 const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
+const DTE_LABELS: Record<string, string> = {
+  FACTURA: 'Factura', BOLETA: 'Boleta', NOTA_CREDITO: 'Nota Crédito',
+  NOTA_DEBITO: 'Nota Débito', FACTURA_EXENTA: 'Fact. Exenta',
+};
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Borrador', ISSUED: 'Emitido', ACCEPTED: 'Aceptado', REJECTED: 'Rechazado', CANCELLED: 'Anulado',
+};
+const ORDER_REQUEST_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente', APPROVED: 'Aprobada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada',
+};
+const fmtDate = (d: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +38,10 @@ export default function ClientsPage() {
   const [editError, setEditError] = useState('');
 
   const [deleteError, setDeleteError] = useState('');
+
+  const [historyClient, setHistoryClient] = useState<any>(null);
+  const [historyData, setHistoryData] = useState<any>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const canEdit = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'ORDER_MANAGER'].includes(currentUser?.role);
@@ -139,6 +155,21 @@ export default function ClientsPage() {
     }
   }
 
+  async function openHistory(c: any) {
+    setHistoryClient(c);
+    setHistoryData(null);
+    setHistoryLoading(true);
+    try {
+      const token = getToken()!;
+      const data = await api.clients.history(c.id, token);
+      setHistoryData(data);
+    } catch {
+      setHistoryData(null);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   async function handleDelete(c: any) {
     setDeleteError('');
     if (!confirm(`¿Eliminar el cliente "${c.name}"? Esta acción no se puede deshacer.`)) return;
@@ -242,6 +273,10 @@ export default function ClientsPage() {
                   {canEdit && (
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-2 justify-end">
+                        <button onClick={() => openHistory(c)}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                          Historial
+                        </button>
                         <button onClick={() => openEdit(c)}
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                           Editar
@@ -411,6 +446,94 @@ export default function ClientsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {historyClient && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="font-bold text-gray-900">Historial de {historyClient.name}</h2>
+                {historyClient.rut && <p className="text-xs text-gray-400 font-mono">{historyClient.rut}</p>}
+              </div>
+              <button onClick={() => setHistoryClient(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="overflow-y-auto px-6 py-5 space-y-6">
+              {historyLoading ? (
+                <p className="text-sm text-gray-400 text-center py-8">Cargando...</p>
+              ) : !historyData ? (
+                <p className="text-sm text-red-500 text-center py-8">No se pudo cargar el historial.</p>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Documentos tributarios ({historyData.invoices.length})
+                    </h3>
+                    {historyData.invoices.length === 0 ? (
+                      <p className="text-xs text-gray-400">Sin documentos emitidos para este cliente.</p>
+                    ) : (
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="text-left px-3 py-2 text-gray-500 font-medium">Fecha</th>
+                              <th className="text-left px-3 py-2 text-gray-500 font-medium">Tipo</th>
+                              <th className="text-left px-3 py-2 text-gray-500 font-medium">Folio</th>
+                              <th className="text-right px-3 py-2 text-gray-500 font-medium">Monto</th>
+                              <th className="text-left px-3 py-2 text-gray-500 font-medium">Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {historyData.invoices.map((inv: any) => (
+                              <tr key={inv.id}>
+                                <td className="px-3 py-2 text-gray-600">{fmtDate(inv.createdAt)}</td>
+                                <td className="px-3 py-2 text-gray-600">{DTE_LABELS[inv.dteType] ?? inv.dteType}</td>
+                                <td className="px-3 py-2 font-mono text-gray-500">{inv.folio ?? '—'}</td>
+                                <td className="px-3 py-2 text-right font-medium text-gray-900">{fmt(Number(inv.totalAmount))}</td>
+                                <td className="px-3 py-2">
+                                  {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
+                                  {inv.paid && <span className="ml-1 text-green-600">· Pagado</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Solicitudes de pedido ({historyData.orderRequests.length})
+                    </h3>
+                    {historyData.orderRequests.length === 0 ? (
+                      <p className="text-xs text-gray-400">Sin solicitudes de pedido para este cliente.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {historyData.orderRequests.map((req: any) => {
+                          const total = req.items.reduce((s: number, i: any) => s + Number(i.unitPrice) * i.quantity, 0);
+                          return (
+                            <div key={req.id} className="border border-gray-200 rounded-lg px-3 py-2 text-xs">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-gray-600">{fmtDate(req.createdAt)}</span>
+                                <span className="font-medium text-gray-700">{ORDER_REQUEST_STATUS_LABELS[req.status] ?? req.status}</span>
+                                <span className="font-semibold text-gray-900">{fmt(total)}</span>
+                              </div>
+                              <p className="text-gray-400 truncate">
+                                {req.items.map((i: any) => `${i.product?.name ?? 'Producto'} ×${i.quantity}`).join(', ')}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

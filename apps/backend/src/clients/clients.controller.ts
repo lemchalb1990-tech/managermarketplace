@@ -23,6 +23,11 @@ export class ClientsController {
     return this.service.getDebt(id, user);
   }
 
+  @Get(':id/history')
+  getHistory(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getHistory(id, user);
+  }
+
   @Post()
   create(@Body() dto: CreateClientDto, @CurrentUser() user: any) {
     return this.service.create(dto, user);

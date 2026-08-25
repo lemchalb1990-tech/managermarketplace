@@ -53,6 +53,33 @@ export class ClientsService {
     return this.prisma.client.delete({ where: { id } });
   }
 
+  async getHistory(id: string, user: any) {
+    const client = await this.prisma.client.findUnique({ where: { id } });
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && client.companyId !== user.companyId) throw new ForbiddenException();
+
+    const [invoices, orderRequests] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { clientId: id },
+        select: {
+          id: true, dteType: true, status: true, folio: true, totalAmount: true,
+          paid: true, issuedAt: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.orderRequest.findMany({
+        where: { clientId: id },
+        select: {
+          id: true, status: true, scheduledDispatchDate: true, createdAt: true,
+          items: { select: { quantity: true, unitPrice: true, product: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { client, invoices, orderRequests };
+  }
+
   async getDebt(id: string, user: any) {
     const client = await this.prisma.client.findUnique({ where: { id } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
