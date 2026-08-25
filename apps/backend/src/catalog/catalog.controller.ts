@@ -81,13 +81,13 @@ export class CatalogController {
   }
 
   @Post('products/bulk/delete-listings')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   bulkDeleteListings(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
     return this.service.bulkDeleteListings(dto.ids, user);
   }
 
   @Delete('products/:id/listings/:connectionId')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   deleteListing(
     @Param('id') id: string,
     @Param('connectionId') connectionId: string,

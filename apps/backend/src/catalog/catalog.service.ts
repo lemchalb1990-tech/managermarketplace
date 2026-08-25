@@ -201,13 +201,16 @@ export class CatalogService {
     return { updated: owned.length };
   }
 
-  // Solo para SUPER_ADMIN: borra el vínculo interno (Listing) de los productos indicados,
-  // sin llamar a la API del marketplace. La publicación sigue viva en Mercado Libre (u otra
-  // plataforma); el sistema simplemente deja de rastrearla.
+  // Para SUPER_ADMIN y COMPANY_ADMIN (acotado a los productos de su propia empresa): borra
+  // el vínculo interno (Listing) de los productos indicados, sin llamar a la API del
+  // marketplace. La publicación sigue viva en Mercado Libre (u otra plataforma); el sistema
+  // simplemente deja de rastrearla.
   async bulkDeleteListings(ids: string[], user: any) {
-    if (user.role !== Role.SUPER_ADMIN) throw new ForbiddenException();
+    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) throw new ForbiddenException();
+    const owned = await this.filterOwned(ids, user);
+    if (!owned.length) return { deleted: 0 };
     const result = await this.prisma.listing.deleteMany({
-      where: { productId: { in: ids } },
+      where: { productId: { in: owned.map((p) => p.id) } },
     });
     return { deleted: result.count };
   }
@@ -215,11 +218,15 @@ export class CatalogService {
   // Igual que bulkDeleteListings pero para un solo producto/conexión, desde la ficha del
   // producto: borra el vínculo interno sin llamar a la API del marketplace.
   async deleteListing(productId: string, connectionId: string, user: any) {
-    if (user.role !== Role.SUPER_ADMIN) throw new ForbiddenException();
+    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) throw new ForbiddenException();
     const listing = await this.prisma.listing.findUnique({
       where: { productId_connectionId: { productId, connectionId } },
+      include: { product: { select: { companyId: true } } },
     });
     if (!listing) throw new NotFoundException('Publicación no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && listing.product.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
     await this.prisma.listing.delete({ where: { id: listing.id } });
     return { deleted: true };
   }

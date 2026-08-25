@@ -977,7 +977,7 @@ export default function CatalogPage() {
             className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
             Eliminar
           </button>
-          {currentUser?.role === 'SUPER_ADMIN' && (
+          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
             <button onClick={handleBulkDeleteListings} disabled={bulkLoading}
               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
               className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
@@ -1650,7 +1650,7 @@ export default function CatalogPage() {
                             className="px-3 py-1.5 border border-gray-300 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-50">
                             {listing ? 'Editar vínculo' : 'Vincular manualmente'}
                           </button>
-                          {listing && currentUser?.role === 'SUPER_ADMIN' && (
+                          {listing && (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
                             <button onClick={() => handleDeleteListing(conn.id)}
                               disabled={mlLoading[`delete_${conn.id}`]}
                               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
