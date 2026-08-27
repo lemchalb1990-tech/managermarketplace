@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api, openDocumentUrl } from '@/lib/api';
 import InvoiceDocument from '../components/InvoiceDocument';
+import { useBillingCompany } from '../BillingCompanyContext';
 
 const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
 
@@ -42,6 +43,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 const emptyPayForm = { paymentMethod: 'TRANSFER', paymentReference: '', paidAt: '' };
 
 export default function InvoicesPage() {
+  const { companyId } = useBillingCompany();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -71,6 +73,7 @@ export default function InvoicesPage() {
       status: filterStatus || undefined,
       from: filterFrom || undefined,
       to: filterTo || undefined,
+      companyId,
     }).catch(() => ({ invoices: [], total: 0, page: 1, pages: 1 }));
     setInvoices(res.invoices);
     setTotal(res.total);
@@ -82,8 +85,9 @@ export default function InvoicesPage() {
   useEffect(() => {
     load(1);
     const token = getToken();
-    if (token) api.billing.profile.get(token).then(setProfile).catch(() => {});
-  }, []);
+    if (token) api.billing.profile.get(token, companyId).then(setProfile).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   async function handleCancel(id: string) {
     if (!confirm('¿Anular este documento?')) return;

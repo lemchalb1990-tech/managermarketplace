@@ -302,7 +302,7 @@ export const api = {
         apiFetch<{ success: boolean; message?: string }>(`/billing/connections/${id}/test`, { method: 'POST' }, token),
     },
     invoices: {
-      list: (token: string, params?: { page?: number; dteType?: string; status?: string; from?: string; to?: string; connectionId?: string }) => {
+      list: (token: string, params?: { page?: number; dteType?: string; status?: string; from?: string; to?: string; connectionId?: string; companyId?: string }) => {
         const q = new URLSearchParams();
         if (params?.page) q.set('page', String(params.page));
         if (params?.dteType) q.set('dteType', params.dteType);
@@ -310,6 +310,7 @@ export const api = {
         if (params?.from) q.set('from', params.from);
         if (params?.to) q.set('to', params.to);
         if (params?.connectionId) q.set('connectionId', params.connectionId);
+        if (params?.companyId) q.set('companyId', params.companyId);
         return apiFetch<any>(`/billing/invoices?${q}`, {}, token);
       },
       issue: (data: any, token: string) =>

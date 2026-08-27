@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
+import { useBillingCompany } from '../BillingCompanyContext';
 
 const emptyForm = {
   razonSocial: '', rut: '', giro: '', address: '', commune: '', city: '',
@@ -10,9 +11,8 @@ const emptyForm = {
 };
 
 export default function BillingProfilePage() {
+  const { companyId } = useBillingCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [form, setForm] = useState(emptyForm);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -22,14 +22,11 @@ export default function BillingProfilePage() {
   const [error, setError] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const canEdit = ['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(currentUser?.role);
-  const companyId = isSuperAdmin ? selectedCompanyId : undefined;
-  const ready = !isSuperAdmin || !!selectedCompanyId;
 
   async function load() {
     const token = getToken();
-    if (!token || !ready) return;
+    if (!token) return;
     setLoading(true);
     try {
       const profile = await api.billing.profile.get(token, companyId);
@@ -61,19 +58,13 @@ export default function BillingProfilePage() {
   }
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    const token = getToken();
-    if (token && u?.role === 'SUPER_ADMIN') {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-    }
+    setCurrentUser(getUser());
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, selectedCompanyId]);
+  }, [companyId]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -135,27 +126,7 @@ export default function BillingProfilePage() {
         </p>
       </div>
 
-      {isSuperAdmin && (
-        <div className="mb-6">
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-          >
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {!ready ? (
-        <div className="bg-white rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-gray-400 text-sm">
-          <p className="text-3xl mb-2">🏢</p>
-          <p>Selecciona una empresa arriba para ver y editar su perfil de facturación.</p>
-        </div>
-      ) : loading ? (
+      {loading ? (
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
       ) : (
       <form onSubmit={handleSave} className="space-y-6">

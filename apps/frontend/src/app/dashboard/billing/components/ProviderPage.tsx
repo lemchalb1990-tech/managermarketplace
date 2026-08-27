@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useBillingCompany } from '../BillingCompanyContext';
 
 export interface ProviderField {
   key: string;
@@ -29,19 +29,13 @@ export interface ProviderConfig {
 interface Props { config: ProviderConfig }
 
 export default function ProviderPage({ config }: Props) {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const { isSuperAdmin, companyId: activeCompanyId } = useBillingCompany();
   const [connections, setConnections] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
   const [formFields, setFormFields] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const searchParams = useSearchParams();
-
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
 
   async function loadConnections(companyId?: string) {
     const token = getToken()!;
@@ -52,28 +46,12 @@ export default function ProviderPage({ config }: Props) {
     setConnections(data);
   }
 
-  async function init() {
-    const token = getToken();
-    if (!token) return;
-    const me = await api.me(token);
-    setCurrentUser(me);
-    if (me.role === 'SUPER_ADMIN') {
-      const comps = await api.companies.list(token);
-      setCompanies(comps);
-    } else {
-      await loadConnections();
-    }
-  }
-
-  useEffect(() => { init(); }, [searchParams]);
-
   useEffect(() => {
-    if (isSuperAdmin && selectedCompanyId) {
-      loadConnections(selectedCompanyId);
-      setShowForm(false);
-      setError('');
-    }
-  }, [selectedCompanyId, isSuperAdmin]);
+    loadConnections(activeCompanyId || undefined);
+    setShowForm(false);
+    setError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCompanyId]);
 
   function resetForm() {
     setShowForm(false);
@@ -139,23 +117,7 @@ export default function ProviderPage({ config }: Props) {
         </div>
       </div>
 
-      {isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <label className="block text-xs font-semibold text-blue-700 mb-1">Empresa a gestionar</label>
-          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
-
-      {isSuperAdmin && !selectedCompanyId ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-          <p className="text-sm">Selecciona una empresa para gestionar sus conexiones de {config.name}.</p>
-        </div>
-      ) : (
-        <div>
+      <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Conexiones activas</h2>
             <div className="flex gap-2">
@@ -263,8 +225,7 @@ export default function ProviderPage({ config }: Props) {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

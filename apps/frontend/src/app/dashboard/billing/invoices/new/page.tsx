@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import InvoiceDocument from '../../components/InvoiceDocument';
+import { useBillingCompany } from '../../BillingCompanyContext';
 
 const DTE_TYPES = [
   { value: 'FACTURA', label: 'Factura Electrónica (33)', taxed: true },
@@ -29,6 +30,7 @@ function splitItemName(raw: string): { name: string; longDescription: string } {
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const { companyId } = useBillingCompany();
   const searchParams = useSearchParams();
   const saleId = searchParams.get('saleId');
   const draftId = searchParams.get('draftId');
@@ -65,13 +67,13 @@ export default function NewInvoicePage() {
 
   useEffect(() => {
     const token = getToken()!;
-    api.billing.connections.list(token, {}).then(setConnections).catch(() => {});
-    api.clients.list(token).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
-    api.billing.profile.get(token).then(setProfile).catch(() => {});
-    api.catalog.search({ active: 'true', pageSize: 100, sortBy: 'name', sortDir: 'asc' }, token)
+    api.billing.connections.list(token, { companyId }).then(setConnections).catch(() => {});
+    api.clients.list(token, companyId).then((data) => setClients(data.filter((c: any) => c.active))).catch(() => {});
+    api.billing.profile.get(token, companyId).then(setProfile).catch(() => {});
+    api.catalog.search({ active: 'true', pageSize: 100, sortBy: 'name', sortDir: 'asc', companyId }, token)
       .then((res) => setCatalogProducts(res.products))
       .catch(() => {});
-  }, []);
+  }, [companyId]);
 
   const activeConnections = connections.filter((c: any) => c.active);
 
@@ -254,6 +256,7 @@ export default function NewInvoicePage() {
         email: form.email.trim() || undefined,
         address: form.address.trim() || undefined,
         commune: form.commune.trim() || undefined,
+        companyId,
       }, token);
       setClients((prev) => [...prev, created]);
       return created.id;

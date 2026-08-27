@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { BillingLogos } from './components/logos';
+import { useBillingCompany } from './BillingCompanyContext';
 
 const PROVIDERS = [
   {
@@ -56,12 +57,13 @@ const PROVIDER_ENUM: Record<string, string> = {
 };
 
 export default function BillingPage() {
+  const { companyId } = useBillingCompany();
   const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    api.billing.connections.list(token, {})
+    api.billing.connections.list(token, { companyId })
       .then((conns) => {
         const active = new Set(
           conns.filter((c: any) => c.active).map((c: any) => c.provider as string)
@@ -69,7 +71,7 @@ export default function BillingPage() {
         setActiveProviders(active);
       })
       .catch(() => {});
-  }, []);
+  }, [companyId]);
 
   return (
     <div className="max-w-4xl">
