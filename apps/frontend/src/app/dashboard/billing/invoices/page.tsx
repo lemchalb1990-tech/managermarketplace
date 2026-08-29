@@ -294,6 +294,13 @@ export default function InvoicesPage() {
                       <button onClick={() => openDocumentUrl(inv.xmlUrl)}
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium">XML</button>
                     )}
+                    {inv.status !== 'DRAFT' && (
+                      <Link href={`/dashboard/billing/invoices/new?copyFrom=${inv.id}`}
+                        title="Emitir un documento nuevo con los mismos datos"
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                        Emitir de nuevo
+                      </Link>
+                    )}
                     {inv.status === 'DRAFT' && (
                       <>
                         <Link href={`/dashboard/billing/invoices/new?draftId=${inv.id}`}
@@ -453,9 +460,12 @@ export default function InvoicesPage() {
                   <button onClick={() => openDocumentUrl(viewingInvoice.xmlUrl)}
                     className="text-sm text-gray-500 hover:text-gray-700 font-medium">Ver XML</button>
                 )}
-                {viewingInvoice.status === 'DRAFT' && (
+                {viewingInvoice.status === 'DRAFT' ? (
                   <Link href={`/dashboard/billing/invoices/new?draftId=${viewingInvoice.id}`}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium">Editar</Link>
+                ) : (
+                  <Link href={`/dashboard/billing/invoices/new?copyFrom=${viewingInvoice.id}`}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">Emitir de nuevo</Link>
                 )}
                 {!viewingInvoice.folio && (
                   <button onClick={() => handleDelete(viewingInvoice.id)}

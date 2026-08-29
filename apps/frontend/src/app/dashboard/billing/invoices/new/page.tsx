@@ -38,7 +38,11 @@ export default function NewInvoicePage() {
   const searchParams = useSearchParams();
   const saleId = searchParams.get('saleId');
   const draftId = searchParams.get('draftId');
+  // Emitir una copia de un documento ya existente: precarga todos los datos pero crea
+  // un documento nuevo (no edita ni re-emite el original).
+  const copyFromId = searchParams.get('copyFrom');
   const [draftLoadingInitial, setDraftLoadingInitial] = useState(false);
+  const [copiedFrom, setCopiedFrom] = useState<{ folio?: string | number; dteType: string } | null>(null);
   const [draftSaleId, setDraftSaleId] = useState<string | undefined>(undefined);
   const effectiveSaleId = saleId || draftSaleId;
   const [connections, setConnections] = useState<any[]>([]);
@@ -161,6 +165,43 @@ export default function NewInvoicePage() {
       .catch(() => setError('No se pudo cargar el borrador indicado.'))
       .finally(() => setDraftLoadingInitial(false));
   }, [draftId]);
+
+  useEffect(() => {
+    if (!copyFromId || draftId) return;
+    const token = getToken()!;
+    setDraftLoadingInitial(true);
+    api.billing.invoices.get(copyFromId, token)
+      .then((inv) => {
+        setForm({
+          connectionId: inv.connectionId || '',
+          dteType: inv.dteType,
+          rut: inv.rut || '',
+          razonSocial: inv.razonSocial || '',
+          giro: inv.giro || '',
+          address: inv.address || '',
+          commune: inv.commune || '',
+          email: inv.email || '',
+          notes: inv.notes || '',
+          paymentCondition: inv.paymentCondition || 'CONTADO',
+          paymentMethod: inv.paymentMethod || 'TRANSFER',
+          paymentReference: '',
+          dueDate: '',
+        });
+        setClientId(inv.clientId || '');
+        setSaveAsClient(false);
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+          setItems(inv.items.map((i: any) => ({
+            ...splitItemName(i.name),
+            quantity: i.quantity,
+            unitPrice: Number(i.unitPrice),
+            discount: i.discount || 0,
+          })));
+        }
+        setCopiedFrom({ folio: inv.folio ?? undefined, dteType: inv.dteType });
+      })
+      .catch(() => setError('No se pudo cargar el documento a copiar.'))
+      .finally(() => setDraftLoadingInitial(false));
+  }, [copyFromId, draftId]);
 
   function selectClient(id: string) {
     setClientId(id);
@@ -360,7 +401,15 @@ export default function NewInvoicePage() {
 
       <h1 className="text-2xl font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
       {draftLoadingInitial && (
-        <p className="text-sm text-gray-400 mb-4">Cargando borrador...</p>
+        <p className="text-sm text-gray-400 mb-4">Cargando datos...</p>
+      )}
+
+      {copiedFrom && (
+        <div className="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          Copia de {DTE_TYPES.find(d => d.value === copiedFrom.dteType)?.label ?? copiedFrom.dteType}
+          {copiedFrom.folio ? ` folio ${copiedFrom.folio}` : ''}.
+          {' '}Revisa los datos y emite un documento nuevo; el original no se modifica.
+        </div>
       )}
 
       {saleId && (
