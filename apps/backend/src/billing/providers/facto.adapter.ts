@@ -20,6 +20,16 @@ const IVA_RATE = 0.19;
 
 const BASE_URL = 'https://apifacto.com/v1';
 
+// Facto expresa la condición de pago como días de vencimiento separados por coma
+// ('0' = contado, '30' = 30 días, etc). Para crédito usamos los días que faltan hasta
+// el vencimiento; si no hay fecha, 30 días por defecto.
+function paymentConditions(condition?: string, dueDate?: string): string {
+  if (condition !== 'CREDITO') return '0';
+  if (!dueDate) return '30';
+  const days = Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86_400_000);
+  return String(Math.max(1, days));
+}
+
 interface FactoToken {
   access_token: string;
 }
@@ -109,11 +119,7 @@ export class FactoAdapter implements BillingAdapter {
         receiver_phone: '',
         receiver_activity: payload.giro || '',
         receiver_email: payload.email || '',
-        // '0' = contado (comportamiento por defecto histórico); '2' = crédito.
-        payment_conditions: payload.paymentCondition === 'CREDITO' ? '2' : '0',
-        ...(payload.paymentCondition === 'CREDITO' && payload.dueDate
-          ? { payment_due_date: payload.dueDate }
-          : {}),
+        payment_conditions: paymentConditions(payload.paymentCondition, payload.dueDate),
         currency_id: CLP_CURRENCY_ID,
         observations: payload.notes || '',
       },
@@ -131,18 +137,38 @@ export class FactoAdapter implements BillingAdapter {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json().catch(() => ({}));
+    const data: any = await res.json().catch(() => ({}));
+
+    // Log sin los blobs base64 (PDF/XML) para poder diagnosticar la respuesta real
+    // desde los logs del servidor sin llenarlos de megabytes.
+    const { electronic_document, ...logSafe } = data ?? {};
+    this.logger.log(`Facto POST /documents → HTTP ${res.status}: ${JSON.stringify(logSafe)}`);
+
     if (!res.ok) {
       throw new Error(data?.result?.error_message || data?.error || `Error Facto (${res.status})`);
     }
 
+    // Facto puede responder 2xx pero con un error de negocio en `result` (p. ej. rechazo
+    // del SII, folios agotados, datos inválidos). En ese caso el documento no se emitió.
+    const resultError = data?.result?.error_message;
+    if (resultError && String(resultError).trim()) {
+      throw new Error(String(resultError).trim());
+    }
+
+    const folio = data?.header?.document_number ?? data?.document_number;
+    if (!folio) {
+      this.logger.warn(
+        `Facto no devolvió folio (document_id=${data?.document_id}, document_status=${data?.document_status}). Respuesta: ${JSON.stringify(logSafe)}`,
+      );
+    }
+
     return {
-      externalId: String(data.document_id ?? 'unknown'),
-      folio: data.header?.document_number,
-      pdfUrl: data.electronic_document?.document_pdf
+      externalId: String(data?.document_id ?? folio ?? 'unknown'),
+      folio: folio ? Number(folio) : undefined,
+      pdfUrl: data?.electronic_document?.document_pdf
         ? `data:application/pdf;base64,${data.electronic_document.document_pdf}`
         : undefined,
-      xmlUrl: data.electronic_document?.document_xml
+      xmlUrl: data?.electronic_document?.document_xml
         ? `data:application/xml;base64,${data.electronic_document.document_xml}`
         : undefined,
     };
