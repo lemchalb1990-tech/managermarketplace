@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BillingAdapter, IssueDtePayload, DteResult } from './provider.interface';
+import { normalizeRut } from '../../common/rut.util';
 
 const DTE_TYPE_CODE: Record<string, number> = {
   FACTURA: 33,
@@ -50,7 +51,7 @@ export class BsaleAdapter implements BillingAdapter {
       declare: 1,
       references: [],
       client: {
-        code: payload.rut,
+        code: normalizeRut(payload.rut),
         activity: payload.giro || '',
         company: payload.razonSocial,
         email: payload.email || '',

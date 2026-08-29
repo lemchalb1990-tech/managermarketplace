@@ -503,9 +503,11 @@ export default function NewInvoicePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">RUT *</label>
-              <input value={form.rut} onChange={(e) => setForm(f => ({ ...f, rut: e.target.value }))}
+              <input value={form.rut}
+                onChange={(e) => setForm(f => ({ ...f, rut: e.target.value.replace(/[.\s]/g, '').toUpperCase() }))}
                 placeholder="Ej: 12345678-9" required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+              <p className="text-xs text-gray-400 mt-1">Sin puntos, con guion y dígito verificador.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Razón Social *</label>

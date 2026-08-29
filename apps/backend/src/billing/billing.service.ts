@@ -7,6 +7,7 @@ import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
 import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
+import { normalizeRut } from '../common/rut.util';
 
 const PAGE_SIZE = 20;
 
@@ -214,7 +215,7 @@ export class BillingService {
     const baseCredentials = (conn.credentials ?? {}) as Record<string, string>;
     const credentials: Record<string, string> = {
       ...baseCredentials,
-      companyRut: profile?.rut || baseCredentials.companyRut,
+      companyRut: normalizeRut(profile?.rut || baseCredentials.companyRut),
       companyName: profile?.razonSocial || baseCredentials.companyName,
       companyAddress: profile?.address || baseCredentials.companyAddress,
       companyDistrict: profile?.commune || baseCredentials.companyDistrict,
@@ -226,7 +227,7 @@ export class BillingService {
     try {
       const result = await this.adapter(conn.provider).issueDte(credentials, {
         dteType: invoice.dteType,
-        rut: invoice.rut,
+        rut: normalizeRut(invoice.rut),
         razonSocial: invoice.razonSocial,
         giro: invoice.giro ?? undefined,
         address: invoice.address ?? undefined,
@@ -265,7 +266,7 @@ export class BillingService {
     const invoice = await this.prisma.invoice.create({
       data: {
         dteType: dto.dteType,
-        rut: dto.rut,
+        rut: normalizeRut(dto.rut),
         razonSocial: dto.razonSocial,
         giro: dto.giro,
         address: dto.address,
@@ -298,7 +299,7 @@ export class BillingService {
     return this.prisma.invoice.create({
       data: {
         dteType: dto.dteType,
-        rut: dto.rut,
+        rut: normalizeRut(dto.rut),
         razonSocial: dto.razonSocial,
         giro: dto.giro,
         address: dto.address,
@@ -339,7 +340,7 @@ export class BillingService {
       where: { id },
       data: {
         dteType: dto.dteType,
-        rut: dto.rut,
+        rut: normalizeRut(dto.rut),
         razonSocial: dto.razonSocial,
         giro: dto.giro,
         address: dto.address,
@@ -454,7 +455,7 @@ export class BillingService {
       create: {
         companyId,
         razonSocial: data.razonSocial,
-        rut: data.rut,
+        rut: normalizeRut(data.rut) || data.rut,
         giro: data.giro,
         address: data.address,
         commune: data.commune,
@@ -467,7 +468,7 @@ export class BillingService {
       },
       update: {
         razonSocial: data.razonSocial,
-        rut: data.rut,
+        rut: normalizeRut(data.rut) || data.rut,
         giro: data.giro,
         address: data.address,
         commune: data.commune,

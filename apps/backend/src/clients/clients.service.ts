@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import { Role, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { normalizeRut } from '../common/rut.util';
 
 @Injectable()
 export class ClientsService {
@@ -30,6 +31,7 @@ export class ClientsService {
   async create(dto: CreateClientDto, user: any) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
     const { companyId: _omit, ...data } = dto;
+    if (data.rut) data.rut = normalizeRut(data.rut) || data.rut;
     return this.prisma.client.create({ data: { ...data, companyId } });
   }
 
@@ -37,7 +39,9 @@ export class ClientsService {
     const client = await this.prisma.client.findUnique({ where: { id } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
     if (user.role !== Role.SUPER_ADMIN && client.companyId !== user.companyId) throw new ForbiddenException();
-    return this.prisma.client.update({ where: { id }, data: dto });
+    const data = { ...dto };
+    if (data.rut) data.rut = normalizeRut(data.rut) || data.rut;
+    return this.prisma.client.update({ where: { id }, data });
   }
 
   async remove(id: string, user: any) {

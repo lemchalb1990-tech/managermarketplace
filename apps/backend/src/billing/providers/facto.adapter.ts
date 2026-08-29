@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BillingAdapter, IssueDtePayload, DteResult } from './provider.interface';
+import { normalizeRut } from '../../common/rut.util';
 
 // IDs internos de Facto (Koywe) para Chile — ver /documentacion/api/es/ejemplos/chile/tabla-de-codigos/
 const DOCUMENT_TYPE_ID: Record<string, number> = {
@@ -100,7 +101,7 @@ export class FactoAdapter implements BillingAdapter {
         account_id: Number(creds.accountId),
         document_type_id: documentTypeId,
         issue_date: new Date().toISOString().slice(0, 10),
-        issuer_tax_id_code: creds.companyRut || payload.companyRut,
+        issuer_tax_id_code: normalizeRut(creds.companyRut || payload.companyRut),
         issuer_tax_id_type: 'CL-RUT',
         issuer_legal_name: creds.companyName || '',
         issuer_address: creds.companyAddress || '',
@@ -109,7 +110,7 @@ export class FactoAdapter implements BillingAdapter {
         issuer_country_id: CHILE_COUNTRY_ID,
         issuer_phone: creds.companyPhone || '',
         issuer_activity: creds.companyActivity || 'Venta de bienes y servicios',
-        receiver_tax_id_code: payload.rut,
+        receiver_tax_id_code: normalizeRut(payload.rut),
         receiver_tax_id_type: 'CL-RUT',
         receiver_legal_name: payload.razonSocial,
         receiver_address: payload.address || '',
