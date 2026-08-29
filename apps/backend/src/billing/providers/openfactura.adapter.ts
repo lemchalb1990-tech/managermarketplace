@@ -48,6 +48,11 @@ export class OpenFacturaAdapter implements BillingAdapter {
       document: {
         type: typeCode,
         observations: payload.notes || '',
+        // Forma de pago SII: 1 = contado, 2 = crédito.
+        paymentMethod: payload.paymentCondition === 'CREDITO' ? 2 : 1,
+        ...(payload.paymentCondition === 'CREDITO' && payload.dueDate
+          ? { paymentDueDate: payload.dueDate }
+          : {}),
         items: payload.items.map((i) => ({
           name: i.name,
           qty: i.quantity,

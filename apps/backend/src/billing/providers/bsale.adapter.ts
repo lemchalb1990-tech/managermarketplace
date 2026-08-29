@@ -44,7 +44,9 @@ export class BsaleAdapter implements BillingAdapter {
       documentTypeId: creds.documentTypeId || typeCode,
       officeId: Number(creds.officeId) || 1,
       emissionDate: Math.floor(Date.now() / 1000),
-      expirationDate: Math.floor(Date.now() / 1000),
+      expirationDate: payload.paymentCondition === 'CREDITO' && payload.dueDate
+        ? Math.floor(new Date(payload.dueDate).getTime() / 1000)
+        : Math.floor(Date.now() / 1000),
       declare: 1,
       references: [],
       client: {

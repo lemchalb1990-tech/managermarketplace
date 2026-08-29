@@ -17,6 +17,10 @@ const DTE_TYPES = [
 
 const IVA = 0.19;
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro',
+};
+
 interface Item { name: string; longDescription: string; quantity: number; unitPrice: number; discount: number; productId?: string }
 const emptyItem = (): Item => ({ name: '', longDescription: '', quantity: 1, unitPrice: 0, discount: 0 });
 
@@ -52,7 +56,14 @@ export default function NewInvoicePage() {
     commune: '',
     email: '',
     notes: '',
+    paymentCondition: 'CONTADO',
+    paymentMethod: 'TRANSFER',
+    paymentReference: '',
+    dueDate: '',
   });
+  const [markPaidOnIssue, setMarkPaidOnIssue] = useState(true);
+  const [clientModalOpen, setClientModalOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
   const [items, setItems] = useState<Item[]>([emptyItem()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -130,6 +141,10 @@ export default function NewInvoicePage() {
           commune: inv.commune || '',
           email: inv.email || '',
           notes: inv.notes || '',
+          paymentCondition: inv.paymentCondition || 'CONTADO',
+          paymentMethod: inv.paymentMethod || 'TRANSFER',
+          paymentReference: inv.paymentReference || '',
+          dueDate: inv.dueDate ? inv.dueDate.slice(0, 10) : '',
         });
         setClientId(inv.clientId || '');
         setDraftSaleId(inv.saleId || undefined);
@@ -161,7 +176,24 @@ export default function NewInvoicePage() {
         email: c.email || f.email,
       }));
     }
+    setClientModalOpen(false);
+    setClientSearch('');
   }
+
+  function clearClient() {
+    setClientId('');
+    setClientModalOpen(false);
+    setClientSearch('');
+  }
+
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const clientResults = (() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) =>
+      c.name.toLowerCase().includes(q) || (c.rut || '').toLowerCase().includes(q),
+    );
+  })();
 
   const dteInfo = DTE_TYPES.find(d => d.value === form.dteType);
   const isTaxed = dteInfo?.taxed ?? true;
@@ -210,12 +242,16 @@ export default function NewInvoicePage() {
 
   function handleOpenPreview(e: React.FormEvent) {
     e.preventDefault();
+    if (activeConnections.length === 0) { setError('Conecta un proveedor de facturación antes de emitir.'); return; }
     if (!form.connectionId) { setError('Selecciona una conexión de facturación'); return; }
     if (!form.rut.trim() || !form.razonSocial.trim()) { setError('RUT y razón social son requeridos'); return; }
     if (items.some(i => !i.name.trim() || i.unitPrice <= 0)) { setError('Completa todos los ítems'); return; }
+    if (isCredito && !form.dueDate) { setError('Indica la fecha de vencimiento para la venta a crédito.'); return; }
     setError('');
     setShowPreview(true);
   }
+
+  const isCredito = form.paymentCondition === 'CREDITO';
 
   function buildPayload() {
     return {
@@ -230,6 +266,12 @@ export default function NewInvoicePage() {
       notes: form.notes.trim() || undefined,
       clientId: clientId || undefined,
       saleId: effectiveSaleId || undefined,
+      paymentCondition: form.paymentCondition,
+      dueDate: isCredito && form.dueDate ? form.dueDate : undefined,
+      markPaid: !isCredito && markPaidOnIssue,
+      paymentMethod: !isCredito && markPaidOnIssue ? form.paymentMethod : undefined,
+      paymentReference: !isCredito && markPaidOnIssue && form.paymentReference.trim()
+        ? form.paymentReference.trim() : undefined,
       items: items.map(i => ({
         name: i.longDescription.trim() ? `${i.name}\n${i.longDescription.trim()}` : i.name,
         quantity: i.quantity,
@@ -272,8 +314,13 @@ export default function NewInvoicePage() {
       const token = getToken()!;
       const resolvedClientId = await resolveClientId(token);
       const payload = { ...buildPayload(), clientId: resolvedClientId };
+      const paidBody = {
+        markPaid: payload.markPaid,
+        paymentMethod: payload.paymentMethod,
+        paymentReference: payload.paymentReference,
+      };
       const invoice = draftId
-        ? await (async () => { await api.billing.invoices.updateDraft(draftId, payload, token); return api.billing.invoices.issueDraft(draftId, token); })()
+        ? await (async () => { await api.billing.invoices.updateDraft(draftId, payload, token); return api.billing.invoices.issueDraft(draftId, token, paidBody); })()
         : await api.billing.invoices.issue(payload, token);
       router.push(`/dashboard/billing/invoices?issued=${invoice.id}`);
     } catch (err: any) {
@@ -350,38 +397,53 @@ export default function NewInvoicePage() {
                 {DTE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor de facturación *</label>
-              <select value={form.connectionId} onChange={(e) => setForm(f => ({ ...f, connectionId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                <option value="">— Selecciona una conexión —</option>
-                {activeConnections.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.provider})</option>
-                ))}
-              </select>
-              {activeConnections.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  <a href="/dashboard/billing" className="underline">Conecta un proveedor de facturación primero →</a>
-                </p>
-              )}
-            </div>
+            {/* El select de proveedor solo aparece si hay más de uno conectado; con uno solo
+                se usa por defecto y se oculta. */}
+            {activeConnections.length !== 1 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor de facturación *</label>
+                <select value={form.connectionId} onChange={(e) => setForm(f => ({ ...f, connectionId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                  <option value="">— Selecciona una conexión —</option>
+                  {activeConnections.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.provider})</option>
+                  ))}
+                </select>
+                {activeConnections.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    <a href="/dashboard/billing" className="underline">Conecta un proveedor de facturación primero →</a>
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+          {activeConnections.length === 1 && (
+            <p className="text-xs text-gray-400 mt-3">
+              Se emitirá con <strong>{activeConnections[0].name}</strong> ({activeConnections[0].provider}), el único proveedor conectado.
+            </p>
+          )}
         </div>
 
         {/* Datos del receptor */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Datos del receptor</h2>
-          {clients.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cliente registrado (opcional)</label>
-              <select value={clientId} onChange={(e) => selectClient(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                <option value="">— Ingresar datos manualmente —</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}{c.rut ? ` (${c.rut})` : ''}</option>)}
-              </select>
-              <p className="text-xs text-gray-400 mt-1">Vincula el documento al cliente para llevar el control de deuda por facturas impagas.</p>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
+            <div className="flex items-center gap-2">
+              <button type="button"
+                onClick={() => { setClientModalOpen(true); setClientSearch(''); }}
+                className="flex-1 text-left px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50">
+                {selectedClient
+                  ? <span className="text-gray-900">{selectedClient.name}{selectedClient.rut ? ` · ${selectedClient.rut}` : ''}</span>
+                  : <span className="text-gray-400">Seleccionar cliente…</span>}
+              </button>
+              {selectedClient && (
+                <button type="button" onClick={clearClient}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2 shrink-0">Quitar</button>
+              )}
             </div>
-          )}
+            <p className="text-xs text-gray-400 mt-1">Vincula el documento al cliente para llevar el control de deuda por facturas impagas.</p>
+          </div>
           {!clientId && (
             <label className="flex items-center gap-2 mb-4 text-xs text-gray-600 cursor-pointer select-none">
               <input type="checkbox" checked={saveAsClient} onChange={(e) => setSaveAsClient(e.target.checked)}
@@ -517,6 +579,61 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
+        {/* Pago */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Pago</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Forma de pago *</label>
+              <select value={form.paymentCondition}
+                onChange={(e) => setForm(f => ({ ...f, paymentCondition: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="CONTADO">Contado</option>
+                <option value="CREDITO">Crédito</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Se transmite al proveedor como forma de pago del DTE.</p>
+            </div>
+            {isCredito ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de vencimiento</label>
+                <input type="date" value={form.dueDate}
+                  onChange={(e) => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <p className="text-xs text-gray-400 mt-1">La deuda queda pendiente hasta registrar el pago en Documentos.</p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Medio de pago</label>
+                <select value={form.paymentMethod} disabled={!markPaidOnIssue}
+                  onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                  {Object.entries(PAYMENT_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {!isCredito && (
+            <>
+              <label className="flex items-center gap-2 mt-4 text-xs text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={markPaidOnIssue}
+                  onChange={(e) => setMarkPaidOnIssue(e.target.checked)} className="rounded" />
+                Marcar como pagada al emitir
+              </label>
+              {markPaidOnIssue && (
+                <div className="mt-3 sm:max-w-xs">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    N° de {form.paymentMethod === 'TRANSFER' ? 'transferencia' : form.paymentMethod === 'CARD' ? 'voucher' : 'referencia'}
+                  </label>
+                  <input value={form.paymentReference}
+                    onChange={(e) => setForm(f => ({ ...f, paymentReference: e.target.value }))}
+                    placeholder="Opcional"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Observaciones */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones (opcional)</label>
@@ -573,6 +690,9 @@ export default function NewInvoicePage() {
                 tax={tax}
                 totalAmount={totalAmount}
                 notes={form.notes}
+                paymentInfo={isCredito
+                  ? `Crédito${form.dueDate ? ` · vence ${form.dueDate}` : ''}`
+                  : `Contado${markPaidOnIssue ? ` · ${PAYMENT_METHOD_LABELS[form.paymentMethod]}${form.paymentReference.trim() ? ` (${form.paymentReference.trim()})` : ''}` : ''}`}
                 extraNote={!clientId && saveAsClient && (
                   <p className="col-span-2 text-emerald-600 mt-1">✓ Se guardará como cliente nuevo para tus próximas facturas</p>
                 )}
@@ -601,6 +721,45 @@ export default function NewInvoicePage() {
                   Volver a editar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clientModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="font-bold text-gray-900 text-base">Seleccionar cliente</h2>
+              <button onClick={() => setClientModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-3 border-b border-gray-100 shrink-0">
+              <input autoFocus value={clientSearch} onChange={(e) => setClientSearch(e.target.value)}
+                placeholder="Buscar por nombre o RUT…"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <button type="button" onClick={clearClient}
+                className="w-full text-left px-6 py-3 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100">
+                — Ingresar datos manualmente —
+              </button>
+              {clientResults.map((c) => (
+                <button type="button" key={c.id} onClick={() => selectClient(c.id)}
+                  className={`w-full text-left px-6 py-3 hover:bg-blue-50 border-b border-gray-50 ${c.id === clientId ? 'bg-blue-50' : ''}`}>
+                  <p className="text-sm font-medium text-gray-900">{c.name}</p>
+                  <p className="text-xs text-gray-400 font-mono">
+                    {c.rut || 'Sin RUT'}{c.email ? ` · ${c.email}` : ''}
+                  </p>
+                </button>
+              ))}
+              {clientResults.length === 0 && (
+                <p className="px-6 py-8 text-center text-sm text-gray-400">
+                  {clients.length === 0 ? 'No hay clientes registrados en esta empresa.' : `Sin resultados para "${clientSearch}"`}
+                </p>
+              )}
             </div>
           </div>
         </div>

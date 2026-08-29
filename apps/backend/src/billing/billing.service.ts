@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, Role } from '@prisma/client';
+import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, PaymentCondition, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenFacturaAdapter } from './providers/openfactura.adapter';
 import { BsaleAdapter } from './providers/bsale.adapter';
@@ -176,6 +176,35 @@ export class BillingService {
     return { netAmount, tax, totalAmount: netAmount + tax };
   }
 
+  // Datos de pago que se guardan en el Invoice (condición + vencimiento). El vencimiento
+  // solo aplica a crédito; de contado se ignora.
+  private paymentData(dto: IssueInvoiceDto) {
+    const condition = dto.paymentCondition ?? null;
+    const dueDate =
+      condition === PaymentCondition.CREDITO && dto.dueDate ? new Date(dto.dueDate) : null;
+    return { paymentCondition: condition, dueDate };
+  }
+
+  // Tras emitir un documento de contado, si se pidió marcar el pago se registra de una vez.
+  private async applyPaidOnIssue(
+    invoice: Invoice,
+    opts: { markPaid?: boolean; paymentMethod?: any; paymentReference?: string },
+  ) {
+    if (!opts.markPaid) return invoice;
+    if (invoice.paymentCondition === PaymentCondition.CREDITO) return invoice;
+    if (invoice.status !== InvoiceStatus.ISSUED && invoice.status !== InvoiceStatus.ACCEPTED) return invoice;
+    if (invoice.paid) return invoice;
+    return this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        paid: true,
+        paidAt: new Date(),
+        paymentMethod: opts.paymentMethod ?? null,
+        paymentReference: opts.paymentReference ?? null,
+      },
+    });
+  }
+
   // Intenta emitir un Invoice ya guardado (DRAFT) ante el proveedor real. La identidad del
   // emisor sale del Perfil de facturación de la empresa (si está configurado), completando
   // lo que falte en las credenciales propias de la conexión para no romper conexiones ya
@@ -206,6 +235,8 @@ export class BillingService {
         items: invoice.items as any,
         notes: invoice.notes ?? undefined,
         companyRut: credentials.companyRut,
+        paymentCondition: invoice.paymentCondition ?? undefined,
+        dueDate: invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : undefined,
       });
       return this.prisma.invoice.update({
         where: { id: invoice.id },
@@ -250,10 +281,12 @@ export class BillingService {
         companyId: conn.companyId,
         saleId: dto.saleId,
         clientId: dto.clientId,
+        ...this.paymentData(dto),
       },
     });
 
-    return this.emitToProvider(invoice, conn);
+    const issued = await this.emitToProvider(invoice, conn);
+    return this.applyPaidOnIssue(issued, dto);
   }
 
   // Guarda el documento como borrador sin emitirlo ante el proveedor — se puede retomar
@@ -281,6 +314,7 @@ export class BillingService {
         companyId: conn.companyId,
         saleId: dto.saleId,
         clientId: dto.clientId,
+        ...this.paymentData(dto),
       },
     });
   }
@@ -319,12 +353,17 @@ export class BillingService {
         connectionId: conn.id,
         saleId: dto.saleId,
         clientId: dto.clientId,
+        ...this.paymentData(dto),
       },
     });
   }
 
   // Emite ante el proveedor real un documento que ya estaba guardado como borrador.
-  async issueDraft(id: string, user: any) {
+  async issueDraft(
+    id: string,
+    user: any,
+    opts?: { markPaid?: boolean; paymentMethod?: any; paymentReference?: string },
+  ) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id }, include: { connection: true } });
     if (!invoice) throw new NotFoundException('Documento no encontrado');
     if (user.role !== Role.SUPER_ADMIN && invoice.companyId !== user.companyId) {
@@ -333,7 +372,8 @@ export class BillingService {
     if (invoice.status !== InvoiceStatus.DRAFT) {
       throw new BadRequestException('Solo se pueden emitir documentos en estado borrador');
     }
-    return this.emitToProvider(invoice, invoice.connection);
+    const issued = await this.emitToProvider(invoice, invoice.connection);
+    return this.applyPaidOnIssue(issued, opts ?? {});
   }
 
   async getInvoice(id: string, user: any) {

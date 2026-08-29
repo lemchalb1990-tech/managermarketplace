@@ -434,6 +434,13 @@ export default function InvoicesPage() {
                 tax={Number(viewingInvoice.tax)}
                 totalAmount={Number(viewingInvoice.totalAmount)}
                 notes={viewingInvoice.notes}
+                paymentInfo={
+                  viewingInvoice.paymentCondition === 'CREDITO'
+                    ? `Crédito${viewingInvoice.dueDate ? ` · vence ${new Date(viewingInvoice.dueDate).toLocaleDateString('es-CL')}` : ''}`
+                    : viewingInvoice.paymentCondition === 'CONTADO'
+                      ? `Contado${viewingInvoice.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[viewingInvoice.paymentMethod] ?? viewingInvoice.paymentMethod}` : ''}`
+                      : undefined
+                }
               />
             </div>
             <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between">

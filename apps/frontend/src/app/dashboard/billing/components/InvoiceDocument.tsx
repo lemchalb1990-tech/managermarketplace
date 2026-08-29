@@ -21,6 +21,7 @@ interface Props {
   tax: number;
   totalAmount: number;
   notes?: string;
+  paymentInfo?: string;
   extraNote?: React.ReactNode;
 }
 
@@ -30,7 +31,7 @@ const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', c
 // (Emitir DTE) como en el visor de un documento ya emitido/guardado (Documentos).
 export default function InvoiceDocument({
   profile, dteLabel, folio, statusBadge, connectionName, connectionProvider,
-  receptor, items, isTaxed, netAmount, tax, totalAmount, notes, extraNote,
+  receptor, items, isTaxed, netAmount, tax, totalAmount, notes, paymentInfo, extraNote,
 }: Props) {
   const itemTotal = (i: InvoiceDocumentItem) => i.unitPrice * i.quantity * (1 - (i.discount ?? 0) / 100);
 
@@ -136,8 +137,14 @@ export default function InvoiceDocument({
         </div>
       </div>
 
+      {paymentInfo && (
+        <p className="text-xs text-gray-500 pt-3 border-t border-dashed border-gray-200 mb-1">
+          <span className="text-gray-400">Forma de pago: </span>{paymentInfo}
+        </p>
+      )}
+
       {notes && (
-        <p className="text-xs text-gray-500 pt-3 border-t border-dashed border-gray-200 mb-2">
+        <p className={`text-xs text-gray-500 mb-2 ${paymentInfo ? '' : 'pt-3 border-t border-dashed border-gray-200'}`}>
           <span className="text-gray-400">Observaciones: </span>{notes}
         </p>
       )}

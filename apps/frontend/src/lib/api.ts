@@ -317,8 +317,8 @@ export const api = {
         apiFetch<any>('/billing/invoices', { method: 'POST', body: JSON.stringify(data) }, token),
       saveDraft: (data: any, token: string) =>
         apiFetch<any>('/billing/invoices/draft', { method: 'POST', body: JSON.stringify(data) }, token),
-      issueDraft: (id: string, token: string) =>
-        apiFetch<any>(`/billing/invoices/${id}/issue`, { method: 'POST' }, token),
+      issueDraft: (id: string, token: string, data?: { markPaid?: boolean; paymentMethod?: string; paymentReference?: string }) =>
+        apiFetch<any>(`/billing/invoices/${id}/issue`, { method: 'POST', body: JSON.stringify(data ?? {}) }, token),
       updateDraft: (id: string, data: any, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       get: (id: string, token: string) =>

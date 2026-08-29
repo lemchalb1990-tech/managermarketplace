@@ -109,7 +109,11 @@ export class FactoAdapter implements BillingAdapter {
         receiver_phone: '',
         receiver_activity: payload.giro || '',
         receiver_email: payload.email || '',
-        payment_conditions: '0',
+        // '0' = contado (comportamiento por defecto histórico); '2' = crédito.
+        payment_conditions: payload.paymentCondition === 'CREDITO' ? '2' : '0',
+        ...(payload.paymentCondition === 'CREDITO' && payload.dueDate
+          ? { payment_due_date: payload.dueDate }
+          : {}),
         currency_id: CLP_CURRENCY_ID,
         observations: payload.notes || '',
       },

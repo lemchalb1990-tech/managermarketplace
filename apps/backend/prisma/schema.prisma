@@ -511,6 +511,11 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum PaymentCondition {
+  CONTADO
+  CREDITO
+}
+
 model BillingConnection {
   id          String          @id @default(cuid())
   name        String
@@ -551,10 +556,12 @@ model Invoice {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  paid             Boolean        @default(false)
+  paid             Boolean           @default(false)
   paidAt           DateTime?
   paymentMethod    PaymentMethod?
   paymentReference String?
+  paymentCondition PaymentCondition?
+  dueDate          DateTime?
 
   connectionId String
   connection   BillingConnection @relation(fields: [connectionId], references: [id])

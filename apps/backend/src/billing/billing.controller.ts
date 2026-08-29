@@ -8,7 +8,7 @@ import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { BillingService } from './billing.service';
 import {
-  CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto,
+  CreateBillingConnectionDto, IssueInvoiceDto, IssueDraftDto, ListInvoicesDto,
   MarkInvoicePaidDto, UpsertBillingProfileDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -69,8 +69,8 @@ export class BillingController {
   }
 
   @Post('invoices/:id/issue')
-  issueDraft(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.service.issueDraft(id, user);
+  issueDraft(@Param('id') id: string, @Body() body: IssueDraftDto, @CurrentUser() user: any) {
+    return this.service.issueDraft(id, user, body);
   }
 
   @Patch('invoices/:id')

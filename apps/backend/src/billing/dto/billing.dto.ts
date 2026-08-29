@@ -1,9 +1,9 @@
 import {
   IsString, IsEnum, IsOptional, IsEmail, IsArray,
-  ValidateNested, IsNumber, Min, IsPositive, IsDateString,
+  ValidateNested, IsNumber, Min, IsPositive, IsDateString, IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BillingProvider, DteType, PaymentMethod } from '@prisma/client';
+import { BillingProvider, DteType, PaymentMethod, PaymentCondition } from '@prisma/client';
 
 export class CreateBillingConnectionDto {
   @IsString() name: string;
@@ -32,12 +32,26 @@ export class IssueInvoiceDto {
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() saleId?: string;
   @IsOptional() @IsString() clientId?: string;
+  // Condición de pago del DTE (se transmite al proveedor como forma de pago SII).
+  @IsOptional() @IsEnum(PaymentCondition) paymentCondition?: PaymentCondition;
+  // Fecha de vencimiento cuando la condición es CREDITO.
+  @IsOptional() @IsDateString() dueDate?: string;
+  // Al emitir de contado: registrar el pago de una vez.
+  @IsOptional() @IsBoolean() markPaid?: boolean;
+  @IsOptional() @IsEnum(PaymentMethod) paymentMethod?: PaymentMethod;
+  @IsOptional() @IsString() paymentReference?: string;
 }
 
 export class MarkInvoicePaidDto {
   @IsEnum(PaymentMethod) paymentMethod: PaymentMethod;
   @IsOptional() @IsString() paymentReference?: string;
   @IsOptional() @IsDateString() paidAt?: string;
+}
+
+export class IssueDraftDto {
+  @IsOptional() @IsBoolean() markPaid?: boolean;
+  @IsOptional() @IsEnum(PaymentMethod) paymentMethod?: PaymentMethod;
+  @IsOptional() @IsString() paymentReference?: string;
 }
 
 export class ListInvoicesDto {

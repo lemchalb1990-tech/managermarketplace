@@ -16,6 +16,10 @@ export interface IssueDtePayload {
   items: InvoiceItem[];
   notes?: string;
   companyRut?: string;
+  // Condición de pago para la forma de pago SII (1=contado, 2=crédito).
+  paymentCondition?: 'CONTADO' | 'CREDITO';
+  // Fecha de vencimiento (ISO yyyy-mm-dd) cuando la condición es crédito.
+  dueDate?: string;
 }
 
 export interface DteResult {
