@@ -7,15 +7,22 @@ export default function ParisPage() {
     <PlatformPage config={{
       marketplace: 'PARIS',
       name: 'Paris',
-      description: 'Vende en Paris Marketplace (Cencosud) con sincronización de inventario.',
+      description: 'Conecta tu cuenta de Paris Marketplace (Cencosud).',
       moduleKey: 'ecommerce_paris',
       color: '#003087',
       logo: Logos.paris,
-      supportsPublish: true,
-      helpText: 'Ingresa las credenciales de acceso al portal de vendedores de Paris. Contacta a Paris para obtener acceso API.',
+      supportsPublish: false,
+      helpText:
+        'Ingresa la API Key que te entregó Paris (Cencosud). El sistema valida la conexión contra la API de Paris al guardar. La sincronización de stock y precios se habilitará en una próxima fase.',
       fields: [
-        { key: 'sellerId', label: 'Seller ID', placeholder: 'Tu ID de vendedor' },
-        { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Tu clave de API' },
+        { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Ej: 00000000-0000-0000-0000-000000000000' },
+        {
+          key: 'env',
+          label: 'Ambiente (déjalo vacío para producción)',
+          placeholder: 'staging',
+          required: false,
+          hint: 'Escribe "staging" solo si Paris te dio credenciales del ambiente de pruebas.',
+        },
       ],
     }} />
   );

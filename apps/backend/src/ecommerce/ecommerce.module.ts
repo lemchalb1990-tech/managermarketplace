@@ -8,6 +8,7 @@ import { SalesImportCronService } from './sync/sales-import-cron.service';
 import { ShopifyAdapter } from './platforms/shopify.adapter';
 import { WooCommerceAdapter } from './platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from './platforms/jumpseller.adapter';
+import { ParisAdapter } from './platforms/paris.adapter';
 import { StubAdapter } from './platforms/stub.adapter';
 import { CatalogModule } from '../catalog/catalog.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -23,6 +24,7 @@ import { PurchasesModule } from '../purchases/purchases.module';
     ShopifyAdapter,
     WooCommerceAdapter,
     JumpSellerAdapter,
+    ParisAdapter,
     StubAdapter,
   ],
   controllers: [MercadolibreController, ConnectionsController],

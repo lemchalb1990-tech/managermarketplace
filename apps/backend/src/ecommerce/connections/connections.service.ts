@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
 import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
+import { ParisAdapter } from '../platforms/paris.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -24,6 +25,7 @@ export class ConnectionsService {
     private shopify: ShopifyAdapter,
     private woocommerce: WooCommerceAdapter,
     private jumpseller: JumpSellerAdapter,
+    private paris: ParisAdapter,
     private stub: StubAdapter,
     private catalog: CatalogService,
   ) {}
@@ -33,6 +35,7 @@ export class ConnectionsService {
       case MarketplaceType.SHOPIFY: return this.shopify;
       case MarketplaceType.WOOCOMMERCE: return this.woocommerce;
       case MarketplaceType.JUMPSELLER: return this.jumpseller;
+      case MarketplaceType.PARIS: return this.paris;
       default: return this.stub;
     }
   }
