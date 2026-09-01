@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { primaryFrontendUrl } from '../../common/frontend-url.util';
 
 class SaveCredentialsDto {
   @IsString() mlClientId: string;
@@ -78,12 +79,12 @@ export class MercadolibreController {
     try {
       await this.service.handleCallback(code, state, name || 'Conexión ML');
       return res.redirect(
-        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre/connected`,
+        `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre/connected`,
       );
     } catch (err: any) {
       this.logger.error(`ML callback error: ${err?.message || err}`, err?.stack);
       return res.redirect(
-        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/ecommerce/mercadolibre?error=1`,
+        `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre?error=1`,
       );
     }
   }
