@@ -96,6 +96,16 @@ enum FulfillmentType {
   DELIVERY
 }
 
+// Sub-estado de preparación en bodega (vive dentro de OrderStatus.PREPARING).
+enum PrepStage {
+  UNASSIGNED
+  ASSIGNED
+  PICKING
+  PICKED
+  PACKING
+  PACKED
+}
+
 enum ProfitabilityStatus {
   CONFIRMADO
   DUDOSO
@@ -193,6 +203,9 @@ model User {
   sales                 Sale[]
   stockMovements        StockMovement[]
   ordersCreated         Order[]          @relation("OrderCreatedBy")
+  ordersAssigned        Order[]          @relation("OrderAssignedTo")
+  ordersPicked          Order[]          @relation("OrderPickedBy")
+  ordersPacked          Order[]          @relation("OrderPackedBy")
   itemChecks            OrderItemCheck[] @relation("ItemCheckedBy")
   shipmentPhotos        ShipmentPhoto[]
   dispatchRoutes        DispatchRoute[]  @relation("DispatcherRoutes")
@@ -695,6 +708,18 @@ model Order {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  // Flujo de bodega (asignación → picking → packing)
+  prepStage    PrepStage @default(UNASSIGNED)
+  assignedAt   DateTime?
+  pickedAt     DateTime?
+  packedAt     DateTime?
+  assignedToId String?
+  assignedTo   User?     @relation("OrderAssignedTo", fields: [assignedToId], references: [id])
+  pickedById   String?
+  pickedBy     User?     @relation("OrderPickedBy", fields: [pickedById], references: [id])
+  packedById   String?
+  packedBy     User?     @relation("OrderPackedBy", fields: [packedById], references: [id])
+
   companyId   String
   company     Company    @relation(fields: [companyId], references: [id])
   saleId      String?    @unique
@@ -705,6 +730,8 @@ model Order {
   createdBy   User?      @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   itemChecks OrderItemCheck[]
+
+  @@index([companyId, status, prepStage])
   photos     ShipmentPhoto[]
   routeStop  RouteStop?
 
@@ -718,6 +745,7 @@ model OrderItemCheck {
   expectedQty Int
   checkedQty  Int?
   checked     Boolean   @default(false)
+  outOfStock  Boolean   @default(false)
   notes       String?
   checkedAt   DateTime?
 

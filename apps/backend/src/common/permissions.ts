@@ -44,6 +44,15 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     ],
   },
   {
+    key: 'operacion',
+    label: 'Operación de bodega',
+    items: [
+      { key: 'warehouse.board', label: 'Tablero de bodega' },
+      { key: 'warehouse.picking', label: 'Picking' },
+      { key: 'warehouse.packing', label: 'Packing' },
+    ],
+  },
+  {
     key: 'pedidos',
     label: 'Pedidos internos',
     items: [
@@ -93,6 +102,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'dashboard', 'orders', 'sales', 'pos', 'clientes',
     'ecommerce', 'billing',
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
+    'warehouse.board', 'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar',
     'despachos',
     'users', 'access-profiles',
@@ -102,10 +112,15 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'dashboard', 'orders', 'sales', 'pos', 'clientes',
     'ecommerce', 'billing',
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
+    'warehouse.board', 'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis',
     'despachos',
   ],
-  [Role.VENDEDOR]: ['orders', 'sales', 'pos', 'clientes', 'pedidos.crear', 'pedidos.mis'],
+  [Role.VENDEDOR]: [
+    'orders', 'sales', 'pos', 'clientes',
+    'warehouse.picking', 'warehouse.packing',
+    'pedidos.crear', 'pedidos.mis',
+  ],
   [Role.DESPACHADOR]: ['mis-rutas'],
   [Role.ORDER_MANAGER]: ['clientes', 'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar'],
 };

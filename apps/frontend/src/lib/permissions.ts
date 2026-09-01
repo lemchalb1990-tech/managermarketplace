@@ -27,6 +27,13 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     ],
   },
   {
+    key: 'operacion', label: 'Operación de bodega', items: [
+      { key: 'warehouse.board', label: 'Tablero de bodega' },
+      { key: 'warehouse.picking', label: 'Picking' },
+      { key: 'warehouse.packing', label: 'Packing' },
+    ],
+  },
+  {
     key: 'pedidos', label: 'Pedidos internos', items: [
       { key: 'pedidos.crear', label: 'Crear solicitudes' },
       { key: 'pedidos.mis', label: 'Ver mis solicitudes' },
