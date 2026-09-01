@@ -19,6 +19,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  accessProfileId?: string | null;
 }
 
 export class UpdateUserDto {
@@ -42,4 +46,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsArray()
   modules?: string[] | null;
+
+  @IsOptional()
+  @IsString()
+  accessProfileId?: string | null;
 }

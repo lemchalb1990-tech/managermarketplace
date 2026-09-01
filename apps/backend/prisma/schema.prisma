@@ -144,8 +144,29 @@ model Company {
   orderRequests      OrderRequest[]
   billingProfile     BillingProfile?
   profitabilityItems ProfitabilityItem[]
+  accessProfiles     AccessProfile[]
 
   @@map("companies")
+}
+
+// Perfil de acceso: rol con nombre + lista de permisos por página.
+// companyId null = plantilla global (solo SUPER_ADMIN). Con companyId = perfil
+// propio de esa empresa, gestionable por su COMPANY_ADMIN.
+model AccessProfile {
+  id          String   @id @default(cuid())
+  name        String
+  permissions String[] @default([])
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  users User[]
+
+  @@unique([companyId, name])
+  @@map("access_profiles")
 }
 
 model User {
@@ -162,6 +183,11 @@ model User {
   company   Company? @relation(fields: [companyId], references: [id])
 
   modules Json?
+
+  // Perfil de acceso opcional: si está seteado, define los permisos finos del
+  // usuario (por página). Si es null, los permisos se derivan de `role`.
+  accessProfileId String?
+  accessProfile   AccessProfile? @relation(fields: [accessProfileId], references: [id])
 
   auditLogs             AuditLog[]
   sales                 Sale[]

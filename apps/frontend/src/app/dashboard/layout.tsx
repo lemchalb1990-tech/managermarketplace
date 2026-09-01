@@ -5,8 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
 import { hasModule } from '@/lib/modules';
+import { can } from '@/lib/permissions';
 
-type NavItem = { href: string; label: string; roles: string[]; module: string | null };
+type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
 type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -16,70 +17,71 @@ const navGroups: NavGroup[] = [
     key: 'inicio',
     label: '',
     items: [
-      { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
+      { href: '/dashboard', label: 'Inicio', perm: 'dashboard', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
     ],
   },
   {
     key: 'ventas',
     label: 'Ventas',
     items: [
-      { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
-      { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
-      { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
-      { href: '/dashboard/clientes', label: 'Clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/sales', label: 'Ventas', perm: 'sales', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
+      { href: '/dashboard/pos', label: 'Punto de Venta', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
+      { href: '/dashboard/clientes', label: 'Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
     ],
   },
   {
     key: 'canales',
     label: 'Canales',
     items: [
-      { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
-      { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
+      { href: '/dashboard/ecommerce', label: 'E-commerce', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
+      { href: '/dashboard/billing', label: 'Facturación', perm: 'billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
     ],
   },
   {
     key: 'catalogo',
     label: 'Catálogo y bodega',
     items: [
-      { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
-      { href: '/dashboard/warehouses', label: 'Bodegas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
-      { href: '/dashboard/purchases', label: 'Compras', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
-      { href: '/dashboard/suppliers', label: 'Proveedores', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
-      { href: '/dashboard/rentabilidad', label: 'Rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
+      { href: '/dashboard/catalog', label: 'Catálogo', perm: 'catalog', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/warehouses', label: 'Bodegas', perm: 'warehouses', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/purchases', label: 'Compras', perm: 'purchases', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
+      { href: '/dashboard/suppliers', label: 'Proveedores', perm: 'suppliers', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
+      { href: '/dashboard/rentabilidad', label: 'Rentabilidad', perm: 'rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
     ],
   },
   {
     key: 'pedidos',
     label: 'Pedidos internos',
     items: [
-      { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva solicitud', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-      { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis solicitudes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-      { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de pedidos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva solicitud', perm: 'pedidos.crear', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis solicitudes', perm: 'pedidos.mis', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de pedidos', perm: 'pedidos.aprobar', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
     ],
   },
   {
     key: 'despacho',
     label: 'Despacho',
     items: [
-      { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
-      { href: '/dashboard/mis-rutas', label: 'Mis rutas', roles: ['DESPACHADOR'], module: 'dispatch' },
+      { href: '/dashboard/despachos', label: 'Despachos', perm: 'despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+      { href: '/dashboard/mis-rutas', label: 'Mis rutas', perm: 'mis-rutas', roles: ['DESPACHADOR'], module: 'dispatch' },
     ],
   },
   {
     key: 'colaboradores',
     label: 'Colaboradores',
     items: [
-      { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/users', label: 'Usuarios', perm: 'users', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/access-profiles', label: 'Perfiles de acceso', perm: 'access-profiles', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
     ],
   },
   {
     key: 'admin',
     label: 'Administración',
     items: [
-      { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
-      { href: '/dashboard/connections', label: 'Conexiones', roles: ['SUPER_ADMIN'], module: null },
-      { href: '/dashboard/emails', label: 'Correos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
-      { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN'], module: null },
     ],
   },
 ];
@@ -128,7 +130,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navGroups
       .map((g) => ({
         ...g,
-        items: g.items.filter((n) => n.roles.includes(user.role) && hasModule(user, n.module)),
+        items: g.items.filter((n) => can(user, n.perm, n.roles) && hasModule(user, n.module)),
       }))
       .filter((g) => g.items.length > 0);
   }, [user]);

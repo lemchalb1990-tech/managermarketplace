@@ -125,6 +125,20 @@ export const api = {
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
+  accessProfiles: {
+    catalog: (token: string) =>
+      apiFetch<{ key: string; label: string; items: { key: string; label: string }[] }[]>(
+        '/access-profiles/catalog', {}, token),
+    list: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/access-profiles${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    get: (id: string, token: string) => apiFetch<any>(`/access-profiles/${id}`, {}, token),
+    create: (data: { name: string; permissions: string[]; companyId?: string }, token: string) =>
+      apiFetch<any>('/access-profiles', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: string, data: { name?: string; permissions?: string[] }, token: string) =>
+      apiFetch<any>(`/access-profiles/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/access-profiles/${id}`, { method: 'DELETE' }, token),
+  },
   catalog: {
     list: (token: string, companyId?: string) => {
       const q = new URLSearchParams();

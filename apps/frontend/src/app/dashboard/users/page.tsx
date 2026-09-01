@@ -47,12 +47,13 @@ const ALL_MODULES = [
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 
-const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '' };
-const emptyEdit = { name: '', role: '', password: '', active: true, modules: null as string[] | null };
+const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '', accessProfileId: '' };
+const emptyEdit = { name: '', role: '', password: '', active: true, modules: null as string[] | null, accessProfileId: '' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -81,6 +82,7 @@ export default function UsersPage() {
     setCurrentUser(me);
     const data = await api.users.list(token);
     setUsers(data);
+    api.accessProfiles.list(token).then(setProfiles).catch(() => setProfiles([]));
     if (me.role === 'SUPER_ADMIN') {
       const comps = await api.companies.list(token);
       setCompanies(comps);
@@ -100,6 +102,7 @@ export default function UsersPage() {
       const token = getToken()!;
       const payload: any = { name: form.name, email: form.email, password: form.password, role: form.role };
       if (form.companyId) payload.companyId = form.companyId;
+      if (form.accessProfileId) payload.accessProfileId = form.accessProfileId;
       await api.users.create(payload, token);
       setForm(emptyForm);
       setShowForm(false);
@@ -119,6 +122,7 @@ export default function UsersPage() {
       password: '',
       active: u.active,
       modules: Array.isArray(u.modules) ? u.modules : null,
+      accessProfileId: u.accessProfile?.id || '',
     });
     setEditError('');
     setShowPassword(false);
@@ -150,6 +154,7 @@ export default function UsersPage() {
         name: editForm.name,
         role: editForm.role,
         active: editForm.active,
+        accessProfileId: editForm.accessProfileId || null,
       };
       // Los módulos (servicios / ecommerce) solo los gestiona el super administrador.
       if (isSuperAdmin) payload.modules = editForm.modules;
@@ -261,10 +266,18 @@ export default function UsersPage() {
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil base *</label>
               <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 {ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso (opcional)</label>
+              <select value={form.accessProfileId} onChange={(e) => setForm(f => ({ ...f, accessProfileId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="">— Usar permisos del perfil base —</option>
+                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` · ${p.company.name}` : ''}</option>)}
               </select>
             </div>
             {isSuperAdmin && (
@@ -378,7 +391,7 @@ export default function UsersPage() {
                   required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil base *</label>
                 <select value={editForm.role}
                   onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -386,6 +399,18 @@ export default function UsersPage() {
                   {isSuperAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
                 </select>
               </div>
+              {editForm.role !== 'SUPER_ADMIN' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso (opcional)</label>
+                  <select value={editForm.accessProfileId}
+                    onChange={(e) => setEditForm(f => ({ ...f, accessProfileId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="">— Usar permisos del perfil base —</option>
+                    {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` · ${p.company.name}` : ''}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-0.5">Si eliges un perfil, sus permisos reemplazan a los del perfil base.</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Nueva contraseña <span className="text-gray-400">(dejar en blanco para no cambiar)</span>
