@@ -125,6 +125,37 @@ export const api = {
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
+  warehouse: {
+    board: (token: string, warehouseId?: string) =>
+      apiFetch<any>(`/warehouse/board${warehouseId ? `?warehouseId=${warehouseId}` : ''}`, {}, token),
+    assign: (data: { userIds: string[]; orderIds?: string[]; warehouseId?: string }, token: string) =>
+      apiFetch<{ assigned: number }>('/warehouse/assign', { method: 'POST', body: JSON.stringify(data) }, token),
+    resetAssign: (data: { warehouseId?: string }, token: string) =>
+      apiFetch<{ reverted: number }>('/warehouse/assign/reset', { method: 'POST', body: JSON.stringify(data) }, token),
+    pickingList: (token: string, params?: { warehouseId?: string; mine?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
+      if (params?.mine) q.set('mine', 'true');
+      return apiFetch<any[]>(`/warehouse/picking?${q}`, {}, token);
+    },
+    pickingScan: (data: { code: string; warehouseId?: string }, token: string) =>
+      apiFetch<any>('/warehouse/picking/scan', { method: 'POST', body: JSON.stringify(data) }, token),
+    pickItem: (orderId: string, itemId: string, data: { pickedQty: number; notes?: string }, token: string) =>
+      apiFetch<any>(`/warehouse/picking/${orderId}/item/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    outOfStock: (orderId: string, itemId: string, data: { outOfStock: boolean; notes?: string }, token: string) =>
+      apiFetch<any>(`/warehouse/picking/${orderId}/item/${itemId}/out-of-stock`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    completePicking: (orderId: string, token: string) =>
+      apiFetch<any>(`/warehouse/picking/${orderId}/complete`, { method: 'POST' }, token),
+    packingList: (token: string, params?: { warehouseId?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
+      return apiFetch<any[]>(`/warehouse/packing?${q}`, {}, token);
+    },
+    packingScan: (data: { code: string; warehouseId?: string }, token: string) =>
+      apiFetch<any>('/warehouse/packing/scan', { method: 'POST', body: JSON.stringify(data) }, token),
+    confirmPacked: (orderId: string, token: string) =>
+      apiFetch<any>(`/warehouse/packing/${orderId}/confirm`, { method: 'POST' }, token),
+  },
   accessProfiles: {
     catalog: (token: string) =>
       apiFetch<{ key: string; label: string; items: { key: string; label: string }[] }[]>(

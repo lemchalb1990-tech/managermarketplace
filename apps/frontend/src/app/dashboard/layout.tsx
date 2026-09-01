@@ -50,6 +50,15 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'operacion',
+    label: 'Bodega (operación)',
+    items: [
+      { href: '/dashboard/bodega', label: 'Tablero', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'catalog' },
+      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'catalog' },
+    ],
+  },
+  {
     key: 'pedidos',
     label: 'Pedidos internos',
     items: [
