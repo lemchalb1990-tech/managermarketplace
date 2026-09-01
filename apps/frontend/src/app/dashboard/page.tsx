@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui';
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -27,14 +28,14 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-start gap-4">
+    <div className="ui-card p-5 flex items-start gap-4">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium mb-0.5">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        <p className="text-xs text-[var(--text-muted)] font-medium mb-0.5">{title}</p>
+        <p className="text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
+        {sub && <p className="text-xs text-[var(--text-muted)] mt-0.5">{sub}</p>}
       </div>
     </div>
   );
@@ -157,33 +158,33 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 truncate">
-            Bienvenido, {user?.name}
-          </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {isSuperAdmin
-              ? companies.find((c: any) => c.id === selectedCompanyId)?.name
-              : user?.company?.name || 'Super Administrador'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {isSuperAdmin && (
+      <PageHeader
+        title={`Bienvenido, ${user?.name ?? ''}`}
+        crumbs={[
+          { label: 'Inicio' },
+          {
+            label: isSuperAdmin
+              ? (companies.find((c: any) => c.id === selectedCompanyId)?.name || 'Empresa')
+              : (user?.company?.name || 'Super Administrador'),
+          },
+        ]}
+        updatedAt={new Date()}
+        actions={
+          isSuperAdmin ? (
             <select
               value={selectedCompanyId}
               onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium max-w-full"
+              className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-white font-medium max-w-full"
             >
               {companies.map((c: any) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-          )}
-          <p className="text-sm text-gray-400 capitalize hidden sm:block">{dateLabel}</p>
-        </div>
-      </div>
+          ) : (
+            <span className="text-sm text-[var(--text-muted)] capitalize hidden sm:block">{dateLabel}</span>
+          )
+        }
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
