@@ -125,6 +125,23 @@ export const api = {
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
+  returns: {
+    list: (token: string, params?: { status?: string; q?: string }) => {
+      const p = new URLSearchParams();
+      if (params?.status) p.set('status', params.status);
+      if (params?.q) p.set('q', params.q);
+      return apiFetch<{ returns: any[]; counts: { pending: number; received: number } }>(`/returns?${p}`, {}, token);
+    },
+    get: (id: string, token: string) => apiFetch<any>(`/returns/${id}`, {}, token),
+    create: (data: any, token: string) =>
+      apiFetch<any>('/returns', { method: 'POST', body: JSON.stringify(data) }, token),
+    scan: (code: string, token: string) =>
+      apiFetch<any>('/returns/scan', { method: 'POST', body: JSON.stringify({ code }) }, token),
+    receive: (id: string, data: { condition: string; notes?: string; restockItemIds?: string[] }, token: string) =>
+      apiFetch<any>(`/returns/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }, token),
+    undo: (id: string, token: string) =>
+      apiFetch<any>(`/returns/${id}/undo`, { method: 'POST' }, token),
+  },
   shipping: {
     board: (token: string, params?: { scope?: string; warehouseId?: string; q?: string }) => {
       const p = new URLSearchParams();
