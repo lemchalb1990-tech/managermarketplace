@@ -125,6 +125,28 @@ export const api = {
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
+  shipping: {
+    board: (token: string, params?: { scope?: string; warehouseId?: string; q?: string }) => {
+      const p = new URLSearchParams();
+      if (params?.scope) p.set('scope', params.scope);
+      if (params?.warehouseId) p.set('warehouseId', params.warehouseId);
+      if (params?.q) p.set('q', params.q);
+      return apiFetch<any>(`/shipping/board?${p}`, {}, token);
+    },
+    dispatch: (data: { orderIds: string[]; courier?: string; trackingCode?: string }, token: string) =>
+      apiFetch<{ dispatched: number; skipped: { id: string; reason: string }[] }>(
+        '/shipping/dispatch', { method: 'POST', body: JSON.stringify(data) }, token),
+    openSlip: async (orderIds: string[], token: string) => {
+      const res = await fetch(`${API_URL}/api/shipping/slip?orderIds=${orderIds.join(',')}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('No se pudo generar la guía');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+  },
   warehouse: {
     board: (token: string, warehouseId?: string) =>
       apiFetch<any>(`/warehouse/board${warehouseId ? `?warehouseId=${warehouseId}` : ''}`, {}, token),
