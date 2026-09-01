@@ -6,6 +6,7 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
   {
     key: 'ventas', label: 'Ventas', items: [
       { key: 'orders', label: 'Órdenes' },
+      { key: 'shipping', label: 'Órdenes y envíos (despacho)' },
       { key: 'sales', label: 'Ventas' },
       { key: 'pos', label: 'Punto de venta' },
       { key: 'clientes', label: 'Clientes' },

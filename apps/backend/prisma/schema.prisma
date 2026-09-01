@@ -133,6 +133,8 @@ model Company {
   mlClientSecret          String?
   autoSyncSales           Boolean  @default(false)
   autoSyncIntervalMinutes Int      @default(1)
+  // Horas límite de despacho por transportista: { "ml_flex": "19:00", ... }
+  dispatchCutoffs         Json?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -713,6 +715,7 @@ model Order {
   assignedAt   DateTime?
   pickedAt     DateTime?
   packedAt     DateTime?
+  dispatchedAt DateTime?
   assignedToId String?
   assignedTo   User?     @relation("OrderAssignedTo", fields: [assignedToId], references: [id])
   pickedById   String?

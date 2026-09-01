@@ -19,6 +19,7 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     label: 'Ventas',
     items: [
       { key: 'orders', label: 'Órdenes' },
+      { key: 'shipping', label: 'Órdenes y envíos (despacho)' },
       { key: 'sales', label: 'Ventas' },
       { key: 'pos', label: 'Punto de venta' },
       { key: 'clientes', label: 'Clientes' },
@@ -99,7 +100,7 @@ export function isValidPermissionKey(k: string): boolean {
 export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.SUPER_ADMIN]: ['*'],
   [Role.COMPANY_ADMIN]: [
-    'dashboard', 'orders', 'sales', 'pos', 'clientes',
+    'dashboard', 'orders', 'shipping', 'sales', 'pos', 'clientes',
     'ecommerce', 'billing',
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
     'warehouse.board', 'warehouse.picking', 'warehouse.packing',
@@ -109,7 +110,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'emails',
   ],
   [Role.CATALOG_MANAGER]: [
-    'dashboard', 'orders', 'sales', 'pos', 'clientes',
+    'dashboard', 'orders', 'shipping', 'sales', 'pos', 'clientes',
     'ecommerce', 'billing',
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
     'warehouse.board', 'warehouse.picking', 'warehouse.packing',
@@ -117,7 +118,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'despachos',
   ],
   [Role.VENDEDOR]: [
-    'orders', 'sales', 'pos', 'clientes',
+    'orders', 'shipping', 'sales', 'pos', 'clientes',
     'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis',
   ],
