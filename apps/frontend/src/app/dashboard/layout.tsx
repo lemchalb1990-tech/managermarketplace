@@ -1,37 +1,102 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
 import { hasModule } from '@/lib/modules';
 
-// module: null = siempre visible (sin restricción por módulos)
-// module: 'ecommerce' = visible si user tiene ecommerce_ml, ecommerce_shopify, etc. (prefijo)
-const navItems = [
-  { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
-  { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
-  { href: '/dashboard/connections', label: 'Conexiones', roles: ['SUPER_ADMIN'], module: null },
-  { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
-  { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
-  { href: '/dashboard/warehouses', label: 'Bodegas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
-  { href: '/dashboard/rentabilidad', label: 'Rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
-  { href: '/dashboard/purchases', label: 'Compras', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
-  { href: '/dashboard/suppliers', label: 'Proveedores', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
-  { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
-  { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
-  { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
-  { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
-  { href: '/dashboard/clientes', label: 'Clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-  { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva Solicitud', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-  { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis Solicitudes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-  { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de Pedidos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
-  { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
-  { href: '/dashboard/mis-rutas', label: 'Mis Rutas', roles: ['DESPACHADOR'], module: 'dispatch' },
-  { href: '/dashboard/emails', label: 'Correos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
-  { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
-  { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
+type NavItem = { href: string; label: string; roles: string[]; module: string | null };
+type NavGroup = { key: string; label: string; items: NavItem[] };
+
+// Estructura por secciones (estilo consola de operación). Cada ítem conserva su
+// gate por rol y por módulo; los grupos sin ítems visibles se ocultan solos.
+const navGroups: NavGroup[] = [
+  {
+    key: 'inicio',
+    label: '',
+    items: [
+      { href: '/dashboard', label: 'Inicio', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
+    ],
+  },
+  {
+    key: 'ventas',
+    label: 'Ventas',
+    items: [
+      { href: '/dashboard/orders', label: 'Órdenes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/sales', label: 'Ventas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
+      { href: '/dashboard/pos', label: 'Punto de Venta', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
+      { href: '/dashboard/clientes', label: 'Clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+    ],
+  },
+  {
+    key: 'canales',
+    label: 'Canales',
+    items: [
+      { href: '/dashboard/ecommerce', label: 'E-commerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
+      { href: '/dashboard/billing', label: 'Facturación', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
+    ],
+  },
+  {
+    key: 'catalogo',
+    label: 'Catálogo y bodega',
+    items: [
+      { href: '/dashboard/catalog', label: 'Catálogo', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/warehouses', label: 'Bodegas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/purchases', label: 'Compras', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
+      { href: '/dashboard/suppliers', label: 'Proveedores', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
+      { href: '/dashboard/rentabilidad', label: 'Rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
+    ],
+  },
+  {
+    key: 'pedidos',
+    label: 'Pedidos internos',
+    items: [
+      { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva solicitud', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis solicitudes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
+      { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de pedidos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
+    ],
+  },
+  {
+    key: 'despacho',
+    label: 'Despacho',
+    items: [
+      { href: '/dashboard/despachos', label: 'Despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+      { href: '/dashboard/mis-rutas', label: 'Mis rutas', roles: ['DESPACHADOR'], module: 'dispatch' },
+    ],
+  },
+  {
+    key: 'colaboradores',
+    label: 'Colaboradores',
+    items: [
+      { href: '/dashboard/users', label: 'Usuarios', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Administración',
+    items: [
+      { href: '/dashboard/companies', label: 'Empresas', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/connections', label: 'Conexiones', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/emails', label: 'Correos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/settings', label: 'Configuración', roles: ['SUPER_ADMIN'], module: null },
+    ],
+  },
 ];
+
+const roleLabels: Record<string, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  COMPANY_ADMIN: 'Admin empresa',
+  CATALOG_MANAGER: 'Gestor catálogo',
+  VENDEDOR: 'Vendedor',
+  DESPACHADOR: 'Despachador',
+  ORDER_MANAGER: 'Admin. Pedidos',
+};
+
+function isActive(pathname: string, href: string) {
+  if (href === '/dashboard') return pathname === '/dashboard';
+  return pathname === href || pathname.startsWith(href + '/');
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -49,7 +114,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUser(u);
   }, [router]);
 
-  // Cierra el drawer mobile automáticamente al navegar a otra ruta.
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
@@ -59,47 +123,69 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/login');
   }
 
+  const visibleGroups = useMemo(() => {
+    if (!user) return [];
+    return navGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((n) => n.roles.includes(user.role) && hasModule(user, n.module)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [user]);
+
   if (!user) return null;
 
-  const visibleNav = navItems.filter(
-    (n) => n.roles.includes(user.role) && hasModule(user, n.module),
-  );
-
-  const roleLabel = { SUPER_ADMIN: 'Super Admin', COMPANY_ADMIN: 'Admin empresa', CATALOG_MANAGER: 'Gestor catálogo', VENDEDOR: 'Vendedor', DESPACHADOR: 'Despachador', ORDER_MANAGER: 'Admin. Pedidos' }[user.role as string] ?? user.role;
+  const roleLabel = roleLabels[user.role as string] ?? user.role;
 
   const sidebarContent = (
     <>
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
-        <span className="font-bold text-gray-900 text-lg">Marketplace</span>
+      <div className="h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
+        <span className="font-bold text-[var(--text)] text-base tracking-tight">Marketplace</span>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="md:hidden text-gray-400 hover:text-gray-600 text-xl leading-none"
+          className="md:hidden text-[var(--text-muted)] hover:text-[var(--text)] text-xl leading-none"
           aria-label="Cerrar menú"
         >
           ✕
         </button>
       </div>
-      <nav className="flex-1 py-3 px-3 space-y-0.5 min-h-0">
-        {visibleNav.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            {item.label}
-          </Link>
+
+      <nav className="flex-1 overflow-y-auto py-3 px-3 min-h-0">
+        {visibleGroups.map((g) => (
+          <div key={g.key} className="mb-3 last:mb-0">
+            {g.label && (
+              <p className="px-3 pt-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                {g.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {g.items.map((item) => {
+                const active = isActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-[var(--brand-light)] text-[var(--brand-ink)]'
+                        : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
-      <div className="px-4 py-3 border-t border-gray-200 shrink-0">
-        <p className="text-xs text-gray-500 truncate mb-0.5">{user.email}</p>
-        <p className="text-xs font-medium text-gray-700 mb-2">{roleLabel}</p>
+
+      <div className="px-4 py-3 border-t border-[var(--border-soft)] shrink-0">
+        <p className="text-xs text-[var(--text-muted)] truncate mb-0.5">{user.email}</p>
+        <p className="text-xs font-medium text-[var(--text-2)] mb-2">{roleLabel}</p>
         <button
           onClick={logout}
-          className="w-full text-xs text-red-600 hover:text-red-700 text-left"
+          className="w-full text-xs text-[var(--danger)] hover:underline text-left"
         >
           Cerrar sesión
         </button>
@@ -108,9 +194,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar: fija en desktop, drawer off-canvas en mobile */}
-      <aside className="hidden md:flex md:w-56 md:shrink-0 bg-white border-r border-gray-200 flex-col">
+    <div className="min-h-screen flex bg-[var(--page-bg)]">
+      <aside className="hidden md:flex md:w-[var(--side-w)] md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col">
         {sidebarContent}
       </aside>
 
@@ -118,7 +203,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-white border-r border-gray-200 flex flex-col transition-transform duration-200 ${
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-[var(--surface)] border-r border-[var(--border)] flex flex-col transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -126,10 +211,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-30">
+        <header className="md:hidden flex items-center justify-between px-4 h-[var(--topbar-h)] bg-[var(--topbar-bg)] text-[var(--topbar-fg)] sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-600 hover:text-gray-900 p-1 -ml-1"
+            className="p-1 -ml-1"
             aria-label="Abrir menú"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -138,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="font-bold text-gray-900">Marketplace</span>
+          <span className="font-bold tracking-tight">Marketplace</span>
           <div className="w-6" />
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto min-w-0">{children}</main>

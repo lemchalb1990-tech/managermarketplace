@@ -1,43 +1,169 @@
 @import "tailwindcss";
 
+/*
+  Sistema de diseño "Marketplace Admin" — paleta cálida, densidad de datos alta.
+  Inspirado en la operación omnicanal (ventas + bodega + reparto), optimizado para
+  legibilidad de tablas y tableros. Todos los tokens viven acá; los componentes
+  usan var(--…) o las clases utilitarias de más abajo.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Marca */
+  --brand: #e0a833;
+  --brand-dark: #c19332;
+  --brand-ink: #8a6d31;
+  --brand-light: #ffefcf;
+  --brand-soft: #e0a83318;
+
+  /* Superficies */
+  --page-bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-soft: #fbfaf7;
+  --topbar-bg: #2b2a27;
+  --topbar-fg: #f4f2ec;
+
+  /* Texto */
+  --text: #2b2a27;
+  --text-2: #575552;
+  --text-muted: #8a8884;
+
+  /* Bordes / líneas */
+  --border: #e4e2dc;
+  --border-soft: #eeece7;
+
+  /* Estados */
+  --ok: #15803d;
+  --ok-bg: #15803d16;
+  --warn: #b45309;
+  --warn-bg: #b4530916;
+  --danger: #dc2626;
+  --danger-bg: #dc262616;
+  --info: #2563eb;
+  --info-bg: #2563eb14;
+
+  /* Radios */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  /* Sombras (tintadas en cálido) */
+  --shadow-xs: 0 1px 2px #2b2a2712;
+  --shadow-sm: 0 6px 20px #2b2a270f;
+  --shadow-md: 0 14px 36px #2b2a271a;
+  --shadow-lg: 0 26px 60px #2b2a2726;
+
+  /* Layout */
+  --topbar-h: 56px;
+  --side-w: 264px;
+  --side-w-collapsed: 68px;
+
+  --background: var(--page-bg);
+  --foreground: var(--text);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--page-bg);
+  --color-foreground: var(--text);
+  --color-brand: var(--brand);
+  --color-surface: var(--surface);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: var(--font-inter), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+/* ── Utilidades del sistema ─────────────────────────────────────────────────── */
+
+/* Tarjeta base */
+.ui-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Encabezado de página */
+.ui-page-title {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.ui-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.ui-crumbs a:hover {
+  color: var(--brand-ink);
+}
+
+/* Fila de métricas / stat-tiles */
+.ui-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+.ui-stat-value {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.ui-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Badges de estado */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  line-height: 1.4;
+}
+.ui-badge--ok { color: var(--ok); background: var(--ok-bg); }
+.ui-badge--warn { color: var(--warn); background: var(--warn-bg); }
+.ui-badge--danger { color: var(--danger); background: var(--danger-bg); }
+.ui-badge--info { color: var(--info); background: var(--info-bg); }
+.ui-badge--neutral { color: var(--text-2); background: #2b2a270d; }
+
+/* Botón primario de marca */
+.ui-btn-brand {
+  background: var(--brand);
+  color: #35301f;
+  font-weight: 600;
+  border-radius: var(--r-md);
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  transition: background 0.15s ease;
+}
+.ui-btn-brand:hover { background: var(--brand-dark); }
+.ui-btn-brand:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
-
-.animate-marquee {
-  animation: marquee 25s linear infinite;
-}
-
-.animate-marquee-reverse {
-  animation: marquee 25s linear infinite reverse;
-}
+.animate-marquee { animation: marquee 25s linear infinite; }
+.animate-marquee-reverse { animation: marquee 25s linear infinite reverse; }
