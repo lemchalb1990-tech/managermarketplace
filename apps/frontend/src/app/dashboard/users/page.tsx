@@ -66,6 +66,14 @@ export default function UsersPage() {
   const [editError, setEditError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const [resetUser, setResetUser] = useState<any>(null);
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetGenerated, setResetGenerated] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSaved, setResetSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   async function load() {
     const token = getToken();
     if (!token) return;
@@ -152,6 +160,57 @@ export default function UsersPage() {
       setEditError(err.message);
     } finally {
       setEditLoading(false);
+    }
+  }
+
+  function openReset(u: any) {
+    setResetUser(u);
+    setResetPwd('');
+    setResetGenerated(false);
+    setResetError('');
+    setResetSaved(false);
+    setCopied(false);
+  }
+
+  function generatePassword() {
+    const charset = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?-_';
+    const len = 14;
+    const arr = new Uint32Array(len);
+    crypto.getRandomValues(arr);
+    let pwd = Array.from(arr, (n) => charset[n % charset.length]).join('');
+    if (!/[0-9]/.test(pwd)) pwd = '7' + pwd.slice(1);
+    if (!/[!@#$%&*?_-]/.test(pwd)) pwd = pwd.slice(0, -1) + '#';
+    setResetPwd(pwd);
+    setResetGenerated(true);
+    setResetError('');
+  }
+
+  async function copyResetPwd() {
+    try {
+      await navigator.clipboard.writeText(resetPwd);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard no disponible */
+    }
+  }
+
+  async function handleReset(e: FormEvent) {
+    e.preventDefault();
+    setResetError('');
+    if (resetPwd.length < 6) {
+      setResetError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const token = getToken()!;
+      await api.users.update(resetUser.id, { password: resetPwd }, token);
+      setResetSaved(true);
+    } catch (err: any) {
+      setResetError(err.message);
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -281,10 +340,16 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => openEdit(u)}
-                    className="text-blue-600 hover:text-blue-800 text-xs font-medium">
-                    Editar
-                  </button>
+                  <div className="flex gap-3">
+                    <button onClick={() => openEdit(u)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                      Editar
+                    </button>
+                    <button onClick={() => openReset(u)}
+                      className="text-amber-600 hover:text-amber-800 text-xs font-medium">
+                      Restablecer clave
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -394,6 +459,72 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de restablecer contraseña */}
+      {resetUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-800">Restablecer contraseña</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{resetUser.name} — {resetUser.email}</p>
+            </div>
+
+            {resetSaved ? (
+              <div className="px-6 py-5 flex flex-col gap-4">
+                <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
+                  Contraseña actualizada. Cópiala y entrégasela al usuario — no se volverá a mostrar.
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono break-all">{resetPwd}</code>
+                  <button type="button" onClick={copyResetPwd}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-xs whitespace-nowrap hover:bg-gray-50">
+                    {copied ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+                <button type="button" onClick={() => setResetUser(null)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                  Listo
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleReset} className="px-6 py-4 flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nueva contraseña</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={resetPwd}
+                      onChange={(e) => { setResetPwd(e.target.value); setResetGenerated(false); }}
+                      placeholder="Mínimo 6 caracteres"
+                      autoFocus
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                    <button type="button" onClick={generatePassword}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-xs whitespace-nowrap hover:bg-gray-50">
+                      Generar
+                    </button>
+                  </div>
+                  {resetGenerated && (
+                    <p className="text-xs text-amber-600 mt-1">Contraseña generada — cópiala al guardar, no se volverá a mostrar.</p>
+                  )}
+                </div>
+
+                {resetError && <p className="text-red-600 text-sm">{resetError}</p>}
+
+                <div className="flex gap-2 pt-1">
+                  <button type="submit" disabled={resetLoading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                    {resetLoading ? 'Guardando...' : 'Guardar contraseña'}
+                  </button>
+                  <button type="button" onClick={() => setResetUser(null)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
