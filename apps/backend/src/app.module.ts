@@ -25,6 +25,7 @@ import { ProfitabilityModule } from './profitability/profitability.module';
 import { AccessProfilesModule } from './access-profiles/access-profiles.module';
 import { WarehouseFlowModule } from './warehouse/warehouse.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { ReturnsModule } from './returns/returns.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ShippingModule } from './shipping/shipping.module';
     AccessProfilesModule,
     WarehouseFlowModule,
     ShippingModule,
+    ReturnsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -157,6 +157,7 @@ model Company {
   billingProfile     BillingProfile?
   profitabilityItems ProfitabilityItem[]
   accessProfiles     AccessProfile[]
+  returns            Return[]
 
   @@map("companies")
 }
@@ -208,6 +209,7 @@ model User {
   ordersAssigned        Order[]          @relation("OrderAssignedTo")
   ordersPicked          Order[]          @relation("OrderPickedBy")
   ordersPacked          Order[]          @relation("OrderPackedBy")
+  returnsReceived       Return[]         @relation("ReturnReceivedBy")
   itemChecks            OrderItemCheck[] @relation("ItemCheckedBy")
   shipmentPhotos        ShipmentPhoto[]
   dispatchRoutes        DispatchRoute[]  @relation("DispatcherRoutes")
@@ -303,9 +305,67 @@ model Product {
   productStocks     ProductStock[]
   stockTransfers    StockTransfer[]
   orderRequestItems OrderRequestItem[]
+  returnItems       ReturnItem[]
 
   @@unique([sku, companyId])
   @@map("products")
+}
+
+enum ReturnStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+enum ReturnCondition {
+  GOOD
+  DAMAGED
+  OPENED
+  MISSING_CONTENT
+}
+
+// Devolución de un pedido/venta que vuelve a bodega (de cualquier canal).
+model Return {
+  id           String           @id @default(cuid())
+  status       ReturnStatus     @default(PENDING)
+  channel      SaleChannel?
+  externalId   String? // nº de devolución / reclamo del canal
+  reason       String? // motivo declarado por el comprador
+  condition    ReturnCondition? // estado al recibir
+  notes        String?
+  trackingCode String?
+  receivedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id])
+  saleId       String?
+  sale         Sale?   @relation(fields: [saleId], references: [id])
+  orderId      String?
+  order        Order?  @relation(fields: [orderId], references: [id])
+  receivedById String?
+  receivedBy   User?   @relation("ReturnReceivedBy", fields: [receivedById], references: [id])
+
+  items ReturnItem[]
+
+  @@index([companyId, status])
+  @@map("returns")
+}
+
+model ReturnItem {
+  id          String  @id @default(cuid())
+  productName String
+  productSku  String
+  quantity    Int
+  restocked   Boolean @default(false)
+
+  returnId  String
+  return    Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@map("return_items")
 }
 
 model ProductImage {
@@ -373,6 +433,7 @@ model Sale {
   invoices     Invoice[]
   order        Order?
   orderRequest OrderRequest?
+  returns      Return[]
 
   @@unique([channel, externalId])
   @@map("sales")
@@ -733,6 +794,7 @@ model Order {
   createdBy   User?      @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   itemChecks OrderItemCheck[]
+  returns    Return[]
 
   @@index([companyId, status, prepStage])
   photos     ShipmentPhoto[]
