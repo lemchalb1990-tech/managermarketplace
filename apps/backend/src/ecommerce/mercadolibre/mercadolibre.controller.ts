@@ -76,17 +76,69 @@ export class MercadolibreController {
     @Query('name') name: string,
     @Res() res: Response,
   ) {
+    let ok = false;
+    let detail = '';
     try {
       await this.service.handleCallback(code, state, name || 'Conexión ML');
-      return res.redirect(
-        `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre/connected`,
-      );
+      ok = true;
     } catch (err: any) {
       this.logger.error(`ML callback error: ${err?.message || err}`, err?.stack);
-      return res.redirect(
-        `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre?error=1`,
-      );
+      detail = err?.message || 'No se pudo completar la conexión con Mercado Libre.';
     }
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.status(ok ? 200 : 400).send(this.renderCallbackPage(ok, detail));
+  }
+
+  private renderCallbackPage(ok: boolean, detail: string): string {
+    const panelUrl = `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre${ok ? '' : '?error=1'}`;
+    const title = ok ? 'Cuenta conectada' : 'No se pudo conectar';
+    const heading = ok ? '¡Cuenta conectada!' : 'No se pudo conectar';
+    const message = ok
+      ? 'Tu cuenta de Mercado Libre quedó vinculada correctamente. Ya puedes cerrar esta pestaña.'
+      : (detail || 'Ocurrió un error al conectar con Mercado Libre. Vuelve a intentarlo desde el panel.');
+    const color = ok ? '#16a34a' : '#dc2626';
+    const icon = ok ? '&#10003;' : '&#33;';
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title} · Mercado Libre</title>
+<style>
+  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#f8fafc; color:#0f172a; }
+  .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:40px 32px; max-width:420px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(15,23,42,.06); }
+  .badge { width:64px; height:64px; border-radius:9999px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:32px; font-weight:700; color:#fff; background:${color}; }
+  h1 { font-size:20px; margin:0 0 8px; }
+  p { color:#475569; font-size:14px; line-height:1.5; margin:0 0 20px; }
+  a.btn { display:inline-block; background:#2563eb; color:#fff; text-decoration:none; font-weight:600; font-size:14px; padding:10px 18px; border-radius:10px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="badge">${icon}</div>
+      <h1>${heading}</h1>
+      <p>${esc(message)}</p>
+      <a class="btn" href="${esc(panelUrl)}">Ir al panel de Mercado Libre</a>
+    </div>
+  </div>
+  <script>
+    // Si se abrió como popup desde el panel, avisamos y cerramos.
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ source: 'ml-oauth', ok: ${ok} }, '*');
+        setTimeout(function () { window.close(); }, 1500);
+      } else {
+        setTimeout(function () { window.location.href = ${JSON.stringify(panelUrl)}; }, 4000);
+      }
+    } catch (e) {
+      setTimeout(function () { window.location.href = ${JSON.stringify(panelUrl)}; }, 4000);
+    }
+  </script>
+</body>
+</html>`;
   }
 
   // ─── Categorías ────────────────────────────────────────────────────────────

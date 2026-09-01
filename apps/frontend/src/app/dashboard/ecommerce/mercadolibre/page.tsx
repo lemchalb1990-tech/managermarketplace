@@ -117,6 +117,17 @@ export default function MercadoLibrePage() {
     }
   }
 
+  // Al volver a esta pestaña tras autorizar en la ventana de Mercado Libre, refrescamos
+  // el estado de las conexiones para reflejar la que quedó autorizada.
+  useEffect(() => {
+    function onFocus() {
+      loadConnections(activeCompanyId || undefined);
+    }
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCompanyId]);
+
   function resetConnForm() {
     setShowConnect(false);
     setConnName('');
