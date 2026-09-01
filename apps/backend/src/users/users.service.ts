@@ -86,6 +86,10 @@ export class UsersService {
     if (dto.role === Role.SUPER_ADMIN && requestingUser.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('No tienes permiso para asignar ese rol');
     }
+    // Activar/desactivar servicios y ecommerce por usuario es exclusivo del super admin.
+    if (requestingUser.role !== Role.SUPER_ADMIN) {
+      delete dto.modules;
+    }
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, 10);
     }

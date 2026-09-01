@@ -150,8 +150,9 @@ export default function UsersPage() {
         name: editForm.name,
         role: editForm.role,
         active: editForm.active,
-        modules: editForm.modules,
       };
+      // Los módulos (servicios / ecommerce) solo los gestiona el super administrador.
+      if (isSuperAdmin) payload.modules = editForm.modules;
       if (editForm.password) payload.password = editForm.password;
       await api.users.update(editUser.id, payload, token);
       setEditUser(null);
@@ -219,7 +220,8 @@ export default function UsersPage() {
   const maxUsers = myCompany?.maxUsers;
   const atLimit = maxUsers != null && userCount >= maxUsers;
 
-  const canEditModules = (u: any) => u.role !== 'SUPER_ADMIN';
+  // Solo el super administrador puede activar/desactivar servicios y ecommerce por usuario.
+  const canEditModules = (u: any) => isSuperAdmin && u.role !== 'SUPER_ADMIN';
 
   return (
     <div>
