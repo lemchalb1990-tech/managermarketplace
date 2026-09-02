@@ -133,7 +133,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis',
   ],
-  [Role.DESPACHADOR]: ['mis-rutas'],
+  [Role.DESPACHADOR]: ['mis-rutas', 'warehouse.picking', 'warehouse.packing'],
   [Role.ORDER_MANAGER]: ['clientes', 'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar'],
 };
 

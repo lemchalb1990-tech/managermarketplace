@@ -128,7 +128,10 @@ export class WarehouseService {
   }
 
   private async listCollaborators(user: any) {
-    const where: any = { active: true, role: { in: [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR] } };
+    const where: any = {
+      active: true,
+      role: { in: [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR, Role.DESPACHADOR] },
+    };
     if (user.role !== Role.SUPER_ADMIN) where.companyId = user.companyId;
     return this.prisma.user.findMany({
       where,
