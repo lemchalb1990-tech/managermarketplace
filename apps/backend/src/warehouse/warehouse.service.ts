@@ -6,11 +6,21 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, PrepStage, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { companyWhere, assertSameCompany } from '../common/tenant';
 import {
-  AssignDto, ResetAssignmentsDto, ScanDto, PickItemDto, OutOfStockDto, FlowListDto,
+  AssignDto,
+  ResetAssignmentsDto,
+  ScanDto,
+  PickItemDto,
+  OutOfStockDto,
+  FlowListDto,
 } from './dto/warehouse.dto';
 
-const MANAGER_ROLES: Role[] = [Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER];
+const MANAGER_ROLES: Role[] = [
+  Role.SUPER_ADMIN,
+  Role.COMPANY_ADMIN,
+  Role.CATALOG_MANAGER,
+];
 const PICKING_STAGES: PrepStage[] = [PrepStage.ASSIGNED, PrepStage.PICKING];
 const PACKING_STAGES: PrepStage[] = [PrepStage.PICKED, PrepStage.PACKING];
 
@@ -30,13 +40,9 @@ const ORDER_CARD_INCLUDE = {
 export class WarehouseService {
   constructor(private prisma: PrismaService) {}
 
-  /** where base con aislamiento por empresa. SUPER_ADMIN necesita indicar empresa vía bodega. */
+  /** where base con aislamiento por empresa (+ bodega opcional). */
   private baseWhere(user: any, warehouseId?: string) {
-    const where: any = {};
-    if (user.role !== Role.SUPER_ADMIN) {
-      if (!user.companyId) throw new ForbiddenException('Usuario sin empresa');
-      where.companyId = user.companyId;
-    }
+    const where: any = companyWhere(user);
     if (warehouseId) where.warehouseId = warehouseId;
     return where;
   }
@@ -46,15 +52,16 @@ export class WarehouseService {
   }
 
   private guardOrder(order: any, user: any) {
-    if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) {
-      throw new ForbiddenException();
-    }
+    assertSameCompany(order, user);
   }
 
   // ── Tablero ────────────────────────────────────────────────────────────────
   async board(user: any, warehouseId?: string) {
     const base = this.baseWhere(user, warehouseId);
-    const inPrep = { ...base, status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] } };
+    const inPrep = {
+      ...base,
+      status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
+    };
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -69,12 +76,24 @@ export class WarehouseService {
       collaborators,
       packedTodayRows,
     ] = await Promise.all([
-      this.prisma.order.count({ where: { ...inPrep, prepStage: PrepStage.UNASSIGNED } }),
-      this.prisma.order.count({ where: { ...inPrep, prepStage: PrepStage.ASSIGNED } }),
-      this.prisma.order.count({ where: { ...inPrep, prepStage: PrepStage.PICKING } }),
-      this.prisma.order.count({ where: { ...inPrep, prepStage: PrepStage.PICKED } }),
-      this.prisma.order.count({ where: { ...inPrep, prepStage: PrepStage.PACKING } }),
-      this.prisma.order.count({ where: { ...base, packedAt: { gte: startOfDay } } }),
+      this.prisma.order.count({
+        where: { ...inPrep, prepStage: PrepStage.UNASSIGNED },
+      }),
+      this.prisma.order.count({
+        where: { ...inPrep, prepStage: PrepStage.ASSIGNED },
+      }),
+      this.prisma.order.count({
+        where: { ...inPrep, prepStage: PrepStage.PICKING },
+      }),
+      this.prisma.order.count({
+        where: { ...inPrep, prepStage: PrepStage.PICKED },
+      }),
+      this.prisma.order.count({
+        where: { ...inPrep, prepStage: PrepStage.PACKING },
+      }),
+      this.prisma.order.count({
+        where: { ...base, packedAt: { gte: startOfDay } },
+      }),
       this.listCollaborators(user),
       this.prisma.order.findMany({
         where: { ...base, packedAt: { gte: startOfDay } },
@@ -88,13 +107,19 @@ export class WarehouseService {
     const packPending = picked + packing;
 
     // Curva de empacado por hora (día actual)
-    const throughput = Array.from({ length: 24 }, (_, h) => ({ hour: h, packed: 0 }));
+    const throughput = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      packed: 0,
+    }));
     for (const r of packedTodayRows) {
       if (r.packedAt) throughput[new Date(r.packedAt).getHours()].packed += 1;
     }
 
     // Conteos por colaborador (hoy)
-    const perUser = new Map<string, { assigned: number; picked: number; packed: number }>();
+    const perUser = new Map<
+      string,
+      { assigned: number; picked: number; packed: number }
+    >();
     const bump = (id: string | null, key: 'assigned' | 'picked' | 'packed') => {
       if (!id) return;
       const e = perUser.get(id) || { assigned: 0, picked: 0, packed: 0 };
@@ -102,8 +127,14 @@ export class WarehouseService {
       perUser.set(id, e);
     };
     const [assignedRows, pickedRows] = await Promise.all([
-      this.prisma.order.findMany({ where: { ...inPrep, assignedAt: { gte: startOfDay } }, select: { assignedToId: true } }),
-      this.prisma.order.findMany({ where: { ...base, pickedAt: { gte: startOfDay } }, select: { pickedById: true } }),
+      this.prisma.order.findMany({
+        where: { ...inPrep, assignedAt: { gte: startOfDay } },
+        select: { assignedToId: true },
+      }),
+      this.prisma.order.findMany({
+        where: { ...base, pickedAt: { gte: startOfDay } },
+        select: { pickedById: true },
+      }),
     ]);
     assignedRows.forEach((r) => bump(r.assignedToId, 'assigned'));
     pickedRows.forEach((r) => bump(r.pickedById, 'picked'));
@@ -112,8 +143,18 @@ export class WarehouseService {
     return {
       reparto: { unassigned, assignedToday: assignedRows.length },
       flow: {
-        picking: { done: pickDone, pending: pickPending, pct: totalInPrep ? Math.round((pickDone / totalInPrep) * 100) : 0 },
-        packing: { done: packedToday, pending: packPending, pct: totalInPrep ? Math.round(((totalInPrep - packPending) / totalInPrep) * 100) : 0 },
+        picking: {
+          done: pickDone,
+          pending: pickPending,
+          pct: totalInPrep ? Math.round((pickDone / totalInPrep) * 100) : 0,
+        },
+        packing: {
+          done: packedToday,
+          pending: packPending,
+          pct: totalInPrep
+            ? Math.round(((totalInPrep - packPending) / totalInPrep) * 100)
+            : 0,
+        },
       },
       packedToday,
       throughput,
@@ -130,7 +171,14 @@ export class WarehouseService {
   private async listCollaborators(user: any) {
     const where: any = {
       active: true,
-      role: { in: [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR, Role.DESPACHADOR] },
+      role: {
+        in: [
+          Role.COMPANY_ADMIN,
+          Role.CATALOG_MANAGER,
+          Role.VENDEDOR,
+          Role.DESPACHADOR,
+        ],
+      },
     };
     if (user.role !== Role.SUPER_ADMIN) where.companyId = user.companyId;
     return this.prisma.user.findMany({
@@ -149,7 +197,9 @@ export class WarehouseService {
       where: {
         id: { in: dto.userIds },
         active: true,
-        ...(user.role !== Role.SUPER_ADMIN ? { companyId: user.companyId } : {}),
+        ...(user.role !== Role.SUPER_ADMIN
+          ? { companyId: user.companyId }
+          : {}),
       },
       select: { id: true, companyId: true },
     });
@@ -176,7 +226,9 @@ export class WarehouseService {
     // cruces, exigimos que todos los pedidos objetivo sean de la misma empresa.
     const companies = new Set(orders.map((o) => o.companyId));
     if (companies.size > 1) {
-      throw new BadRequestException('Filtra por bodega/empresa: hay pedidos de varias empresas');
+      throw new BadRequestException(
+        'Filtra por bodega/empresa: hay pedidos de varias empresas',
+      );
     }
 
     const now = new Date();
@@ -207,7 +259,11 @@ export class WarehouseService {
         pickedAt: null,
         itemChecks: { none: { checked: true } },
       },
-      data: { assignedToId: null, assignedAt: null, prepStage: PrepStage.UNASSIGNED },
+      data: {
+        assignedToId: null,
+        assignedAt: null,
+        prepStage: PrepStage.UNASSIGNED,
+      },
     });
     return { reverted: res.count };
   }
@@ -265,10 +321,16 @@ export class WarehouseService {
     const order = await this.resolveOrder(user, code, dto.warehouseId);
     if (order) {
       if (!PICKING_STAGES.includes(order.prepStage)) {
-        return { kind: 'order', order, message: `El pedido ya está en etapa ${order.prepStage}` };
+        return {
+          kind: 'order',
+          order,
+          message: `El pedido ya está en etapa ${order.prepStage}`,
+        };
       }
       if (!this.isManager(user) && order.assignedToId !== user.id) {
-        throw new ForbiddenException('Este pedido está asignado a otra persona');
+        throw new ForbiddenException(
+          'Este pedido está asignado a otra persona',
+        );
       }
       return { kind: 'order', order };
     }
@@ -289,7 +351,10 @@ export class WarehouseService {
       return { kind: 'unmatched', message: `Sin coincidencia para "${code}"` };
     }
 
-    const nextQty = Math.min((candidate.checkedQty ?? 0) + 1, candidate.expectedQty);
+    const nextQty = Math.min(
+      (candidate.checkedQty ?? 0) + 1,
+      candidate.expectedQty,
+    );
     await this.prisma.orderItemCheck.update({
       where: { id: candidate.id },
       data: {
@@ -301,7 +366,12 @@ export class WarehouseService {
     });
     await this.bumpToPicking(candidate.orderId);
     const order2 = await this.loadOrderForFlow(user, candidate.orderId);
-    return { kind: 'item', order: order2, itemId: candidate.id, message: `+1 ${code}` };
+    return {
+      kind: 'item',
+      order: order2,
+      itemId: candidate.id,
+      message: `+1 ${code}`,
+    };
   }
 
   private async bumpToPicking(orderId: string) {
@@ -334,7 +404,12 @@ export class WarehouseService {
     return this.loadOrderForFlow(user, orderId);
   }
 
-  async setOutOfStock(user: any, orderId: string, itemId: string, dto: OutOfStockDto) {
+  async setOutOfStock(
+    user: any,
+    orderId: string,
+    itemId: string,
+    dto: OutOfStockDto,
+  ) {
     const order = await this.loadOrderForFlow(user, orderId);
     const item = order.itemChecks.find((i: any) => i.id === itemId);
     if (!item) throw new NotFoundException('Ítem no encontrado');
@@ -350,7 +425,9 @@ export class WarehouseService {
     if (!this.isManager(user) && order.assignedToId !== user.id) {
       throw new ForbiddenException('Pedido asignado a otra persona');
     }
-    const pending = order.itemChecks.filter((i: any) => !i.checked && !i.outOfStock);
+    const pending = order.itemChecks.filter(
+      (i: any) => !i.checked && !i.outOfStock,
+    );
     if (pending.length > 0) {
       throw new BadRequestException(
         `Faltan ${pending.length} ítem(s) por pickear o marcar sin stock`,
@@ -358,7 +435,11 @@ export class WarehouseService {
     }
     await this.prisma.order.update({
       where: { id: orderId },
-      data: { prepStage: PrepStage.PICKED, pickedById: user.id, pickedAt: new Date() },
+      data: {
+        prepStage: PrepStage.PICKED,
+        pickedById: user.id,
+        pickedAt: new Date(),
+      },
     });
     return this.loadOrderForFlow(user, orderId);
   }
@@ -384,9 +465,17 @@ export class WarehouseService {
 
   async packingScan(user: any, dto: ScanDto) {
     const order = await this.resolveOrder(user, dto.code, dto.warehouseId);
-    if (!order) return { kind: 'unmatched', message: `Sin coincidencia para "${dto.code}"` };
+    if (!order)
+      return {
+        kind: 'unmatched',
+        message: `Sin coincidencia para "${dto.code}"`,
+      };
     if (!PACKING_STAGES.includes(order.prepStage)) {
-      return { kind: 'order', order, message: `El pedido está en etapa ${order.prepStage}, no listo para empacar` };
+      return {
+        kind: 'order',
+        order,
+        message: `El pedido está en etapa ${order.prepStage}, no listo para empacar`,
+      };
     }
     return this.confirmPacked(user, order.id);
   }
@@ -394,7 +483,9 @@ export class WarehouseService {
   async confirmPacked(user: any, orderId: string) {
     const order = await this.loadOrderForFlow(user, orderId);
     if (!PACKING_STAGES.includes(order.prepStage)) {
-      throw new BadRequestException(`El pedido está en etapa ${order.prepStage}`);
+      throw new BadRequestException(
+        `El pedido está en etapa ${order.prepStage}`,
+      );
     }
     await this.prisma.order.update({
       where: { id: orderId },
@@ -406,6 +497,10 @@ export class WarehouseService {
       },
     });
     const fresh = await this.loadOrderForFlow(user, orderId);
-    return { kind: 'packed', order: fresh, message: 'Pedido empacado y marcado como Listo' };
+    return {
+      kind: 'packed',
+      order: fresh,
+      message: 'Pedido empacado y marcado como Listo',
+    };
   }
 }

@@ -1,7 +1,22 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import {
-  AssignDto, ResetAssignmentsDto, ScanDto, PickItemDto, OutOfStockDto, BoardQueryDto, FlowListDto,
+  AssignDto,
+  ResetAssignmentsDto,
+  ScanDto,
+  PickItemDto,
+  OutOfStockDto,
+  BoardQueryDto,
+  FlowListDto,
 } from './dto/warehouse.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';

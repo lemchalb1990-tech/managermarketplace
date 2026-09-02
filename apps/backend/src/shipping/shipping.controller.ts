@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { ShippingService } from './shipping.service';
 import { BoardDto, DispatchDto } from './dto/shipping.dto';
@@ -24,8 +32,15 @@ export class ShippingController {
   }
 
   @Get('slip')
-  async slip(@CurrentUser() user: any, @Query('orderIds') orderIds: string, @Res() res: Response) {
-    const ids = (orderIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+  async slip(
+    @CurrentUser() user: any,
+    @Query('orderIds') orderIds: string,
+    @Res() res: Response,
+  ) {
+    const ids = (orderIds || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const html = await this.service.slip(user, ids);
     res.set('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);

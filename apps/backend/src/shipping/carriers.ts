@@ -8,24 +8,60 @@ export type CarrierGroup = {
 };
 
 export const CARRIER_GROUPS: Record<string, CarrierGroup> = {
-  ml_flex:     { key: 'ml_flex',     label: 'Mercado Envíos Flex',     defaultCutoff: '19:00' },
-  ml_colecta:  { key: 'ml_colecta',  label: 'Mercado Envíos Colecta',  defaultCutoff: '18:00' },
-  ml_agencias: { key: 'ml_agencias', label: 'Mercado Envíos Agencias', defaultCutoff: '23:59' },
-  falabella:   { key: 'falabella',   label: 'Envío Falabella',         defaultCutoff: '18:00' },
-  paris:       { key: 'paris',       label: 'Envío Paris',             defaultCutoff: '17:00' },
-  ripley:      { key: 'ripley',      label: 'Envío Ripley',            defaultCutoff: '18:00' },
-  lider:       { key: 'lider',       label: 'Envío Líder / Walmart',   defaultCutoff: '15:00' },
-  hites:       { key: 'hites',       label: 'Envío Hites',             defaultCutoff: '18:00' },
-  propio:      { key: 'propio',      label: 'Despacho propio / retiro', defaultCutoff: '20:00' },
-  otro:        { key: 'otro',        label: 'Otros',                    defaultCutoff: '20:00' },
+  ml_flex: {
+    key: 'ml_flex',
+    label: 'Mercado Envíos Flex',
+    defaultCutoff: '19:00',
+  },
+  ml_colecta: {
+    key: 'ml_colecta',
+    label: 'Mercado Envíos Colecta',
+    defaultCutoff: '18:00',
+  },
+  ml_agencias: {
+    key: 'ml_agencias',
+    label: 'Mercado Envíos Agencias',
+    defaultCutoff: '23:59',
+  },
+  falabella: {
+    key: 'falabella',
+    label: 'Envío Falabella',
+    defaultCutoff: '18:00',
+  },
+  paris: { key: 'paris', label: 'Envío Paris', defaultCutoff: '17:00' },
+  ripley: { key: 'ripley', label: 'Envío Ripley', defaultCutoff: '18:00' },
+  lider: {
+    key: 'lider',
+    label: 'Envío Líder / Walmart',
+    defaultCutoff: '15:00',
+  },
+  hites: { key: 'hites', label: 'Envío Hites', defaultCutoff: '18:00' },
+  propio: {
+    key: 'propio',
+    label: 'Despacho propio / retiro',
+    defaultCutoff: '20:00',
+  },
+  otro: { key: 'otro', label: 'Otros', defaultCutoff: '20:00' },
 };
 
 export const CARRIER_ORDER = [
-  'ml_flex', 'ml_colecta', 'ml_agencias', 'falabella', 'paris', 'ripley', 'lider', 'hites', 'propio', 'otro',
+  'ml_flex',
+  'ml_colecta',
+  'ml_agencias',
+  'falabella',
+  'paris',
+  'ripley',
+  'lider',
+  'hites',
+  'propio',
+  'otro',
 ];
 
 /** Deriva la clave de grupo de un pedido a partir de su venta / courier. */
-export function carrierGroupKey(sale: { channel?: SaleChannel | null; shippingMethod?: string | null } | null, order: { courier?: string | null; fulfillmentType?: string | null }): string {
+export function carrierGroupKey(
+  sale: { channel?: SaleChannel | null; shippingMethod?: string | null } | null,
+  order: { courier?: string | null; fulfillmentType?: string | null },
+): string {
   const method = (sale?.shippingMethod || order.courier || '').toLowerCase();
   const channel = sale?.channel;
 
@@ -50,12 +86,17 @@ export function carrierGroupKey(sale: { channel?: SaleChannel | null; shippingMe
   return 'otro';
 }
 
-export function resolveCutoffs(companyCutoffs: unknown): Record<string, string> {
+export function resolveCutoffs(
+  companyCutoffs: unknown,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of CARRIER_ORDER) out[k] = CARRIER_GROUPS[k].defaultCutoff;
   if (companyCutoffs && typeof companyCutoffs === 'object') {
-    for (const [k, v] of Object.entries(companyCutoffs as Record<string, unknown>)) {
-      if (out[k] && typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) out[k] = v;
+    for (const [k, v] of Object.entries(
+      companyCutoffs as Record<string, unknown>,
+    )) {
+      if (out[k] && typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v))
+        out[k] = v;
     }
   }
   return out;

@@ -1,11 +1,18 @@
 import {
-  Injectable, ForbiddenException, NotFoundException, BadRequestException,
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Role, StopOutcome, DriverPaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { resolveCompanyId } from '../common/tenant';
 import {
-  UpsertDriverProfileDto, SetOutcomeDto, RangeDto, CreatePaymentBatchDto,
+  UpsertDriverProfileDto,
+  SetOutcomeDto,
+  RangeDto,
+  CreatePaymentBatchDto,
 } from './dto/drivers.dto';
 
 @Injectable()
@@ -16,21 +23,24 @@ export class DriversService {
   ) {}
 
   private companyId(user: any): string {
-    if (user.role === Role.SUPER_ADMIN) throw new BadRequestException('Selecciona una empresa (inicia sesión como admin de empresa)');
-    if (!user.companyId) throw new ForbiddenException('Usuario sin empresa');
-    return user.companyId;
+    return resolveCompanyId(user);
   }
 
   private range(dto: RangeDto) {
     const to = dto.to ? new Date(dto.to) : new Date();
     to.setHours(23, 59, 59, 999);
-    const from = dto.from ? new Date(dto.from) : new Date(to.getTime() - 30 * 24 * 3600 * 1000);
+    const from = dto.from
+      ? new Date(dto.from)
+      : new Date(to.getTime() - 30 * 24 * 3600 * 1000);
     from.setHours(0, 0, 0, 0);
     return { from, to };
   }
 
   private async assertDriverOfCompany(driverId: string, companyId: string) {
-    const d = await this.prisma.user.findUnique({ where: { id: driverId }, select: { companyId: true, role: true } });
+    const d = await this.prisma.user.findUnique({
+      where: { id: driverId },
+      select: { companyId: true, role: true },
+    });
     if (!d || d.companyId !== companyId || d.role !== Role.DESPACHADOR) {
       throw new BadRequestException('Repartidor no válido para esta empresa');
     }
@@ -39,16 +49,24 @@ export class DriversService {
   // ── Flota ──────────────────────────────────────────────────────────────────
   async fleet(user: any) {
     const companyId = this.companyId(user);
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     const drivers = await this.prisma.user.findMany({
       where: { companyId, role: Role.DESPACHADOR },
       select: {
-        id: true, name: true, email: true, active: true,
+        id: true,
+        name: true,
+        email: true,
+        active: true,
         driverProfile: true,
         dispatchRoutes: {
           where: { date: { gte: startOfDay } },
-          select: { id: true, status: true, stops: { select: { outcome: true } } },
+          select: {
+            id: true,
+            status: true,
+            stops: { select: { outcome: true } },
+          },
         },
       },
       orderBy: { name: 'asc' },
@@ -56,19 +74,29 @@ export class DriversService {
 
     return drivers.map((d) => {
       const stopsToday = d.dispatchRoutes.flatMap((r) => r.stops);
-      const delivered = stopsToday.filter((s) => s.outcome === StopOutcome.DELIVERED).length;
+      const delivered = stopsToday.filter(
+        (s) => s.outcome === StopOutcome.DELIVERED,
+      ).length;
       return {
         id: d.id,
         name: d.name,
         email: d.email,
         active: d.active,
         profile: d.driverProfile,
-        today: { routes: d.dispatchRoutes.length, stops: stopsToday.length, delivered },
+        today: {
+          routes: d.dispatchRoutes.length,
+          stops: stopsToday.length,
+          delivered,
+        },
       };
     });
   }
 
-  async upsertProfile(user: any, driverId: string, dto: UpsertDriverProfileDto) {
+  async upsertProfile(
+    user: any,
+    driverId: string,
+    dto: UpsertDriverProfileDto,
+  ) {
     const companyId = this.companyId(user);
     await this.assertDriverOfCompany(driverId, companyId);
     const data: Prisma.DriverProfileUncheckedCreateInput = {
@@ -94,11 +122,17 @@ export class DriversService {
     const companyId = this.companyId(user);
     const stop = await this.prisma.routeStop.findUnique({
       where: { id: stopId },
-      include: { route: { select: { companyId: true } }, order: { select: { id: true } } },
+      include: {
+        route: { select: { companyId: true } },
+        order: { select: { id: true } },
+      },
     });
     if (!stop) throw new NotFoundException('Parada no encontrada');
     if (stop.route.companyId !== companyId) throw new ForbiddenException();
-    if (stop.driverPaymentId) throw new BadRequestException('Parada ya incluida en un pago; no se puede cambiar');
+    if (stop.driverPaymentId)
+      throw new BadRequestException(
+        'Parada ya incluida en un pago; no se puede cambiar',
+      );
 
     const delivered = dto.outcome === StopOutcome.DELIVERED;
     await this.prisma.$transaction([
@@ -112,7 +146,12 @@ export class DriversService {
         },
       }),
       ...(delivered
-        ? [this.prisma.order.update({ where: { id: stop.orderId }, data: { status: 'DELIVERED', deliveredAt: new Date() } })]
+        ? [
+            this.prisma.order.update({
+              where: { id: stop.orderId },
+              data: { status: 'DELIVERED', deliveredAt: new Date() },
+            }),
+          ]
         : []),
     ]);
     return { ok: true };
@@ -125,25 +164,34 @@ export class DriversService {
 
     const stops = await this.prisma.routeStop.findMany({
       where: {
-        route: { companyId, ...(dto.driverId ? { dispatcherId: dto.driverId } : {}) },
+        route: {
+          companyId,
+          ...(dto.driverId ? { dispatcherId: dto.driverId } : {}),
+        },
         attemptedAt: { gte: from, lte: to },
       },
       select: {
-        outcome: true, attemptedAt: true, deliveredAt: true,
+        outcome: true,
+        attemptedAt: true,
+        deliveredAt: true,
         order: { select: { scheduledDate: true } },
       },
     });
 
     const byOutcome: Record<string, number> = {};
-    let onTime = 0, late = 0;
+    let onTime = 0,
+      late = 0;
     const weekly = new Map<string, { onTime: number; late: number }>();
 
     for (const s of stops) {
       byOutcome[s.outcome] = (byOutcome[s.outcome] || 0) + 1;
       if (s.outcome === StopOutcome.DELIVERED && s.deliveredAt) {
         const due = s.order.scheduledDate;
-        const isLate = due ? s.deliveredAt.getTime() > new Date(due).setHours(23, 59, 59, 999) : false;
-        isLate ? late++ : onTime++;
+        const isLate = due
+          ? s.deliveredAt.getTime() > new Date(due).setHours(23, 59, 59, 999)
+          : false;
+        if (isLate) late++;
+        else onTime++;
         const wk = weekKey(s.deliveredAt);
         const e = weekly.get(wk) || { onTime: 0, late: 0 };
         e[isLate ? 'late' : 'onTime']++;
@@ -159,12 +207,21 @@ export class DriversService {
         delivered: totalDelivered,
         onTime,
         late,
-        onTimeRate: totalDelivered ? Math.round((onTime / totalDelivered) * 100) : null,
+        onTimeRate: totalDelivered
+          ? Math.round((onTime / totalDelivered) * 100)
+          : null,
       },
       byOutcome,
       weekly: [...weekly.entries()]
         .sort()
-        .map(([week, v]) => ({ week, ...v, rate: v.onTime + v.late ? Math.round((v.onTime / (v.onTime + v.late)) * 100) : 0 })),
+        .map(([week, v]) => ({
+          week,
+          ...v,
+          rate:
+            v.onTime + v.late
+              ? Math.round((v.onTime / (v.onTime + v.late)) * 100)
+              : 0,
+        })),
       // Hook para reputación de marketplace (ML/Falabella): se completará al
       // integrar sus endpoints de reputación.
       marketplaceReputation: null,
@@ -179,11 +236,17 @@ export class DriversService {
     const drivers = await this.prisma.user.findMany({
       where: { companyId, role: Role.DESPACHADOR },
       select: {
-        id: true, name: true, driverProfile: true,
+        id: true,
+        name: true,
+        driverProfile: true,
         dispatchRoutes: {
           select: {
             stops: {
-              where: { outcome: StopOutcome.DELIVERED, driverPaymentId: null, deliveredAt: { gte: from, lte: to } },
+              where: {
+                outcome: StopOutcome.DELIVERED,
+                driverPaymentId: null,
+                deliveredAt: { gte: from, lte: to },
+              },
               select: { id: true },
             },
           },
@@ -197,7 +260,12 @@ export class DriversService {
       const rate = Number(d.driverProfile?.perPackageRate ?? 0);
       const flat = Number(d.driverProfile?.flatRate ?? 0);
       const model = d.driverProfile?.payModel ?? 'FLAT';
-      const owed = model === 'PER_PACKAGE' ? stopIds.length * rate : (stopIds.length > 0 ? flat : 0);
+      const owed =
+        model === 'PER_PACKAGE'
+          ? stopIds.length * rate
+          : stopIds.length > 0
+            ? flat
+            : 0;
       return {
         driverId: d.id,
         name: d.name,
@@ -223,13 +291,17 @@ export class DriversService {
       },
       select: { id: true, deliveredAt: true },
     });
-    if (stops.length === 0) throw new BadRequestException('Ninguna parada válida para pagar');
+    if (stops.length === 0)
+      throw new BadRequestException('Ninguna parada válida para pagar');
 
-    const profile = await this.prisma.driverProfile.findUnique({ where: { userId: dto.driverId } });
+    const profile = await this.prisma.driverProfile.findUnique({
+      where: { userId: dto.driverId },
+    });
     const model = profile?.payModel ?? 'FLAT';
-    const amount = model === 'PER_PACKAGE'
-      ? stops.length * Number(profile?.perPackageRate ?? 0)
-      : Number(profile?.flatRate ?? 0);
+    const amount =
+      model === 'PER_PACKAGE'
+        ? stops.length * Number(profile?.perPackageRate ?? 0)
+        : Number(profile?.flatRate ?? 0);
 
     const dates = stops.map((s) => s.deliveredAt!.getTime());
     const batch = await this.prisma.$transaction(async (tx) => {
@@ -267,7 +339,8 @@ export class DriversService {
   async markPaymentPaid(user: any, id: string) {
     const companyId = this.companyId(user);
     const batch = await this.prisma.driverPayment.findUnique({ where: { id } });
-    if (!batch || batch.companyId !== companyId) throw new NotFoundException('Lote no encontrado');
+    if (!batch || batch.companyId !== companyId)
+      throw new NotFoundException('Lote no encontrado');
     if (batch.status === DriverPaymentStatus.PAID) return batch;
     return this.prisma.driverPayment.update({
       where: { id },
@@ -281,7 +354,11 @@ export class DriversService {
     const { from, to } = this.range(dto);
 
     const orders = await this.prisma.order.findMany({
-      where: { companyId, createdAt: { gte: from, lte: to }, commune: { not: null } },
+      where: {
+        companyId,
+        createdAt: { gte: from, lte: to },
+        commune: { not: null },
+      },
       select: { commune: true, deliveredAt: true },
     });
 
@@ -301,7 +378,12 @@ export class DriversService {
     const max = zones[0]?.total || 1;
     const withLevel = zones.map((z) => ({
       ...z,
-      level: z.total >= max * 0.66 ? 'alta' : z.total >= max * 0.33 ? 'media' : 'baja',
+      level:
+        z.total >= max * 0.66
+          ? 'alta'
+          : z.total >= max * 0.33
+            ? 'media'
+            : 'baja',
     }));
 
     return {

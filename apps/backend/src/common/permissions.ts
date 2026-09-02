@@ -8,7 +8,11 @@ import { Role } from '@prisma/client';
  * Los grupos se usan tanto para validar keys entrantes como para dibujar el
  * árbol de checkboxes en el editor de perfiles del frontend.
  */
-export const PERMISSION_GROUPS: { key: string; label: string; items: { key: string; label: string }[] }[] = [
+export const PERMISSION_GROUPS: {
+  key: string;
+  label: string;
+  items: { key: string; label: string }[];
+}[] = [
   {
     key: 'inicio',
     label: 'Inicio',
@@ -47,7 +51,7 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
   },
   {
     key: 'operacion',
-    label: 'Operación de bodega',
+    label: 'Operación',
     items: [
       { key: 'warehouse.board', label: 'Tablero de bodega' },
       { key: 'warehouse.picking', label: 'Picking' },
@@ -64,17 +68,11 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     ],
   },
   {
-    key: 'despacho',
-    label: 'Despacho',
-    items: [
-      { key: 'despachos', label: 'Despachos (rutas)' },
-      { key: 'mis-rutas', label: 'Mis rutas (repartidor)' },
-    ],
-  },
-  {
     key: 'repartidores',
     label: 'Repartidores',
     items: [
+      { key: 'despachos', label: 'Rutas' },
+      { key: 'mis-rutas', label: 'Mis rutas (repartidor)' },
       { key: 'drivers.fleet', label: 'Flota' },
       { key: 'drivers.metrics', label: 'Métricas' },
       { key: 'drivers.payments', label: 'Remuneración de repartos' },
@@ -101,7 +99,9 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
   },
 ];
 
-export const ALL_PERMISSION_KEYS: string[] = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
+export const ALL_PERMISSION_KEYS: string[] = PERMISSION_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.key),
+);
 
 export function isValidPermissionKey(k: string): boolean {
   return k === '*' || ALL_PERMISSION_KEYS.includes(k);
@@ -111,30 +111,79 @@ export function isValidPermissionKey(k: string): boolean {
 export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.SUPER_ADMIN]: ['*'],
   [Role.COMPANY_ADMIN]: [
-    'dashboard', 'orders', 'shipping', 'returns', 'sales', 'pos', 'clientes',
-    'ecommerce', 'billing',
-    'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
-    'warehouse.board', 'warehouse.picking', 'warehouse.packing',
-    'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar',
-    'despachos', 'drivers.fleet', 'drivers.metrics', 'drivers.payments', 'drivers.zones',
-    'users', 'access-profiles',
+    'dashboard',
+    'orders',
+    'shipping',
+    'returns',
+    'sales',
+    'pos',
+    'clientes',
+    'ecommerce',
+    'billing',
+    'catalog',
+    'warehouses',
+    'purchases',
+    'suppliers',
+    'rentabilidad',
+    'warehouse.board',
+    'warehouse.picking',
+    'warehouse.packing',
+    'pedidos.crear',
+    'pedidos.mis',
+    'pedidos.aprobar',
+    'despachos',
+    'drivers.fleet',
+    'drivers.metrics',
+    'drivers.payments',
+    'drivers.zones',
+    'users',
+    'access-profiles',
     'emails',
   ],
   [Role.CATALOG_MANAGER]: [
-    'dashboard', 'orders', 'shipping', 'returns', 'sales', 'pos', 'clientes',
-    'ecommerce', 'billing',
-    'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
-    'warehouse.board', 'warehouse.picking', 'warehouse.packing',
-    'pedidos.crear', 'pedidos.mis',
-    'despachos', 'drivers.fleet', 'drivers.metrics', 'drivers.zones',
+    'dashboard',
+    'orders',
+    'shipping',
+    'returns',
+    'sales',
+    'pos',
+    'clientes',
+    'ecommerce',
+    'billing',
+    'catalog',
+    'warehouses',
+    'purchases',
+    'suppliers',
+    'rentabilidad',
+    'warehouse.board',
+    'warehouse.picking',
+    'warehouse.packing',
+    'pedidos.crear',
+    'pedidos.mis',
+    'despachos',
+    'drivers.fleet',
+    'drivers.metrics',
+    'drivers.zones',
   ],
   [Role.VENDEDOR]: [
-    'orders', 'shipping', 'returns', 'sales', 'pos', 'clientes',
-    'warehouse.picking', 'warehouse.packing',
-    'pedidos.crear', 'pedidos.mis',
+    'orders',
+    'shipping',
+    'returns',
+    'sales',
+    'pos',
+    'clientes',
+    'warehouse.picking',
+    'warehouse.packing',
+    'pedidos.crear',
+    'pedidos.mis',
   ],
   [Role.DESPACHADOR]: ['mis-rutas', 'warehouse.picking', 'warehouse.packing'],
-  [Role.ORDER_MANAGER]: ['clientes', 'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar'],
+  [Role.ORDER_MANAGER]: [
+    'clientes',
+    'pedidos.crear',
+    'pedidos.mis',
+    'pedidos.aprobar',
+  ],
 };
 
 /**

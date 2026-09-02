@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -163,7 +164,8 @@ export default function EnviosPage() {
                           <input type="checkbox" checked={sel.has(o.id)} onChange={() => toggle(o.id)} className="rounded" />
                         </td>
                         <td className="px-2 py-2.5 font-mono text-xs text-[var(--text-2)]">
-                          #{shortId(o.id)}{o.externalId ? <span className="text-[var(--text-muted)]"> · {o.externalId}</span> : ''}
+                          <Link href={`/dashboard/orders/${o.id}`} className="hover:underline text-[var(--info)]">#{shortId(o.id)}</Link>
+                          {o.externalId ? <span className="text-[var(--text-muted)]"> · {o.externalId}</span> : ''}
                         </td>
                         <td className="px-2 py-2.5 text-[var(--text)]">{o.customerName || '—'}</td>
                         <td className="px-2 py-2.5 text-xs text-[var(--text-muted)]">{[o.commune, o.city].filter(Boolean).join(', ')}</td>

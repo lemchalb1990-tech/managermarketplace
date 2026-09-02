@@ -1,7 +1,19 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { DriversService } from './drivers.service';
 import {
-  UpsertDriverProfileDto, SetOutcomeDto, RangeDto, CreatePaymentBatchDto,
+  UpsertDriverProfileDto,
+  SetOutcomeDto,
+  RangeDto,
+  CreatePaymentBatchDto,
 } from './dto/drivers.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -21,13 +33,21 @@ export class DriversController {
 
   @Patch('fleet/:driverId/profile')
   @RequirePermissions('drivers.fleet')
-  upsertProfile(@CurrentUser() user: any, @Param('driverId') driverId: string, @Body() dto: UpsertDriverProfileDto) {
+  upsertProfile(
+    @CurrentUser() user: any,
+    @Param('driverId') driverId: string,
+    @Body() dto: UpsertDriverProfileDto,
+  ) {
     return this.service.upsertProfile(user, driverId, dto);
   }
 
   @Patch('stops/:stopId/outcome')
   @RequirePermissions('drivers.fleet', 'despachos')
-  setOutcome(@CurrentUser() user: any, @Param('stopId') stopId: string, @Body() dto: SetOutcomeDto) {
+  setOutcome(
+    @CurrentUser() user: any,
+    @Param('stopId') stopId: string,
+    @Body() dto: SetOutcomeDto,
+  ) {
     return this.service.setOutcome(user, stopId, dto);
   }
 

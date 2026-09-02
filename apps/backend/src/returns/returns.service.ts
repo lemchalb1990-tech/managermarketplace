@@ -1,12 +1,29 @@
 import {
-  Injectable, ForbiddenException, NotFoundException, BadRequestException,
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
-import { ReturnStatus, ReturnCondition, MovementType, Role } from '@prisma/client';
+import {
+  ReturnStatus,
+  ReturnCondition,
+  MovementType,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateReturnDto, ReceiveReturnDto, ListReturnsDto } from './dto/return.dto';
+import { companyWhere, assertSameCompany } from '../common/tenant';
+import {
+  CreateReturnDto,
+  ReceiveReturnDto,
+  ListReturnsDto,
+} from './dto/return.dto';
 
 const INCLUDE = {
-  items: { include: { product: { select: { id: true, name: true, sku: true, stock: true } } } },
+  items: {
+    include: {
+      product: { select: { id: true, name: true, sku: true, stock: true } },
+    },
+  },
   sale: { select: { id: true, channel: true, externalId: true } },
   order: { select: { id: true, customerName: true } },
   receivedBy: { select: { id: true, name: true } },
@@ -17,13 +34,11 @@ export class ReturnsService {
   constructor(private prisma: PrismaService) {}
 
   private baseWhere(user: any) {
-    if (user.role === Role.SUPER_ADMIN) return {};
-    if (!user.companyId) throw new ForbiddenException('Usuario sin empresa');
-    return { companyId: user.companyId };
+    return companyWhere(user);
   }
 
   private guard(ret: any, user: any) {
-    if (user.role !== Role.SUPER_ADMIN && ret.companyId !== user.companyId) throw new ForbiddenException();
+    assertSameCompany(ret, user);
   }
 
   async list(user: any, dto: ListReturnsDto) {
@@ -37,12 +52,21 @@ export class ReturnsService {
         { trackingCode: { contains: q, mode: 'insensitive' } },
         { reason: { contains: q, mode: 'insensitive' } },
         { order: { customerName: { contains: q, mode: 'insensitive' } } },
-        { items: { some: { productSku: { contains: q, mode: 'insensitive' } } } },
+        {
+          items: { some: { productSku: { contains: q, mode: 'insensitive' } } },
+        },
       ];
     }
     const [rows, pending, received] = await Promise.all([
-      this.prisma.return.findMany({ where, include: INCLUDE, orderBy: { createdAt: 'desc' }, take: 300 }),
-      this.prisma.return.count({ where: { ...this.baseWhere(user), status: ReturnStatus.PENDING } }),
+      this.prisma.return.findMany({
+        where,
+        include: INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: 300,
+      }),
+      this.prisma.return.count({
+        where: { ...this.baseWhere(user), status: ReturnStatus.PENDING },
+      }),
       this.prisma.return.count({
         where: {
           ...this.baseWhere(user),
@@ -55,7 +79,10 @@ export class ReturnsService {
   }
 
   async findOne(id: string, user: any) {
-    const ret = await this.prisma.return.findUnique({ where: { id }, include: INCLUDE });
+    const ret = await this.prisma.return.findUnique({
+      where: { id },
+      include: INCLUDE,
+    });
     if (!ret) throw new NotFoundException('Devolución no encontrada');
     this.guard(ret, user);
     return ret;
@@ -69,27 +96,44 @@ export class ReturnsService {
     let channel = dto.channel ?? null;
 
     if (dto.saleId) {
-      const sale = await this.prisma.sale.findUnique({ where: { id: dto.saleId }, select: { companyId: true, channel: true } });
+      const sale = await this.prisma.sale.findUnique({
+        where: { id: dto.saleId },
+        select: { companyId: true, channel: true },
+      });
       if (!sale) throw new NotFoundException('Venta no encontrada');
-      if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
+      if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId)
+        throw new ForbiddenException();
       companyId = sale.companyId;
       channel = channel ?? sale.channel;
     }
     if (dto.orderId) {
-      const order = await this.prisma.order.findUnique({ where: { id: dto.orderId }, select: { companyId: true } });
+      const order = await this.prisma.order.findUnique({
+        where: { id: dto.orderId },
+        select: { companyId: true },
+      });
       if (!order) throw new NotFoundException('Pedido no encontrado');
-      if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) throw new ForbiddenException();
+      if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId)
+        throw new ForbiddenException();
       companyId = order.companyId;
     }
-    if (!companyId) throw new BadRequestException('No se pudo determinar la empresa');
-    if (!dto.items?.length) throw new BadRequestException('Agrega al menos un ítem');
+    if (!companyId)
+      throw new BadRequestException('No se pudo determinar la empresa');
+    if (!dto.items?.length)
+      throw new BadRequestException('Agrega al menos un ítem');
 
     // Validar que los productos referenciados son de la misma empresa.
-    const productIds = dto.items.map((i) => i.productId).filter(Boolean) as string[];
+    const productIds = dto.items
+      .map((i) => i.productId)
+      .filter(Boolean) as string[];
     if (productIds.length) {
-      const prods = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, companyId: true } });
+      const prods = await this.prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, companyId: true },
+      });
       if (prods.some((p) => p.companyId !== companyId)) {
-        throw new BadRequestException('Un producto no pertenece a esta empresa');
+        throw new BadRequestException(
+          'Un producto no pertenece a esta empresa',
+        );
       }
     }
 
@@ -123,11 +167,20 @@ export class ReturnsService {
       where: {
         ...this.baseWhere(user),
         status: ReturnStatus.PENDING,
-        OR: [{ id: c }, { externalId: c }, { trackingCode: c }, { order: { id: c } }],
+        OR: [
+          { id: c },
+          { externalId: c },
+          { trackingCode: c },
+          { order: { id: c } },
+        ],
       },
       include: INCLUDE,
     });
-    if (!ret) return { kind: 'unmatched', message: `Sin devolución pendiente para "${c}"` };
+    if (!ret)
+      return {
+        kind: 'unmatched',
+        message: `Sin devolución pendiente para "${c}"`,
+      };
     return { kind: 'return', return: ret };
   }
 
@@ -139,9 +192,13 @@ export class ReturnsService {
 
     const restockIds = new Set(dto.restockItemIds || []);
     const canRestock = dto.condition === ReturnCondition.GOOD;
-    const toRestock = ret.items.filter((it: any) => it.productId && restockIds.has(it.id));
+    const toRestock = ret.items.filter(
+      (it: any) => it.productId && restockIds.has(it.id),
+    );
     if (toRestock.length && !canRestock) {
-      throw new BadRequestException('Solo se puede reponer stock si la condición es "Buen estado"');
+      throw new BadRequestException(
+        'Solo se puede reponer stock si la condición es "Buen estado"',
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -157,7 +214,10 @@ export class ReturnsService {
       });
 
       for (const it of toRestock) {
-        await tx.product.update({ where: { id: it.productId! }, data: { stock: { increment: it.quantity } } });
+        await tx.product.update({
+          where: { id: it.productId! },
+          data: { stock: { increment: it.quantity } },
+        });
         await tx.stockMovement.create({
           data: {
             type: MovementType.RETURN,
@@ -167,7 +227,10 @@ export class ReturnsService {
             userId: user.id,
           },
         });
-        await tx.returnItem.update({ where: { id: it.id }, data: { restocked: true } });
+        await tx.returnItem.update({
+          where: { id: it.id },
+          data: { restocked: true },
+        });
       }
     });
 
@@ -177,11 +240,18 @@ export class ReturnsService {
   async undo(user: any, id: string) {
     const ret = await this.findOne(id, user);
     if (ret.status !== ReturnStatus.RECEIVED) {
-      throw new BadRequestException('Solo se puede deshacer una devolución recibida');
+      throw new BadRequestException(
+        'Solo se puede deshacer una devolución recibida',
+      );
     }
     await this.prisma.$transaction(async (tx) => {
-      for (const it of ret.items.filter((i: any) => i.restocked && i.productId)) {
-        await tx.product.update({ where: { id: it.productId! }, data: { stock: { decrement: it.quantity } } });
+      for (const it of ret.items.filter(
+        (i: any) => i.restocked && i.productId,
+      )) {
+        await tx.product.update({
+          where: { id: it.productId! },
+          data: { stock: { decrement: it.quantity } },
+        });
         await tx.stockMovement.create({
           data: {
             type: MovementType.ADJUSTMENT,
@@ -191,11 +261,19 @@ export class ReturnsService {
             userId: user.id,
           },
         });
-        await tx.returnItem.update({ where: { id: it.id }, data: { restocked: false } });
+        await tx.returnItem.update({
+          where: { id: it.id },
+          data: { restocked: false },
+        });
       }
       await tx.return.update({
         where: { id },
-        data: { status: ReturnStatus.PENDING, condition: null, receivedAt: null, receivedById: null },
+        data: {
+          status: ReturnStatus.PENDING,
+          condition: null,
+          receivedAt: null,
+          receivedById: null,
+        },
       });
     });
     return this.findOne(id, user);

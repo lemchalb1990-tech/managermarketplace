@@ -1,7 +1,20 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AccessProfilesService } from './access-profiles.service';
-import { CreateAccessProfileDto, UpdateAccessProfileDto } from './dto/access-profile.dto';
+import {
+  CreateAccessProfileDto,
+  UpdateAccessProfileDto,
+} from './dto/access-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -34,7 +47,11 @@ export class AccessProfilesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAccessProfileDto, @CurrentUser() user: any) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateAccessProfileDto,
+    @CurrentUser() user: any,
+  ) {
     return this.service.update(id, dto, user);
   }
 

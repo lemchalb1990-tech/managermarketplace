@@ -1,5 +1,13 @@
 import {
-  IsString, IsOptional, IsEnum, IsNumber, Min, IsBoolean, IsArray, ArrayNotEmpty, IsDateString,
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  Min,
+  IsBoolean,
+  IsArray,
+  ArrayNotEmpty,
+  IsDateString,
 } from 'class-validator';
 import { DriverPayModel, StopOutcome } from '@prisma/client';
 

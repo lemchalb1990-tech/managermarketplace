@@ -1,6 +1,19 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ReturnsService } from './returns.service';
-import { CreateReturnDto, ReceiveReturnDto, ScanReturnDto, ListReturnsDto } from './dto/return.dto';
+import {
+  CreateReturnDto,
+  ReceiveReturnDto,
+  ScanReturnDto,
+  ListReturnsDto,
+} from './dto/return.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -33,7 +46,11 @@ export class ReturnsController {
   }
 
   @Post(':id/receive')
-  receive(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: ReceiveReturnDto) {
+  receive(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: ReceiveReturnDto,
+  ) {
     return this.service.receive(user, id, dto);
   }
 

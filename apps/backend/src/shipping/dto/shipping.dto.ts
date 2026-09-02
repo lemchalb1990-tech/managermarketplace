@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, ArrayNotEmpty, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  ArrayNotEmpty,
+  IsIn,
+} from 'class-validator';
 
 export class BoardDto {
   @IsOptional()

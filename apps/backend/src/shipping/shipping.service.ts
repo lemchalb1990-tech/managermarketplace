@@ -1,17 +1,41 @@
 import {
-  Injectable, ForbiddenException, NotFoundException, BadRequestException,
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { companyWhere } from '../common/tenant';
 import { BoardDto, DispatchDto } from './dto/shipping.dto';
 import {
-  CARRIER_GROUPS, CARRIER_ORDER, carrierGroupKey, resolveCutoffs, isOverdue,
+  CARRIER_GROUPS,
+  CARRIER_ORDER,
+  carrierGroupKey,
+  resolveCutoffs,
+  isOverdue,
 } from './carriers';
 
 const CARD_INCLUDE = {
-  itemChecks: { select: { productName: true, productSku: true, expectedQty: true, checkedQty: true, outOfStock: true } },
+  itemChecks: {
+    select: {
+      productName: true,
+      productSku: true,
+      expectedQty: true,
+      checkedQty: true,
+      outOfStock: true,
+    },
+  },
   warehouse: { select: { id: true, name: true } },
-  sale: { select: { id: true, channel: true, total: true, externalId: true, shippingMethod: true } },
+  sale: {
+    select: {
+      id: true,
+      channel: true,
+      total: true,
+      externalId: true,
+      shippingMethod: true,
+    },
+  },
   assignedTo: { select: { name: true } },
 };
 
@@ -20,11 +44,7 @@ export class ShippingService {
   constructor(private prisma: PrismaService) {}
 
   private baseWhere(user: any, warehouseId?: string) {
-    const where: any = {};
-    if (user.role !== Role.SUPER_ADMIN) {
-      if (!user.companyId) throw new ForbiddenException('Usuario sin empresa');
-      where.companyId = user.companyId;
-    }
+    const where: any = companyWhere(user);
     if (warehouseId) where.warehouseId = warehouseId;
     return where;
   }
@@ -89,9 +109,13 @@ export class ShippingService {
     if (scope === 'today') {
       where.status = { in: [OrderStatus.PREPARING, OrderStatus.READY] };
       where.dispatchedAt = null;
-      where.AND.push({ OR: [{ scheduledDate: null }, { scheduledDate: { lte: endOfToday } }] });
+      where.AND.push({
+        OR: [{ scheduledDate: null }, { scheduledDate: { lte: endOfToday } }],
+      });
     } else if (scope === 'upcoming') {
-      where.status = { in: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY] };
+      where.status = {
+        in: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
+      };
       where.dispatchedAt = null;
       where.scheduledDate = { gt: endOfToday };
     } else if (scope === 'transit') {
@@ -106,7 +130,8 @@ export class ShippingService {
     const orders = await this.prisma.order.findMany({
       where,
       include: CARD_INCLUDE,
-      orderBy: scope === 'done' ? { deliveredAt: 'desc' } : { createdAt: 'asc' },
+      orderBy:
+        scope === 'done' ? { deliveredAt: 'desc' } : { createdAt: 'asc' },
       take: 500,
     });
 
@@ -120,21 +145,22 @@ export class ShippingService {
     }
 
     const now = new Date();
-    const groups = CARRIER_ORDER
-      .filter((k) => byCarrier.has(k))
-      .map((k) => {
-        const list = byCarrier.get(k)!;
-        const cutoff = cutoffs[k];
-        const overdue = scope === 'today' && isOverdue(cutoff, now);
-        return {
-          key: k,
-          label: CARRIER_GROUPS[k].label,
-          cutoff,
-          overdue,
-          total: list.length,
-          orders: list.map((c) => ({ ...c, overdue: scope === 'today' && overdue })),
-        };
-      });
+    const groups = CARRIER_ORDER.filter((k) => byCarrier.has(k)).map((k) => {
+      const list = byCarrier.get(k)!;
+      const cutoff = cutoffs[k];
+      const overdue = scope === 'today' && isOverdue(cutoff, now);
+      return {
+        key: k,
+        label: CARRIER_GROUPS[k].label,
+        cutoff,
+        overdue,
+        total: list.length,
+        orders: list.map((c) => ({
+          ...c,
+          overdue: scope === 'today' && overdue,
+        })),
+      };
+    });
 
     return { scope, groups, total: cards.length };
   }
@@ -150,10 +176,16 @@ export class ShippingService {
     const dispatched: string[] = [];
     const skipped: { id: string; reason: string }[] = [];
     for (const id of dto.orderIds) {
-      if (!found.has(id)) { skipped.push({ id, reason: 'No encontrada' }); continue; }
+      if (!found.has(id)) {
+        skipped.push({ id, reason: 'No encontrada' });
+        continue;
+      }
       const o = orders.find((x) => x.id === id)!;
       if (o.status !== OrderStatus.READY) {
-        skipped.push({ id, reason: `Estado ${o.status}: debe estar Listo (empacado)` });
+        skipped.push({
+          id,
+          reason: `Estado ${o.status}: debe estar Listo (empacado)`,
+        });
         continue;
       }
       dispatched.push(id);
@@ -166,7 +198,9 @@ export class ShippingService {
           status: OrderStatus.IN_TRANSIT,
           dispatchedAt: new Date(),
           ...(dto.courier ? { courier: dto.courier } : {}),
-          ...(dto.trackingCode && dispatched.length === 1 ? { trackingCode: dto.trackingCode } : {}),
+          ...(dto.trackingCode && dispatched.length === 1
+            ? { trackingCode: dto.trackingCode }
+            : {}),
         },
       });
     }
@@ -179,23 +213,37 @@ export class ShippingService {
     const orders = await this.prisma.order.findMany({
       where: { ...base, id: { in: orderIds } },
       include: {
-        itemChecks: { select: { productName: true, productSku: true, expectedQty: true } },
-        sale: { select: { channel: true, externalId: true, shippingMethod: true } },
+        itemChecks: {
+          select: { productName: true, productSku: true, expectedQty: true },
+        },
+        sale: {
+          select: { channel: true, externalId: true, shippingMethod: true },
+        },
         company: { select: { name: true } },
         warehouse: { select: { name: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
-    if (orders.length === 0) throw new NotFoundException('Sin órdenes para la guía');
+    if (orders.length === 0)
+      throw new NotFoundException('Sin órdenes para la guía');
 
     const esc = (s: any) =>
-      String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+      String(s ?? '').replace(
+        /[&<>"]/g,
+        (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[
+            c
+          ] as string,
+      );
 
     const pages = orders
       .map((o) => {
         const carrier = CARRIER_GROUPS[carrierGroupKey(o.sale, o)].label;
         const rows = o.itemChecks
-          .map((it) => `<tr><td>${esc(it.productName)}</td><td class="sku">${esc(it.productSku)}</td><td class="qty">${it.expectedQty}</td></tr>`)
+          .map(
+            (it) =>
+              `<tr><td>${esc(it.productName)}</td><td class="sku">${esc(it.productSku)}</td><td class="qty">${it.expectedQty}</td></tr>`,
+          )
           .join('');
         return `
       <section class="slip">

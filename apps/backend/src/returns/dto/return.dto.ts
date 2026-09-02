@@ -1,5 +1,12 @@
 import {
-  IsString, IsOptional, IsArray, IsInt, Min, IsEnum, ValidateNested, ArrayNotEmpty,
+  IsString,
+  IsOptional,
+  IsArray,
+  IsInt,
+  Min,
+  IsEnum,
+  ValidateNested,
+  ArrayNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReturnCondition, SaleChannel } from '@prisma/client';

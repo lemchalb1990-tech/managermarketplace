@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsArray, IsInt, Min, IsBoolean, ArrayNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsInt,
+  Min,
+  IsBoolean,
+  ArrayNotEmpty,
+} from 'class-validator';
 
 export class AssignDto {
   // Colaboradores entre los que se reparten los pedidos (round-robin).
