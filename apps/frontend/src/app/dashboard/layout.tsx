@@ -302,7 +302,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="h-dvh flex overflow-hidden bg-[var(--page-bg)]">
+    <div className="ui-dashboard h-dvh flex overflow-hidden bg-[var(--page-bg)]">
       {/* Sidebar desktop: alto fijo (viewport), colapsable */}
       <aside
         className={`hidden md:flex md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col overflow-hidden transition-[width] duration-200 ${

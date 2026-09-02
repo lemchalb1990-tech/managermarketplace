@@ -240,3 +240,111 @@ body {
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 22px 22px;
 }
+
+/* ── Tema del panel ─────────────────────────────────────────────────────────
+   Muchas vistas del dashboard se construyeron con la paleta genérica de
+   Tailwind (gray-*, blue-*). Acá remapeamos esas variables SOLO dentro del
+   panel para que hereden la paleta cálida del sistema, sin tocar cada archivo.
+   La landing y el login quedan fuera de este scope. */
+.ui-dashboard {
+  /* Neutros → cálidos */
+  --color-gray-50: #f8f7f4;
+  --color-gray-100: #f1efea;
+  --color-gray-200: #e7e4de;
+  --color-gray-300: #dad6ce;
+  --color-gray-400: #b2aea6;
+  --color-gray-500: #8a8884;
+  --color-gray-600: #6f6c67;
+  --color-gray-700: #575552;
+  --color-gray-800: #3f3d39;
+  --color-gray-900: #2b2a27;
+  --color-slate-50: #f8f7f4;
+  --color-slate-100: #f1efea;
+  --color-slate-200: #e7e4de;
+  --color-slate-300: #dad6ce;
+  --color-slate-400: #b2aea6;
+  --color-slate-500: #8a8884;
+  --color-slate-600: #6f6c67;
+  --color-slate-700: #575552;
+  --color-slate-800: #3f3d39;
+  --color-slate-900: #2b2a27;
+  --color-zinc-50: #f8f7f4;
+  --color-zinc-100: #f1efea;
+  --color-zinc-200: #e7e4de;
+  --color-zinc-300: #dad6ce;
+  --color-zinc-400: #b2aea6;
+  --color-zinc-500: #8a8884;
+  --color-zinc-600: #6f6c67;
+  --color-zinc-700: #575552;
+  --color-zinc-800: #3f3d39;
+  --color-zinc-900: #2b2a27;
+  --color-neutral-50: #f8f7f4;
+  --color-neutral-100: #f1efea;
+  --color-neutral-200: #e7e4de;
+  --color-neutral-300: #dad6ce;
+  --color-neutral-400: #b2aea6;
+  --color-neutral-500: #8a8884;
+  --color-neutral-600: #6f6c67;
+  --color-neutral-700: #575552;
+  --color-neutral-800: #3f3d39;
+  --color-neutral-900: #2b2a27;
+  --color-stone-50: #f8f7f4;
+  --color-stone-100: #f1efea;
+  --color-stone-200: #e7e4de;
+  --color-stone-300: #dad6ce;
+  --color-stone-400: #b2aea6;
+  --color-stone-500: #8a8884;
+  --color-stone-600: #6f6c67;
+  --color-stone-700: #575552;
+  --color-stone-800: #3f3d39;
+  --color-stone-900: #2b2a27;
+
+  /* Azul / índigo / celeste → dorado-bronce de marca (acciones primarias) */
+  --color-blue-50: #faf3e0;
+  --color-blue-100: #f3e5c6;
+  --color-blue-200: #e9d29c;
+  --color-blue-300: #ddbb6d;
+  --color-blue-400: #cfa243;
+  --color-blue-500: #c19332;
+  --color-blue-600: #8a6d31;
+  --color-blue-700: #6f5726;
+  --color-blue-800: #5a4620;
+  --color-blue-900: #46371a;
+  --color-indigo-50: #faf3e0;
+  --color-indigo-100: #f3e5c6;
+  --color-indigo-200: #e9d29c;
+  --color-indigo-300: #ddbb6d;
+  --color-indigo-400: #cfa243;
+  --color-indigo-500: #c19332;
+  --color-indigo-600: #8a6d31;
+  --color-indigo-700: #6f5726;
+  --color-indigo-800: #5a4620;
+  --color-indigo-900: #46371a;
+  --color-sky-50: #faf3e0;
+  --color-sky-100: #f3e5c6;
+  --color-sky-200: #e9d29c;
+  --color-sky-300: #ddbb6d;
+  --color-sky-400: #cfa243;
+  --color-sky-500: #c19332;
+  --color-sky-600: #8a6d31;
+  --color-sky-700: #6f5726;
+  --color-sky-800: #5a4620;
+  --color-sky-900: #46371a;
+}
+
+/* Detalles finos comunes a todo el panel */
+.ui-dashboard input:focus-visible,
+.ui-dashboard select:focus-visible,
+.ui-dashboard textarea:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.ui-dashboard button,
+.ui-dashboard a,
+.ui-dashboard input,
+.ui-dashboard select {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
