@@ -364,7 +364,7 @@ export default function PosPage() {
                       <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
                       <p className="text-[11px] text-gray-400 font-mono truncate">{p.sku}</p>
                       <div className="mt-auto flex items-center justify-between pt-1">
-                        <span className="text-blue-600 font-bold text-sm">${Number(p.price).toLocaleString('es-CL')}</span>
+                        <span className="text-blue-600 font-bold text-xs">${Number(p.price).toLocaleString('es-CL')}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                           {isService ? 'Serv.' : p.stock > 0 ? `${p.stock}` : '0'}
                         </span>
@@ -406,7 +406,7 @@ export default function PosPage() {
                     <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                       {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                     </span>
-                    <span className={`text-blue-600 font-bold w-24 text-right shrink-0 ${compact ? 'text-base' : 'text-lg'}`}>
+                    <span className={`text-blue-600 font-bold w-20 text-right shrink-0 ${compact ? 'text-xs' : 'text-sm'}`}>
                       ${Number(p.price).toLocaleString('es-CL')}
                     </span>
                   </button>
