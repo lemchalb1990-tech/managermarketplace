@@ -58,6 +58,21 @@ export default function PosPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [notes, setNotes] = useState('');
 
+  // Cliente registrado
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientId, setClientId] = useState('');
+  const [showNewClient, setShowNewClient] = useState(false);
+  const emptyClient = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '' };
+  const [newClient, setNewClient] = useState(emptyClient);
+
+  // Documento tributario (DTE)
+  const [billingConns, setBillingConns] = useState<any[]>([]);
+  const [emitDte, setEmitDte] = useState(false);
+  const [dteType, setDteType] = useState<'BOLETA' | 'FACTURA'>('BOLETA');
+  const [dteConnId, setDteConnId] = useState('');
+
+  const selectedClient = clients.find((c) => c.id === clientId) || null;
+
   useEffect(() => {
     const t = getToken();
     const u = getUser();
@@ -121,15 +136,21 @@ export default function PosPage() {
 
   useEffect(() => {
     if (!token) return;
+    const cid = isSuperAdmin ? selectedCompanyId : undefined;
     if (isSuperAdmin && !selectedCompanyId) {
-      setCategories([]);
+      setCategories([]); setClients([]); setBillingConns([]);
       return;
     }
-    api.catalog.categories(token, isSuperAdmin ? selectedCompanyId : undefined).then(setCategories).catch(() => {});
+    api.catalog.categories(token, cid).then(setCategories).catch(() => {});
+    api.clients.list(token, cid).then((d) => setClients(d.filter((c: any) => c.active))).catch(() => setClients([]));
+    api.billing.connections.list(token, cid ? { companyId: cid } : undefined)
+      .then((cs) => { setBillingConns(cs); if (cs[0]) setDteConnId(cs[0].id); })
+      .catch(() => setBillingConns([]));
   }, [token, isSuperAdmin, selectedCompanyId]);
 
   function selectCompany(companyId: string) {
     setSelectedCompanyId(companyId);
+    setClientId(''); setEmitDte(false);
     setCategoryFilter('');
     setCart([]);
   }
@@ -194,6 +215,21 @@ export default function PosPage() {
 
   const checkout = useCallback(async () => {
     if (cart.length === 0) return;
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    if (isSuperAdmin && !selectedCompanyId) return;
+
+    // Validación del DTE
+    if (emitDte) {
+      if (!dteConnId) { setErrorMsg('Selecciona la conexión de facturación'); return; }
+      if (dteType === 'FACTURA') {
+        const rut = selectedClient?.rut;
+        if (!clientId || !rut || !selectedClient?.name) {
+          setErrorMsg('Para emitir Factura selecciona un cliente con RUT y razón social');
+          return;
+        }
+      }
+    }
+
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -203,33 +239,51 @@ export default function PosPage() {
         paymentMethod,
         notes: notes || undefined,
         fulfillmentType,
-        customerName: customerName || undefined,
-        customerPhone: customerPhone || undefined,
-        customerEmail: customerEmail || undefined,
+        clientId: clientId || undefined,
+        customerName: (selectedClient?.name || customerName) || undefined,
+        customerPhone: (selectedClient?.phone || customerPhone) || undefined,
+        customerEmail: (selectedClient?.email || customerEmail) || undefined,
         address: fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
         commune: fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
         city: fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
-        items: cart.map((c) => ({
-          productId: c.productId,
-          quantity: c.quantity,
-          unitPrice: c.price,
-        })),
+        items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price })),
       };
-      if (isSuperAdmin) {
-        if (!selectedCompanyId) { setLoading(false); return; }
-        dto.companyId = selectedCompanyId;
+      if (companyId) dto.companyId = companyId;
+
+      const sale = await api.pos.createSale(dto, token);
+
+      let dteMsg = '';
+      if (emitDte) {
+        try {
+          const inv = await api.billing.invoices.issue({
+            connectionId: dteConnId,
+            dteType,
+            rut: selectedClient?.rut || '66666666-6',
+            razonSocial: selectedClient?.name || customerName || 'Consumidor final',
+            giro: selectedClient?.giro || undefined,
+            address: selectedClient?.address || undefined,
+            commune: selectedClient?.commune || undefined,
+            email: selectedClient?.email || customerEmail || undefined,
+            items: cart.map((c) => ({ name: c.name, quantity: c.quantity, unitPrice: c.price })),
+            saleId: sale.id,
+            clientId: clientId || undefined,
+            paymentCondition: 'CONTADO',
+            markPaid: true,
+            paymentMethod,
+          }, token);
+          dteMsg = ` · ${dteType === 'FACTURA' ? 'Factura' : 'Boleta'}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
+        } catch (e: any) {
+          dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
+        }
       }
-      await api.pos.createSale(dto, token);
-      setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`);
+
+      setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${dteMsg}`);
       setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerEmail('');
-      setAddress('');
-      setCommune('');
-      setCity('');
-      setNotes('');
-      setFulfillmentType('PICKUP');
+      setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
+      setAddress(''); setCommune(''); setCity('');
+      setNotes(''); setFulfillmentType('PICKUP');
+      setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
+      setEmitDte(false); setDteType('BOLETA');
       setShowCheckout(false);
       await loadProducts(page);
     } catch (err: any) {
@@ -237,7 +291,34 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page]);
+  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+
+  async function saveNewClient() {
+    if (newClient.name.trim().length < 2) { setErrorMsg('Nombre del cliente requerido'); return; }
+    try {
+      const created = await api.clients.create(
+        {
+          name: newClient.name.trim(),
+          rut: newClient.rut || undefined,
+          giro: newClient.giro || undefined,
+          email: newClient.email || undefined,
+          phone: newClient.phone || undefined,
+          address: newClient.address || undefined,
+          commune: newClient.commune || undefined,
+          city: newClient.city || undefined,
+          ...(isSuperAdmin && selectedCompanyId ? { companyId: selectedCompanyId } : {}),
+        },
+        token,
+      );
+      setClients((cs) => [created, ...cs]);
+      setClientId(created.id);
+      setShowNewClient(false);
+      setNewClient(emptyClient);
+      setErrorMsg('');
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    }
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-8rem)]">
@@ -542,44 +623,100 @@ export default function PosPage() {
             {/* Body con scroll */}
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-              {/* Datos del cliente */}
+              {/* Cliente */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Datos del cliente</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 font-medium mb-1">Nombre</label>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Nombre del cliente"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-500 font-medium mb-1">Teléfono</label>
-                      <input
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="+56 9 XXXX XXXX"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 font-medium mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        placeholder="correo@ejemplo.cl"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Cliente</h3>
+                  <button type="button" onClick={() => { setShowNewClient((s) => !s); setClientId(''); }}
+                    className="text-xs font-medium text-blue-600 hover:underline">
+                    {showNewClient ? 'Usar cliente existente' : '+ Nuevo cliente'}
+                  </button>
                 </div>
+
+                {!showNewClient ? (
+                  <div className="space-y-3">
+                    <select value={clientId} onChange={(e) => setClientId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                      <option value="">— Sin cliente / consumidor final —</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}{c.rut ? ` · ${c.rut}` : ''}</option>
+                      ))}
+                    </select>
+                    {selectedClient ? (
+                      <p className="text-xs text-gray-500">
+                        {selectedClient.rut ? `RUT ${selectedClient.rut}` : 'Sin RUT'}
+                        {selectedClient.email ? ` · ${selectedClient.email}` : ''}
+                        {selectedClient.phone ? ` · ${selectedClient.phone}` : ''}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-xl p-3 space-y-2 bg-gray-50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input value={newClient.name} onChange={(e) => setNewClient((f) => ({ ...f, name: e.target.value }))} placeholder="Nombre / Razón social *"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                      <input value={newClient.rut} onChange={(e) => setNewClient((f) => ({ ...f, rut: e.target.value }))} placeholder="RUT"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={newClient.giro} onChange={(e) => setNewClient((f) => ({ ...f, giro: e.target.value }))} placeholder="Giro"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={newClient.email} onChange={(e) => setNewClient((f) => ({ ...f, email: e.target.value }))} placeholder="Email"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={newClient.phone} onChange={(e) => setNewClient((f) => ({ ...f, phone: e.target.value }))} placeholder="Teléfono"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={newClient.address} onChange={(e) => setNewClient((f) => ({ ...f, address: e.target.value }))} placeholder="Dirección"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                      <input value={newClient.commune} onChange={(e) => setNewClient((f) => ({ ...f, commune: e.target.value }))} placeholder="Comuna"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={newClient.city} onChange={(e) => setNewClient((f) => ({ ...f, city: e.target.value }))} placeholder="Ciudad"
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <button type="button" onClick={saveNewClient}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                      Guardar cliente
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Documento tributario */}
+              {billingConns.length > 0 && (
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2 cursor-pointer">
+                    <input type="checkbox" checked={emitDte} onChange={(e) => setEmitDte(e.target.checked)} className="rounded" />
+                    Emitir documento tributario
+                  </label>
+                  {emitDte && (
+                    <div className="space-y-2 pl-6">
+                      <div className="flex gap-2">
+                        {(['BOLETA', 'FACTURA'] as const).map((t) => (
+                          <button key={t} type="button" onClick={() => setDteType(t)}
+                            className={`flex-1 py-2 rounded-lg border-2 text-xs font-semibold ${dteType === t ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
+                            {t === 'BOLETA' ? 'Boleta' : 'Factura'}
+                          </button>
+                        ))}
+                      </div>
+                      {billingConns.length > 1 && (
+                        <select value={dteConnId} onChange={(e) => setDteConnId(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                          {billingConns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      )}
+                      {dteType === 'FACTURA' && !selectedClient?.rut && (
+                        <p className="text-xs text-amber-600">La Factura necesita un cliente con RUT y razón social.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Tipo de entrega */}
               <div>
