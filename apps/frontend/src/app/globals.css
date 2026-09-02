@@ -201,3 +201,33 @@ body {
   padding: 5px 12px;
   border-radius: 9999px;
 }
+
+/* Entrada al cargar la página (hero). Escalonado con --d. */
+@keyframes ui-enter {
+  from { opacity: 0; transform: translateY(22px); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.ui-enter {
+  opacity: 0;
+  animation: ui-enter 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes ui-enter-panel {
+  from { opacity: 0; transform: translateY(28px) rotate(0deg) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) rotate(1.4deg) scale(1); }
+}
+.ui-enter-panel {
+  opacity: 0;
+  animation: ui-enter-panel 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-enter, .ui-enter-panel { opacity: 1; animation: none; transform: none; }
+  .ui-enter-panel { transform: rotate(1.4deg); }
+}
+
+/* Textura de puntos sutil para fondos oscuros */
+.ui-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
