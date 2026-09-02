@@ -166,8 +166,17 @@ body {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
-.animate-marquee { animation: marquee 25s linear infinite; }
-.animate-marquee-reverse { animation: marquee 25s linear infinite reverse; }
+.animate-marquee { animation: marquee 32s linear infinite; }
+.animate-marquee-reverse { animation: marquee 32s linear infinite reverse; }
+
+/* Degradado en los bordes para el carrusel de logos */
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee, .animate-marquee-reverse { animation: none; }
+}
 
 /* ── Landing ────────────────────────────────────────────────────────────────── */
 .font-serif { font-family: var(--font-serif); }
