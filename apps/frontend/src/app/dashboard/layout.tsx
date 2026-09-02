@@ -115,6 +115,7 @@ function isActive(pathname: string, href: string) {
 }
 
 const OPEN_KEY = 'mp_nav_open';
+const COLLAPSE_KEY = 'mp_nav_collapsed';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -125,6 +126,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (typeof window === 'undefined') return {};
     try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { return {}; }
   });
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1'); } catch { /* ignore */ }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      try { localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1'); } catch { /* ignore */ }
+      return !c;
+    });
+  }
 
   const activeGroupKey = useMemo(() => {
     const g = navGroups.find((grp) => grp.items.some((it) => isActive(pathname, it.href)));
@@ -179,18 +192,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarContent = (
     <>
-      <div className="h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
+      <div className="md:hidden h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
         <span className="font-bold text-[var(--text)] text-base tracking-tight">Marketplace</span>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="md:hidden text-[var(--text-muted)] hover:text-[var(--text)] text-xl leading-none"
+          className="text-[var(--text-muted)] hover:text-[var(--text)] text-xl leading-none"
           aria-label="Cerrar menú"
         >
           ✕
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 px-3 min-h-0">
+      <nav className="flex-1 overflow-y-auto py-3 px-3 min-h-0">
         {visibleGroups.map((g) => {
           const items = (
             <div className="space-y-0.5">
@@ -252,12 +265,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </>
   );
 
+  const MenuIcon = (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+
   return (
-    <div className="min-h-screen flex bg-[var(--page-bg)]">
-      <aside className="hidden md:flex md:w-[var(--side-w)] md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col">
+    <div className="h-dvh flex overflow-hidden bg-[var(--page-bg)]">
+      {/* Sidebar desktop: alto fijo (viewport), colapsable */}
+      <aside
+        className={`hidden md:flex md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col overflow-hidden transition-[width] duration-200 ${
+          collapsed ? 'md:w-0 md:border-r-0' : 'md:w-[var(--side-w)]'
+        }`}
+      >
         {sidebarContent}
       </aside>
 
+      {/* Drawer mobile */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}
@@ -269,23 +296,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {sidebarContent}
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden flex items-center justify-between px-4 h-[var(--topbar-h)] bg-[var(--topbar-bg)] text-[var(--topbar-fg)] sticky top-0 z-30">
+      <div className="flex-1 flex flex-col min-w-0 h-dvh">
+        <header className="flex items-center gap-3 px-4 h-[var(--topbar-h)] bg-[var(--topbar-bg)] text-[var(--topbar-fg)] shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1 -ml-1"
+            className="md:hidden p-1 -ml-1"
             aria-label="Abrir menú"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
+            {MenuIcon}
+          </button>
+          <button
+            onClick={toggleCollapsed}
+            className="hidden md:inline-flex p-1 -ml-1 hover:opacity-80"
+            aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+          >
+            {MenuIcon}
           </button>
           <span className="font-bold tracking-tight">Marketplace</span>
-          <div className="w-6" />
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto min-w-0">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">{children}</main>
       </div>
     </div>
   );
