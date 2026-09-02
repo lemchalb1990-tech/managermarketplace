@@ -16,6 +16,7 @@ interface CartItem {
 }
 
 const PAGE_SIZE = 20;
+const VIEW_KEY = 'pos_products_view';
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Efectivo',
@@ -35,12 +36,11 @@ export default function PosPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [onlyInStock, setOnlyInStock] = useState(false);
+  const [view, setView] = useState<'list' | 'grid' | 'compact'>('list');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -65,7 +65,16 @@ export default function PosPage() {
       setToken(t);
       setUser(u);
     }
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v === 'list' || v === 'grid' || v === 'compact') setView(v);
+    } catch { /* ignore */ }
   }, []);
+
+  function changeView(v: 'list' | 'grid' | 'compact') {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -87,7 +96,6 @@ export default function PosPage() {
       const res = await api.catalog.search({
         page: p,
         search: search || undefined,
-        warehouseId: warehouseFilter || undefined,
         category: categoryFilter || undefined,
         active: 'true',
         inStock: onlyInStock || undefined,
@@ -103,30 +111,25 @@ export default function PosPage() {
     } finally {
       setProductsLoading(false);
     }
-  }, [token, search, warehouseFilter, categoryFilter, onlyInStock, isSuperAdmin, selectedCompanyId]);
+  }, [token, search, categoryFilter, onlyInStock, isSuperAdmin, selectedCompanyId]);
 
   useEffect(() => {
     const t = setTimeout(() => loadProducts(1), 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, search, warehouseFilter, categoryFilter, onlyInStock, selectedCompanyId]);
+  }, [token, search, categoryFilter, onlyInStock, selectedCompanyId]);
 
   useEffect(() => {
     if (!token) return;
     if (isSuperAdmin && !selectedCompanyId) {
-      setWarehouses([]);
       setCategories([]);
       return;
     }
-    api.warehouses.list(token).then((whs) => {
-      setWarehouses(isSuperAdmin ? whs.filter((w: any) => w.companyId === selectedCompanyId) : whs);
-    }).catch(() => {});
     api.catalog.categories(token, isSuperAdmin ? selectedCompanyId : undefined).then(setCategories).catch(() => {});
   }, [token, isSuperAdmin, selectedCompanyId]);
 
   function selectCompany(companyId: string) {
     setSelectedCompanyId(companyId);
-    setWarehouseFilter('');
     setCategoryFilter('');
     setCart([]);
   }
@@ -276,19 +279,6 @@ export default function PosPage() {
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Bodega</label>
-            <select
-              value={warehouseFilter}
-              onChange={(e) => setWarehouseFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
-            >
-              <option value="">Todas</option>
-              {warehouses.map((w: any) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label className="text-xs text-gray-500 block mb-1">Categoría</label>
             <select
               value={categoryFilter}
@@ -310,9 +300,9 @@ export default function PosPage() {
             />
             Solo con stock
           </label>
-          {(search || warehouseFilter || categoryFilter || onlyInStock) && (
+          {(search || categoryFilter || onlyInStock) && (
             <button
-              onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setOnlyInStock(false); }}
+              onClick={() => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); }}
               className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
             >
               Limpiar
@@ -320,51 +310,114 @@ export default function PosPage() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-2xl bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <h2 className="font-semibold text-gray-900">
+            Productos <span className="text-sm font-normal text-gray-400">· {totalProducts}</span>
+          </h2>
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            {([
+              { k: 'list', label: 'Lista' },
+              { k: 'grid', label: 'Cuadrícula' },
+              { k: 'compact', label: 'Compacta' },
+            ] as const).map((v) => (
+              <button
+                key={v.k}
+                onClick={() => changeView(v.k)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+                  view === v.k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto border border-gray-200 rounded-2xl bg-white">
           {productsLoading && (
             <p className="text-gray-400 text-sm text-center py-12">Cargando productos...</p>
           )}
-          {!productsLoading && products.map((p) => {
-            const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
-            const isService = p.type === 'SERVICIO';
-            return (
-              <button
-                key={p.id}
-                onClick={() => addToCart(p)}
-                disabled={!isService && p.stock === 0}
-                className={`w-full flex items-center gap-4 px-4 py-3 text-left transition hover:bg-blue-50 focus:outline-none ${
-                  !isService && p.stock === 0 ? 'opacity-40 cursor-not-allowed' : ''
-                }`}
-              >
-                <div className="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0">
-                  {primaryImg ? (
-                    <img
-                      src={imgUrl(primaryImg.url)}
-                      alt={p.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">
-                      {isService ? '🛠️' : '📦'}
+
+          {!productsLoading && view === 'grid' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 p-3">
+              {products.map((p) => {
+                const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+                const isService = p.type === 'SERVICIO';
+                const out = !isService && p.stock === 0;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    disabled={out}
+                    className={`flex flex-col text-left border border-gray-200 rounded-xl overflow-hidden transition hover:border-blue-400 hover:shadow-sm ${out ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="aspect-square bg-gray-50 overflow-hidden">
+                      {primaryImg ? (
+                        <img src={imgUrl(primaryImg.url)} alt={p.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">
+                          {isService ? '🛠️' : '📦'}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 leading-tight truncate">{p.name}</p>
-                  <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
-                </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                  {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
-                </span>
-                <span className="text-blue-600 font-bold text-lg w-24 text-right shrink-0">
-                  ${Number(p.price).toLocaleString('es-CL')}
-                </span>
-              </button>
-            );
-          })}
+                    <div className="p-2.5 flex-1 flex flex-col gap-1">
+                      <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
+                      <p className="text-[11px] text-gray-400 font-mono truncate">{p.sku}</p>
+                      <div className="mt-auto flex items-center justify-between pt-1">
+                        <span className="text-blue-600 font-bold text-sm">${Number(p.price).toLocaleString('es-CL')}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {isService ? 'Serv.' : p.stock > 0 ? `${p.stock}` : '0'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!productsLoading && view !== 'grid' && (
+            <div className="divide-y divide-gray-100">
+              {products.map((p) => {
+                const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
+                const isService = p.type === 'SERVICIO';
+                const out = !isService && p.stock === 0;
+                const compact = view === 'compact';
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    disabled={out}
+                    className={`w-full flex items-center gap-3 px-4 text-left transition hover:bg-blue-50 focus:outline-none ${compact ? 'py-2' : 'py-3'} ${out ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    {!compact && (
+                      <div className="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0">
+                        {primaryImg ? (
+                          <img src={imgUrl(primaryImg.url)} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">{isService ? '🛠️' : '📦'}</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-bold text-gray-900 leading-tight truncate ${compact ? 'text-[13px]' : 'text-sm'}`}>{p.name}</p>
+                      <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
+                    </span>
+                    <span className={`text-blue-600 font-bold w-24 text-right shrink-0 ${compact ? 'text-base' : 'text-lg'}`}>
+                      ${Number(p.price).toLocaleString('es-CL')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {!productsLoading && products.length === 0 && (
             <p className="text-gray-400 text-sm text-center py-12">
-              {search || warehouseFilter || categoryFilter || onlyInStock ? 'Sin resultados para los filtros aplicados.' : 'No hay productos disponibles.'}
+              {search || categoryFilter || onlyInStock ? 'Sin resultados para los filtros aplicados.' : 'No hay productos disponibles.'}
             </p>
           )}
         </div>
