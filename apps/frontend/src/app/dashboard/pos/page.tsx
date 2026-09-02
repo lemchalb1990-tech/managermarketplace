@@ -220,7 +220,7 @@ export default function PosPage() {
         dto.companyId = selectedCompanyId;
       }
       await api.pos.createSale(dto, token);
-      setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL')}`);
+      setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`);
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
@@ -364,7 +364,7 @@ export default function PosPage() {
                       <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
                       <p className="text-[11px] text-gray-400 font-mono truncate">{p.sku}</p>
                       <div className="mt-auto flex items-center justify-between pt-1">
-                        <span className="text-blue-600 font-bold text-xs">${Number(p.price).toLocaleString('es-CL')}</span>
+                        <span className="text-blue-600 font-bold text-xs">${Number(p.price).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                           {isService ? 'Serv.' : p.stock > 0 ? `${p.stock}` : '0'}
                         </span>
@@ -407,7 +407,7 @@ export default function PosPage() {
                       {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                     </span>
                     <span className={`text-blue-600 font-bold w-20 text-right shrink-0 ${compact ? 'text-xs' : 'text-sm'}`}>
-                      ${Number(p.price).toLocaleString('es-CL')}
+                      ${Number(p.price).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                     </span>
                   </button>
                 );
@@ -466,7 +466,7 @@ export default function PosPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
-                <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL')} c/u</p>
+                <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL', { maximumFractionDigits: 0 })} c/u</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
@@ -499,14 +499,14 @@ export default function PosPage() {
               {cart.map((item) => (
                 <div key={item.productId} className="flex justify-between">
                   <span className="truncate max-w-[140px]">{item.name} x{item.quantity}</span>
-                  <span>${(item.price * item.quantity).toLocaleString('es-CL')}</span>
+                  <span>${(item.price * item.quantity).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
                 </div>
               ))}
             </div>
           )}
           <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
             <span>Total</span>
-            <span>${total.toLocaleString('es-CL')}</span>
+            <span>${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
           </div>
 
           {successMsg && (
@@ -692,7 +692,7 @@ export default function PosPage() {
               )}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">Total a cobrar</span>
-                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL')}</span>
+                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
               </div>
               <button
                 onClick={checkout}
