@@ -29,6 +29,15 @@ export class PosService {
   async createSale(dto: CreateSaleDto, user: any) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
 
+    let client: { id: string; name: string; email: string | null; phone: string | null } | null = null;
+    if (dto.clientId) {
+      const c = await this.prisma.client.findUnique({ where: { id: dto.clientId } });
+      if (!c || c.companyId !== companyId) {
+        throw new BadRequestException('Cliente no válido para esta empresa');
+      }
+      client = { id: c.id, name: c.name, email: c.email, phone: c.phone };
+    }
+
     const products = await this.prisma.product.findMany({
       where: { id: { in: dto.items.map(i => i.productId) }, companyId },
     });
@@ -62,15 +71,16 @@ export class PosService {
           total,
           paymentMethod: dto.paymentMethod,
           notes: dto.notes,
-          customerName: dto.customerName,
-          customerEmail: dto.customerEmail,
-          customerPhone: dto.customerPhone,
+          customerName: dto.customerName || client?.name,
+          customerEmail: dto.customerEmail || client?.email || undefined,
+          customerPhone: dto.customerPhone || client?.phone || undefined,
           fulfillmentType: dto.fulfillmentType,
           address: dto.address,
           commune: dto.commune,
           city: dto.city,
           companyId,
           userId: user.id,
+          clientId: client?.id,
           items: {
             create: dto.items.map(i => ({
               productId: i.productId,

@@ -41,6 +41,10 @@ export class CreateSaleDto {
 
   @IsOptional()
   @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsString()
   customerName?: string;
 
   @IsOptional()

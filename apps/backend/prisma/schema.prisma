@@ -452,6 +452,8 @@ model Sale {
   company   Company @relation(fields: [companyId], references: [id])
   userId    String?
   user      User?   @relation(fields: [userId], references: [id])
+  clientId  String?
+  client    Client? @relation(fields: [clientId], references: [id])
 
   items        SaleItem[]
   invoices     Invoice[]
@@ -721,6 +723,7 @@ model Client {
 
   orderRequests OrderRequest[]
   invoices      Invoice[]
+  sales         Sale[]
 
   @@map("clients")
 }
