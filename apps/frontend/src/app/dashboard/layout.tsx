@@ -105,6 +105,27 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
+// Iconos por sección (stroke, 16px). currentColor hereda el color del titular.
+const ICON_PATHS: Record<string, string> = {
+  inicio: 'M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5',
+  ventas: 'M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0',
+  canales: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7',
+  catalogo: 'M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2M3 8h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2ZM9 12h6',
+  operacion: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Zm0 8 2 2 4-4',
+  repartidores: 'M3 16V7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9M16 10h3l2 3v3h-5M7.5 19.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
+  colaboradores: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-7.13a4 4 0 0 1 0 7.75',
+  admin: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.2.61.76 1.03 1.4 1.09H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z',
+};
+
+function GroupIcon({ k }: { k: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d={ICON_PATHS[k] ?? ICON_PATHS.canales} />
+    </svg>
+  );
+}
+
 const OPEN_KEY = 'mp_nav_open';
 const COLLAPSE_KEY = 'mp_nav_collapsed';
 
@@ -194,50 +215,66 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-3 min-h-0">
+      <nav className="flex-1 overflow-y-auto py-1 px-2 min-h-0">
         {visibleGroups.map((g) => {
-          const items = (
-            <div className="space-y-0.5">
-              {g.items.map((item) => {
-                const active = isActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      active
-                        ? 'bg-[var(--brand-light)] text-[var(--brand-ink)]'
-                        : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          );
+          const links = g.items.map((item) => {
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  active
+                    ? 'bg-[var(--brand-light)] text-[var(--brand-ink)] font-semibold'
+                    : 'text-[var(--text-2)] font-medium hover:bg-[var(--surface-soft)]'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          });
 
-          // Grupo sin nombre (Inicio): siempre visible.
-          if (!g.label) return <div key={g.key} className="mb-1">{items}</div>;
+          // Grupo sin nombre (Inicio): link directo con icono.
+          if (!g.label) {
+            const item = g.items[0];
+            const active = item && isActive(pathname, item.href);
+            return (
+              <div key={g.key} className="border-b border-[var(--border-soft)]">
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[0.8125rem] font-semibold transition-colors ${
+                    active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  <span className="w-3.5" />
+                  <GroupIcon k="inicio" />
+                  <span>{item.label}</span>
+                </Link>
+              </div>
+            );
+          }
 
           const open = !!openGroups[g.key];
           const hasActive = g.key === activeGroupKey;
           return (
-            <div key={g.key} className="mb-0.5">
+            <div key={g.key} className="border-b border-[var(--border-soft)] last:border-b-0">
               <button
                 onClick={() => toggleGroup(g.key)}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[0.8125rem] font-semibold transition-colors ${
-                  hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'
+                className={`w-full flex items-center gap-2.5 px-2 py-2 my-0.5 text-left transition-colors ${
+                  open || hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
                 }`}
               >
-                <span>{g.label}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                   strokeLinecap="round" strokeLinejoin="round"
-                  className={`transition-transform ${open ? 'rotate-90' : ''}`}>
+                  className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}>
                   <path d="M9 6l6 6-6 6" />
                 </svg>
+                <GroupIcon k={g.key} />
+                <span className={open ? 'font-bold uppercase tracking-wide text-[0.75rem]' : 'font-semibold text-[0.8125rem]'}>
+                  {g.label}
+                </span>
               </button>
-              {open && <div className="pb-1 pt-0.5">{items}</div>}
+              {open && <div className="pb-1.5 space-y-0.5">{links}</div>}
             </div>
           );
         })}
