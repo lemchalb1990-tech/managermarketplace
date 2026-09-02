@@ -349,6 +349,8 @@ export class DispatchService {
       await tx.routeStop.update({
         where: { id: stopId },
         data: {
+          outcome: 'DELIVERED',
+          attemptedAt: now,
           deliveredAt: now,
           notes: dto.notes || stop.notes,
           deliveredLat: dto.lat,
