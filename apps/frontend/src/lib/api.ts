@@ -630,28 +630,6 @@ export const api = {
     remove: (id: string, token: string) =>
       apiFetch<any>(`/clients/${id}`, { method: 'DELETE' }, token),
   },
-  orderRequests: {
-    create: (data: { clientId: string; scheduledDispatchDate?: string; notes?: string; companyId?: string; items: Array<{ productId: string; quantity: number }> }, token: string) =>
-      apiFetch<any>('/order-requests', { method: 'POST', body: JSON.stringify(data) }, token),
-    mine: (token: string, page?: number) => {
-      const q = new URLSearchParams();
-      if (page) q.set('page', String(page));
-      return apiFetch<{ items: any[]; total: number; page: number; pages: number }>(`/order-requests/mine?${q}`, {}, token);
-    },
-    pending: (token: string, params?: { companyId?: string; page?: number }) => {
-      const q = new URLSearchParams();
-      if (params?.companyId) q.set('companyId', params.companyId);
-      if (params?.page) q.set('page', String(params.page));
-      return apiFetch<{ items: any[]; total: number; page: number; pages: number }>(`/order-requests/pending?${q}`, {}, token);
-    },
-    get: (id: string, token: string) => apiFetch<any>(`/order-requests/${id}`, {}, token),
-    approve: (id: string, token: string) =>
-      apiFetch<any>(`/order-requests/${id}/approve`, { method: 'PATCH' }, token),
-    reject: (id: string, reason: string, token: string) =>
-      apiFetch<any>(`/order-requests/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }, token),
-    cancel: (id: string, token: string) =>
-      apiFetch<any>(`/order-requests/${id}/cancel`, { method: 'PATCH' }, token),
-  },
   profitability: {
     list: (token: string, companyId?: string) => {
       const q = new URLSearchParams();

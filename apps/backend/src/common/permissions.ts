@@ -59,15 +59,6 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
-    key: 'pedidos',
-    label: 'Pedidos internos',
-    items: [
-      { key: 'pedidos.crear', label: 'Crear solicitudes' },
-      { key: 'pedidos.mis', label: 'Ver mis solicitudes' },
-      { key: 'pedidos.aprobar', label: 'Aprobar pedidos' },
-    ],
-  },
-  {
     key: 'repartidores',
     label: 'Repartidores',
     items: [
@@ -128,9 +119,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'warehouse.board',
     'warehouse.picking',
     'warehouse.packing',
-    'pedidos.crear',
-    'pedidos.mis',
-    'pedidos.aprobar',
     'despachos',
     'drivers.fleet',
     'drivers.metrics',
@@ -158,8 +146,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'warehouse.board',
     'warehouse.picking',
     'warehouse.packing',
-    'pedidos.crear',
-    'pedidos.mis',
     'despachos',
     'drivers.fleet',
     'drivers.metrics',
@@ -174,15 +160,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'clientes',
     'warehouse.picking',
     'warehouse.packing',
-    'pedidos.crear',
-    'pedidos.mis',
   ],
   [Role.DESPACHADOR]: ['mis-rutas', 'warehouse.picking', 'warehouse.packing'],
   [Role.ORDER_MANAGER]: [
     'clientes',
-    'pedidos.crear',
-    'pedidos.mis',
-    'pedidos.aprobar',
   ],
 };
 

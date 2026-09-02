@@ -60,15 +60,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: 'pedidos',
-    label: 'Pedidos internos',
-    items: [
-      { href: '/dashboard/pedidos/nueva-solicitud', label: 'Nueva solicitud', perm: 'pedidos.crear', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-      { href: '/dashboard/pedidos/mis-solicitudes', label: 'Mis solicitudes', perm: 'pedidos.mis', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-      { href: '/dashboard/pedidos/aprobaciones', label: 'Aprobación de pedidos', perm: 'pedidos.aprobar', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ORDER_MANAGER'], module: null },
-    ],
-  },
-  {
     key: 'repartidores',
     label: 'Repartidores',
     items: [

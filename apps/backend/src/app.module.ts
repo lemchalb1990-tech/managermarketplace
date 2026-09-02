@@ -20,7 +20,6 @@ import { OrdersModule } from './orders/orders.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { EmailModule } from './email/email.module';
 import { ClientsModule } from './clients/clients.module';
-import { OrderRequestsModule } from './order-requests/order-requests.module';
 import { ProfitabilityModule } from './profitability/profitability.module';
 import { AccessProfilesModule } from './access-profiles/access-profiles.module';
 import { WarehouseFlowModule } from './warehouse/warehouse.module';
@@ -52,7 +51,6 @@ import { DriversModule } from './drivers/drivers.module';
     DispatchModule,
     EmailModule,
     ClientsModule,
-    OrderRequestsModule,
     ProfitabilityModule,
     AccessProfilesModule,
     WarehouseFlowModule,

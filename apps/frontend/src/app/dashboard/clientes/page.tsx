@@ -15,9 +15,6 @@ const DTE_LABELS: Record<string, string> = {
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Borrador', ISSUED: 'Emitido', ACCEPTED: 'Aceptado', REJECTED: 'Rechazado', CANCELLED: 'Anulado',
 };
-const ORDER_REQUEST_STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pendiente', APPROVED: 'Aprobada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada',
-};
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 export default function ClientsPage() {
@@ -286,7 +283,7 @@ export default function ClientsPage() {
                           className="text-xs text-gray-400 hover:text-gray-600 font-medium">
                           {c.active ? 'Desactivar' : 'Activar'}
                         </button>
-                        {canDelete && c._count?.orderRequests === 0 && c._count?.invoices === 0 && (
+                        {canDelete && c._count?.invoices === 0 && (
                           <button onClick={() => handleDelete(c)}
                             className="text-xs text-red-400 hover:text-red-600 font-medium">
                             Eliminar
@@ -512,33 +509,6 @@ export default function ClientsPage() {
                             ))}
                           </tbody>
                         </table>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Solicitudes de pedido ({historyData.orderRequests.length})
-                    </h3>
-                    {historyData.orderRequests.length === 0 ? (
-                      <p className="text-xs text-gray-400">Sin solicitudes de pedido para este cliente.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {historyData.orderRequests.map((req: any) => {
-                          const total = req.items.reduce((s: number, i: any) => s + Number(i.unitPrice) * i.quantity, 0);
-                          return (
-                            <div key={req.id} className="border border-gray-200 rounded-lg px-3 py-2 text-xs">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-gray-600">{fmtDate(req.createdAt)}</span>
-                                <span className="font-medium text-gray-700">{ORDER_REQUEST_STATUS_LABELS[req.status] ?? req.status}</span>
-                                <span className="font-semibold text-gray-900">{fmt(total)}</span>
-                              </div>
-                              <p className="text-gray-400 truncate">
-                                {req.items.map((i: any) => `${i.product?.name ?? 'Producto'} ×${i.quantity}`).join(', ')}
-                              </p>
-                            </div>
-                          );
-                        })}
                       </div>
                     )}
                   </div>
