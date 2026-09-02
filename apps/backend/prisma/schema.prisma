@@ -82,6 +82,26 @@ enum RouteStatus {
   CANCELLED
 }
 
+enum StopOutcome {
+  PENDING
+  DELIVERED
+  ABSENT
+  REFUSED
+  RESCHEDULED
+  LOST
+  RETURNED
+}
+
+enum DriverPayModel {
+  FLAT
+  PER_PACKAGE
+}
+
+enum DriverPaymentStatus {
+  PENDING
+  PAID
+}
+
 enum OrderStatus {
   PENDING
   PREPARING
@@ -158,6 +178,7 @@ model Company {
   profitabilityItems ProfitabilityItem[]
   accessProfiles     AccessProfile[]
   returns            Return[]
+  driverPayments     DriverPayment[]
 
   @@map("companies")
 }
@@ -210,6 +231,9 @@ model User {
   ordersPicked          Order[]          @relation("OrderPickedBy")
   ordersPacked          Order[]          @relation("OrderPackedBy")
   returnsReceived       Return[]         @relation("ReturnReceivedBy")
+  driverProfile         DriverProfile?   @relation("UserDriverProfile")
+  driverPayments        DriverPayment[]  @relation("DriverPayments")
+  driverPaymentsCreated DriverPayment[]  @relation("DriverPaymentCreatedBy")
   itemChecks            OrderItemCheck[] @relation("ItemCheckedBy")
   shipmentPhotos        ShipmentPhoto[]
   dispatchRoutes        DispatchRoute[]  @relation("DispatcherRoutes")
@@ -863,23 +887,73 @@ model DispatchRoute {
 }
 
 model RouteStop {
-  id           String    @id @default(cuid())
+  id           String      @id @default(cuid())
   position     Int
   notes        String?
   lat          Float?
   lng          Float?
+  outcome      StopOutcome @default(PENDING)
+  attemptedAt  DateTime?
   deliveredAt  DateTime?
   deliveredLat Float?
   deliveredLng Float?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   routeId String
   route   DispatchRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   orderId String        @unique
   order   Order         @relation(fields: [orderId], references: [id])
 
+  driverPaymentId String?
+  driverPayment   DriverPayment? @relation(fields: [driverPaymentId], references: [id])
+
   @@map("route_stops")
+}
+
+// Ficha del repartidor (1:1 con un User de rol DESPACHADOR).
+model DriverProfile {
+  id             String         @id @default(cuid())
+  phone          String?
+  address        String?
+  zone           String?
+  notes          String?
+  payModel       DriverPayModel @default(FLAT)
+  flatRate       Decimal        @default(0) @db.Decimal(10, 2)
+  perPackageRate Decimal        @default(0) @db.Decimal(10, 2)
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  userId String @unique
+  user   User   @relation("UserDriverProfile", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
+
+// Lote de pago a un repartidor por paquetes entregados en un rango.
+model DriverPayment {
+  id        String              @id @default(cuid())
+  periodFrom DateTime
+  periodTo   DateTime
+  packages  Int
+  amount    Decimal             @db.Decimal(12, 2)
+  status    DriverPaymentStatus @default(PENDING)
+  paidAt    DateTime?
+  notes     String?
+  createdAt DateTime            @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    User    @relation("DriverPayments", fields: [driverId], references: [id])
+  createdById String?
+  createdBy   User?  @relation("DriverPaymentCreatedBy", fields: [createdById], references: [id])
+
+  stops RouteStop[]
+
+  @@index([companyId, driverId, status])
+  @@map("driver_payments")
 }
 
 model AuditLog {

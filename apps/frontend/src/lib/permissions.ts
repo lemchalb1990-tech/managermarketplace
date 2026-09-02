@@ -49,6 +49,14 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     ],
   },
   {
+    key: 'repartidores', label: 'Repartidores', items: [
+      { key: 'drivers.fleet', label: 'Flota' },
+      { key: 'drivers.metrics', label: 'Métricas' },
+      { key: 'drivers.payments', label: 'Remuneración de repartos' },
+      { key: 'drivers.zones', label: 'Zonas de demanda' },
+    ],
+  },
+  {
     key: 'colaboradores', label: 'Colaboradores', items: [
       { key: 'users', label: 'Usuarios' },
       { key: 'access-profiles', label: 'Perfiles de acceso' },

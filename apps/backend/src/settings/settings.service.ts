@@ -24,6 +24,13 @@ export const SETTING_DEFINITIONS = [
     hint: 'ID de categoría de Mercado Libre usada cuando el producto no tiene una asignada. Ej: MLC1000',
     sensitive: false,
   },
+  {
+    key: 'GOOGLE_MAPS_KEY',
+    label: 'API Key de Google Maps',
+    group: 'sistema',
+    hint: 'Necesaria para el mapa de "Zonas de demanda". Se obtiene en Google Cloud Console (Maps JavaScript API).',
+    sensitive: true,
+  },
 ];
 
 @Injectable()

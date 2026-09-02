@@ -72,6 +72,16 @@ export const PERMISSION_GROUPS: { key: string; label: string; items: { key: stri
     ],
   },
   {
+    key: 'repartidores',
+    label: 'Repartidores',
+    items: [
+      { key: 'drivers.fleet', label: 'Flota' },
+      { key: 'drivers.metrics', label: 'Métricas' },
+      { key: 'drivers.payments', label: 'Remuneración de repartos' },
+      { key: 'drivers.zones', label: 'Zonas de demanda' },
+    ],
+  },
+  {
     key: 'colaboradores',
     label: 'Colaboradores',
     items: [
@@ -106,7 +116,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
     'warehouse.board', 'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis', 'pedidos.aprobar',
-    'despachos',
+    'despachos', 'drivers.fleet', 'drivers.metrics', 'drivers.payments', 'drivers.zones',
     'users', 'access-profiles',
     'emails',
   ],
@@ -116,7 +126,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'catalog', 'warehouses', 'purchases', 'suppliers', 'rentabilidad',
     'warehouse.board', 'warehouse.picking', 'warehouse.packing',
     'pedidos.crear', 'pedidos.mis',
-    'despachos',
+    'despachos', 'drivers.fleet', 'drivers.metrics', 'drivers.zones',
   ],
   [Role.VENDEDOR]: [
     'orders', 'shipping', 'returns', 'sales', 'pos', 'clientes',

@@ -26,6 +26,7 @@ import { AccessProfilesModule } from './access-profiles/access-profiles.module';
 import { WarehouseFlowModule } from './warehouse/warehouse.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { ReturnsModule } from './returns/returns.module';
+import { DriversModule } from './drivers/drivers.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ReturnsModule } from './returns/returns.module';
     WarehouseFlowModule,
     ShippingModule,
     ReturnsModule,
+    DriversModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
