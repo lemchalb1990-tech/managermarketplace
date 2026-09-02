@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
 
 const PAY_MODELS = [
   { key: 'FLAT', label: 'Tarifa plana (por día con reparto)' },
@@ -17,6 +17,7 @@ export default function FlotaPage() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function load() {
     const token = getToken();
@@ -54,6 +55,8 @@ export default function FlotaPage() {
       }, getToken()!);
       setEditing(null);
       await load();
+      setToast('Modificación realizada');
+      setTimeout(() => setToast(null), 2500);
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -142,6 +145,8 @@ export default function FlotaPage() {
           </div>
         </div>
       )}
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

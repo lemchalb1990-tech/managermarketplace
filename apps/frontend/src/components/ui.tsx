@@ -147,3 +147,33 @@ export function BrandButton({
     </button>
   );
 }
+
+/**
+ * Aviso flotante (toast). El padre controla la visibilidad y el auto-cierre:
+ *   const [toast, setToast] = useState<string | null>(null);
+ *   // al guardar OK:  setToast('Modificación realizada'); setTimeout(() => setToast(null), 2500);
+ *   {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+ */
+export function Toast({
+  message,
+  tone = 'ok',
+  onClose,
+}: {
+  message: ReactNode;
+  tone?: 'ok' | 'danger';
+  onClose?: () => void;
+}) {
+  const cls = tone === 'danger'
+    ? 'text-[var(--danger)] bg-[var(--danger-bg)] border-[var(--danger)]'
+    : 'text-[var(--ok)] bg-[var(--ok-bg)] border-[var(--ok)]';
+  return (
+    <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg text-sm font-medium ui-card"
+      role="status">
+      <span className={`w-2 h-2 rounded-full ${tone === 'danger' ? 'bg-[var(--danger)]' : 'bg-[var(--ok)]'}`} />
+      <span className={cls.split(' ')[0]}>{message}</span>
+      {onClose && (
+        <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text)] leading-none ml-1">✕</button>
+      )}
+    </div>
+  );
+}

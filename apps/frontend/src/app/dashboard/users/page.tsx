@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { Toast } from '@/components/ui';
 
 const ALL_ROLES = [
   { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
@@ -65,6 +66,8 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState(emptyEdit);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
   const [showPassword, setShowPassword] = useState(false);
 
   const [resetUser, setResetUser] = useState<any>(null);
@@ -107,6 +110,7 @@ export default function UsersPage() {
       setForm(emptyForm);
       setShowForm(false);
       await load();
+      flash('Usuario creado');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -162,6 +166,7 @@ export default function UsersPage() {
       await api.users.update(editUser.id, payload, token);
       setEditUser(null);
       await load();
+      flash('Modificación realizada');
     } catch (err: any) {
       setEditError(err.message);
     } finally {
@@ -555,6 +560,8 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

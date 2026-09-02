@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
 
 type Group = { key: string; label: string; items: { key: string; label: string }[] };
 type Profile = {
@@ -30,6 +30,8 @@ export default function AccessProfilesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
 
   const isSuperAdmin = me?.role === 'SUPER_ADMIN';
   const allKeys = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.key)), [groups]);
@@ -104,8 +106,10 @@ export default function AccessProfilesPage() {
       } else if (editing) {
         await api.accessProfiles.update(editing.id, { name: form.name.trim(), permissions: form.permissions }, token);
       }
+      const wasNew = editing === 'new';
       setEditing(null);
       await load();
+      flash(wasNew ? 'Perfil creado' : 'Modificación realizada');
     } catch (err: any) {
       setFormError(err.message);
     } finally {
@@ -255,6 +259,8 @@ export default function AccessProfilesPage() {
           </div>
         </div>
       )}
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }
