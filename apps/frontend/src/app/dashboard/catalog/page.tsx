@@ -674,9 +674,12 @@ export default function CatalogPage() {
         warehouseId: editForm.warehouseId || undefined,
       };
       if (selected.id) {
-        await api.catalog.update(selected.id, payload, token);
+        const updated = await api.catalog.update(selected.id, payload, token);
         await refreshSelected(selected.id);
         setIsDirty(false);
+        setSelected(null);
+        setListNoticeIsWarning(false);
+        setListNotice(`Cambios guardados en "${updated?.name ?? editForm.name}".`);
       } else {
         const created = await api.catalog.create(payload, token);
         const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
