@@ -103,6 +103,11 @@ export class BillingController {
     return this.service.unmarkInvoicePaid(id, user);
   }
 
+  @Post('invoices/:id/send-email')
+  sendInvoiceEmail(@Param('id') id: string, @Body() body: { email?: string }, @CurrentUser() user: any) {
+    return this.service.sendInvoiceByEmail(id, user, body?.email);
+  }
+
   // ── Perfil de facturación (solo administradores) ────────────────────
 
   @Get('profile')

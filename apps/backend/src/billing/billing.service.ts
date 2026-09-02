@@ -8,6 +8,7 @@ import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
 import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
 import { normalizeRut } from '../common/rut.util';
+import { EmailService } from '../email/email.service';
 
 const PAGE_SIZE = 20;
 
@@ -19,6 +20,7 @@ export class BillingService {
 
   constructor(
     private prisma: PrismaService,
+    private email: EmailService,
     private openfactura: OpenFacturaAdapter,
     private bsale: BsaleAdapter,
     private facto: FactoAdapter,
@@ -380,11 +382,26 @@ export class BillingService {
   async getInvoice(id: string, user: any) {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
-      include: { connection: { select: { id: true, name: true, provider: true } } },
+      include: {
+        connection: { select: { id: true, name: true, provider: true } },
+        client: { select: { id: true, name: true, email: true } },
+      },
     });
     if (!inv) throw new NotFoundException();
     if (user.role !== Role.SUPER_ADMIN && inv.companyId !== user.companyId) throw new ForbiddenException();
     return inv;
+  }
+
+  /** Envía el DTE ya emitido por correo (destinatario opcional; si no, usa el email del DTE o del cliente). */
+  async sendInvoiceByEmail(id: string, user: any, toOverride?: string) {
+    const inv = await this.getInvoice(id, user);
+    if (inv.status !== InvoiceStatus.ISSUED) {
+      throw new BadRequestException('Solo se pueden enviar documentos ya emitidos');
+    }
+    const to = (toOverride || inv.email || (inv as any).client?.email || '').trim();
+    if (!to) throw new BadRequestException('No hay un correo de destino');
+    await this.email.sendInvoiceEmail(inv.companyId, to, inv);
+    return { sent: true, to };
   }
 
   // Borra por completo un documento que nunca llegó a emitirse (sin folio asignado por el

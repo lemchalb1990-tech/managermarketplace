@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api, imgUrl } from '@/lib/api';
+import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 
 interface CartItem {
   productId: string;
@@ -76,6 +76,8 @@ export default function PosPage() {
   ] as const;
   const isFactura = dteType === 'FACTURA' || dteType === 'FACTURA_EXENTA';
   const [dteConnId, setDteConnId] = useState('');
+  const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
 
   const selectedClient = clients.find((c) => c.id === clientId) || null;
 
@@ -279,9 +281,17 @@ export default function PosPage() {
           }, token);
           const docLabel = dteType === 'BOLETA' ? 'Boleta' : dteType === 'FACTURA_EXENTA' ? 'Factura exenta' : 'Factura';
           dteMsg = ` · ${docLabel}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
+          setLastInvoice({
+            ...inv,
+            docLabel,
+            defaultEmail: selectedClient?.email || customerEmail || '',
+          });
         } catch (e: any) {
           dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
+          setLastInvoice(null);
         }
+      } else {
+        setLastInvoice(null);
       }
 
       setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${dteMsg}`);
@@ -324,6 +334,27 @@ export default function PosPage() {
       setErrorMsg('');
     } catch (err: any) {
       setErrorMsg(err.message);
+    }
+  }
+
+  async function viewInvoice() {
+    if (!lastInvoice?.pdfUrl) { setErrorMsg('El documento no tiene PDF disponible aún'); return; }
+    try { await openDocumentUrl(lastInvoice.pdfUrl); }
+    catch { window.open(lastInvoice.pdfUrl, '_blank', 'noopener,noreferrer'); }
+  }
+
+  async function emailInvoice() {
+    if (!lastInvoice) return;
+    const to = window.prompt('Enviar el documento a:', lastInvoice.defaultEmail || '');
+    if (to === null) return;
+    setEmailBusy(true);
+    try {
+      const res = await api.billing.invoices.sendEmail(lastInvoice.id, to.trim() || undefined, token);
+      setSuccessMsg(`${lastInvoice.docLabel} enviada a ${res.to}`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'No se pudo enviar el correo');
+    } finally {
+      setEmailBusy(false);
     }
   }
 
@@ -599,6 +630,25 @@ export default function PosPage() {
 
           {successMsg && (
             <div className="bg-green-50 text-green-700 text-xs rounded-lg px-3 py-2">{successMsg}</div>
+          )}
+
+          {lastInvoice && (
+            <div className="border border-blue-200 bg-blue-50 rounded-lg p-2.5 space-y-2">
+              <p className="text-xs font-medium text-blue-800">
+                {lastInvoice.docLabel}{lastInvoice.folio ? ` N° ${lastInvoice.folio}` : ''} emitida
+              </p>
+              <div className="flex gap-2">
+                <button onClick={viewInvoice} disabled={!lastInvoice.pdfUrl}
+                  className="flex-1 py-1.5 bg-white border border-blue-300 text-blue-700 rounded-lg text-xs font-semibold disabled:opacity-40">
+                  Ver documento
+                </button>
+                <button onClick={emailInvoice} disabled={emailBusy}
+                  className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+                  {emailBusy ? 'Enviando…' : 'Enviar por correo'}
+                </button>
+              </div>
+              <button onClick={() => setLastInvoice(null)} className="text-[11px] text-blue-400 hover:underline">Ocultar</button>
+            </div>
           )}
 
           <button

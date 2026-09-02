@@ -407,4 +407,52 @@ export class EmailService {
       html: bodyHtml,
     });
   }
+
+  /** Envía un documento tributario (DTE) por correo, con el PDF adjunto si está disponible. */
+  async sendInvoiceEmail(companyId: string, to: string, invoice: any): Promise<void> {
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new Error('Configura el servidor SMTP primero');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    const companyName = company?.name ?? 'Tienda';
+    const from = await this.getFromAddress(companyId);
+
+    const DOC: Record<string, string> = {
+      BOLETA: 'Boleta electrónica', FACTURA: 'Factura electrónica', FACTURA_EXENTA: 'Factura exenta',
+      NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito',
+    };
+    const docLabel = DOC[invoice.dteType] ?? invoice.dteType;
+    const title = `${docLabel}${invoice.folio ? ` N° ${invoice.folio}` : ''}`;
+    const total = `$${Number(invoice.totalAmount).toLocaleString('es-CL')}`;
+
+    const linkHtml = invoice.pdfUrl
+      ? `<p style="margin-top:16px;"><a href="${invoice.pdfUrl}" style="color:#1d4ed8;">Ver / descargar ${docLabel} (PDF)</a></p>`
+      : '';
+    const bodyHtml = shell(
+      `<h2 style="margin:0 0 12px;font-size:20px;color:#1f2937;">${title}</h2>
+       <p style="color:#6b7280;font-size:15px;">${companyName} te envía tu documento tributario.</p>
+       <p style="color:#374151;font-size:15px;">Total: <strong>${total}</strong></p>
+       ${linkHtml}`,
+      companyName,
+    );
+
+    const attachments: any[] = [];
+    if (invoice.pdfUrl && /^https?:\/\//.test(invoice.pdfUrl)) {
+      try {
+        const res = await fetch(invoice.pdfUrl);
+        if (res.ok) {
+          attachments.push({
+            filename: `${title.replace(/\s+/g, '_')}.pdf`,
+            content: Buffer.from(await res.arrayBuffer()),
+            contentType: 'application/pdf',
+          });
+        }
+      } catch (err: any) {
+        this.logger.warn(`No se pudo adjuntar el PDF del DTE: ${err.message}`);
+      }
+    }
+
+    await transporter.sendMail({ from, to, subject: `${title} — ${companyName}`, html: bodyHtml, attachments });
+    this.logger.log(`DTE enviado → ${to}`);
+  }
 }

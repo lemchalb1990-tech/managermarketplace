@@ -5,8 +5,10 @@ import { OpenFacturaAdapter } from './providers/openfactura.adapter';
 import { BsaleAdapter } from './providers/bsale.adapter';
 import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
+import { EmailModule } from '../email/email.module';
 
 @Module({
+  imports: [EmailModule],
   controllers: [BillingController],
   providers: [BillingService, OpenFacturaAdapter, BsaleAdapter, FactoAdapter, BillingStubAdapter],
   exports: [BillingService],

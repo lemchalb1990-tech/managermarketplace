@@ -434,6 +434,12 @@ export const api = {
         apiFetch<any>(`/billing/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       get: (id: string, token: string) =>
         apiFetch<any>(`/billing/invoices/${id}`, {}, token),
+      sendEmail: (id: string, email: string | undefined, token: string) =>
+        apiFetch<{ sent: boolean; to: string }>(
+          `/billing/invoices/${id}/send-email`,
+          { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
+          token,
+        ),
       remove: (id: string, token: string) =>
         apiFetch<{ deleted: boolean }>(`/billing/invoices/${id}`, { method: 'DELETE' }, token),
       cancel: (id: string, token: string) =>
