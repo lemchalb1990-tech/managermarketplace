@@ -145,33 +145,6 @@ export default function BodegaBoardPage() {
               </div>
             </SectionCard>
           </div>
-
-          <SectionCard title="Rendimiento por colaborador (hoy)">
-            <div className="overflow-x-auto -m-5">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-soft)] border-b border-[var(--border-soft)]">
-                  <tr>
-                    <th className="text-left px-5 py-2.5 font-medium text-[var(--text-2)]">Colaborador</th>
-                    <th className="text-left px-5 py-2.5 font-medium text-[var(--text-2)]">Estado</th>
-                    <th className="text-right px-5 py-2.5 font-medium text-[var(--text-2)]">Asignados</th>
-                    <th className="text-right px-5 py-2.5 font-medium text-[var(--text-2)]">Pickeados</th>
-                    <th className="text-right px-5 py-2.5 font-medium text-[var(--text-2)]">Empacados</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-soft)]">
-                  {board.collaborators.map((c: any) => (
-                    <tr key={c.id}>
-                      <td className="px-5 py-2.5 font-medium text-[var(--text)]">{c.name}</td>
-                      <td className="px-5 py-2.5 text-xs text-[var(--text-muted)]">{c.active ? 'Activo hoy' : 'Sin actividad'}</td>
-                      <td className="px-5 py-2.5 text-right text-[var(--text-2)]">{c.assigned}</td>
-                      <td className="px-5 py-2.5 text-right text-[var(--text-2)]">{c.picked}</td>
-                      <td className="px-5 py-2.5 text-right text-[var(--text-2)]">{c.packed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SectionCard>
         </div>
       )}
     </div>
