@@ -246,9 +246,12 @@ export function ModulesExplorer() {
         return (
           <article
             key={m.title}
-            className={`overflow-hidden rounded-[1.2rem] border bg-[var(--surface)] transition-colors ${
-              isOpen ? "border-[var(--brand)]" : "border-[var(--border)]"
+            className={`group/mod overflow-hidden rounded-[1.2rem] border bg-[var(--surface)] transition-[border-color,box-shadow,transform] duration-300 ${
+              isOpen
+                ? "border-[var(--brand)] shadow-[var(--shadow-sm)]"
+                : "border-[var(--border)] hover:border-[var(--brand)]/40"
             }`}
+            style={{ transitionTimingFunction: EASE }}
           >
             <button
               type="button"
@@ -257,9 +260,12 @@ export function ModulesExplorer() {
               className="flex w-full items-center gap-4 px-5 py-4 text-left"
             >
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                  isOpen ? "bg-[var(--brand)] text-[#35301f]" : "bg-[var(--brand-soft)] text-[var(--brand-ink)]"
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-all duration-300 ${
+                  isOpen
+                    ? "scale-110 bg-[var(--brand)] text-[#35301f]"
+                    : "bg-[var(--brand-soft)] text-[var(--brand-ink)] group-hover/mod:-rotate-6"
                 }`}
+                style={{ transitionTimingFunction: EASE }}
               >
                 <Icon d={m.icon} />
               </span>
@@ -282,7 +288,7 @@ export function ModulesExplorer() {
               style={{ gridTemplateRows: isOpen ? "1fr" : "0fr", transitionTimingFunction: EASE }}
             >
               <div className="overflow-hidden">
-                <div className="grid gap-5 border-t border-[var(--border-soft)] px-5 py-5 md:grid-cols-[1fr_1.05fr] md:items-center">
+                <div className="grid gap-5 border-t border-[var(--border-soft)] px-5 py-5 md:grid-cols-[1fr_1.05fr] md:items-start">
                   <p className="text-[0.92rem] leading-relaxed text-[var(--text-2)]">{m.body}</p>
                   <div aria-hidden="true">{m.mock}</div>
                 </div>
@@ -355,12 +361,12 @@ function FulfillMock() {
       <p className="mb-3 text-xs font-semibold text-[var(--text-2)]">Pedido #40213 · listo para despacho</p>
       <div className="space-y-1.5">
         {[
-          ["Picking verificado con escáner", true],
-          ["Empacado y pesado", true],
-          ["Etiqueta Mercado Envíos impresa", true],
-          ["Boleta electrónica emitida", true],
-        ].map(([t, done]) => (
-          <div key={t as string} className="flex items-center gap-2.5 rounded-md bg-[var(--surface-soft)] px-3 py-2 text-[0.76rem]">
+          "Picking verificado con escáner",
+          "Empacado y pesado",
+          "Etiqueta Mercado Envíos impresa",
+          "Boleta electrónica emitida",
+        ].map((t) => (
+          <div key={t} className="flex items-center gap-2.5 rounded-md bg-[var(--surface-soft)] px-3 py-2 text-[0.76rem]">
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--ok-bg)] text-[var(--ok)]">
               <Icon d={ICONS.check} size={11} />
             </span>
@@ -374,21 +380,18 @@ function FulfillMock() {
 
 const STEPS = [
   {
-    n: "01",
     icon: ICONS.plug,
     t: "Conecta tus canales",
     d: "Enlazas tus marketplaces, la tienda online y el proveedor de facturación una sola vez. Desde ahí todo entra al mismo panel.",
     mock: <ConnectMock />,
   },
   {
-    n: "02",
     icon: ICONS.scan,
     t: "El stock se sincroniza solo",
-    d: "Cada venta —venga del canal que venga— descuenta de la bodega correcta y vuelve a publicar el stock disponible en el resto de los canales.",
+    d: "Cada venta, venga del canal que venga, descuenta de la bodega correcta y vuelve a publicar el stock disponible en el resto de los canales.",
     mock: <SyncMock />,
   },
   {
-    n: "03",
     icon: ICONS.doc,
     t: "Prepara, despacha y factura",
     d: "El equipo prepara con pistola, despacha por transportista antes de la hora de corte y el documento tributario se emite en el mismo flujo.",
@@ -398,23 +401,20 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <div className="mt-12 space-y-14">
-      {STEPS.map((s, i) => (
-        <div
-          key={s.n}
-          className={`ui-reveal grid items-center gap-8 lg:grid-cols-2 ${i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""}`}
-        >
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand-ink)]">
-                <Icon d={s.icon} size={18} />
-              </span>
-              <span className="font-mono text-xs text-[var(--brand-ink)]">{s.n}</span>
+    <div className="relative mt-14 pl-11">
+      <div className="ui-timeline-line" aria-hidden="true" />
+      {STEPS.map((s) => (
+        <div key={s.t} className="ui-reveal relative pb-16 last:pb-0">
+          <span className="absolute -left-11 top-0 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--brand)] bg-[var(--surface)] text-[var(--brand-ink)]">
+            <Icon d={s.icon} size={16} />
+          </span>
+          <div className="grid gap-6 lg:grid-cols-[1fr_1.05fr] lg:items-center">
+            <div>
+              <h3 className="font-serif text-[1.5rem] leading-tight">{s.t}</h3>
+              <p className="mt-3 max-w-md text-[0.95rem] leading-relaxed text-[var(--text-2)]">{s.d}</p>
             </div>
-            <h3 className="font-serif mt-4 text-[1.5rem] leading-tight tracking-[-0.01em]">{s.t}</h3>
-            <p className="mt-3 max-w-md text-[0.95rem] leading-relaxed text-[var(--text-2)]">{s.d}</p>
+            <div aria-hidden="true">{s.mock}</div>
           </div>
-          <div aria-hidden="true">{s.mock}</div>
         </div>
       ))}
     </div>

@@ -66,8 +66,8 @@
   --color-foreground: var(--text);
   --color-brand: var(--brand);
   --color-surface: var(--surface);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-serif), "Georgia", "Times New Roman", serif;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
@@ -78,7 +78,7 @@
 body {
   background: var(--page-bg);
   color: var(--text);
-  font-family: var(--font-inter), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  font-family: var(--font-hanken), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -179,7 +179,18 @@ body {
 }
 
 /* ── Landing ────────────────────────────────────────────────────────────────── */
-.font-serif { font-family: var(--font-serif); }
+/* Titulares: misma familia, peso alto y tracking negativo para que tengan
+   presencia sin recurrir a una serif. La clase conserva el nombre histórico. */
+.font-serif {
+  font-family: var(--font-serif);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  font-feature-settings: "ss01", "cv05";
+}
+.font-serif em {
+  font-style: italic;
+  font-weight: 800;
+}
 
 /* Revelado al entrar en viewport (scroll-driven, con degradado elegante:
    sin soporte el contenido queda visible). */
@@ -192,7 +203,7 @@ body {
     opacity: 0;
     animation: ui-reveal linear both;
     animation-timeline: view();
-    animation-range: entry 0% cover 22%;
+    animation-range: entry 2% entry 80%;
   }
   @media (prefers-reduced-motion: reduce) {
     .ui-reveal { opacity: 1; animation: none; }
@@ -239,6 +250,131 @@ body {
 .ui-dots {
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 22px 22px;
+}
+
+/* ── Texturas ─────────────────────────────────────────────────────────────────
+   Grano de papel cálido en toda la página. Va en un pseudo-elemento fijo y sin
+   eventos para no repintar en cada scroll (barato en GPU). */
+.ui-grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  .ui-grain::after { mix-blend-mode: screen; opacity: 0.28; }
+}
+
+/* Halo cálido detrás de un asset (hero). */
+.ui-halo {
+  position: relative;
+  isolation: isolate;
+}
+.ui-halo::before {
+  content: "";
+  position: absolute;
+  inset: -18% -12% -12% -12%;
+  z-index: -1;
+  background: radial-gradient(60% 55% at 65% 35%, rgba(224, 168, 51, 0.22), transparent 70%);
+  filter: blur(8px);
+}
+
+/* Rayado diagonal fino para separar bloques claros sin una línea dura. */
+.ui-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--border-soft) 0 1px,
+    transparent 1px 9px
+  );
+}
+
+/* Borde superior degradado: transición suave entre secciones. */
+.ui-seam {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 40px);
+  mask-image: linear-gradient(to bottom, transparent, #000 40px);
+}
+
+/* ── Spotlight que sigue al cursor (secciones oscuras) ─────────────────────── */
+.ui-spot {
+  position: relative;
+  isolation: isolate;
+}
+.ui-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: radial-gradient(
+    280px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(224, 168, 51, 0.16),
+    transparent 65%
+  );
+}
+.ui-spot[data-active="true"]::before { opacity: 1; }
+.ui-spot > * { position: relative; z-index: 1; }
+
+/* ── Tilt de parálax (hero mock) ──────────────────────────────────────────── */
+.ui-tilt {
+  perspective: 1100px;
+}
+.ui-tilt-inner {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+  transform-style: preserve-3d;
+}
+
+/* ── Línea de progreso del timeline "Cómo funciona" ───────────────────────── */
+.ui-timeline-line {
+  position: absolute;
+  left: 15px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.ui-timeline-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--brand), var(--brand-ink));
+  transform-origin: top;
+  transform: scaleY(var(--p, 0));
+}
+@supports (animation-timeline: scroll()) {
+  .ui-timeline-line::after {
+    transform: scaleY(1);
+    animation: ui-grow linear both;
+    animation-timeline: scroll(nearest);
+    animation-range: cover 12% cover 82%;
+  }
+  @keyframes ui-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+}
+
+/* ── Aparición palabra por palabra (titular del hero) ─────────────────────── */
+.ui-words > span {
+  display: inline-block;
+  opacity: 0;
+  animation: ui-word 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(220ms + var(--i) * 60ms);
+}
+@keyframes ui-word {
+  from { opacity: 0; transform: translateY(0.5em) rotate(2deg); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-tilt-inner { transform: none !important; }
+  .ui-timeline-line::after { transform: scaleY(1); animation: none; }
+  .ui-words > span { opacity: 1; animation: none; }
+  .ui-spot::before { display: none; }
 }
 
 /* ── Tema del panel ─────────────────────────────────────────────────────────
