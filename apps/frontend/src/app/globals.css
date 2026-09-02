@@ -67,6 +67,7 @@
   --color-brand: var(--brand);
   --color-surface: var(--surface);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif), "Georgia", "Times New Roman", serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
@@ -167,3 +168,36 @@ body {
 }
 .animate-marquee { animation: marquee 25s linear infinite; }
 .animate-marquee-reverse { animation: marquee 25s linear infinite reverse; }
+
+/* ── Landing ────────────────────────────────────────────────────────────────── */
+.font-serif { font-family: var(--font-serif); }
+
+/* Revelado al entrar en viewport (scroll-driven, con degradado elegante:
+   sin soporte el contenido queda visible). */
+@keyframes ui-reveal {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@supports (animation-timeline: view()) {
+  .ui-reveal {
+    opacity: 0;
+    animation: ui-reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 22%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ui-reveal { opacity: 1; animation: none; }
+  }
+}
+
+.ui-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 9999px;
+}
