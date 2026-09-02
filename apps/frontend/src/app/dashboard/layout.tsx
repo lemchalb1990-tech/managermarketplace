@@ -78,6 +78,16 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'repartidores',
+    label: 'Repartidores',
+    items: [
+      { href: '/dashboard/repartidores/flota', label: 'Flota', perm: 'drivers.fleet', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+      { href: '/dashboard/repartidores/metricas', label: 'Métricas', perm: 'drivers.metrics', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+      { href: '/dashboard/repartidores/remuneracion', label: 'Remuneración', perm: 'drivers.payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'dispatch' },
+      { href: '/dashboard/repartidores/zonas', label: 'Zonas de demanda', perm: 'drivers.zones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+    ],
+  },
+  {
     key: 'colaboradores',
     label: 'Colaboradores',
     items: [

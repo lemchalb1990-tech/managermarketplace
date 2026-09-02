@@ -125,6 +125,33 @@ export const api = {
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   },
+  drivers: {
+    fleet: (token: string) => apiFetch<any[]>('/drivers/fleet', {}, token),
+    upsertProfile: (driverId: string, data: any, token: string) =>
+      apiFetch<any>(`/drivers/fleet/${driverId}/profile`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    setOutcome: (stopId: string, data: { outcome: string; notes?: string }, token: string) =>
+      apiFetch<any>(`/drivers/stops/${stopId}/outcome`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    metrics: (token: string, params?: { from?: string; to?: string; driverId?: string }) => {
+      const p = new URLSearchParams(params as any);
+      return apiFetch<any>(`/drivers/metrics?${p}`, {}, token);
+    },
+    paymentsSummary: (token: string, params?: { from?: string; to?: string }) => {
+      const p = new URLSearchParams(params as any);
+      return apiFetch<any[]>(`/drivers/payments/summary?${p}`, {}, token);
+    },
+    createPaymentBatch: (data: { driverId: string; stopIds: string[]; notes?: string }, token: string) =>
+      apiFetch<any>('/drivers/payments/batch', { method: 'POST', body: JSON.stringify(data) }, token),
+    listPaymentBatches: (token: string, params?: { driverId?: string }) => {
+      const p = new URLSearchParams(params as any);
+      return apiFetch<any[]>(`/drivers/payments/batches?${p}`, {}, token);
+    },
+    markPaid: (id: string, token: string) =>
+      apiFetch<any>(`/drivers/payments/batches/${id}/paid`, { method: 'PATCH' }, token),
+    zones: (token: string, params?: { from?: string; to?: string }) => {
+      const p = new URLSearchParams(params as any);
+      return apiFetch<any>(`/drivers/zones?${p}`, {}, token);
+    },
+  },
   returns: {
     list: (token: string, params?: { status?: string; q?: string }) => {
       const p = new URLSearchParams();
