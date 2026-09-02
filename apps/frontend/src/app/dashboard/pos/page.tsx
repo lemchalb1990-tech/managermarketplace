@@ -68,7 +68,13 @@ export default function PosPage() {
   // Documento tributario (DTE)
   const [billingConns, setBillingConns] = useState<any[]>([]);
   const [emitDte, setEmitDte] = useState(false);
-  const [dteType, setDteType] = useState<'BOLETA' | 'FACTURA'>('BOLETA');
+  const [dteFamily, setDteFamily] = useState<'BOLETA' | 'FACTURA'>('BOLETA');
+  const [dteType, setDteType] = useState<'BOLETA' | 'FACTURA' | 'FACTURA_EXENTA'>('BOLETA');
+  const FACTURA_DOCS = [
+    { value: 'FACTURA', label: 'Factura Electrónica (33)' },
+    { value: 'FACTURA_EXENTA', label: 'Factura Exenta (34)' },
+  ] as const;
+  const isFactura = dteType === 'FACTURA' || dteType === 'FACTURA_EXENTA';
   const [dteConnId, setDteConnId] = useState('');
 
   const selectedClient = clients.find((c) => c.id === clientId) || null;
@@ -221,7 +227,7 @@ export default function PosPage() {
     // Validación del DTE
     if (emitDte) {
       if (!dteConnId) { setErrorMsg('Selecciona la conexión de facturación'); return; }
-      if (dteType === 'FACTURA') {
+      if (isFactura) {
         const rut = selectedClient?.rut;
         if (!clientId || !rut || !selectedClient?.name) {
           setErrorMsg('Para emitir Factura selecciona un cliente con RUT y razón social');
@@ -271,7 +277,8 @@ export default function PosPage() {
             markPaid: true,
             paymentMethod,
           }, token);
-          dteMsg = ` · ${dteType === 'FACTURA' ? 'Factura' : 'Boleta'}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
+          const docLabel = dteType === 'BOLETA' ? 'Boleta' : dteType === 'FACTURA_EXENTA' ? 'Factura exenta' : 'Factura';
+          dteMsg = ` · ${docLabel}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
         } catch (e: any) {
           dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
         }
@@ -283,7 +290,7 @@ export default function PosPage() {
       setAddress(''); setCommune(''); setCity('');
       setNotes(''); setFulfillmentType('PICKUP');
       setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
-      setEmitDte(false); setDteType('BOLETA');
+      setEmitDte(false); setDteType('BOLETA'); setDteFamily('BOLETA');
       setShowCheckout(false);
       await loadProducts(page);
     } catch (err: any) {
@@ -697,20 +704,38 @@ export default function PosPage() {
                   {emitDte && (
                     <div className="space-y-2 pl-6">
                       <div className="flex gap-2">
-                        {(['BOLETA', 'FACTURA'] as const).map((t) => (
-                          <button key={t} type="button" onClick={() => setDteType(t)}
-                            className={`flex-1 py-2 rounded-lg border-2 text-xs font-semibold ${dteType === t ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
-                            {t === 'BOLETA' ? 'Boleta' : 'Factura'}
-                          </button>
-                        ))}
+                        <button type="button"
+                          onClick={() => { setDteFamily('BOLETA'); setDteType('BOLETA'); }}
+                          className={`flex-1 py-2 rounded-lg border-2 text-xs font-semibold ${dteFamily === 'BOLETA' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
+                          Boleta
+                        </button>
+                        <button type="button"
+                          onClick={() => { setDteFamily('FACTURA'); setDteType('FACTURA'); }}
+                          className={`flex-1 py-2 rounded-lg border-2 text-xs font-semibold ${dteFamily === 'FACTURA' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
+                          Factura
+                        </button>
                       </div>
+
+                      {dteFamily === 'FACTURA' && (
+                        <div>
+                          <label className="block text-xs text-gray-500 font-medium mb-1">Documento</label>
+                          <select value={dteType} onChange={(e) => setDteType(e.target.value as any)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            {FACTURA_DOCS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {dteFamily === 'BOLETA' && (
+                        <p className="text-xs text-gray-400">Boleta Electrónica (39)</p>
+                      )}
+
                       {billingConns.length > 1 && (
                         <select value={dteConnId} onChange={(e) => setDteConnId(e.target.value)}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                           {billingConns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       )}
-                      {dteType === 'FACTURA' && !selectedClient?.rut && (
+                      {isFactura && !selectedClient?.rut && (
                         <p className="text-xs text-amber-600">La Factura necesita un cliente con RUT y razón social.</p>
                       )}
                     </div>
