@@ -690,6 +690,10 @@ model Invoice {
   paymentReference String?
   paymentCondition PaymentCondition?
   dueDate          DateTime?
+  // ID del pago registrado en el proveedor de facturación (ej. Facto payment_id).
+  paymentExternalId String?
+  // Último error al reflejar el pago en el proveedor; null si se sincronizó o no aplica.
+  paymentSyncError  String?
 
   connectionId String
   connection   BillingConnection @relation(fields: [connectionId], references: [id])
