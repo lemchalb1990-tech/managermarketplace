@@ -1306,20 +1306,24 @@ export class MercadolibreService {
             await tx.saleItem.update({ where: { id: saleItem.id }, data: { totalCost } });
           }
 
-          const newStatus = newStock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+          // Pausa la publicación al llegar al stock crítico del producto (0 por defecto).
+          const criticalStock = Math.max(0, product.criticalStock ?? 0);
+          const belowCritical = newStock <= criticalStock;
+          const newStatus = belowCritical ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
           await tx.listing.update({
             where: { id: listing.id },
             data: { status: newStatus, syncedAt: new Date() },
           });
 
-          // Pausar en ML si se agotó el stock
-          if (newStock === 0) {
+          // Pausar en ML solo al cruzar el umbral (evita re-pausar una publicación ya pausada).
+          if (belowCritical && listing.status !== ListingStatus.PAUSED) {
             const itemToken = await this.getValidToken(listing.connectionId);
             await fetch(`${ML_API}/items/${listing.externalId}`, {
               method: 'PUT',
               headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ status: 'paused' }),
             });
+            this.logger.log(`ML orden ${orderId}: producto=${listing.productId} pausado por stock crítico (${newStock} ≤ ${criticalStock})`);
           }
 
           this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);

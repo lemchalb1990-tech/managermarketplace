@@ -73,7 +73,14 @@ export class CompaniesService {
 
   async update(id: string, dto: UpdateCompanyDto) {
     const before = await this.findOne(id);
-    const updated = await this.prisma.company.update({ where: { id }, data: dto });
+
+    const data: any = { ...dto };
+    // Mantiene el flag legacy autoSyncSales alineado con la lista de plataformas.
+    if (dto.autoSyncSalesPlatforms !== undefined) {
+      data.autoSyncSales = Array.isArray(dto.autoSyncSalesPlatforms) && dto.autoSyncSalesPlatforms.length > 0;
+    }
+
+    const updated = await this.prisma.company.update({ where: { id }, data });
 
     // Al activar el módulo de Compras por primera vez, migra el stock/costo actual de
     // cada producto a un lote de apertura, para que el FIFO nunca se quede sin de dónde

@@ -152,6 +152,9 @@ model Company {
   mlClientId              String?
   mlClientSecret          String?
   autoSyncSales           Boolean  @default(false)
+  // Plataformas con auto-importación de ventas activa (array de MarketplaceType).
+  // null/[] = ninguna. Reemplaza al flag global autoSyncSales.
+  autoSyncSalesPlatforms  Json?
   autoSyncIntervalMinutes Int      @default(1)
   // Horas límite de despacho por transportista: { "ml_flex": "19:00", ... }
   dispatchCutoffs         Json?
@@ -315,6 +318,8 @@ model Product {
   // cuando la empresa tiene el módulo de dropshipping activo.
   supplierPrice Decimal?    @db.Decimal(10, 2)
   stock         Int         @default(0)
+  // Umbral de stock crítico: al alcanzarlo (o bajarlo) las ventas pausan la publicación.
+  criticalStock Int         @default(0)
   category      String?
   mlCategoryId  String?
   active        Boolean     @default(true)

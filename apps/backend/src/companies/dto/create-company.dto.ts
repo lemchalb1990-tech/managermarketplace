@@ -1,5 +1,6 @@
-import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, IsBoolean, Min, Max } from 'class-validator';
+import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, IsBoolean, IsArray, IsEnum, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
+import { MarketplaceType } from '@prisma/client';
 
 export class AdminDto {
   @IsString()
@@ -56,6 +57,12 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   autoSyncSales?: boolean;
+
+  // Plataformas con auto-importación de ventas activa.
+  @IsOptional()
+  @IsArray()
+  @IsEnum(MarketplaceType, { each: true })
+  autoSyncSalesPlatforms?: MarketplaceType[];
 
   @IsOptional()
   @IsInt()

@@ -285,7 +285,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
+const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '', stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
 const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
 
@@ -561,6 +561,7 @@ export default function CatalogPage() {
       editForm.cost !== orig.cost ||
       editForm.supplierPrice !== orig.supplierPrice ||
       editForm.stock !== orig.stock ||
+      editForm.criticalStock !== orig.criticalStock ||
       editForm.category !== orig.category ||
       editForm.mlCategoryId !== orig.mlCategoryId ||
       editForm.mlDescription !== orig.mlDescription ||
@@ -603,6 +604,7 @@ export default function CatalogPage() {
       cost: product.cost != null ? String(Number(product.cost)) : '',
       supplierPrice: product.supplierPrice != null ? String(Number(product.supplierPrice)) : '',
       stock: String(product.stock),
+      criticalStock: product.criticalStock != null ? String(Number(product.criticalStock)) : '',
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
@@ -623,6 +625,7 @@ export default function CatalogPage() {
       cost: product.cost != null ? String(Number(product.cost)) : '',
       supplierPrice: product.supplierPrice != null ? String(Number(product.supplierPrice)) : '',
       stock: String(product.stock),
+      criticalStock: product.criticalStock != null ? String(Number(product.criticalStock)) : '',
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
@@ -672,6 +675,7 @@ export default function CatalogPage() {
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         supplierPrice: hasDropshippingModule && editForm.supplierPrice !== '' ? parseFloat(editForm.supplierPrice) : undefined,
         stock: parseInt(editForm.stock),
+        criticalStock: editForm.criticalStock !== '' ? parseInt(editForm.criticalStock) : undefined,
         category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
@@ -1528,6 +1532,18 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       disabled={editForm.type === 'SERVICIO'}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Stock crítico
+                      {editForm.type === 'SERVICIO' && <span className="ml-1 text-gray-400 font-normal">(no aplica a servicios)</span>}
+                    </label>
+                    <input type="number" min="0" value={editForm.criticalStock}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, criticalStock: e.target.value }))}
+                      disabled={editForm.type === 'SERVICIO'}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                    <p className="text-xs text-gray-400 mt-1">Al llegar a este stock, las ventas de marketplaces pausan la publicación.</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>

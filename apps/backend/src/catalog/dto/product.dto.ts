@@ -48,6 +48,13 @@ export class CreateProductDto {
   @Min(0)
   stock: number;
 
+  // Al alcanzar este stock, las ventas de marketplaces pausan la publicación.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  criticalStock?: number;
+
   @IsOptional()
   @IsString()
   category?: string;
@@ -118,6 +125,12 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   stock?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  criticalStock?: number;
 
   @IsOptional()
   active?: boolean;

@@ -5,9 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 
 // Contraparte entrante de SyncService (que empuja stock/precio hacia las plataformas):
-// este servicio trae ventas nuevas desde las plataformas para las empresas que tengan
-// Company.autoSyncSales activado. Hoy solo Mercado Libre tiene importación de ventas
-// implementada; otras plataformas se agregan sumando un caso al switch de abajo.
+// este servicio trae ventas nuevas desde las plataformas. Cada empresa elige qué
+// plataformas auto-importar en Company.autoSyncSalesPlatforms (lista de MarketplaceType).
+// Hoy solo Mercado Libre tiene importación de ventas implementada; el resto se agrega
+// sumando un caso al switch de abajo (el check ya queda disponible en la UI).
 //
 // El tick corre cada 1 minuto (la granularidad más fina soportada), pero cada conexión
 // solo se procesa si ya pasó su Company.autoSyncIntervalMinutes desde su última corrida
@@ -17,6 +18,7 @@ import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 export class SalesImportCronService {
   private readonly logger = new Logger(SalesImportCronService.name);
   private isRunning = false;
+  private readonly warnedUnsupported = new Set<string>();
 
   constructor(
     private prisma: PrismaService,
@@ -35,13 +37,19 @@ export class SalesImportCronService {
         where: {
           active: true,
           accessToken: { not: '' },
-          company: { active: true, autoSyncSales: true },
+          company: { active: true },
         },
-        include: { company: { select: { autoSyncIntervalMinutes: true } } },
+        include: {
+          company: { select: { autoSyncIntervalMinutes: true, autoSyncSalesPlatforms: true } },
+        },
       });
 
       const now = Date.now();
       for (const connection of connections) {
+        const platforms = connection.company.autoSyncSalesPlatforms;
+        const enabled = Array.isArray(platforms) && platforms.includes(connection.marketplace);
+        if (!enabled) continue;
+
         const intervalMinutes = Math.max(1, connection.company.autoSyncIntervalMinutes || 1);
         const dueAt = connection.lastSalesImportAt
           ? connection.lastSalesImportAt.getTime() + intervalMinutes * 60 * 1000
@@ -57,10 +65,17 @@ export class SalesImportCronService {
               }
               break;
             }
-            default:
-              // SHOPIFY, WOOCOMMERCE, JUMPSELLER y el resto no tienen importación de ventas
-              // implementada todavía (solo sync de catálogo saliente vía PlatformAdapter).
+            default: {
+              // SHOPIFY, WOOCOMMERCE, FALABELLA, PARIS, HITES, RIPLEY, WALMART, JUMPSELLER:
+              // la importación de ventas aún no está implementada. El check queda activo
+              // y esta rama se activará sola cuando se agregue el importador de la plataforma.
+              const key = `${connection.marketplace}`;
+              if (!this.warnedUnsupported.has(key)) {
+                this.logger.warn(`Auto-importación de ventas para ${connection.marketplace} aún no implementada; se omite`);
+                this.warnedUnsupported.add(key);
+              }
               break;
+            }
           }
         } catch (err: any) {
           this.logger.error(`Auto-sync falló para conexión ${connection.id} (${connection.marketplace}): ${err?.message || err}`);
