@@ -5,7 +5,7 @@ import {
   CreateDropshipSupplierDto, UpdateDropshipSupplierDto,
   CreateDropshipProductDto, UpdateDropshipProductDto,
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
-  GenerateDropshipOrdersDto, DropshipReportQueryDto,
+  GenerateDropshipOrdersDto, DropshipReportQueryDto, SyncDropshipCatalogDto,
 } from './dto/dropshipping.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -38,6 +38,11 @@ export class DropshippingController {
   @Delete('suppliers/:id')
   removeSupplier(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.removeSupplier(id, user);
+  }
+
+  @Post('suppliers/:id/sync-catalog')
+  syncCatalog(@Param('id') id: string, @Body() dto: SyncDropshipCatalogDto, @CurrentUser() user: any) {
+    return this.service.syncCatalog(id, user, dto.catalogUrl);
   }
 
   // ─── Productos ─────────────────────────────────────────────────────────

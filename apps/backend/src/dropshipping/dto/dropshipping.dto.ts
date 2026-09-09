@@ -26,6 +26,12 @@ export class UpdateDropshipSupplierDto {
   @IsOptional() @IsBoolean() autoCreateOrders?: boolean;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) leadTimeDays?: number | null;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
+  @IsOptional() @IsString() @MaxLength(1000) catalogUrl?: string | null;
+}
+
+export class SyncDropshipCatalogDto {
+  // Si no se envía, se usa el catalogUrl guardado en el proveedor.
+  @IsOptional() @IsString() @MaxLength(1000) catalogUrl?: string;
 }
 
 // ─── Productos dropship ─────────────────────────────────────────────────────

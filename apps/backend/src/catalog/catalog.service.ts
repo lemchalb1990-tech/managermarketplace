@@ -187,11 +187,22 @@ export class CatalogService {
       delete data.cost;
     }
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data,
       include: { images: true },
     });
+
+    // Si se editó el precio del proveedor y el producto está vinculado a un proveedor
+    // dropship, se mantiene sincronizado el costo que usa el módulo de dropshipping.
+    if (data.supplierPrice != null) {
+      await this.prisma.dropshipProduct.updateMany({
+        where: { productId: id },
+        data: { supplierCost: data.supplierPrice },
+      });
+    }
+
+    return updated;
   }
 
   async adjustStock(id: string, dto: AdjustStockDto, user: any) {

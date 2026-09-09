@@ -259,13 +259,14 @@ export default function DropshippingPage() {
                   <th className="px-4 py-3 font-medium text-center">Productos</th>
                   <th className="px-4 py-3 font-medium text-center">Pedidos</th>
                   <th className="px-4 py-3 font-medium text-center">Automático</th>
+                  <th className="px-4 py-3 font-medium">Catálogo del proveedor</th>
                   <th className="px-4 py-3 font-medium text-center">Estado</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {suppliers.map((s) => (
-                  <tr key={s.id} className="hover:bg-gray-50">
+                  <tr key={s.id} className="hover:bg-gray-50 align-top">
                     <td className="px-4 py-3 font-medium text-gray-900">{s.supplier?.name}</td>
                     <td className="px-4 py-3 text-gray-500">{s.supplier?.email || '—'}</td>
                     <td className="px-4 py-3 text-center text-gray-600">{s._count?.products ?? 0}</td>
@@ -275,6 +276,26 @@ export default function DropshippingPage() {
                         className={`text-xs font-medium ${s.autoCreateOrders ? 'text-green-600' : 'text-gray-400'}`}>
                         {s.autoCreateOrders ? 'Sí' : 'No'}
                       </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <input defaultValue={s.catalogUrl || ''} placeholder="URL feed CSV/JSON"
+                          onBlur={(e) => {
+                            if (e.target.value !== (s.catalogUrl || '')) {
+                              run(() => api.dropshipping.suppliers.update(s.id, { catalogUrl: e.target.value || null }, token()));
+                            }
+                          }}
+                          className="w-44 px-2 py-1 border border-gray-200 rounded text-xs" />
+                        <button disabled={busy}
+                          onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
+                            setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
+                          className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                          Sincronizar
+                        </button>
+                      </div>
+                      {s.lastSyncedAt && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">Última: {new Date(s.lastSyncedAt).toLocaleString('es-CL')}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => run(() => api.dropshipping.suppliers.update(s.id, { active: !s.active }, token()))}
@@ -289,7 +310,7 @@ export default function DropshippingPage() {
                   </tr>
                 ))}
                 {suppliers.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">Sin proveedores dropship</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">Sin proveedores dropship</td></tr>
                 )}
               </tbody>
             </table>

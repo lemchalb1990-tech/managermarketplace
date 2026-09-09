@@ -13,6 +13,110 @@ import {
 
 const PAGE_SIZE = 20;
 
+interface CatalogRow {
+  sku: string;
+  name?: string;
+  description?: string;
+  imageUrl?: string;
+  stock?: number;
+  cost?: number;
+  price?: number;
+}
+
+// Alias de columnas aceptados en el feed del proveedor (JSON keys o cabeceras CSV).
+const FIELD_ALIASES: Record<keyof CatalogRow, string[]> = {
+  sku: ['sku', 'codigo', 'código', 'code', 'id'],
+  name: ['name', 'nombre', 'title', 'titulo', 'título', 'producto'],
+  description: ['description', 'descripcion', 'descripción', 'desc', 'detalle'],
+  imageUrl: ['imageurl', 'image_url', 'image', 'imagen', 'foto', 'photo', 'img'],
+  stock: ['stock', 'cantidad', 'quantity', 'qty', 'disponible', 'available'],
+  cost: ['cost', 'costo', 'supplier_cost', 'suppliercost', 'precio_proveedor', 'precioproveedor', 'costo_proveedor', 'wholesale', 'mayorista'],
+  price: ['price', 'precio', 'sale_price', 'saleprice', 'precio_venta', 'precioventa', 'pvp', 'retail'],
+};
+
+function num(v: any): number | undefined {
+  if (v == null || v === '') return undefined;
+  let s = String(v).trim().replace(/[^0-9.,-]/g, '');
+  if (!s) return undefined;
+  if (s.includes('.') && s.includes(',')) {
+    // El último separador es el decimal.
+    s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '');
+  } else if (s.includes(',')) {
+    const parts = s.split(',');
+    s = parts.length === 2 && parts[1].length <= 2 ? s.replace(',', '.') : s.replace(/,/g, '');
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function rowFromRecord(rec: Record<string, any>): CatalogRow {
+  const lower: Record<string, any> = {};
+  for (const [k, v] of Object.entries(rec)) lower[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
+  const pick = (field: keyof CatalogRow) => {
+    for (const alias of FIELD_ALIASES[field]) {
+      if (lower[alias] != null && lower[alias] !== '') return lower[alias];
+    }
+    return undefined;
+  };
+  return {
+    sku: String(pick('sku') ?? '').trim(),
+    name: pick('name') != null ? String(pick('name')).trim() : undefined,
+    description: pick('description') != null ? String(pick('description')).trim() : undefined,
+    imageUrl: pick('imageUrl') != null ? String(pick('imageUrl')).trim() : undefined,
+    stock: num(pick('stock')) != null ? Math.max(0, Math.round(num(pick('stock'))!)) : undefined,
+    cost: num(pick('cost')),
+    price: num(pick('price')),
+  };
+}
+
+// Divide una línea CSV respetando comillas dobles ("" escapa una comilla).
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else inQuotes = false;
+      } else cur += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',' || c === ';') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCatalogFeed(text: string): CatalogRow[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  // JSON: array de objetos, o { products: [...] } / { data: [...] }
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const arr = Array.isArray(parsed) ? parsed : (parsed.products ?? parsed.data ?? parsed.items ?? []);
+      if (Array.isArray(arr)) return arr.map(rowFromRecord).filter((r) => r.sku);
+    } catch {
+      // cae a CSV
+    }
+  }
+
+  // CSV / TSV: primera línea = cabeceras
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = splitCsvLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const cells = splitCsvLine(line);
+    const rec: Record<string, any> = {};
+    headers.forEach((h, i) => { rec[h] = cells[i]; });
+    return rowFromRecord(rec);
+  }).filter((r) => r.sku);
+}
+
 @Injectable()
 export class DropshippingService {
   private readonly logger = new Logger(DropshippingService.name);
@@ -99,9 +203,150 @@ export class DropshippingService {
         autoCreateOrders: dto.autoCreateOrders,
         leadTimeDays: dto.leadTimeDays,
         notes: dto.notes,
+        catalogUrl: dto.catalogUrl === '' ? null : dto.catalogUrl,
       },
       include: { supplier: true, _count: { select: { products: true, orders: true } } },
     });
+  }
+
+  // ─── Sincronización del catálogo del proveedor ────────────────────────────
+
+  // Descarga el feed del proveedor (JSON o CSV) y sincroniza los productos: crea
+  // los nuevos en el catálogo (marcados como dropship) y actualiza en los existentes
+  // el nombre/foto/descripción/cantidad/precio que informa el proveedor.
+  async syncCatalog(id: string, user: any, catalogUrl?: string) {
+    const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
+    if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
+
+    const url = (catalogUrl || ds.catalogUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      throw new BadRequestException('Configura una URL de catálogo válida (http/https) para el proveedor');
+    }
+
+    let text: string;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      text = await res.text();
+    } catch (err: any) {
+      throw new BadRequestException(`No se pudo descargar el catálogo: ${err?.message || err}`);
+    }
+
+    const rows = parseCatalogFeed(text);
+    if (!rows.length) throw new BadRequestException('El catálogo no tiene filas legibles (se espera JSON o CSV con columna sku)');
+
+    let created = 0;
+    let updated = 0;
+    const skipped: string[] = [];
+
+    for (const row of rows) {
+      if (!row.sku) { skipped.push('(fila sin SKU)'); continue; }
+
+      const existingDp = await this.prisma.dropshipProduct.findFirst({
+        where: { dropshipSupplierId: id, supplierSku: row.sku },
+      });
+
+      const cost = row.cost ?? existingDp?.supplierCost ?? undefined;
+
+      if (existingDp) {
+        await this.prisma.$transaction([
+          this.prisma.dropshipProduct.update({
+            where: { id: existingDp.id },
+            data: {
+              supplierName: row.name ?? existingDp.supplierName,
+              supplierImageUrl: row.imageUrl ?? existingDp.supplierImageUrl,
+              supplierDescription: row.description ?? existingDp.supplierDescription,
+              supplierStock: row.stock ?? existingDp.supplierStock,
+              ...(cost != null ? { supplierCost: cost } : {}),
+              lastSyncedAt: new Date(),
+            },
+          }),
+          this.prisma.product.update({
+            where: { id: existingDp.productId },
+            data: {
+              ...(cost != null ? { supplierPrice: cost } : {}),
+              ...(row.stock != null ? { stock: row.stock } : {}),
+            },
+          }),
+        ]);
+        updated++;
+        continue;
+      }
+
+      // Sin DropshipProduct para este SKU: engancha el Product del catálogo por SKU,
+      // o créalo si no existe.
+      const product = await this.prisma.product.findUnique({
+        where: { sku_companyId: { sku: row.sku, companyId: ds.companyId } },
+      });
+
+      if (product) {
+        const linkedElsewhere = await this.prisma.dropshipProduct.findUnique({ where: { productId: product.id } });
+        if (linkedElsewhere) { skipped.push(`${row.sku} (ya vinculado a otro proveedor)`); continue; }
+        if (cost == null) { skipped.push(`${row.sku} (sin precio de proveedor)`); continue; }
+        await this.prisma.$transaction([
+          this.prisma.dropshipProduct.create({
+            data: {
+              companyId: ds.companyId,
+              productId: product.id,
+              dropshipSupplierId: id,
+              supplierSku: row.sku,
+              supplierCost: cost,
+              supplierName: row.name,
+              supplierImageUrl: row.imageUrl,
+              supplierDescription: row.description,
+              supplierStock: row.stock ?? null,
+              lastSyncedAt: new Date(),
+            },
+          }),
+          this.prisma.product.update({
+            where: { id: product.id },
+            data: { dropship: true, supplierPrice: cost, ...(row.stock != null ? { stock: row.stock } : {}) },
+          }),
+        ]);
+        created++;
+        continue;
+      }
+
+      if (cost == null || !row.name) { skipped.push(`${row.sku} (faltan nombre o precio para crear el producto)`); continue; }
+      await this.prisma.$transaction(async (tx) => {
+        const newProduct = await tx.product.create({
+          data: {
+            companyId: ds.companyId,
+            sku: row.sku,
+            name: row.name!,
+            description: row.description ?? null,
+            price: row.price ?? cost,
+            supplierPrice: cost,
+            cost: cost,
+            stock: row.stock ?? 0,
+            dropship: true,
+          },
+        });
+        await tx.dropshipProduct.create({
+          data: {
+            companyId: ds.companyId,
+            productId: newProduct.id,
+            dropshipSupplierId: id,
+            supplierSku: row.sku,
+            supplierCost: cost,
+            supplierName: row.name,
+            supplierImageUrl: row.imageUrl,
+            supplierDescription: row.description,
+            supplierStock: row.stock ?? null,
+            lastSyncedAt: new Date(),
+          },
+        });
+      });
+      created++;
+    }
+
+    await this.prisma.dropshipSupplier.update({
+      where: { id },
+      data: { lastSyncedAt: new Date(), catalogUrl: catalogUrl?.trim() || ds.catalogUrl },
+    });
+
+    return { created, updated, skipped };
   }
 
   async removeSupplier(id: string, user: any) {

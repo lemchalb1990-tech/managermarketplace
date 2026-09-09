@@ -667,10 +667,12 @@ export const api = {
         autoCreateOrders?: boolean; leadTimeDays?: number; notes?: string; companyId?: string;
       }, token: string) =>
         apiFetch<any>('/dropshipping/suppliers', { method: 'POST', body: JSON.stringify(data) }, token),
-      update: (id: string, data: { active?: boolean; autoCreateOrders?: boolean; leadTimeDays?: number | null; notes?: string }, token: string) =>
+      update: (id: string, data: { active?: boolean; autoCreateOrders?: boolean; leadTimeDays?: number | null; notes?: string; catalogUrl?: string | null }, token: string) =>
         apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       remove: (id: string, token: string) =>
         apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'DELETE' }, token),
+      syncCatalog: (id: string, data: { catalogUrl?: string }, token: string) =>
+        apiFetch<{ created: number; updated: number; skipped: string[] }>(`/dropshipping/suppliers/${id}/sync-catalog`, { method: 'POST', body: JSON.stringify(data) }, token),
     },
     products: {
       list: (token: string, companyId?: string) => {

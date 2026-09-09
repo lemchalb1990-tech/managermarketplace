@@ -36,6 +36,13 @@ export class CreateProductDto {
   @Min(0)
   cost?: number;
 
+  // Precio del proveedor dropship (solo relevante con el módulo de dropshipping activo).
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  supplierPrice?: number;
+
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -98,6 +105,13 @@ export class UpdateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   cost?: number;
+
+  // Precio del proveedor dropship (solo relevante con el módulo de dropshipping activo).
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  supplierPrice?: number;
 
   @IsOptional()
   @Type(() => Number)

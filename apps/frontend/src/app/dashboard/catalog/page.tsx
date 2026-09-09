@@ -285,7 +285,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
+const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '', stock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
 
 const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
 
@@ -344,6 +344,7 @@ export default function CatalogPage() {
   const hasMlModule = hasModule(currentUser, 'ecommerce_ml');
   const hasPosModule = hasModule(currentUser, 'pos');
   const hasPurchasesModule = hasModule(currentUser, 'purchases');
+  const hasDropshippingModule = hasModule(currentUser, 'dropshipping');
 
   const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
   const mlChecked = connections.some((c) => publishTargets[c.id]);
@@ -558,6 +559,7 @@ export default function CatalogPage() {
       editForm.price !== orig.price ||
       editForm.mlPrice !== orig.mlPrice ||
       editForm.cost !== orig.cost ||
+      editForm.supplierPrice !== orig.supplierPrice ||
       editForm.stock !== orig.stock ||
       editForm.category !== orig.category ||
       editForm.mlCategoryId !== orig.mlCategoryId ||
@@ -599,6 +601,7 @@ export default function CatalogPage() {
       price: String(Number(product.price)),
       mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
       cost: product.cost != null ? String(Number(product.cost)) : '',
+      supplierPrice: product.supplierPrice != null ? String(Number(product.supplierPrice)) : '',
       stock: String(product.stock),
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
@@ -618,6 +621,7 @@ export default function CatalogPage() {
       price: String(Number(product.price)),
       mlPrice: product.mlPrice != null ? String(Number(product.mlPrice)) : '',
       cost: product.cost != null ? String(Number(product.cost)) : '',
+      supplierPrice: product.supplierPrice != null ? String(Number(product.supplierPrice)) : '',
       stock: String(product.stock),
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
@@ -666,6 +670,7 @@ export default function CatalogPage() {
         price: parseFloat(editForm.price),
         mlPrice: editForm.mlPrice !== '' ? parseFloat(editForm.mlPrice) : undefined,
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
+        supplierPrice: hasDropshippingModule && editForm.supplierPrice !== '' ? parseFloat(editForm.supplierPrice) : undefined,
         stock: parseInt(editForm.stock),
         category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
@@ -1501,6 +1506,19 @@ export default function CatalogPage() {
                       </p>
                     )}
                   </div>
+                  {hasDropshippingModule && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Precio proveedor <span className="text-gray-400 font-normal">(dropshipping)</span>
+                      </label>
+                      <input type="number" step="0.01" min="0" value={editForm.supplierPrice}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, supplierPrice: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0.00" />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Lo que cobra el proveedor que despacha. Distinto del precio de venta. Ver <a href="/dashboard/dropshipping" className="underline hover:text-gray-600">Dropshipping</a>.
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Stock
