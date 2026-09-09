@@ -137,16 +137,13 @@ export default function InvoicesPage() {
     setPayLoading(true);
     try {
       const token = getToken()!;
-      const res = await api.billing.invoices.pay(payingInvoice.id, {
+      await api.billing.invoices.pay(payingInvoice.id, {
         paymentMethod: payForm.paymentMethod,
         paymentReference: payForm.paymentReference.trim() || undefined,
         paidAt: payForm.paidAt || undefined,
       }, token);
       setPayingInvoice(null);
       await load(page);
-      if (res?.paymentSyncError) {
-        setActionError(`Pago marcado en el panel, pero no se pudo registrar en el proveedor: ${res.paymentSyncError}`);
-      }
     } catch (err: any) {
       setPayError(err.message || 'Error al registrar el pago');
     } finally {
@@ -266,11 +263,6 @@ export default function InvoicesPage() {
                         {PAYMENT_METHOD_LABELS[inv.paymentMethod] ?? inv.paymentMethod}
                         {inv.paymentReference && ` · ${inv.paymentReference}`}
                       </p>
-                      {inv.paymentSyncError && (
-                        <p className="text-xs text-amber-600 mt-0.5" title={inv.paymentSyncError}>
-                          ⚠ Pago no sincronizado con el proveedor
-                        </p>
-                      )}
                     </div>
                   ) : ['ISSUED', 'ACCEPTED'].includes(inv.status) ? (
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Deuda</span>

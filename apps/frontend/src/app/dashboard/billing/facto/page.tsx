@@ -26,10 +26,6 @@ export default function FactoPage() {
         { key: 'companyDistrict', label: 'Comuna', placeholder: 'Ej: Santiago', required: false },
         { key: 'companyCity', label: 'Ciudad', placeholder: 'Ej: Santiago', required: false },
         { key: 'companyPhone', label: 'Teléfono', placeholder: 'Ej: +56912345678', required: false },
-        { key: 'cashAccountId', label: 'Cash Account ID (Caja)', placeholder: 'Ej: 1', required: false,
-          hint: 'ID de la cuenta de caja en Facto. Al configurarlo, "Marcar pagada" registra el pago en Caja y Cobranza de Facto.' },
-        { key: 'paymentTypeId', label: 'Payment Type ID', placeholder: 'Ej: 1', required: false,
-          hint: 'ID del tipo de pago en Facto usado al registrar pagos. Por defecto: 1.' },
       ],
     }} />
   );

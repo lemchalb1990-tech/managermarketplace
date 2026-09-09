@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, PaymentCondition, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenFacturaAdapter } from './providers/openfactura.adapter';
@@ -16,7 +16,6 @@ const IVA = 0.19;
 
 @Injectable()
 export class BillingService {
-  private readonly logger = new Logger(BillingService.name);
   private adapters: Map<BillingProvider, BillingAdapter>;
 
   constructor(
@@ -431,22 +430,20 @@ export class BillingService {
   }
 
   async markInvoicePaid(id: string, dto: MarkInvoicePaidDto, user: any) {
-    const inv = await this.prisma.invoice.findUnique({ where: { id }, include: { connection: true } });
+    const inv = await this.prisma.invoice.findUnique({ where: { id } });
     if (!inv) throw new NotFoundException();
     if (user.role !== Role.SUPER_ADMIN && inv.companyId !== user.companyId) throw new ForbiddenException();
     if (inv.status === InvoiceStatus.CANCELLED) throw new BadRequestException('No se puede marcar como pagado un documento anulado');
     if (inv.paid) throw new BadRequestException('Este documento ya está marcado como pagado');
-    const updated = await this.prisma.invoice.update({
+    return this.prisma.invoice.update({
       where: { id },
       data: {
         paid: true,
         paidAt: dto.paidAt ? new Date(dto.paidAt) : new Date(),
         paymentMethod: dto.paymentMethod,
         paymentReference: dto.paymentReference,
-        paymentSyncError: null,
       },
     });
-    return this.syncPaymentToProvider(updated, inv.connection);
   }
 
   async unmarkInvoicePaid(id: string, user: any) {
@@ -456,56 +453,8 @@ export class BillingService {
     if (!inv.paid) throw new BadRequestException('Este documento no está marcado como pagado');
     return this.prisma.invoice.update({
       where: { id },
-      data: {
-        paid: false,
-        paidAt: null,
-        paymentMethod: null,
-        paymentReference: null,
-        // El pago registrado en el proveedor (ej. Facto) no se puede anular por API: se
-        // conserva paymentExternalId y se avisa para anularlo manualmente en su módulo de caja.
-        paymentSyncError: inv.paymentExternalId
-          ? `El pago ${inv.paymentExternalId} sigue registrado en el proveedor; anúlalo manualmente en su módulo de caja.`
-          : null,
-      },
+      data: { paid: false, paidAt: null, paymentMethod: null, paymentReference: null },
     });
-  }
-
-  // Refleja el pago recién marcado en el proveedor de facturación cuando éste lo soporta
-  // (hoy sólo Facto, vía POST /payments). Es best-effort: si falla, el documento queda
-  // pagado localmente igual y se guarda el motivo en `paymentSyncError` para avisar en la UI.
-  private async syncPaymentToProvider(invoice: Invoice, conn: BillingConnection | null): Promise<Invoice> {
-    if (!conn) return invoice;
-    const adapter = this.adapter(conn.provider);
-    if (typeof adapter.registerPayment !== 'function') return invoice;
-
-    const creds = (conn.credentials ?? {}) as Record<string, string>;
-    // Sin cuenta de caja configurada no intentamos sincronizar (el usuario no activó la función).
-    if (!creds.cashAccountId) return invoice;
-    // Sólo documentos realmente emitidos ante el proveedor tienen un document_id que registrar.
-    if (invoice.status !== InvoiceStatus.ISSUED && invoice.status !== InvoiceStatus.ACCEPTED) return invoice;
-    if (!invoice.externalId || invoice.externalId === 'unknown') return invoice;
-    // Ya registrado antes: no duplicar el pago en el proveedor.
-    if (invoice.paymentExternalId) return invoice;
-
-    try {
-      const result = await adapter.registerPayment(creds, {
-        documentId: invoice.externalId,
-        amount: Number(invoice.totalAmount),
-        paymentDate: (invoice.paidAt ?? new Date()).toISOString().slice(0, 10),
-        details: invoice.paymentReference ?? undefined,
-      });
-      return this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { paymentExternalId: result.externalId, paymentSyncError: null },
-      });
-    } catch (err: any) {
-      const message = err?.message ?? 'No se pudo registrar el pago en el proveedor';
-      this.logger.warn(`Pago no sincronizado con ${conn.provider} (invoice ${invoice.id}): ${message}`);
-      return this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { paymentSyncError: message },
-      });
-    }
   }
 
   // ── Perfil de facturación (identidad de la empresa emisora) ────────────────

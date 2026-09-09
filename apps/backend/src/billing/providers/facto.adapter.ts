@@ -1,11 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  BillingAdapter,
-  IssueDtePayload,
-  DteResult,
-  RegisterPaymentPayload,
-  RegisterPaymentResult,
-} from './provider.interface';
+import { BillingAdapter, IssueDtePayload, DteResult } from './provider.interface';
 import { normalizeRut } from '../../common/rut.util';
 
 // IDs internos de Facto (Koywe) para Chile — ver /documentacion/api/es/ejemplos/chile/tabla-de-codigos/
@@ -179,56 +173,5 @@ export class FactoAdapter implements BillingAdapter {
         ? `data:application/xml;base64,${data.electronic_document.document_xml}`
         : undefined,
     };
-  }
-
-  // Registra el pago del documento en el módulo Caja y Cobranza de Facto (POST /payments).
-  // Requiere que la conexión tenga configurado `cashAccountId` (ID de la cuenta de caja en
-  // Facto); `paymentTypeId` es el ID del tipo de pago y por defecto usa '1'. Ninguno de los
-  // dos es consultable por la API — se obtienen del módulo Caja y Cobranza de Facto.
-  // Ver /documentacion/api/es/endpoints/?ep=post-payments
-  async registerPayment(
-    creds: Record<string, string>,
-    payload: RegisterPaymentPayload,
-  ): Promise<RegisterPaymentResult> {
-    if (!creds.cashAccountId) {
-      throw new Error(
-        'La conexión Facto no tiene configurada la cuenta de caja (Cash Account ID) para registrar pagos.',
-      );
-    }
-
-    const token = await this.getToken(creds);
-    const body = {
-      payment_date: payload.paymentDate,
-      document_id: String(payload.documentId),
-      payment_type_id: creds.paymentTypeId || '1',
-      payment_amount: Math.round(payload.amount),
-      payment_details: payload.details || '',
-      cash_account_id: creds.cashAccountId,
-    };
-
-    const res = await fetch(`${BASE_URL}/payments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.access_token}` },
-      body: JSON.stringify(body),
-    });
-
-    const data: any = await res.json().catch(() => ({}));
-    this.logger.log(`Facto POST /payments → HTTP ${res.status}: ${JSON.stringify(data)}`);
-
-    if (!res.ok) {
-      throw new Error(
-        data?.result?.error_message ||
-          data?.error ||
-          data?.message ||
-          `Error Facto al registrar el pago (${res.status})`,
-      );
-    }
-
-    const resultError = data?.result?.error_message;
-    if (resultError && String(resultError).trim()) {
-      throw new Error(String(resultError).trim());
-    }
-
-    return { externalId: String(data?.payment_id ?? 'unknown') };
   }
 }
