@@ -179,6 +179,9 @@ model Company {
   accessProfiles     AccessProfile[]
   returns            Return[]
   driverPayments     DriverPayment[]
+  dropshipSuppliers  DropshipSupplier[]
+  dropshipProducts   DropshipProduct[]
+  dropshipOrders     DropshipOrder[]
 
   @@map("companies")
 }
@@ -308,10 +311,15 @@ model Product {
   price         Decimal     @db.Decimal(10, 2)
   mlPrice       Decimal?    @db.Decimal(10, 2)
   cost          Decimal?    @db.Decimal(10, 2)
+  // Precio que cobra el proveedor dropship (≠ precio de venta). Solo se usa/edita
+  // cuando la empresa tiene el módulo de dropshipping activo.
+  supplierPrice Decimal?    @db.Decimal(10, 2)
   stock         Int         @default(0)
   category      String?
   mlCategoryId  String?
   active        Boolean     @default(true)
+  // Producto fulfilleado por un proveedor dropship: no descuenta stock propio en las ventas.
+  dropship      Boolean     @default(false)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -320,16 +328,18 @@ model Product {
   warehouseId String?
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
 
-  images            ProductImage[]
-  listings          Listing[]
-  saleItems         SaleItem[]
-  stockMovements    StockMovement[]
-  orderItemChecks   OrderItemCheck[]
-  purchaseItems     PurchaseItem[]
-  productStocks     ProductStock[]
-  stockTransfers    StockTransfer[]
-  orderRequestItems OrderRequestItem[]
-  returnItems       ReturnItem[]
+  images             ProductImage[]
+  listings           Listing[]
+  saleItems          SaleItem[]
+  stockMovements     StockMovement[]
+  orderItemChecks    OrderItemCheck[]
+  purchaseItems      PurchaseItem[]
+  productStocks      ProductStock[]
+  stockTransfers     StockTransfer[]
+  orderRequestItems  OrderRequestItem[]
+  returnItems        ReturnItem[]
+  dropshipProduct    DropshipProduct?
+  dropshipOrderItems DropshipOrderItem[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -455,11 +465,12 @@ model Sale {
   clientId  String?
   client    Client? @relation(fields: [clientId], references: [id])
 
-  items        SaleItem[]
-  invoices     Invoice[]
-  order        Order?
-  orderRequest OrderRequest?
-  returns      Return[]
+  items         SaleItem[]
+  invoices      Invoice[]
+  order         Order?
+  orderRequest  OrderRequest?
+  returns       Return[]
+  dropshipOrders DropshipOrder[]
 
   @@unique([channel, externalId])
   @@map("sales")
@@ -476,7 +487,8 @@ model SaleItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
 
-  stockMovements StockMovement[]
+  stockMovements     StockMovement[]
+  dropshipOrderItems DropshipOrderItem[]
 
   @@map("sale_items")
 }
@@ -517,6 +529,7 @@ model Supplier {
   companyId String
   company   Company    @relation(fields: [companyId], references: [id])
   purchases Purchase[]
+  dropship  DropshipSupplier?
 
   @@map("suppliers")
 }
@@ -1056,4 +1069,118 @@ model ProfitabilityItem {
 
   @@unique([name, companyId])
   @@map("profitability_items")
+}
+
+// ─── Dropshipping ────────────────────────────────────────────────────────────
+// La empresa vende productos que no tiene en stock: un proveedor externo los
+// despacha directo al cliente final. Al entrar una venta con productos dropship
+// se genera un DropshipOrder por proveedor (auto o manual), que se envía al
+// proveedor y se sigue hasta la entrega. El stock propio nunca se toca.
+
+enum DropshipOrderStatus {
+  PENDING // detectado desde la venta, aún no enviado al proveedor
+  SENT // enviado al proveedor (email / exportación)
+  CONFIRMED // proveedor confirmó el pedido
+  SHIPPED // proveedor despachó (con tracking)
+  DELIVERED // entregado al cliente final
+  CANCELLED
+}
+
+model DropshipSupplier {
+  id               String   @id @default(cuid())
+  active           Boolean  @default(true)
+  // Automatización: generar el pedido al proveedor apenas entra la venta.
+  autoCreateOrders Boolean  @default(true)
+  leadTimeDays     Int? // días estimados de despacho del proveedor
+  notes            String?
+  // Feed del catálogo del proveedor (CSV o JSON) para sincronizar productos.
+  catalogUrl       String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  supplierId String   @unique
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  products DropshipProduct[]
+  orders   DropshipOrder[]
+
+  @@map("dropship_suppliers")
+}
+
+model DropshipProduct {
+  id           String   @id @default(cuid())
+  supplierSku  String?
+  supplierCost Decimal  @db.Decimal(10, 2) // precio que cobra el proveedor (≠ precio de venta)
+  leadTimeDays Int?
+  active       Boolean  @default(true)
+  // Datos del producto según el proveedor (sincronizados desde su catálogo/feed).
+  supplierName        String?
+  supplierImageUrl    String?
+  supplierDescription String?   @db.Text
+  supplierStock       Int?
+  lastSyncedAt        DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  dropshipSupplierId String
+  dropshipSupplier   DropshipSupplier @relation(fields: [dropshipSupplierId], references: [id], onDelete: Cascade)
+  productId          String           @unique // v1: un producto pertenece a un solo proveedor dropship
+  product            Product          @relation(fields: [productId], references: [id])
+
+  @@map("dropship_products")
+}
+
+model DropshipOrder {
+  id           String              @id @default(cuid())
+  status       DropshipOrderStatus @default(PENDING)
+  supplierCost Decimal             @db.Decimal(10, 2) // suma del costo proveedor
+  saleAmount   Decimal             @db.Decimal(10, 2) // suma del precio de venta de los ítems dropship
+  channelFee   Decimal?            @db.Decimal(10, 2) // comisión del canal prorrateada
+  trackingCode String?
+  courier      String?
+  supplierRef  String? // nº de pedido / confirmación del proveedor
+  notes        String?
+  sentAt       DateTime?
+  confirmedAt  DateTime?
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  dropshipSupplierId String
+  dropshipSupplier   DropshipSupplier @relation(fields: [dropshipSupplierId], references: [id])
+  saleId             String
+  sale               Sale             @relation(fields: [saleId], references: [id])
+
+  items DropshipOrderItem[]
+
+  @@unique([saleId, dropshipSupplierId]) // una venta genera un único pedido por proveedor
+  @@index([companyId, status])
+  @@map("dropship_orders")
+}
+
+model DropshipOrderItem {
+  id          String  @id @default(cuid())
+  productName String
+  productSku  String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2) // precio de venta unitario
+  unitCost    Decimal @db.Decimal(10, 2) // costo proveedor unitario
+
+  dropshipOrderId String
+  dropshipOrder   DropshipOrder @relation(fields: [dropshipOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  saleItemId      String?
+  saleItem        SaleItem?     @relation(fields: [saleItemId], references: [id])
+
+  @@map("dropship_order_items")
 }

@@ -46,7 +46,7 @@ export class PosService {
       const product = products.find(p => p.id === item.productId);
       if (!product) throw new BadRequestException(`Producto ${item.productId} no encontrado`);
       if (!product.active) throw new BadRequestException(`El producto "${product.name}" está inactivo`);
-      if (product.type !== ProductType.SERVICIO && product.stock < item.quantity) {
+      if (product.type !== ProductType.SERVICIO && !product.dropship && product.stock < item.quantity) {
         throw new BadRequestException(`Stock insuficiente para "${product.name}": disponible ${product.stock}, solicitado ${item.quantity}`);
       }
     }
@@ -94,7 +94,9 @@ export class PosService {
 
       for (const item of created.items) {
         const product = products.find(p => p.id === item.productId)!;
-        if (product.type === ProductType.SERVICIO) continue;
+        // Servicios y productos dropship no descuentan stock propio: los dropship los
+        // despacha el proveedor y el módulo de dropshipping costea sus líneas aparte.
+        if (product.type === ProductType.SERVICIO || product.dropship) continue;
         const totalCost = await this.costing.consumeForSale(tx, {
           companyId,
           productId: item.productId,

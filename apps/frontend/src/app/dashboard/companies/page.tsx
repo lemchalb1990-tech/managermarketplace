@@ -20,6 +20,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },
   { key: 'rentabilidad', label: 'Rentabilidad', description: 'Comparador de costo propio vs. precio de la competencia' },
   { key: 'purchases', label: 'Compras', description: 'Compras a proveedores con costeo por lotes (FIFO)' },
+  { key: 'dropshipping', label: 'Dropshipping', description: 'Productos que despacha un proveedor externo al cliente final' },
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 

@@ -455,4 +455,57 @@ export class EmailService {
     await transporter.sendMail({ from, to, subject: `${title} — ${companyName}`, html: bodyHtml, attachments });
     this.logger.log(`DTE enviado → ${to}`);
   }
+
+  /**
+   * Envía un pedido de dropshipping al proveedor para que despache al cliente final.
+   * `to` es el correo del proveedor; el detalle incluye productos, cantidades y la
+   * dirección de despacho del cliente.
+   */
+  async sendDropshipOrderEmail(companyId: string, to: string, order: any): Promise<void> {
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new Error('Configura el servidor SMTP primero');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    const companyName = company?.name ?? 'Tienda';
+    const from = await this.getFromAddress(companyId);
+
+    const shortId = order.id.slice(-8).toUpperCase();
+    const sale = order.sale ?? {};
+    const shipTo = [sale.address, sale.commune, sale.city].filter(Boolean).join(', ');
+
+    const rows = (order.items ?? []).map((it: any) => `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;">${it.productName} <span style="color:#9ca3af;">(${it.productSku})</span></td>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#6b7280;text-align:center;">${it.quantity}</td>
+      </tr>`).join('');
+
+    const itemsTable = `<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;">
+      <thead><tr style="background:#f9fafb;">
+        <th style="padding:8px 0;text-align:left;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Producto</th>
+        <th style="padding:8px 0;text-align:center;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Cant.</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+    const shipBlock = shipTo
+      ? `<div style="margin:16px 0;padding:14px 16px;background:#f9fafb;border-radius:8px;font-size:14px;color:#374151;">
+          <strong>🏠 Despachar a</strong><br>
+          <span style="color:#6b7280;">${sale.customerName ? sale.customerName + '<br>' : ''}${shipTo}</span>
+        </div>`
+      : '';
+
+    const bodyHtml = shell(
+      `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">Pedido de despacho #${shortId}</h2>
+       <p style="margin:0 0 8px;color:#6b7280;font-size:15px;">${companyName} solicita el despacho directo de los siguientes productos al cliente final.</p>
+       ${itemsTable}
+       ${shipBlock}
+       ${order.notes ? `<p style="margin:16px 0 0;color:#374151;font-size:14px;"><strong>Notas:</strong> ${order.notes}</p>` : ''}
+       <p style="margin:20px 0 0;color:#9ca3af;font-size:13px;">Responde este correo con el número de seguimiento cuando lo despaches.</p>`,
+      companyName,
+      '#0f766e',
+    );
+
+    await transporter.sendMail({ from, to, subject: `Pedido de despacho #${shortId} — ${companyName}`, html: bodyHtml });
+    this.logger.log(`Pedido dropship ${order.id} enviado → ${to}`);
+  }
 }

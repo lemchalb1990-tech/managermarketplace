@@ -655,6 +655,63 @@ export const api = {
     remove: (id: string, token: string) =>
       apiFetch<any>(`/profitability/${id}`, { method: 'DELETE' }, token),
   },
+  dropshipping: {
+    suppliers: {
+      list: (token: string, companyId?: string) => {
+        const q = new URLSearchParams();
+        if (companyId) q.set('companyId', companyId);
+        return apiFetch<any[]>(`/dropshipping/suppliers?${q}`, {}, token);
+      },
+      create: (data: {
+        supplierId?: string; name?: string; taxId?: string; email?: string; phone?: string; address?: string;
+        autoCreateOrders?: boolean; leadTimeDays?: number; notes?: string; companyId?: string;
+      }, token: string) =>
+        apiFetch<any>('/dropshipping/suppliers', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: { active?: boolean; autoCreateOrders?: boolean; leadTimeDays?: number | null; notes?: string }, token: string) =>
+        apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string) =>
+        apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'DELETE' }, token),
+    },
+    products: {
+      list: (token: string, companyId?: string) => {
+        const q = new URLSearchParams();
+        if (companyId) q.set('companyId', companyId);
+        return apiFetch<{ linked: any[]; availableProducts: any[] }>(`/dropshipping/products?${q}`, {}, token);
+      },
+      create: (data: {
+        productId: string; dropshipSupplierId: string; supplierCost: number; supplierSku?: string; leadTimeDays?: number; companyId?: string;
+      }, token: string) =>
+        apiFetch<any>('/dropshipping/products', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: { supplierCost?: number; supplierSku?: string; leadTimeDays?: number | null; active?: boolean }, token: string) =>
+        apiFetch<any>(`/dropshipping/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string) =>
+        apiFetch<any>(`/dropshipping/products/${id}`, { method: 'DELETE' }, token),
+    },
+    orders: {
+      list: (token: string, params?: { companyId?: string; status?: string; dropshipSupplierId?: string; page?: number }) => {
+        const q = new URLSearchParams();
+        if (params?.companyId) q.set('companyId', params.companyId);
+        if (params?.status) q.set('status', params.status);
+        if (params?.dropshipSupplierId) q.set('dropshipSupplierId', params.dropshipSupplierId);
+        if (params?.page) q.set('page', String(params.page));
+        return apiFetch<{ orders: any[]; total: number; page: number; pages: number }>(`/dropshipping/orders?${q}`, {}, token);
+      },
+      get: (id: string, token: string) => apiFetch<any>(`/dropshipping/orders/${id}`, {}, token),
+      generate: (data: { companyId?: string; sinceDays?: number }, token: string) =>
+        apiFetch<{ created: number; sent: number; skipped: number }>('/dropshipping/orders/generate', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: { status?: string; trackingCode?: string; courier?: string; supplierRef?: string; notes?: string }, token: string) =>
+        apiFetch<any>(`/dropshipping/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      send: (id: string, token: string) =>
+        apiFetch<any>(`/dropshipping/orders/${id}/send`, { method: 'POST' }, token),
+    },
+    report: (token: string, params?: { companyId?: string; from?: string; to?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.from) q.set('from', params.from);
+      if (params?.to) q.set('to', params.to);
+      return apiFetch<{ rows: any[]; totals: any }>(`/dropshipping/report?${q}`, {}, token);
+    },
+  },
   email: {
     getConfig: (token: string, companyId?: string) => {
       const q = companyId ? `?companyId=${companyId}` : '';

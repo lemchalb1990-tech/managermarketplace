@@ -1281,6 +1281,17 @@ export class MercadolibreService {
           const saleItem = sale.items[i];
 
           const product = listing.product;
+
+          // Productos dropship: no descuentan stock propio ni pausan la publicación.
+          // El módulo de dropshipping genera el pedido al proveedor y costea la línea.
+          if (product.dropship) {
+            await tx.listing.update({
+              where: { id: listing.id },
+              data: { status: ListingStatus.ACTIVE, syncedAt: new Date() },
+            });
+            continue;
+          }
+
           const newStock = Math.max(0, product.stock - quantity);
 
           const totalCost = await this.costing.consumeForSale(tx, {

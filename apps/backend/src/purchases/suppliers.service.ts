@@ -22,7 +22,10 @@ export class SuppliersService {
       : { companyId: user.companyId };
     return this.prisma.supplier.findMany({
       where,
-      include: { _count: { select: { purchases: true } } },
+      include: {
+        _count: { select: { purchases: true } },
+        dropship: { select: { id: true } },
+      },
       orderBy: { name: 'asc' },
     });
   }
