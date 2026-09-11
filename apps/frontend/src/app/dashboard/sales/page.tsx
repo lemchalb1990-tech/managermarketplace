@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -389,16 +389,28 @@ export default function SalesPage() {
 
                 {expandedId === sale.id && (
                   <div className="mt-3 ml-2 bg-gray-50 rounded-xl p-3 space-y-1.5">
-                    {sale.items?.map((item: any) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="text-gray-700">
-                          {item.product?.name || 'Producto eliminado'} × {item.quantity}
-                        </span>
-                        <span className="text-gray-600 font-medium">
-                          {fmt(Number(item.unitPrice) * item.quantity)}
-                        </span>
-                      </div>
-                    ))}
+                    {sale.items?.map((item: any) => {
+                      const primaryImg = item.product?.images?.find((i: any) => i.isPrimary) || item.product?.images?.[0];
+                      return (
+                        <div key={item.id} className="flex items-center justify-between text-sm gap-2">
+                          <span className="flex items-center gap-2 min-w-0 text-gray-700">
+                            <span className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+                              {primaryImg ? (
+                                <img src={imgUrl(primaryImg.url)} alt={item.product?.name || ''} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-gray-300 text-xs">—</span>
+                              )}
+                            </span>
+                            <span className="truncate">
+                              {item.product?.name || 'Producto eliminado'} × {item.quantity}
+                            </span>
+                          </span>
+                          <span className="text-gray-600 font-medium shrink-0">
+                            {fmt(Number(item.unitPrice) * item.quantity)}
+                          </span>
+                        </div>
+                      );
+                    })}
                     {sale.customerName && (
                       <p className="text-xs text-gray-400">Comprador: {sale.customerName}</p>
                     )}

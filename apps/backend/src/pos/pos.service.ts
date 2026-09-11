@@ -243,7 +243,16 @@ export class PosService {
       this.prisma.sale.findMany({
         where,
         include: {
-          items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true, name: true, sku: true,
+                  images: { select: { url: true, isPrimary: true }, orderBy: { order: 'asc' } },
+                },
+              },
+            },
+          },
           user: { select: { id: true, name: true } },
           invoices: { select: { id: true, dteType: true, status: true, folio: true } },
         },
@@ -261,7 +270,16 @@ export class PosService {
     const sale = await this.prisma.sale.findUnique({
       where: { id: saleId },
       include: {
-        items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true, name: true, sku: true,
+                images: { select: { url: true, isPrimary: true }, orderBy: { order: 'asc' } },
+              },
+            },
+          },
+        },
         invoices: { select: { id: true, dteType: true, status: true, folio: true, createdAt: true } },
         user: { select: { id: true, name: true } },
       },
