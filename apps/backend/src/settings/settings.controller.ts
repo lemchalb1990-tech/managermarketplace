@@ -27,16 +27,19 @@ class PlatformSettingDto {
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.SUPER_ADMIN)
 export class SettingsController {
   constructor(private service: SettingsService) {}
 
+  // Solo lectura para COMPANY_ADMIN: puede ver y copiar (p.ej. la URL de callback de ML)
+  // pero no editar, porque son valores globales compartidos por todas las empresas.
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   getAll() {
     return this.service.getAll();
   }
 
   @Patch()
+  @Roles(Role.SUPER_ADMIN)
   update(@Body() dto: UpdateSettingsDto) {
     return this.service.upsertMany(dto.settings);
   }
@@ -48,6 +51,7 @@ export class SettingsController {
   }
 
   @Patch('platforms/:platform')
+  @Roles(Role.SUPER_ADMIN)
   upsertPlatform(@Param('platform') platform: string, @Body() dto: PlatformSettingDto) {
     return this.service.upsertPlatformSetting(platform, dto);
   }

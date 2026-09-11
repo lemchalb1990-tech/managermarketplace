@@ -129,6 +129,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'users',
     'access-profiles',
     'emails',
+    'settings',
   ],
   [Role.CATALOG_MANAGER]: [
     'dashboard',

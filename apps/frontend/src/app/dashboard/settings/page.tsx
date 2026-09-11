@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
 const GROUP_LABELS: Record<string, string> = {
@@ -23,6 +23,16 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState('');
+  const canEdit = getUser()?.role === 'SUPER_ADMIN';
+
+  function handleCopyField(key: string, value: string) {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(''), 2000);
+    });
+  }
 
   useEffect(() => {
     const token = getToken();
@@ -40,6 +50,7 @@ export default function SettingsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!canEdit) return;
     setSaving(true);
     setSaved(false);
     setError('');
@@ -82,7 +93,9 @@ export default function SettingsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Configuración del sistema</h1>
         <p className="text-sm text-gray-500">
-          Variables y URLs que controlan el comportamiento de la plataforma. Solo visible para Super Admin.
+          {canEdit
+            ? 'Variables y URLs que controlan el comportamiento de la plataforma.'
+            : 'Variables y URLs que controlan el comportamiento de la plataforma. Modo solo lectura: puedes ver y copiar los valores, pero no editarlos.'}
         </p>
       </div>
 
@@ -138,42 +151,69 @@ export default function SettingsPage() {
                     {s.hint && (
                       <p className="text-xs text-gray-400 mb-2 leading-relaxed">{s.hint}</p>
                     )}
-                    <input
-                      type={s.sensitive ? 'password' : 'text'}
-                      value={draft[s.key] ?? ''}
-                      onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
-                      placeholder={s.sensitive ? '••••••••' : `Ej: ${s.key === 'APP_URL' ? 'https://api.tudominio.com' : s.key === 'FRONTEND_URL' ? 'https://tudominio.com' : ''}`}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    {canEdit ? (
+                      <input
+                        type={s.sensitive ? 'password' : 'text'}
+                        value={draft[s.key] ?? ''}
+                        onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                        placeholder={s.sensitive ? '••••••••' : `Ej: ${s.key === 'APP_URL' ? 'https://api.tudominio.com' : s.key === 'FRONTEND_URL' ? 'https://tudominio.com' : ''}`}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          readOnly
+                          type={s.sensitive ? 'password' : 'text'}
+                          value={draft[s.key] ?? ''}
+                          className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-mono text-gray-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopyField(s.key, draft[s.key] ?? '')}
+                          disabled={!draft[s.key]}
+                          className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 shrink-0"
+                        >
+                          {copiedKey === s.key ? '✓ Copiado' : 'Copiar'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           ))}
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition"
-          >
-            {saving ? 'Guardando...' : 'Guardar configuración'}
-          </button>
-          {saved && (
-            <span className="text-sm text-green-600 font-medium">
-              ✓ Configuración guardada
-            </span>
-          )}
-          {error && (
-            <span className="text-sm text-red-600">{error}</span>
-          )}
-        </div>
+        {canEdit ? (
+          <>
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition"
+              >
+                {saving ? 'Guardando...' : 'Guardar configuración'}
+              </button>
+              {saved && (
+                <span className="text-sm text-green-600 font-medium">
+                  ✓ Configuración guardada
+                </span>
+              )}
+              {error && (
+                <span className="text-sm text-red-600">{error}</span>
+              )}
+            </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 leading-relaxed">
-          <strong>Nota:</strong> Los cambios guardados aquí tienen prioridad sobre las variables de entorno del servidor.
-          Si cambias <code className="bg-amber-100 px-1 rounded">APP_URL</code>, el Callback URI de Mercado Libre
-          cambia con ella — actualízalo también en la configuración de tu app en <strong>ML Developer</strong>.
-        </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 leading-relaxed">
+              <strong>Nota:</strong> Los cambios guardados aquí tienen prioridad sobre las variables de entorno del servidor.
+              Si cambias <code className="bg-amber-100 px-1 rounded">APP_URL</code>, el Callback URI de Mercado Libre
+              cambia con ella — actualízalo también en la configuración de tu app en <strong>ML Developer</strong>.
+            </div>
+          </>
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-xs text-gray-500 leading-relaxed">
+            Solo Super Admin puede editar estos valores — son compartidos por todas las empresas de la plataforma.
+          </div>
+        )}
       </form>
     </div>
   );
