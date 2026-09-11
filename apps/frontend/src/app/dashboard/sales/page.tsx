@@ -49,6 +49,7 @@ export default function SalesPage() {
   const [summaryDate, setSummaryDate] = useState(() => searchParams.get('from') || new Date().toISOString().split('T')[0]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -124,6 +125,13 @@ export default function SalesPage() {
       setUser(u);
     }
   }, []);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightbox]);
 
   const loadSales = useCallback(async (p = 1) => {
     if (!token) return;
@@ -394,7 +402,14 @@ export default function SalesPage() {
                       return (
                         <div key={item.id} className="flex items-center justify-between text-sm gap-2">
                           <span className="flex items-center gap-2 min-w-0 text-gray-700">
-                            <span className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+                            <span
+                              onClick={(e) => {
+                                if (!primaryImg) return;
+                                e.stopPropagation();
+                                setLightbox({ url: imgUrl(primaryImg.url), alt: item.product?.name || '' });
+                              }}
+                              className={`w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0 ${primaryImg ? 'cursor-zoom-in hover:border-blue-300' : ''}`}
+                            >
                               {primaryImg ? (
                                 <img src={imgUrl(primaryImg.url)} alt={item.product?.name || ''} className="w-full h-full object-cover" />
                               ) : (
@@ -516,6 +531,27 @@ export default function SalesPage() {
         )}
       </div>
       </>
+      )}
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6"
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-xl leading-none flex items-center justify-center"
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
+          <img
+            src={lightbox.url}
+            alt={lightbox.alt}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+          />
+        </div>
       )}
     </div>
   );
