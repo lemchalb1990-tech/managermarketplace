@@ -326,6 +326,9 @@ export default function CatalogPage() {
   const [connections, setConnections] = useState<any[]>([]);
   const [genericConnections, setGenericConnections] = useState<any[]>([]);
   const [publishTargets, setPublishTargets] = useState<Record<string, boolean>>({});
+  // Conexiones que el usuario eligió al crear el producto pero que quedaron pendientes de
+  // publicar porque todavía no hay ninguna imagen (requisito para publicar en marketplaces).
+  const [pendingPublishTargets, setPendingPublishTargets] = useState<string[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -653,6 +656,7 @@ export default function CatalogPage() {
 
   function openModal(product: any) {
     setSelected(product);
+    setPendingPublishTargets([]);
     const existingAttrs = product.mlAttributes || [];
     setEditForm({
       sku: product.sku,
@@ -709,6 +713,7 @@ export default function CatalogPage() {
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
     setPublishTargets({});
+    setPendingPublishTargets([]);
   }
 
   async function refreshSelected(id: string) {
@@ -752,32 +757,58 @@ export default function CatalogPage() {
       } else {
         const created = await api.catalog.create(payload, token);
         const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
-        const publishErrors: string[] = [];
-        for (const connId of targetIds) {
-          const isMl = connections.some((c) => c.id === connId);
-          try {
-            if (isMl) await api.marketplace.publish(created.id, connId, token);
-            else await api.connections.publish(connId, created.id, token);
-          } catch (err: any) {
-            const conn = activeConnections.find((c) => c.id === connId);
-            publishErrors.push(`${conn?.name ?? connId}: ${err.message}`);
-          }
-        }
         await loadProducts(1);
-        setSelected(null);
-        if (publishErrors.length) {
+
+        if (targetIds.length) {
+          // Un producto sin fotos no se publica en marketplaces: se deja creado (visible
+          // en el catálogo, sin publicar) y el modal pasa a la pestaña de Imágenes — recién
+          // con al menos una foto se puede completar la publicación con "Publicar ahora".
+          await refreshSelected(created.id);
+          setIsDirty(false);
+          setPendingPublishTargets(targetIds);
+          setTab('images');
           setListNoticeIsWarning(true);
-          setListNotice(`Producto "${created.name}" creado. No se pudo publicar en: ${publishErrors.join(' · ')}`);
-        } else if (targetIds.length) {
-          setListNoticeIsWarning(false);
-          setListNotice(`Producto "${created.name}" creado y publicado en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+          setListNotice(`Producto "${created.name}" creado. Sube al menos una foto y presiona "Publicar ahora" para completar la publicación en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
         } else {
+          setSelected(null);
           setListNoticeIsWarning(false);
           setListNotice(`Producto "${created.name}" creado.`);
         }
       }
     } catch (err: any) {
       setEditError(err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handlePublishPending() {
+    if (!selected?.id || !pendingPublishTargets.length) return;
+    setEditLoading(true);
+    setEditError('');
+    try {
+      const token = getToken()!;
+      const publishErrors: string[] = [];
+      for (const connId of pendingPublishTargets) {
+        const isMl = connections.some((c) => c.id === connId);
+        try {
+          if (isMl) await api.marketplace.publish(selected.id, connId, token);
+          else await api.connections.publish(connId, selected.id, token);
+        } catch (err: any) {
+          const conn = activeConnections.find((c) => c.id === connId);
+          publishErrors.push(`${conn?.name ?? connId}: ${err.message}`);
+        }
+      }
+      setPendingPublishTargets([]);
+      await loadProducts(page);
+      setSelected(null);
+      if (publishErrors.length) {
+        setListNoticeIsWarning(true);
+        setListNotice(`No se pudo publicar en: ${publishErrors.join(' · ')}`);
+      } else {
+        setListNoticeIsWarning(false);
+        setListNotice('Producto publicado correctamente.');
+      }
     } finally {
       setEditLoading(false);
     }
@@ -1492,7 +1523,7 @@ export default function CatalogPage() {
                   <h3 className="font-semibold text-gray-900">Nuevo producto</h3>
                 )}
               </div>
-              <button onClick={() => setSelected(null)}
+              <button onClick={() => { setSelected(null); setPendingPublishTargets([]); }}
                 className="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">
                 ×
               </button>
@@ -1514,6 +1545,22 @@ export default function CatalogPage() {
                 </button>
               ))}
             </div>
+
+            {pendingPublishTargets.length > 0 && (
+              <div className="mx-6 mt-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
+                <span>
+                  Falta publicar en {pendingPublishTargets.length} conexión{pendingPublishTargets.length > 1 ? 'es' : ''}.
+                  {' '}Sube al menos una foto en la pestaña "Imágenes" para poder publicar.
+                </span>
+                <button
+                  onClick={handlePublishPending}
+                  disabled={!selected?.images?.length || editLoading}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shrink-0"
+                >
+                  {editLoading ? 'Publicando...' : 'Publicar ahora'}
+                </button>
+              </div>
+            )}
 
             <div className="p-6 max-h-[65vh] overflow-y-auto">
 
