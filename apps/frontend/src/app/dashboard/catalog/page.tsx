@@ -308,6 +308,15 @@ const statusColor: Record<string, string> = {
   CLOSED: 'bg-gray-200 text-gray-500',
 };
 
+// Chip de publicación por tienda en la fila del catálogo: solo color + nombre de la tienda
+// (sin la palabra del estado) — verde activo, amarillo pausado, rojo el resto (borrador,
+// error, cerrado). El texto del estado queda disponible como tooltip.
+const listingChipColor: Record<string, string> = {
+  ACTIVE: 'bg-green-100 text-green-700',
+  PAUSED: 'bg-amber-100 text-amber-700',
+};
+const listingChipDefaultColor = 'bg-red-100 text-red-700';
+
 export default function CatalogPage() {
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -1393,8 +1402,10 @@ export default function CatalogPage() {
                       <div className="flex flex-wrap gap-1">
                         {p.listings?.length > 0
                           ? p.listings.map((l: any) => (
-                              <span key={l.id} className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColor[l.status] || 'bg-gray-100'}`}>
-                                {l.connection?.name || 'ML'}: {statusLabel[l.status] || l.status}
+                              <span key={l.id}
+                                title={statusLabel[l.status] || l.status}
+                                className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${listingChipColor[l.status] || listingChipDefaultColor}`}>
+                                {l.connection?.name || 'ML'}
                               </span>
                             ))
                           : <span className="text-gray-400 text-xs">Sin publicar</span>
