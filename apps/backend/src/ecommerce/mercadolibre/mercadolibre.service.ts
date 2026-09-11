@@ -761,6 +761,17 @@ export class MercadolibreService {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Un producto solo puede tener una publicación por conexión (Listing es único por
+    // productId+connectionId). Si dos ítems de ML del mismo lote resuelven al mismo SKU
+    // (p.ej. variaciones o publicaciones duplicadas), sin este control el segundo intento
+    // de crear el Listing rompe esa restricción única. Se arma el set con lo que ya existe
+    // en la conexión y se va actualizando a medida que se vinculan/crean productos en el lote.
+    const preexistingListings = await this.prisma.listing.findMany({
+      where: { connectionId },
+      select: { productId: true },
+    });
+    const linkedProductIds = new Set(preexistingListings.map((l) => l.productId));
+
     for (const item of mlItems) {
       try {
         const alreadyLinked = await this.prisma.listing.findFirst({
@@ -777,6 +788,12 @@ export class MercadolibreService {
           where: { sku_companyId: { sku, companyId: conn.companyId } },
         });
 
+        if (product && linkedProductIds.has(product.id)) {
+          skipped++;
+          errors.push(`${item.id}: el SKU ${sku} ya está vinculado a otra publicación en esta conexión (usa "Importar como nuevo" para crear un producto aparte).`);
+          continue;
+        }
+
         if (product) {
           await this.prisma.listing.create({
             data: {
@@ -788,6 +805,7 @@ export class MercadolibreService {
               syncedAt: new Date(),
             },
           });
+          linkedProductIds.add(product.id);
           linked++;
         } else {
           const newProduct = await this.prisma.product.create({
@@ -828,6 +846,7 @@ export class MercadolibreService {
               syncedAt: new Date(),
             },
           });
+          linkedProductIds.add(newProduct.id);
           imported++;
         }
       } catch (err: any) {
