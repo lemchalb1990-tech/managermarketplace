@@ -15,9 +15,24 @@ import { InventoryCostingService } from '../../purchases/inventory-costing.servi
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
 
+// Categorías raíz de "aviso clasificado" en Mercado Libre (Vehículos, Inmuebles, Empleos,
+// Servicios): usan un formato de publicación totalmente distinto al de un producto normal
+// (piden datos de contacto del vendedor, no manejan stock como inventario, etc.), que hoy
+// esta app no arma. Se resuelven por nombre contra el árbol real del sitio (no se hardcodea
+// el id) para no depender de que el id no cambie entre países/cuentas.
+type MlListingType = 'PRODUCTO' | 'VEHICULO' | 'INMUEBLE' | 'EMPLEO' | 'SERVICIO';
+const CLASSIFIED_ROOT_NAMES: Record<Exclude<MlListingType, 'PRODUCTO'>, string> = {
+  VEHICULO: 'Vehículos',
+  INMUEBLE: 'Inmuebles',
+  EMPLEO: 'Empleos',
+  SERVICIO: 'Servicios',
+};
+
 @Injectable()
 export class MercadolibreService {
   private readonly logger = new Logger(MercadolibreService.name);
+  // Cache en memoria: el árbol de categorías raíz de ML prácticamente no cambia.
+  private classifiedRootIdsCache: Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>> | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -276,7 +291,56 @@ export class MercadolibreService {
 
   // ─── Categorías ──────────────────────────────────────────────────────────────
 
-  async searchCategories(q: string) {
+  // Resuelve los ids reales de Vehículos/Inmuebles/Empleos/Servicios en el árbol de
+  // categorías raíz de MLC, buscándolos por nombre (una sola vez por proceso).
+  private async getClassifiedRootIds(): Promise<Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>>> {
+    if (this.classifiedRootIdsCache) return this.classifiedRootIdsCache;
+    try {
+      const res = await fetch(`${ML_API}/sites/MLC/categories`);
+      if (!res.ok) return {};
+      const roots = await res.json() as { id: string; name: string }[];
+      const result: Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>> = {};
+      for (const [key, name] of Object.entries(CLASSIFIED_ROOT_NAMES)) {
+        const match = roots.find((r) => r.name === name);
+        if (match) result[key as Exclude<MlListingType, 'PRODUCTO'>] = match.id;
+      }
+      this.classifiedRootIdsCache = result;
+      return result;
+    } catch (err) {
+      this.logger.error('ML root categories fetch error', err);
+      return {};
+    }
+  }
+
+  // Categoría raíz (tope del árbol) a la que pertenece una categoría cualquiera.
+  private async getCategoryTopId(categoryId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${ML_API}/categories/${categoryId}`);
+      if (!res.ok) return null;
+      const data = await res.json() as any;
+      return data.path_from_root?.[0]?.id || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Si la categoría es de aviso clasificado (Vehículos/Inmuebles/Empleos/Servicios), no se
+  // puede publicar: esta app solo arma el formato de un producto normal. Se usa antes de
+  // publicar/republicar para dar un mensaje claro en vez del error crudo de Mercado Libre.
+  private async assertPublishableCategory(categoryId: string) {
+    const topId = await this.getCategoryTopId(categoryId);
+    if (!topId) return;
+    const roots = await this.getClassifiedRootIds();
+    const match = Object.entries(roots).find(([, id]) => id === topId);
+    if (match) {
+      const label = CLASSIFIED_ROOT_NAMES[match[0] as Exclude<MlListingType, 'PRODUCTO'>];
+      throw new BadRequestException(
+        `Esta categoría es de ${label} (aviso clasificado de Mercado Libre) y ese tipo de publicación no está soportado todavía. Cambia la categoría ML del producto a una de tipo Producto.`,
+      );
+    }
+  }
+
+  async searchCategories(q: string, type?: string) {
     if (!q?.trim()) return [];
     try {
       const res = await fetch(
@@ -287,12 +351,25 @@ export class MercadolibreService {
         return [];
       }
       const data = await res.json() as any[];
-      return (Array.isArray(data) ? data : [])
+      let items = (Array.isArray(data) ? data : [])
         .filter((item: any) => item?.category_id)
         .map((item: any) => ({
           id: item.category_id,
           name: item.domain_name,
         }));
+
+      if (type) {
+        const roots = await this.getClassifiedRootIds();
+        const classifiedIds = new Set(Object.values(roots).filter(Boolean));
+        const wantedRootId = type === 'PRODUCTO' ? null : roots[type as Exclude<MlListingType, 'PRODUCTO'>];
+        const tops = await Promise.all(items.map((it) => this.getCategoryTopId(it.id)));
+        items = items.filter((_, i) => {
+          const top = tops[i];
+          return type === 'PRODUCTO' ? !top || !classifiedIds.has(top) : top === wantedRootId;
+        });
+      }
+
+      return items;
     } catch (err) {
       this.logger.error('ML category search error', err);
       return [];
@@ -380,6 +457,7 @@ export class MercadolibreService {
         'Debes asignar una categoría de Mercado Libre al producto antes de publicar.',
       );
     }
+    await this.assertPublishableCategory(categoryId);
 
     const appUrl = await this.settings.get('APP_URL');
     const toAbsolute = (url: string) =>

@@ -219,7 +219,15 @@ function PrePublishModal({ state, onConfirm, onClose }: {
   );
 }
 
-function CategoryPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+const ML_LISTING_TYPES: { value: string; label: string }[] = [
+  { value: 'PRODUCTO', label: 'Producto' },
+  { value: 'VEHICULO', label: 'Vehículo' },
+  { value: 'INMUEBLE', label: 'Inmueble' },
+  { value: 'EMPLEO', label: 'Empleo' },
+  { value: 'SERVICIO', label: 'Servicio' },
+];
+
+function CategoryPicker({ value, onChange, listingType }: { value: string; onChange: (id: string) => void; listingType: string }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -234,7 +242,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
       setLoading(true);
       try {
         const token = getToken()!;
-        const data = await api.marketplace.searchCategories(q, token);
+        const data = await api.marketplace.searchCategories(q, token, listingType);
         setResults(data);
         setOpen(data.length > 0);
       } catch { setResults([]); }
@@ -383,6 +391,9 @@ export default function CatalogPage() {
   const [mlCategoryAttrs, setMlCategoryAttrs] = useState<any[]>([]);
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
+  // Tipo de publicación ML elegido para filtrar el buscador de categoría (solo afecta la
+  // búsqueda; lo que se guarda en el producto sigue siendo únicamente mlCategoryId).
+  const [mlListingType, setMlListingType] = useState('PRODUCTO');
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
@@ -657,6 +668,7 @@ export default function CatalogPage() {
   function openModal(product: any) {
     setSelected(product);
     setPendingPublishTargets([]);
+    setMlListingType('PRODUCTO');
     const existingAttrs = product.mlAttributes || [];
     setEditForm({
       sku: product.sku,
@@ -714,6 +726,7 @@ export default function CatalogPage() {
     setCategorySupportsHtml(false);
     setPublishTargets({});
     setPendingPublishTargets([]);
+    setMlListingType('PRODUCTO');
   }
 
   async function refreshSelected(id: string) {
@@ -1717,7 +1730,20 @@ export default function CatalogPage() {
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
+                      <select
+                        value={mlListingType}
+                        onChange={(e) => setMlListingType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white mb-1.5"
+                      >
+                        {ML_LISTING_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                      {mlListingType !== 'PRODUCTO' && (
+                        <p className="text-xs text-amber-600 mb-1.5">
+                          ⚠️ Los avisos de {ML_LISTING_TYPES.find((t) => t.value === mlListingType)?.label} no se pueden publicar todavía desde aquí — solo sirve para explorar la categoría.
+                        </p>
+                      )}
                       <CategoryPicker
+                        listingType={mlListingType}
                         value={editForm.mlCategoryId}
                         onChange={(id) => {
                           setEditForm((f: any) => ({ ...f, mlCategoryId: id, mlAttributes: [] }));

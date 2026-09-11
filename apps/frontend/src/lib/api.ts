@@ -320,9 +320,9 @@ export const api = {
       apiFetch<any>('/ecommerce/ml/connections', { method: 'POST', body: JSON.stringify(data) }, token),
     authorize: (connectionId: string, token: string) =>
       apiFetch<{ authUrl: string }>(`/ecommerce/ml/connections/${connectionId}/authorize`, { method: 'POST' }, token),
-    searchCategories: (q: string, token: string) =>
+    searchCategories: (q: string, token: string, type?: string) =>
       apiFetch<{ id: string; name: string }[]>(
-        `/ecommerce/ml/categories/search?q=${encodeURIComponent(q)}`, {}, token),
+        `/ecommerce/ml/categories/search?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ''}`, {}, token),
     getCategoryAttributes: (categoryId: string, token: string) =>
       apiFetch<{ attributes: any[]; supportsHtml: boolean }>(
         `/ecommerce/ml/categories/${categoryId}/attributes`, {}, token),

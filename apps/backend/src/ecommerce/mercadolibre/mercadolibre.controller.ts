@@ -152,8 +152,8 @@ export class MercadolibreController {
 
   @Get('categories/search')
   @UseGuards(JwtAuthGuard)
-  searchCategories(@Query('q') q: string) {
-    return this.service.searchCategories(q);
+  searchCategories(@Query('q') q: string, @Query('type') type?: string) {
+    return this.service.searchCategories(q, type);
   }
 
   @Get('categories/:id/attributes')
