@@ -220,11 +220,21 @@ function PrePublishModal({ state, onConfirm, onClose }: {
 }
 
 function CategoryPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [mode, setMode] = useState<'search' | 'browse'>('search');
+
+  // Modo "Buscar" (texto)
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const timer = useRef<any>(null);
+
+  // Modo "Explorar" (árbol paso a paso) — para cuando la búsqueda por texto no trae
+  // resultados que sirvan. Sin id = raíces del árbol (ya excluye avisos clasificados).
+  const [browsePath, setBrowsePath] = useState<{ id: string; name: string }[]>([]);
+  const [browseChildren, setBrowseChildren] = useState<{ id: string; name: string }[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseStarted, setBrowseStarted] = useState(false);
 
   function search(q: string) {
     setQuery(q);
@@ -251,6 +261,32 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
     setOpen(false);
   }
 
+  async function loadBrowse(id?: string) {
+    setBrowseLoading(true);
+    try {
+      const token = getToken()!;
+      const data = await api.marketplace.browseCategories(id, token);
+      setBrowsePath(data.path);
+      setBrowseChildren(data.children);
+      return data;
+    } catch {
+      setBrowseChildren([]);
+      return null;
+    } finally {
+      setBrowseLoading(false);
+    }
+  }
+
+  function switchToBrowse() {
+    setMode('browse');
+    if (!browseStarted) { setBrowseStarted(true); loadBrowse(undefined); }
+  }
+
+  async function selectChild(child: { id: string; name: string }) {
+    const data = await loadBrowse(child.id);
+    if (data?.isLeaf) onChange(child.id);
+  }
+
   return (
     <div className="relative">
       {value && (
@@ -260,27 +296,78 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
             className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base">×</button>
         </div>
       )}
-      <div className="relative">
-        <input
-          value={query}
-          onChange={(e) => search(e.target.value)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder={value ? 'Buscar otra categoría...' : 'Buscar categoría ML...'}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-        />
-        {loading && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">buscando...</span>
-        )}
+
+      <div className="flex gap-1 mb-1.5">
+        <button type="button" onClick={() => setMode('search')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${mode === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          Buscar
+        </button>
+        <button type="button" onClick={switchToBrowse}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${mode === 'browse' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          Explorar categorías
+        </button>
       </div>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          {results.map((r) => (
-            <button key={r.id} type="button" onMouseDown={() => select(r)}
-              className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0">
-              <span className="font-mono text-blue-600 text-xs mr-2">{r.id}</span>
-              <span className="text-gray-700">{r.name}</span>
+
+      {mode === 'search' ? (
+        <>
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => search(e.target.value)}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              placeholder={value ? 'Buscar otra categoría...' : 'Buscar categoría ML...'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+            {loading && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">buscando...</span>
+            )}
+          </div>
+          {open && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+              {results.map((r) => (
+                <button key={r.id} type="button" onMouseDown={() => select(r)}
+                  className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0">
+                  <span className="font-mono text-blue-600 text-xs mr-2">{r.id}</span>
+                  <span className="text-gray-700">{r.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <div className="flex flex-wrap items-center gap-1 px-2.5 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
+            <button type="button" onClick={() => loadBrowse(undefined)} className="text-blue-600 hover:underline font-medium">
+              Inicio
             </button>
-          ))}
+            {browsePath.map((p) => (
+              <span key={p.id} className="flex items-center gap-1">
+                <span className="text-gray-300">/</span>
+                <button type="button" onClick={() => loadBrowse(p.id)} className="text-blue-600 hover:underline">
+                  {p.name}
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {browseLoading && <p className="text-xs text-gray-400 text-center py-4">Cargando...</p>}
+            {!browseLoading && browsePath.length > 0 && (
+              <button type="button" onClick={() => onChange(browsePath[browsePath.length - 1].id)}
+                className="w-full text-left px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 border-b border-gray-100">
+                Usar "{browsePath[browsePath.length - 1].name}" tal cual (sin elegir una subcategoría)
+              </button>
+            )}
+            {!browseLoading && browseChildren.map((c) => (
+              <button key={c.id} type="button" onClick={() => selectChild(c)}
+                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0 flex items-center justify-between gap-2">
+                <span className="text-gray-700 truncate">{c.name}</span>
+                <span className="text-gray-300 text-xs shrink-0">›</span>
+              </button>
+            ))}
+            {!browseLoading && browseChildren.length === 0 && browsePath.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-4">No se pudo cargar el árbol de categorías.</p>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -323,6 +323,9 @@ export const api = {
     searchCategories: (q: string, token: string, type?: string) =>
       apiFetch<{ id: string; name: string }[]>(
         `/ecommerce/ml/categories/search?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ''}`, {}, token),
+    browseCategories: (id: string | undefined, token: string) =>
+      apiFetch<{ id: string | null; name: string | null; path: { id: string; name: string }[]; children: { id: string; name: string }[]; isLeaf: boolean }>(
+        `/ecommerce/ml/categories/browse${id ? `?id=${encodeURIComponent(id)}` : ''}`, {}, token),
     getCategoryAttributes: (categoryId: string, token: string) =>
       apiFetch<{ attributes: any[]; supportsHtml: boolean }>(
         `/ecommerce/ml/categories/${categoryId}/attributes`, {}, token),

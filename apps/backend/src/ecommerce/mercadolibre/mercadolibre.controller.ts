@@ -156,6 +156,13 @@ export class MercadolibreController {
     return this.service.searchCategories(q, type);
   }
 
+  // Navegar el árbol de categorías paso a paso (sin id = raíces).
+  @Get('categories/browse')
+  @UseGuards(JwtAuthGuard)
+  browseCategories(@Query('id') id?: string) {
+    return this.service.browseCategories(id);
+  }
+
   @Get('categories/:id/attributes')
   @UseGuards(JwtAuthGuard)
   getCategoryAttributes(@Param('id') id: string) {

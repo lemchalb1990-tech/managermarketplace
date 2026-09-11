@@ -379,6 +379,38 @@ export class MercadolibreService {
     }
   }
 
+  // Navegación del árbol real de categorías de ML, paso a paso, como alternativa al
+  // buscador de texto (que a veces no trae resultados útiles). Sin categoryId devuelve las
+  // raíces (sin los rubros de aviso clasificado); con categoryId devuelve sus hijas y su
+  // camino desde la raíz. isLeaf=true cuando ya no tiene subcategorías (queda seleccionable).
+  async browseCategories(categoryId?: string) {
+    if (!categoryId) {
+      const res = await fetch(`${ML_API}/sites/MLC/categories`);
+      if (!res.ok) return { id: null, name: null, path: [], children: [], isLeaf: false };
+      const roots = await res.json() as { id: string; name: string }[];
+      const classifiedRoots = new Set(Object.values(await this.getClassifiedRootIds()));
+      return {
+        id: null,
+        name: null,
+        path: [] as { id: string; name: string }[],
+        children: roots.filter((r) => !classifiedRoots.has(r.id)).map((r) => ({ id: r.id, name: r.name })),
+        isLeaf: false,
+      };
+    }
+
+    const res = await fetch(`${ML_API}/categories/${categoryId}`);
+    if (!res.ok) throw new BadRequestException('Categoría no encontrada');
+    const data = await res.json() as any;
+    const children = (data.children_categories || []).map((c: any) => ({ id: c.id, name: c.name }));
+    return {
+      id: data.id as string,
+      name: data.name as string,
+      path: ((data.path_from_root || []) as any[]).map((p) => ({ id: p.id, name: p.name })),
+      children,
+      isLeaf: children.length === 0,
+    };
+  }
+
   async getCategoryAttributes(categoryId: string) {
     try {
       const [attrsRes, catRes] = await Promise.all([
