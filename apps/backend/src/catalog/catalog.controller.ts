@@ -8,7 +8,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { CatalogService } from './catalog.service';
-import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto, MergeProductsDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -98,6 +98,20 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   bulkDeleteListings(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
     return this.service.bulkDeleteListings(dto.ids, user);
+  }
+
+  // Unificar productos duplicados: paso 1, detalle + validación para armar el selector.
+  @Post('products/bulk/merge-preview')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  getMergeCandidates(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
+    return this.service.getMergeCandidates(dto.ids, user);
+  }
+
+  // Unificar productos duplicados: paso 2, ejecuta la fusión.
+  @Post('products/bulk/merge')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  mergeProducts(@Body() dto: MergeProductsDto, @CurrentUser() user: any) {
+    return this.service.mergeProducts(dto, user);
   }
 
   @Post('products/bulk/import')

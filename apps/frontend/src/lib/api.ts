@@ -297,6 +297,17 @@ export const api = {
     bulkImport: (file: File, token: string, companyId?: string) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
         `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token),
+    mergePreview: (ids: string[], token: string) =>
+      apiFetch<{ products: any[]; connectionConflicts: { connectionId: string; connectionName: string; products: { id: string; name: string }[] }[] }>(
+        '/catalog/products/bulk/merge-preview', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+    merge: (dto: {
+      productIds: string[];
+      survivorId: string;
+      fieldSources: Record<string, string>;
+      imagesFromProductId?: string | null;
+      dropshipFromProductId?: string | null;
+    }, token: string) =>
+      apiFetch<any>('/catalog/products/bulk/merge', { method: 'POST', body: JSON.stringify(dto) }, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>

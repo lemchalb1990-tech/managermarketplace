@@ -5,11 +5,20 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
+
+// Campos "de identidad" del producto que se pueden elegir campo por campo al unificar
+// duplicados (ver mergeProducts). Imágenes y proveedor dropship se resuelven aparte porque
+// no son un valor simple (una lista de imágenes / una relación 1 a 1), no un campo escalar.
+const MERGE_FIELD_KEYS = [
+  'sku', 'name', 'type', 'description', 'mlDescription', 'mlAttributes',
+  'price', 'mlPrice', 'cost', 'supplierPrice', 'stock', 'criticalStock',
+  'category', 'mlCategoryId', 'warehouseId', 'dropship',
+] as const;
 
 export interface BulkImportError {
   row: number;
@@ -314,6 +323,206 @@ export class CatalogService {
       }
     }
     return { deleted, failed };
+  }
+
+  // Detecta si dos o más de los productos indicados ya tienen cada uno una publicación en la
+  // MISMA conexión de marketplace — un producto no puede tener 2 publicaciones en una misma
+  // conexión (Listing es único por productId+connectionId), así que ese caso bloquea la fusión.
+  private async findMergeConnectionConflicts(productIds: string[]) {
+    const listings = await this.prisma.listing.findMany({
+      where: { productId: { in: productIds } },
+      include: {
+        connection: { select: { id: true, name: true } },
+        product: { select: { id: true, name: true } },
+      },
+    });
+    const byConnection = new Map<string, typeof listings>();
+    for (const l of listings) {
+      if (!byConnection.has(l.connectionId)) byConnection.set(l.connectionId, []);
+      byConnection.get(l.connectionId)!.push(l);
+    }
+    const conflicts: { connectionId: string; connectionName: string; products: { id: string; name: string }[] }[] = [];
+    for (const group of byConnection.values()) {
+      const distinctProducts = new Map(group.map((l) => [l.product.id, l.product]));
+      if (distinctProducts.size > 1) {
+        conflicts.push({
+          connectionId: group[0].connectionId,
+          connectionName: group[0].connection.name,
+          products: Array.from(distinctProducts.values()),
+        });
+      }
+    }
+    return conflicts;
+  }
+
+  // Trae el detalle completo de los productos candidatos a unificar (para que el frontend
+  // arme el selector campo por campo) más cuántos registros de cada tipo tiene cada uno, y
+  // si hay conflictos de publicaciones duplicadas en una misma conexión que bloquean la fusión.
+  async getMergeCandidates(ids: string[], user: any) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length < 2) throw new BadRequestException('Selecciona al menos 2 productos para unificar');
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: uniqueIds } },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        warehouse: { select: { id: true, name: true } },
+        dropshipProduct: { include: { dropshipSupplier: { include: { supplier: { select: { id: true, name: true } } } } } },
+        _count: {
+          select: {
+            saleItems: true, stockMovements: true, purchaseItems: true, listings: true,
+            orderItemChecks: true, stockTransfers: true, orderRequestItems: true,
+            returnItems: true, dropshipOrderItems: true,
+          },
+        },
+      },
+    });
+    if (products.length !== uniqueIds.length) throw new NotFoundException('Uno o más productos no existen');
+
+    const companyId = products[0].companyId;
+    if (products.some((p) => p.companyId !== companyId)) {
+      throw new BadRequestException('Todos los productos deben pertenecer a la misma empresa');
+    }
+    if (user.role !== Role.SUPER_ADMIN && companyId !== user.companyId) throw new ForbiddenException();
+
+    const connectionConflicts = await this.findMergeConnectionConflicts(uniqueIds);
+    return { products, connectionConflicts };
+  }
+
+  // Unifica 2+ productos duplicados (p.ej. importados desde distintas cuentas/conexiones de
+  // marketplace) en uno solo: el producto "sobreviviente" conserva su fila y adopta, campo por
+  // campo, los valores elegidos entre todos los productos del grupo; las publicaciones y todo
+  // el historial (ventas, movimientos de stock, compras, etc.) de los demás se reasignan a ese
+  // mismo SKU y esos otros productos se eliminan. Operación irreversible — se ejecuta completa
+  // en una sola transacción (todo o nada).
+  async mergeProducts(dto: MergeProductsDto, user: any) {
+    const ids = Array.from(new Set(dto.productIds));
+    if (ids.length < 2) throw new BadRequestException('Selecciona al menos 2 productos para unificar');
+    if (!ids.includes(dto.survivorId)) {
+      throw new BadRequestException('El producto sobreviviente debe estar entre los seleccionados');
+    }
+
+    const products = await this.prisma.product.findMany({ where: { id: { in: ids } } });
+    if (products.length !== ids.length) throw new NotFoundException('Uno o más productos no existen');
+
+    const companyId = products[0].companyId;
+    if (products.some((p) => p.companyId !== companyId)) {
+      throw new BadRequestException('Todos los productos deben pertenecer a la misma empresa');
+    }
+    if (user.role !== Role.SUPER_ADMIN && companyId !== user.companyId) throw new ForbiddenException();
+
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const fs: any = dto.fieldSources;
+    for (const key of MERGE_FIELD_KEYS) {
+      if (!fs[key] || !byId.has(fs[key])) {
+        throw new BadRequestException(`Falta elegir el producto de origen para el campo "${key}"`);
+      }
+    }
+    if (dto.imagesFromProductId && !byId.has(dto.imagesFromProductId)) {
+      throw new BadRequestException('Producto de origen de imágenes inválido');
+    }
+    if (dto.dropshipFromProductId && !byId.has(dto.dropshipFromProductId)) {
+      throw new BadRequestException('Producto de origen del proveedor dropship inválido');
+    }
+
+    const conflicts = await this.findMergeConnectionConflicts(ids);
+    if (conflicts.length) {
+      const detail = conflicts
+        .map((c) => `${c.connectionName} (${c.products.map((p) => p.name).join(' y ')})`)
+        .join('; ');
+      throw new BadRequestException(
+        `No se puede unificar: hay publicaciones de más de un producto en la misma conexión — ${detail}. Desvincula una de esas publicaciones antes de unificar.`,
+      );
+    }
+
+    const survivorId = dto.survivorId;
+    const loserIds = ids.filter((id) => id !== survivorId);
+    const stockSourceId = fs.stock;
+    const imagesFrom = dto.imagesFromProductId || null;
+    const dropshipFrom = dto.dropshipFromProductId || null;
+
+    const pick = (key: string) => (byId.get(fs[key]) as any)[key];
+    const data: any = {
+      sku: pick('sku'),
+      name: pick('name'),
+      type: pick('type'),
+      description: pick('description'),
+      mlDescription: pick('mlDescription'),
+      mlAttributes: pick('mlAttributes'),
+      price: pick('price'),
+      mlPrice: pick('mlPrice'),
+      cost: pick('cost'),
+      supplierPrice: pick('supplierPrice'),
+      stock: pick('stock'),
+      criticalStock: pick('criticalStock'),
+      category: pick('category'),
+      mlCategoryId: pick('mlCategoryId'),
+      warehouseId: pick('warehouseId'),
+      dropship: pick('dropship'),
+    };
+    // Un servicio no tiene stock propio ni bodega (misma regla que aplica al editar a mano).
+    if (data.type === ProductType.SERVICIO) {
+      data.stock = 0;
+      data.warehouseId = null;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (loserIds.length) {
+        const where = { productId: { in: loserIds } };
+        const move = { productId: survivorId };
+        await tx.listing.updateMany({ where, data: move });
+        await tx.saleItem.updateMany({ where, data: move });
+        await tx.stockMovement.updateMany({ where, data: move });
+        await tx.orderItemCheck.updateMany({ where, data: move });
+        await tx.purchaseItem.updateMany({ where, data: move });
+        await tx.stockTransfer.updateMany({ where, data: move });
+        await tx.orderRequestItem.updateMany({ where, data: move });
+        await tx.returnItem.updateMany({ where, data: move });
+        await tx.dropshipOrderItem.updateMany({ where, data: move });
+      }
+
+      // Stock por bodega: solo se conserva el del producto elegido para el campo "stock";
+      // el del resto se descarta (se asume que es el mismo inventario contado dos veces).
+      if (stockSourceId !== survivorId) {
+        await tx.productStock.deleteMany({ where: { productId: survivorId } });
+        await tx.productStock.updateMany({ where: { productId: stockSourceId }, data: { productId: survivorId } });
+      }
+      const otherLoserIds = loserIds.filter((id) => id !== stockSourceId);
+      if (otherLoserIds.length) {
+        await tx.productStock.deleteMany({ where: { productId: { in: otherLoserIds } } });
+      }
+
+      // Proveedor dropship: relación 1 a 1, solo sobrevive el elegido (o ninguno).
+      await tx.dropshipProduct.deleteMany({
+        where: {
+          productId: { in: ids },
+          ...(dropshipFrom ? { NOT: { productId: dropshipFrom } } : {}),
+        },
+      });
+      if (dropshipFrom && dropshipFrom !== survivorId) {
+        await tx.dropshipProduct.updateMany({ where: { productId: dropshipFrom }, data: { productId: survivorId } });
+      }
+
+      // Imágenes: solo sobrevive el set elegido (o ninguna).
+      if (imagesFrom && imagesFrom !== survivorId) {
+        await tx.productImage.deleteMany({ where: { productId: survivorId } });
+        await tx.productImage.updateMany({ where: { productId: imagesFrom }, data: { productId: survivorId } });
+      } else if (!imagesFrom) {
+        await tx.productImage.deleteMany({ where: { productId: { in: ids } } });
+      }
+
+      // Recién ahora se puede borrar a los perdedores: ya no les queda ningún registro
+      // asociado que bloquee el borrado (todo se reasignó o se eliminó arriba). Se hace antes
+      // de actualizar al sobreviviente para no chocar con la restricción única de SKU si el
+      // valor elegido pertenecía a uno de los productos que se está eliminando.
+      if (loserIds.length) {
+        await tx.product.deleteMany({ where: { id: { in: loserIds } } });
+      }
+
+      await tx.product.update({ where: { id: survivorId }, data });
+    });
+
+    return this.findOne(survivorId, user);
   }
 
   // Fuerza el borrado de un producto que quedó bloqueado solo por historial de inventario

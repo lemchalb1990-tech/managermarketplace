@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean, IsEnum, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ProductType } from '@prisma/client';
 
@@ -170,4 +170,49 @@ export class BulkIdsDto {
 export class BulkSetActiveDto extends BulkIdsDto {
   @IsBoolean()
   active: boolean;
+}
+
+// Campos del producto que se pueden elegir "campo por campo" al unificar duplicados.
+// El valor de cada uno es el id del producto (dentro del grupo que se está unificando)
+// de donde se toma ese campo.
+export class MergeFieldSourcesDto {
+  @IsString() sku: string;
+  @IsString() name: string;
+  @IsString() type: string;
+  @IsString() description: string;
+  @IsString() mlDescription: string;
+  @IsString() mlAttributes: string;
+  @IsString() price: string;
+  @IsString() mlPrice: string;
+  @IsString() cost: string;
+  @IsString() supplierPrice: string;
+  @IsString() stock: string;
+  @IsString() criticalStock: string;
+  @IsString() category: string;
+  @IsString() mlCategoryId: string;
+  @IsString() warehouseId: string;
+  @IsString() dropship: string;
+}
+
+export class MergeProductsDto {
+  @IsArray()
+  @IsString({ each: true })
+  productIds: string[];
+
+  // Producto cuyo registro persiste (conserva su id); el resto se elimina tras la fusión.
+  @IsString()
+  survivorId: string;
+
+  @ValidateNested()
+  @Type(() => MergeFieldSourcesDto)
+  fieldSources: MergeFieldSourcesDto;
+
+  // null = el producto final queda sin imágenes / sin proveedor dropship.
+  @IsOptional()
+  @IsString()
+  imagesFromProductId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  dropshipFromProductId?: string | null;
 }

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
+import MergeModal from './MergeModal';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -324,6 +325,10 @@ export default function CatalogPage() {
   const [bulkError, setBulkError] = useState('');
   const [bulkFailed, setBulkFailed] = useState<{ id: string; name: string; reason: string; canForce?: boolean }[]>([]);
   const [forceDeleteLoading, setForceDeleteLoading] = useState<string | null>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeCandidates, setMergeCandidates] = useState<{ products: any[]; connectionConflicts: any[] } | null>(null);
+  const [mergeSubmitting, setMergeSubmitting] = useState(false);
+  const [mergeError, setMergeError] = useState('');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importTemplateLoading, setImportTemplateLoading] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -512,6 +517,46 @@ export default function CatalogPage() {
       setBulkError(err.message || 'Error al eliminar las publicaciones seleccionadas.');
     } finally {
       setBulkLoading(false);
+    }
+  }
+
+  async function openMergeModal() {
+    if (selectedIds.size < 2) return;
+    setMergeLoading(true);
+    setMergeError('');
+    try {
+      const token = getToken()!;
+      const result = await api.catalog.mergePreview(Array.from(selectedIds), token);
+      setMergeCandidates(result);
+    } catch (err: any) {
+      setListNotice(err.message || 'No se pudo cargar la vista previa de unificación.');
+      setListNoticeIsWarning(true);
+    } finally {
+      setMergeLoading(false);
+    }
+  }
+
+  async function handleConfirmMerge(dto: {
+    productIds: string[];
+    survivorId: string;
+    fieldSources: Record<string, string>;
+    imagesFromProductId: string | null;
+    dropshipFromProductId: string | null;
+  }) {
+    setMergeSubmitting(true);
+    setMergeError('');
+    try {
+      const token = getToken()!;
+      await api.catalog.merge(dto, token);
+      setMergeCandidates(null);
+      setSelectedIds(new Set());
+      await loadProducts(1);
+      setListNotice('Productos unificados correctamente.');
+      setListNoticeIsWarning(false);
+    } catch (err: any) {
+      setMergeError(err.message || 'No se pudo unificar los productos.');
+    } finally {
+      setMergeSubmitting(false);
     }
   }
 
@@ -1205,6 +1250,13 @@ export default function CatalogPage() {
               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
               className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
               Eliminar publicaciones
+            </button>
+          )}
+          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && selectedIds.size >= 2 && (
+            <button onClick={openMergeModal} disabled={bulkLoading || mergeLoading}
+              title="Fusiona productos duplicados (p.ej. importados de distintas cuentas de marketplace) en un solo SKU"
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">
+              {mergeLoading ? 'Cargando...' : 'Unificar'}
             </button>
           )}
           <button onClick={() => setSelectedIds(new Set())}
@@ -1964,6 +2016,16 @@ export default function CatalogPage() {
           onClose={() => setLinkModal(null)}
           loading={linkLoading}
           error={linkError}
+        />
+      )}
+      {mergeCandidates && (
+        <MergeModal
+          products={mergeCandidates.products}
+          connectionConflicts={mergeCandidates.connectionConflicts}
+          onClose={() => { setMergeCandidates(null); setMergeError(''); }}
+          onConfirm={handleConfirmMerge}
+          submitting={mergeSubmitting}
+          error={mergeError}
         />
       )}
     </div>
