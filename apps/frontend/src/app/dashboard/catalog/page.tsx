@@ -1339,7 +1339,7 @@ export default function CatalogPage() {
               </th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('price')}>
-                Precio POS{sortIndicator('price')}
+                Precio Venta - Tienda Física{sortIndicator('price')}
               </th>
               {activeConnections.length > 0 && (
                 <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
@@ -1581,7 +1581,7 @@ export default function CatalogPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {hasPosModule ? 'Precio venta directa (POS) *' : 'Precio *'}
+                      {hasPosModule ? 'Precio Venta - Tienda Física *' : 'Precio *'}
                     </label>
                     <input type="number" step="0.01" min="0" value={editForm.price}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}

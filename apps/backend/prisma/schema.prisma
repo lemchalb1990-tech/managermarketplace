@@ -177,6 +177,7 @@ model Company {
   stockTransfers     StockTransfer[]
   clients            Client[]
   orderRequests      OrderRequest[]
+  workOrders         WorkOrder[]
   billingProfile     BillingProfile?
   profitabilityItems ProfitabilityItem[]
   accessProfiles     AccessProfile[]
@@ -248,6 +249,7 @@ model User {
   stockTransfers        StockTransfer[]
   orderRequestsCreated  OrderRequest[]   @relation("OrderRequestRequestedBy")
   orderRequestsReviewed OrderRequest[]   @relation("OrderRequestReviewedBy")
+  workOrders            WorkOrder[]
 
   @@map("users")
 }
@@ -346,6 +348,7 @@ model Product {
   returnItems        ReturnItem[]
   dropshipProduct    DropshipProduct?
   dropshipOrderItems DropshipOrderItem[]
+  workOrderItems     WorkOrderItem[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -482,6 +485,7 @@ model Sale {
   orderRequest  OrderRequest?
   returns       Return[]
   dropshipOrders DropshipOrder[]
+  workOrder     WorkOrder?
 
   @@unique([channel, externalId])
   @@map("sales")
@@ -748,6 +752,7 @@ model Client {
   orderRequests OrderRequest[]
   invoices      Invoice[]
   sales         Sale[]
+  workOrders    WorkOrder[]
 
   @@map("clients")
 }
@@ -790,6 +795,65 @@ model OrderRequestItem {
   product        Product      @relation(fields: [productId], references: [id])
 
   @@map("order_request_items")
+}
+
+enum WorkOrderStatus {
+  PENDING   // Editable, sin cobrar, no descuenta stock. Se imprime y se entrega al cliente.
+  CONVERTED // El cliente aceptó: se cobró y quedó como venta (Sale) — recién ahí se descuenta stock.
+  REJECTED  // El cliente no aceptó el presupuesto.
+  CANCELLED // Anulada por el local antes de presentarla o de tener respuesta del cliente.
+}
+
+// Presupuesto/orden de trabajo del POS: se arma con productos del catálogo y/o líneas
+// libres (p.ej. mano de obra), se imprime para el cliente, y NO afecta el stock ni genera
+// cobro hasta que el cliente la acepta (ver WorkOrdersService.convertToSale). Mientras esté
+// PENDING se puede seguir editando; al convertirse queda fija, igual que cualquier venta.
+model WorkOrder {
+  id            String          @id @default(cuid())
+  // Correlativo simple por empresa (no es un folio tributario) para poder referenciar la
+  // orden en el mostrador aunque no tenga cliente asociado.
+  folio         Int
+  status        WorkOrderStatus @default(PENDING)
+  notes         String?
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  convertedAt   DateTime?
+  closedAt      DateTime?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  clientId  String?
+  client    Client? @relation(fields: [clientId], references: [id])
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+  saleId    String? @unique
+  sale      Sale?   @relation(fields: [saleId], references: [id])
+
+  items WorkOrderItem[]
+
+  @@unique([companyId, folio])
+  @@map("work_orders")
+}
+
+model WorkOrderItem {
+  id          String  @id @default(cuid())
+  // Snapshot al momento de agregar la línea (igual criterio que ReturnItem/OrderItemCheck):
+  // si es un producto del catálogo, se copia su nombre/SKU; si es una línea libre (p.ej.
+  // "Mano de obra: diagnóstico"), productId queda null y este es el único registro del cargo.
+  productName String
+  productSku  String?
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  @@map("work_order_items")
 }
 
 model PlatformSetting {

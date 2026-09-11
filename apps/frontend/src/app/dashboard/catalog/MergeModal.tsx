@@ -10,7 +10,7 @@ const MERGE_FIELDS: { key: string; label: string; format: (p: any) => string }[]
   { key: 'name', label: 'Nombre', format: (p) => p.name },
   { key: 'type', label: 'Tipo', format: (p) => (p.type === 'SERVICIO' ? 'Servicio' : 'Artículo') },
   { key: 'category', label: 'Categoría', format: (p) => p.category || '— Sin categoría —' },
-  { key: 'price', label: 'Precio POS', format: (p) => fmtCLP(Number(p.price)) },
+  { key: 'price', label: 'Precio Venta - Tienda Física', format: (p) => fmtCLP(Number(p.price)) },
   { key: 'mlPrice', label: 'Precio ML', format: (p) => (p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : '— Sin precio ML —') },
   { key: 'cost', label: 'Costo', format: (p) => (p.cost != null ? fmtCLP(Number(p.cost)) : '— Sin costo —') },
   { key: 'supplierPrice', label: 'Precio proveedor', format: (p) => (p.supplierPrice != null ? fmtCLP(Number(p.supplierPrice)) : '— Sin precio proveedor —') },

@@ -643,6 +643,33 @@ export const api = {
       if (params.to) q.set('to', params.to);
       return apiDownload(`/pos/sales/export?${q}`, token, `ventas_${params.from || 'todas'}_${params.to || 'todas'}.csv`);
     },
+    workOrders: {
+      list: (params: { companyId?: string; status?: string; page?: number; search?: string }, token: string) => {
+        const q = new URLSearchParams();
+        if (params.companyId) q.set('companyId', params.companyId);
+        if (params.status) q.set('status', params.status);
+        if (params.page) q.set('page', String(params.page));
+        if (params.search) q.set('search', params.search);
+        return apiFetch<{ workOrders: any[]; total: number; page: number; pages: number }>(`/pos/work-orders?${q}`, {}, token);
+      },
+      get: (id: string, token: string) => apiFetch<any>(`/pos/work-orders/${id}`, {}, token),
+      create: (data: {
+        clientId?: string; customerName?: string; customerPhone?: string; customerEmail?: string; notes?: string; companyId?: string;
+        items: { productId?: string; productName: string; productSku?: string; quantity: number; unitPrice: number }[];
+      }, token: string) =>
+        apiFetch<any>('/pos/work-orders', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: {
+        clientId?: string; customerName?: string; customerPhone?: string; customerEmail?: string; notes?: string;
+        items?: { productId?: string; productName: string; productSku?: string; quantity: number; unitPrice: number }[];
+      }, token: string) =>
+        apiFetch<any>(`/pos/work-orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      reject: (id: string, token: string) =>
+        apiFetch<any>(`/pos/work-orders/${id}/reject`, { method: 'POST' }, token),
+      cancel: (id: string, token: string) =>
+        apiFetch<any>(`/pos/work-orders/${id}`, { method: 'DELETE' }, token),
+      convert: (id: string, data: { paymentMethod?: string }, token: string) =>
+        apiFetch<any>(`/pos/work-orders/${id}/convert`, { method: 'POST', body: JSON.stringify(data) }, token),
+    },
   },
   clients: {
     list: (token: string, companyId?: string) => {
