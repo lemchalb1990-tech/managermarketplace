@@ -854,15 +854,21 @@ export default function CatalogPage() {
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploadLoading(true);
+    const errors: string[] = [];
     try {
       const token = getToken()!;
-      await api.catalog.uploadImage(selected.id, file, token);
+      for (const file of files) {
+        try {
+          await api.catalog.uploadImage(selected.id, file, token);
+        } catch (err: any) {
+          errors.push(`${file.name}: ${err.message}`);
+        }
+      }
       await refreshSelected(selected.id);
-    } catch (err: any) {
-      alert(err.message);
+      if (errors.length) alert(`Algunas imágenes no se pudieron subir:\n${errors.join('\n')}`);
     } finally {
       setUploadLoading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -1885,12 +1891,12 @@ export default function CatalogPage() {
                   )}
                   <div className="border-t border-gray-100 pt-4">
                     <label className="block text-xs font-medium text-gray-600 mb-2">
-                      Subir imagen (JPG, PNG, WebP · máx. 5 MB)
+                      Subir imágenes (JPG, PNG, WebP · máx. 5 MB c/u · puedes elegir varias a la vez)
                     </label>
-                    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp"
+                    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple
                       onChange={handleUpload} disabled={uploadLoading}
                       className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50" />
-                    {uploadLoading && <p className="text-xs text-gray-400 mt-2">Subiendo imagen...</p>}
+                    {uploadLoading && <p className="text-xs text-gray-400 mt-2">Subiendo imágenes...</p>}
                   </div>
                 </div>
               )}
