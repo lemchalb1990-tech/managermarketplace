@@ -15,24 +15,60 @@ import { InventoryCostingService } from '../../purchases/inventory-costing.servi
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
 
-// Categorías raíz de "aviso clasificado" en Mercado Libre (Vehículos, Inmuebles, Empleos,
-// Servicios): usan un formato de publicación totalmente distinto al de un producto normal
-// (piden datos de contacto del vendedor, no manejan stock como inventario, etc.), que hoy
-// esta app no arma. Se resuelven por nombre contra el árbol real del sitio (no se hardcodea
-// el id) para no depender de que el id no cambie entre países/cuentas.
-type MlListingType = 'PRODUCTO' | 'VEHICULO' | 'INMUEBLE' | 'EMPLEO' | 'SERVICIO';
-const CLASSIFIED_ROOT_NAMES: Record<Exclude<MlListingType, 'PRODUCTO'>, string> = {
-  VEHICULO: 'Vehículos',
-  INMUEBLE: 'Inmuebles',
-  EMPLEO: 'Empleos',
-  SERVICIO: 'Servicios',
+// Árbol de categorías raíz de MLC (Mercado Libre Chile), hardcodeado: el endpoint público
+// GET /sites/MLC/categories devuelve 403 "PolicyAgent" (bloqueado por el WAF de ML, al menos
+// desde los servidores donde corre esta app), así que no se puede resolver en vivo. Esta
+// lista prácticamente no cambia — cada id se verificó contra GET /categories/{id} (ese sí
+// funciona) para confirmar que es una raíz real y tomar su nombre oficial.
+const MLC_ROOT_CATEGORIES: { id: string; name: string }[] = [
+  { id: 'MLC1747', name: 'Accesorios para Vehículos' },
+  { id: 'MLC1512', name: 'Agro' },
+  { id: 'MLC1403', name: 'Alimentos y Bebidas' },
+  { id: 'MLC1071', name: 'Mascotas' },
+  { id: 'MLC1367', name: 'Antigüedades y Colecciones' },
+  { id: 'MLC1368', name: 'Arte, Librería y Cordonería' },
+  { id: 'MLC1743', name: 'Autos, Motos y Otros' },
+  { id: 'MLC1384', name: 'Bebés' },
+  { id: 'MLC1246', name: 'Belleza y Cuidado Personal' },
+  { id: 'MLC1039', name: 'Cámaras y Accesorios' },
+  { id: 'MLC1051', name: 'Celulares y Telefonía' },
+  { id: 'MLC1648', name: 'Computación' },
+  { id: 'MLC1144', name: 'Consolas y Videojuegos' },
+  { id: 'MLC1500', name: 'Construcción' },
+  { id: 'MLC1276', name: 'Deportes y Fitness' },
+  { id: 'MLC5726', name: 'Electrodomésticos' },
+  { id: 'MLC1000', name: 'Electrónica, Audio y Video' },
+  { id: 'MLC110931', name: 'Entradas para Eventos' },
+  { id: 'MLC178483', name: 'Herramientas' },
+  { id: 'MLC1574', name: 'Hogar y Muebles' },
+  { id: 'MLC1499', name: 'Industrias y Oficinas' },
+  { id: 'MLC1459', name: 'Inmuebles' },
+  { id: 'MLC1182', name: 'Instrumentos Musicales' },
+  { id: 'MLC1132', name: 'Juegos y Juguetes' },
+  { id: 'MLC3025', name: 'Libros, Revistas y Comics' },
+  { id: 'MLC1168', name: 'Música y Películas' },
+  { id: 'MLC3937', name: 'Relojes y Joyas' },
+  { id: 'MLC409431', name: 'Salud y Equipamiento Médico' },
+  { id: 'MLC1540', name: 'Servicios' },
+  { id: 'MLC435280', name: 'Souvenirs, Cotillón y Fiestas' },
+  { id: 'MLC1430', name: 'Vestuario y Calzado' },
+  { id: 'MLC1953', name: 'Otras Categorías' },
+];
+
+// Raíces de "aviso clasificado": usan un formato de publicación totalmente distinto al de
+// un producto normal (piden datos de contacto del vendedor, no manejan stock como
+// inventario, etc.), que hoy esta app no arma — ver assertPublishableCategory. Chile no
+// tiene categoría de Empleos activa en Mercado Libre.
+type MlListingType = 'PRODUCTO' | 'VEHICULO' | 'INMUEBLE' | 'SERVICIO';
+const CLASSIFIED_ROOT_IDS: Record<Exclude<MlListingType, 'PRODUCTO'>, string> = {
+  VEHICULO: 'MLC1743',
+  INMUEBLE: 'MLC1459',
+  SERVICIO: 'MLC1540',
 };
 
 @Injectable()
 export class MercadolibreService {
   private readonly logger = new Logger(MercadolibreService.name);
-  // Cache en memoria: el árbol de categorías raíz de ML prácticamente no cambia.
-  private classifiedRootIdsCache: Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>> | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -291,27 +327,6 @@ export class MercadolibreService {
 
   // ─── Categorías ──────────────────────────────────────────────────────────────
 
-  // Resuelve los ids reales de Vehículos/Inmuebles/Empleos/Servicios en el árbol de
-  // categorías raíz de MLC, buscándolos por nombre (una sola vez por proceso).
-  private async getClassifiedRootIds(): Promise<Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>>> {
-    if (this.classifiedRootIdsCache) return this.classifiedRootIdsCache;
-    try {
-      const res = await fetch(`${ML_API}/sites/MLC/categories`);
-      if (!res.ok) return {};
-      const roots = await res.json() as { id: string; name: string }[];
-      const result: Partial<Record<Exclude<MlListingType, 'PRODUCTO'>, string>> = {};
-      for (const [key, name] of Object.entries(CLASSIFIED_ROOT_NAMES)) {
-        const match = roots.find((r) => r.name === name);
-        if (match) result[key as Exclude<MlListingType, 'PRODUCTO'>] = match.id;
-      }
-      this.classifiedRootIdsCache = result;
-      return result;
-    } catch (err) {
-      this.logger.error('ML root categories fetch error', err);
-      return {};
-    }
-  }
-
   // Categoría raíz (tope del árbol) a la que pertenece una categoría cualquiera.
   private async getCategoryTopId(categoryId: string): Promise<string | null> {
     try {
@@ -330,10 +345,8 @@ export class MercadolibreService {
   private async assertPublishableCategory(categoryId: string) {
     const topId = await this.getCategoryTopId(categoryId);
     if (!topId) return;
-    const roots = await this.getClassifiedRootIds();
-    const match = Object.entries(roots).find(([, id]) => id === topId);
-    if (match) {
-      const label = CLASSIFIED_ROOT_NAMES[match[0] as Exclude<MlListingType, 'PRODUCTO'>];
+    if (Object.values(CLASSIFIED_ROOT_IDS).includes(topId)) {
+      const label = MLC_ROOT_CATEGORIES.find((r) => r.id === topId)?.name || 'aviso clasificado';
       throw new BadRequestException(
         `Esta categoría es de ${label} (aviso clasificado de Mercado Libre) y ese tipo de publicación no está soportado todavía. Cambia la categoría ML del producto a una de tipo Producto.`,
       );
@@ -362,9 +375,8 @@ export class MercadolibreService {
         }));
 
       if (type) {
-        const roots = await this.getClassifiedRootIds();
-        const classifiedIds = new Set(Object.values(roots).filter(Boolean));
-        const wantedRootId = type === 'PRODUCTO' ? null : roots[type as Exclude<MlListingType, 'PRODUCTO'>];
+        const classifiedIds = new Set(Object.values(CLASSIFIED_ROOT_IDS));
+        const wantedRootId = type === 'PRODUCTO' ? null : CLASSIFIED_ROOT_IDS[type as Exclude<MlListingType, 'PRODUCTO'>];
         const tops = await Promise.all(items.map((it) => this.getCategoryTopId(it.id)));
         items = items.filter((_, i) => {
           const top = tops[i];
@@ -385,15 +397,12 @@ export class MercadolibreService {
   // camino desde la raíz. isLeaf=true cuando ya no tiene subcategorías (queda seleccionable).
   async browseCategories(categoryId?: string) {
     if (!categoryId) {
-      const res = await fetch(`${ML_API}/sites/MLC/categories`);
-      if (!res.ok) return { id: null, name: null, path: [], children: [], isLeaf: false };
-      const roots = await res.json() as { id: string; name: string }[];
-      const classifiedRoots = new Set(Object.values(await this.getClassifiedRootIds()));
+      const classifiedIds = new Set(Object.values(CLASSIFIED_ROOT_IDS));
       return {
         id: null,
         name: null,
         path: [] as { id: string; name: string }[],
-        children: roots.filter((r) => !classifiedRoots.has(r.id)).map((r) => ({ id: r.id, name: r.name })),
+        children: MLC_ROOT_CATEGORIES.filter((r) => !classifiedIds.has(r.id)),
         isLeaf: false,
       };
     }
