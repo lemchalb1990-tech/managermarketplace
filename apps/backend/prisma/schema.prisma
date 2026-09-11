@@ -271,6 +271,7 @@ model MarketplaceConnection {
   company   Company @relation(fields: [companyId], references: [id])
 
   listings Listing[]
+  sales    Sale[]
 
   @@map("marketplace_connections")
 }
@@ -469,6 +470,11 @@ model Sale {
   user      User?   @relation(fields: [userId], references: [id])
   clientId  String?
   client    Client? @relation(fields: [clientId], references: [id])
+  // Cuenta/conexión de marketplace que originó la venta (null en POS o ventas manuales).
+  // Permite distinguir de qué cuenta vino la venta cuando una empresa tiene varias
+  // conexiones del mismo canal (p.ej. dos cuentas de Mercado Libre).
+  connectionId String?
+  connection   MarketplaceConnection? @relation(fields: [connectionId], references: [id])
 
   items         SaleItem[]
   invoices      Invoice[]

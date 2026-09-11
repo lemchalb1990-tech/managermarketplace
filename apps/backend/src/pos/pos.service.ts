@@ -255,6 +255,7 @@ export class PosService {
           },
           user: { select: { id: true, name: true } },
           invoices: { select: { id: true, dteType: true, status: true, folio: true } },
+          connection: { select: { id: true, name: true, marketplace: true } },
         },
         orderBy: { createdAt: 'desc' },
         take,
@@ -282,6 +283,7 @@ export class PosService {
         },
         invoices: { select: { id: true, dteType: true, status: true, folio: true, createdAt: true } },
         user: { select: { id: true, name: true } },
+        connection: { select: { id: true, name: true, marketplace: true } },
       },
     });
     if (!sale) throw new NotFoundException('Venta no encontrada');
@@ -344,7 +346,10 @@ export class PosService {
 
     const sales = await this.prisma.sale.findMany({
       where,
-      include: { items: { include: { product: { select: { sku: true, name: true } } } } },
+      include: {
+        items: { include: { product: { select: { sku: true, name: true } } } },
+        connection: { select: { name: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 5000,
     });
@@ -359,7 +364,7 @@ export class PosService {
 
     const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const header = [
-      'Fecha', 'Canal', 'ID Venta', 'ID Externo', 'Comprador', 'Forma de despacho', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
+      'Fecha', 'Canal', 'Cuenta', 'ID Venta', 'ID Externo', 'Comprador', 'Forma de despacho', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
       'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
     ];
     const rows = [header.join(',')];
@@ -371,6 +376,7 @@ export class PosService {
         rows.push([
           sale.createdAt.toISOString(),
           CHANNEL_LABEL[sale.channel] || sale.channel,
+          sale.connection?.name || '',
           sale.id,
           sale.externalId || '',
           sale.customerName || '',

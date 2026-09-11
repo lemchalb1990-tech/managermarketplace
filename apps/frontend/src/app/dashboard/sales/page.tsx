@@ -372,6 +372,11 @@ export default function SalesPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${CHANNEL_COLORS[sale.channel] || 'bg-gray-100 text-gray-700'}`}>
                         {CHANNEL_LABELS[sale.channel] || sale.channel}
                       </span>
+                      {sale.connection?.name && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 w-fit" title="Cuenta de origen">
+                          {sale.connection.name}
+                        </span>
+                      )}
                       {sale.invoices?.length > 0 && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700 w-fit">
                           Facturado

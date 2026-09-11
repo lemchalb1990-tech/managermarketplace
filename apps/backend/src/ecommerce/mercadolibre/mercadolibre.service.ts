@@ -1207,6 +1207,7 @@ export class MercadolibreService {
           netAmount: charges.totalPaid,
           shippingMethod: shippingInfo.method,
           companyId: conn.companyId,
+          connectionId: conn.id,
           customerName: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
           items: { create: resolvedItems },
@@ -1283,6 +1284,7 @@ export class MercadolibreService {
             netAmount: charges.totalPaid,
             shippingMethod: shippingInfo.method,
             companyId: companyId as string,
+            connectionId: resolvedItems[0].listing.connectionId,
             customerName: order.buyer?.nickname || null,
             items: {
               create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
