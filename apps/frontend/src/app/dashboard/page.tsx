@@ -23,12 +23,12 @@ const CHANNEL_LABEL: Record<string, string> = {
 };
 
 function KpiCard({
-  title, value, sub, colorClass, icon,
+  title, value, sub, colorClass, icon, href,
 }: {
-  title: string; value: string | number; sub?: string; colorClass: string; icon: string;
+  title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
-  return (
-    <div className="ui-card p-5 flex items-start gap-4">
+  const content = (
+    <div className="ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
       </div>
@@ -39,6 +39,7 @@ function KpiCard({
       </div>
     </div>
   );
+  return href ? <Link href={href} className="block">{content}</Link> : content;
 }
 
 export default function DashboardPage() {
@@ -105,7 +106,7 @@ export default function DashboardPage() {
       setRecentSales(((sales as any).sales || []).slice(0, 5));
 
       const critical = (products as any[])
-        .filter((p: any) => p.active && p.stock <= 3)
+        .filter((p: any) => p.active && p.stock <= (p.criticalStock ?? 0))
         .sort((a: any, b: any) => a.stock - b.stock)
         .slice(0, 6);
       setCriticalProducts(critical);
@@ -115,6 +116,7 @@ export default function DashboardPage() {
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
 
   const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
   const dateLabel = now.toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -191,16 +193,18 @@ export default function DashboardPage() {
         <KpiCard
           title="Ventas hoy"
           value={summary?.totalSales ?? 0}
-          sub="transacciones"
+          sub="transacciones · POS y e-commerce"
           colorClass="bg-blue-50 text-blue-500"
           icon="🛒"
+          href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
           title="Ingresos hoy"
           value={`$${Number(summary?.totalRevenue ?? 0).toLocaleString('es-CL')}`}
-          sub="total del día"
+          sub="total del día · POS y e-commerce"
           colorClass="bg-green-50 text-green-500"
           icon="💰"
+          href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
           title="Órdenes activas"
@@ -208,13 +212,15 @@ export default function DashboardPage() {
           sub="pendiente / preparando / listo"
           colorClass="bg-amber-50 text-amber-500"
           icon="📦"
+          href="/dashboard/orders"
         />
         <KpiCard
           title="Stock crítico"
           value={criticalProducts.length}
-          sub="productos ≤ 3 unidades"
+          sub="bajo el umbral de cada producto"
           colorClass={criticalProducts.length > 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}
           icon="⚠️"
+          href="/dashboard/catalog?stock=critical"
         />
       </div>
 

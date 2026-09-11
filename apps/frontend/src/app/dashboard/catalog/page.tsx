@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, FormEvent, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
@@ -307,6 +308,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function CatalogPage() {
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -333,6 +335,7 @@ export default function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState(() => searchParams.get('stock') === 'critical' ? 'critical' : '');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -390,6 +393,7 @@ export default function CatalogPage() {
         category: categoryFilter || undefined,
         type: typeFilter || undefined,
         active: activeFilter || undefined,
+        stockFilter: stockFilter || undefined,
         companyId: isSuperAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
         sortDir: sortOverride?.sortDir ?? sortDir,
@@ -1147,6 +1151,17 @@ export default function CatalogPage() {
             <option value="paused">Pausados (ML)</option>
           </select>
         </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Stock</label>
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+          >
+            <option value="">Todos</option>
+            <option value="critical">Stock crítico</option>
+          </select>
+        </div>
         <button
           onClick={() => loadProducts(1)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
@@ -1154,13 +1169,18 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); }}
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setStockFilter(''); }}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar
         </button>
         <span className="ml-auto text-xs text-gray-500 self-center">{total} producto(s)</span>
       </div>
+      {stockFilter === 'critical' && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          <span>⚠️ Mostrando solo productos activos con stock igual o menor a su umbral de stock crítico.</span>
+        </div>
+      )}
       <datalist id="category-suggestions">
         {categories.map((c) => <option key={c} value={c} />)}
       </datalist>

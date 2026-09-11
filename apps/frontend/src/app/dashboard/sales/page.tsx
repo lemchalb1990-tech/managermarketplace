@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
@@ -30,6 +31,7 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 };
 
 export default function SalesPage() {
+  const searchParams = useSearchParams();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
@@ -41,10 +43,10 @@ export default function SalesPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
 
   const [channel, setChannel] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(() => searchParams.get('from') || '');
+  const [to, setTo] = useState(() => searchParams.get('to') || '');
   const [search, setSearch] = useState('');
-  const [summaryDate, setSummaryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [summaryDate, setSummaryDate] = useState(() => searchParams.get('from') || new Date().toISOString().split('T')[0]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);

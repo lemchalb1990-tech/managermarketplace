@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto } from './dto/product.dto';
@@ -85,7 +85,7 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; companyId?: string; inStock?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
@@ -97,6 +97,16 @@ export class CatalogService {
     if (query.active === 'true') where.active = true;
     else if (query.active === 'false') where.active = false;
     else if (query.active === 'paused') where.listings = { some: { status: 'PAUSED' } };
+    if (query.stockFilter === 'critical') {
+      // Prisma no compara dos columnas de la misma fila directamente: se resuelven los
+      // ids con stock <= criticalStock por SQL crudo y se filtra el resto de la búsqueda por esos ids.
+      const critical = await this.prisma.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT id FROM "Product" WHERE active = true AND stock <= "criticalStock"${
+          companyId ? Prisma.sql` AND "companyId" = ${companyId}` : Prisma.empty
+        }`,
+      );
+      where.id = { in: critical.map((r) => r.id) };
+    }
     if (query.search?.trim()) {
       const term = query.search.trim();
       where.OR = [
