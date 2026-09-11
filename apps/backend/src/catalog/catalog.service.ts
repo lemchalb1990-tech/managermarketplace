@@ -94,7 +94,7 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
@@ -103,9 +103,30 @@ export class CatalogService {
     if (query.category) where.category = query.category;
     if (query.type) where.type = query.type;
     if (query.inStock === 'true') where.stock = { gt: 0 };
-    if (query.active === 'true') where.active = true;
-    else if (query.active === 'false') where.active = false;
-    else if (query.active === 'paused') where.listings = { some: { status: 'PAUSED' } };
+
+    // "Estado" (activo/inactivo): combinable con "Publicación" porque son dos filtros
+    // independientes. Un servicio no maneja stock propio (siempre 0 por diseño), así que
+    // queda exento de la condición de stock — para él, "Activo" depende solo del flag manual.
+    const andConditions: any[] = [];
+    if (query.active === 'true') {
+      andConditions.push({ active: true });
+      andConditions.push({ OR: [{ type: 'SERVICIO' }, { stock: { gt: 0 } }] });
+    } else if (query.active === 'false') {
+      andConditions.push({ OR: [{ active: false }, { type: 'ARTICULO', stock: { lte: 0 } }] });
+    }
+    // "Publicación": estado real guardado del Listing (igual criterio que el color de los
+    // chips en el catálogo), independiente del stock o del flag "Activo" del producto.
+    if (query.listingStatus === 'ACTIVE') {
+      andConditions.push({ listings: { some: { status: 'ACTIVE' } } });
+    } else if (query.listingStatus === 'PAUSED') {
+      andConditions.push({ listings: { some: { status: 'PAUSED' } } });
+    } else if (query.listingStatus === 'ERROR_CLOSED') {
+      andConditions.push({ listings: { some: { status: { in: ['DRAFT', 'ERROR', 'CLOSED'] } } } });
+    } else if (query.listingStatus === 'NONE') {
+      andConditions.push({ listings: { none: {} } });
+    }
+    if (andConditions.length) where.AND = andConditions;
+
     if (query.stockFilter === 'critical') {
       // Prisma no compara dos columnas de la misma fila directamente: se resuelven los
       // ids con stock <= criticalStock por SQL crudo y se filtra el resto de la búsqueda por esos ids.

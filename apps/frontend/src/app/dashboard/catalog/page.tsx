@@ -349,6 +349,7 @@ export default function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
+  const [listingStatusFilter, setListingStatusFilter] = useState('');
   const [stockFilter, setStockFilter] = useState(() => searchParams.get('stock') === 'critical' ? 'critical' : '');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -407,6 +408,7 @@ export default function CatalogPage() {
         category: categoryFilter || undefined,
         type: typeFilter || undefined,
         active: activeFilter || undefined,
+        listingStatus: listingStatusFilter || undefined,
         stockFilter: stockFilter || undefined,
         companyId: isSuperAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
@@ -1197,14 +1199,30 @@ export default function CatalogPage() {
           <select
             value={activeFilter}
             onChange={(e) => setActiveFilter(e.target.value)}
+            title="Activos: marcado activo y con stock disponible (los servicios no requieren stock). Inactivos: desactivado o sin stock."
             className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
           >
             <option value="">Todos</option>
             <option value="true">Activos</option>
             <option value="false">Inactivos</option>
-            <option value="paused">Pausados (ML)</option>
           </select>
         </div>
+        {activeConnections.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Publicación</label>
+            <select
+              value={listingStatusFilter}
+              onChange={(e) => setListingStatusFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+            >
+              <option value="">Todas</option>
+              <option value="ACTIVE">Activa</option>
+              <option value="PAUSED">Pausada</option>
+              <option value="ERROR_CLOSED">Con error o cerrada</option>
+              <option value="NONE">Sin publicar</option>
+            </select>
+          </div>
+        )}
         <div>
           <label className="text-xs text-gray-500 block mb-1">Stock</label>
           <select
@@ -1223,7 +1241,7 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setStockFilter(''); }}
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setStockFilter(''); }}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar
