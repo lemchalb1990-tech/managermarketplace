@@ -342,6 +342,9 @@ export class MercadolibreService {
 
   async searchCategories(q: string, type?: string) {
     if (!q?.trim()) return [];
+    // Filtrado a categorías de producto normal por defecto: los avisos clasificados
+    // (Vehículos/Inmuebles/Empleos/Servicios) no se pueden publicar desde esta app.
+    type = type || 'PRODUCTO';
     try {
       const res = await fetch(
         `${ML_API}/sites/MLC/domain_discovery/search?q=${encodeURIComponent(q)}&limit=8`,
