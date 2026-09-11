@@ -25,6 +25,13 @@ class CreateMlConnectionDto {
   @IsOptional() @IsString() companyId?: string;
 }
 
+class UpdateMlConnectionDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() mlClientId?: string;
+  // Vacío/omitido = mantener el Client Secret actual sin cambios.
+  @IsOptional() @IsString() mlClientSecret?: string;
+}
+
 class ConfirmImportDto {
   @IsArray() @IsString({ each: true }) externalIds: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) unlinkIds?: string[];
@@ -169,6 +176,15 @@ export class MercadolibreController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   removeConnection(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.removeConnection(id, user);
+  }
+
+  // Editar credenciales de una conexión ya creada: solo Super Admin (son credenciales
+  // sensibles compartidas con la cuenta real de Mercado Libre de la empresa).
+  @Patch('connections/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  updateConnection(@Param('id') id: string, @Body() dto: UpdateMlConnectionDto, @CurrentUser() user: any) {
+    return this.service.updateCredentialConnection(id, dto, user);
   }
 
   @Post('connections/:id/refresh')

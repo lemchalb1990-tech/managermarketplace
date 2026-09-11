@@ -94,6 +94,26 @@ export class MercadolibreService {
     return { ...conn, authorized: false };
   }
 
+  // Solo Super Admin (ver controller): permite corregir el nombre y/o las credenciales
+  // (Client ID / Client Secret) de una conexión ya creada, sin tener que borrarla y
+  // volver a crearla (lo que perdería el token de autorización ya obtenido).
+  async updateCredentialConnection(
+    id: string,
+    dto: { name?: string; mlClientId?: string; mlClientSecret?: string },
+    user: any,
+  ) {
+    await this.getConnectionForUser(id, user);
+    const data: any = {};
+    if (dto.name?.trim()) data.name = dto.name.trim();
+    if (dto.mlClientId?.trim()) data.mlClientId = dto.mlClientId.trim();
+    if (dto.mlClientSecret?.trim()) data.mlClientSecret = dto.mlClientSecret.trim();
+    return this.prisma.marketplaceConnection.update({
+      where: { id },
+      data,
+      select: { id: true, name: true, marketplace: true, mlClientId: true, active: true, expiresAt: true, createdAt: true },
+    });
+  }
+
   private async getRedirectUri(): Promise<string> {
     const appUrl = await this.settings.get('APP_URL');
     if (!appUrl) {

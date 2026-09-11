@@ -37,6 +37,11 @@ export default function ProviderPage({ config }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [editing, setEditing] = useState<{ id: string; name: string; fields: Record<string, string> } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
   async function loadConnections(companyId?: string) {
     const token = getToken()!;
     const data = await api.billing.connections.list(token, {
@@ -90,6 +95,49 @@ export default function ProviderPage({ config }: Props) {
     const token = getToken()!;
     await api.billing.connections.remove(id, token);
     await loadConnections(activeCompanyId || undefined);
+  }
+
+  // Editar credenciales de una conexión ya creada: solo Super Admin (ver botón "Editar").
+  async function openEdit(c: { id: string; name: string }) {
+    setEditLoading(true);
+    setEditError('');
+    try {
+      const token = getToken()!;
+      const conn = await api.billing.connections.get(c.id, token);
+      const fields: Record<string, string> = {};
+      for (const f of config.fields) {
+        fields[f.key] = f.type === 'password' ? '' : (conn.credentials?.[f.key] || '');
+      }
+      setEditing({ id: c.id, name: c.name, fields });
+    } catch (err: any) {
+      alert(err.message || 'No se pudo cargar la conexión.');
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!editing) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const token = getToken()!;
+      const credentials: Record<string, string> = {};
+      for (const f of config.fields) {
+        const v = editing.fields[f.key];
+        if (v?.trim()) credentials[f.key] = v.trim();
+      }
+      await api.billing.connections.update(editing.id, {
+        name: editing.name.trim() || undefined,
+        credentials: Object.keys(credentials).length ? credentials : undefined,
+      }, token);
+      setEditing(null);
+      await loadConnections(activeCompanyId || undefined);
+    } catch (err: any) {
+      setEditError(err.message || 'No se pudo guardar. Revisa las credenciales.');
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleTest(id: string) {
@@ -207,6 +255,10 @@ export default function ProviderPage({ config }: Props) {
                       {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3 text-right flex gap-3 justify-end">
+                      {isSuperAdmin && (
+                        <button onClick={() => openEdit(c)} disabled={editLoading}
+                          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium disabled:opacity-50">Editar</button>
+                      )}
                       <button onClick={() => handleTest(c.id)}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium">Probar</button>
                       <button onClick={() => handleDelete(c.id, c.name)}
@@ -226,6 +278,53 @@ export default function ProviderPage({ config }: Props) {
             </table>
           </div>
       </div>
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900 text-base">Editar conexión de {config.name}</h2>
+              <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-xs text-gray-500">
+                Deja en blanco un campo sensible (contraseña/token) para mantener el valor actual sin cambiarlo.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la conexión</label>
+                <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              {config.fields.map((field) => (
+                <div key={field.key}>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{field.label}</label>
+                  <input
+                    type={field.type || 'text'}
+                    value={editing.fields[field.key] || ''}
+                    onChange={(e) => setEditing({ ...editing, fields: { ...editing.fields, [field.key]: e.target.value } })}
+                    placeholder={field.type === 'password' ? '•••••••• (sin cambios)' : field.placeholder}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  {field.hint && <p className="text-xs text-gray-400 mt-0.5">{field.hint}</p>}
+                </div>
+              ))}
+              {editError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setEditing(null)} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleSaveEdit} disabled={editSaving}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: config.color }}>
+                {editSaving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

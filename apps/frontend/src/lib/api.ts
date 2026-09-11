@@ -329,6 +329,8 @@ export const api = {
       apiFetch<any[]>(`/ecommerce/ml/connections${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     deleteConnection: (id: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${id}`, { method: 'DELETE' }, token),
+    updateConnection: (id: string, data: { name?: string; mlClientId?: string; mlClientSecret?: string }, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     refreshConnection: (id: string, token: string) =>
       apiFetch<{ id: string; name: string; active: boolean; expiresAt: string | null }>(
         `/ecommerce/ml/connections/${id}/refresh`, { method: 'POST' }, token),
@@ -399,6 +401,10 @@ export const api = {
       apiFetch<any>('/ecommerce/connections', { method: 'POST', body: JSON.stringify(data) }, token),
     remove: (id: string, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${id}`, { method: 'DELETE' }, token),
+    get: (id: string, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/${id}`, {}, token),
+    update: (id: string, data: { name?: string; credentials?: Record<string, string> }, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     test: (id: string, token: string) =>
       apiFetch<{ success: boolean; message?: string }>(`/ecommerce/connections/${id}/test`, { method: 'POST' }, token),
     publish: (connectionId: string, productId: string, token: string) =>
@@ -421,6 +427,10 @@ export const api = {
         apiFetch<any>('/billing/connections', { method: 'POST', body: JSON.stringify(data) }, token),
       remove: (id: string, token: string) =>
         apiFetch<any>(`/billing/connections/${id}`, { method: 'DELETE' }, token),
+      get: (id: string, token: string) =>
+        apiFetch<any>(`/billing/connections/${id}`, {}, token),
+      update: (id: string, data: { name?: string; credentials?: Record<string, string> }, token: string) =>
+        apiFetch<any>(`/billing/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       test: (id: string, token: string) =>
         apiFetch<{ success: boolean; message?: string }>(`/billing/connections/${id}/test`, { method: 'POST' }, token),
     },

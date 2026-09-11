@@ -6,7 +6,7 @@ import { BsaleAdapter } from './providers/bsale.adapter';
 import { FactoAdapter } from './providers/facto.adapter';
 import { BillingStubAdapter } from './providers/stub.adapter';
 import { BillingAdapter } from './providers/provider.interface';
-import { CreateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
+import { CreateBillingConnectionDto, UpdateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
 import { normalizeRut } from '../common/rut.util';
 import { EmailService } from '../email/email.service';
 
@@ -94,6 +94,48 @@ export class BillingService {
       throw new ForbiddenException();
     }
     return this.prisma.billingConnection.delete({ where: { id } });
+  }
+
+  // Solo Super Admin (ver controller): trae la conexión con sus credenciales, para
+  // precargar el formulario de edición.
+  async getConnection(id: string, user: any) {
+    const conn = await this.prisma.billingConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+    return conn;
+  }
+
+  // Solo Super Admin (ver controller): corrige nombre y/o credenciales de una conexión de
+  // facturación ya creada. Las credenciales se fusionan (solo se sobreescriben las claves
+  // enviadas) y se prueban contra el proveedor ANTES de guardar.
+  async updateConnection(id: string, dto: UpdateBillingConnectionDto, user: any) {
+    const conn = await this.prisma.billingConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) {
+      throw new ForbiddenException();
+    }
+
+    const mergedCredentials = dto.credentials
+      ? { ...((conn.credentials as any) || {}), ...dto.credentials }
+      : (conn.credentials as any);
+
+    if (dto.credentials) {
+      const testResult = await this.adapter(conn.provider).testConnection(mergedCredentials as Record<string, string>)
+        .catch((e) => ({ success: false, message: e.message }));
+      if (!testResult.success) {
+        throw new BadRequestException(`No se pudo conectar con las nuevas credenciales: ${testResult.message ?? 'error desconocido'}`);
+      }
+    }
+
+    return this.prisma.billingConnection.update({
+      where: { id },
+      data: {
+        ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
+        ...(dto.credentials ? { credentials: mergedCredentials } : {}),
+      },
+    });
   }
 
   async testConnection(id: string, user: any) {

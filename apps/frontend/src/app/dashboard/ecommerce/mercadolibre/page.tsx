@@ -160,6 +160,36 @@ export default function MercadoLibrePage() {
     }
   }
 
+  // Editar credenciales de una tienda ya creada: solo Super Admin (ver botón "Editar").
+  const [editing, setEditing] = useState<{ id: string; name: string; mlClientId: string; mlClientSecret: string } | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  function openEdit(c: { id: string; name: string; mlClientId: string | null }) {
+    setEditing({ id: c.id, name: c.name, mlClientId: c.mlClientId || '', mlClientSecret: '' });
+    setEditError('');
+  }
+
+  async function handleSaveEdit() {
+    if (!editing) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const token = getToken()!;
+      await api.marketplace.updateConnection(editing.id, {
+        name: editing.name.trim() || undefined,
+        mlClientId: editing.mlClientId.trim() || undefined,
+        mlClientSecret: editing.mlClientSecret.trim() || undefined,
+      }, token);
+      setEditing(null);
+      await loadConnections(activeCompanyId || undefined);
+    } catch (err: any) {
+      setEditError(err.message || 'No se pudo guardar los cambios.');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 mb-1">
@@ -329,6 +359,12 @@ export default function MercadoLibrePage() {
                             </button>
                           </>
                         )}
+                        {isSuperAdmin && (
+                          <button onClick={() => openEdit(c)}
+                            className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                            Editar
+                          </button>
+                        )}
                         <button onClick={() => handleDelete(c.id, c.name, c.authorized)}
                           className="text-xs text-red-500 hover:text-red-700 font-medium">
                           {c.authorized ? 'Desconectar' : 'Eliminar'}
@@ -366,6 +402,51 @@ export default function MercadoLibrePage() {
           connectionName={salesImportConn.name}
           onClose={() => setSalesImportConn(null)}
         />
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900 text-base">Editar tienda</h2>
+              <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-xs text-gray-500">
+                Deja el Client Secret en blanco para mantener el actual sin cambiarlo.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la tienda</label>
+                <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Client ID</label>
+                <input value={editing.mlClientId} onChange={(e) => setEditing({ ...editing, mlClientId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Client Secret</label>
+                <input type="password" value={editing.mlClientSecret}
+                  onChange={(e) => setEditing({ ...editing, mlClientSecret: e.target.value })}
+                  placeholder="•••••••• (sin cambios)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              {editError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setEditing(null)} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleSaveEdit} disabled={editSaving}
+                className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50">
+                {editSaving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {isSuperAdmin && connections.length > 0 && (

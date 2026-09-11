@@ -1,9 +1,9 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ConnectionsService } from './connections.service';
-import { CreateConnectionDto, LinkProductDto } from './connections.dto';
+import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -34,6 +34,19 @@ export class ConnectionsController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteConnection(id, user);
+  }
+
+  // Ver y editar credenciales de una conexión ya creada: solo Super Admin.
+  @Get(':id')
+  @Roles(Role.SUPER_ADMIN)
+  get(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getConnection(id, user);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN)
+  update(@Param('id') id: string, @Body() dto: UpdateConnectionDto, @CurrentUser() user: any) {
+    return this.service.updateConnection(id, dto, user);
   }
 
   @Post(':id/test')

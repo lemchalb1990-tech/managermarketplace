@@ -12,6 +12,13 @@ export class CreateBillingConnectionDto {
   @IsOptional() @IsString() companyId?: string;
 }
 
+export class UpdateBillingConnectionDto {
+  @IsOptional() @IsString() name?: string;
+  // Solo las claves incluidas se sobreescriben; el resto de las credenciales existentes
+  // se mantiene (ver BillingService.updateConnection).
+  @IsOptional() credentials?: Record<string, string>;
+}
+
 export class InvoiceItemDto {
   @IsString() name: string;
   @IsNumber() @IsPositive() quantity: number;

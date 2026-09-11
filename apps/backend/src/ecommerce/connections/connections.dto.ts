@@ -14,6 +14,16 @@ export class CreateConnectionDto {
   companyId?: string;
 }
 
+export class UpdateConnectionDto {
+  @IsOptional() @IsString()
+  name?: string;
+
+  // Solo las claves incluidas se sobreescriben; el resto de las credenciales existentes
+  // se mantiene (ver ConnectionsService.updateConnection).
+  @IsOptional() @IsObject()
+  credentials?: Record<string, string>;
+}
+
 export class LinkProductDto {
   @IsString() @IsNotEmpty()
   externalId: string;

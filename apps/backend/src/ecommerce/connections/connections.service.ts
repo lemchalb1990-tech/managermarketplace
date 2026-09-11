@@ -8,7 +8,7 @@ import { ParisAdapter } from '../platforms/paris.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
-import { CreateConnectionDto, LinkProductDto } from './connections.dto';
+import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 
 const NON_ML_TYPES: MarketplaceType[] = [
   MarketplaceType.SHOPIFY, MarketplaceType.WOOCOMMERCE, MarketplaceType.JUMPSELLER,
@@ -110,6 +110,50 @@ export class ConnectionsService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
     return this.prisma.marketplaceConnection.update({ where: { id }, data: { active: false } });
+  }
+
+  // Solo Super Admin (ver controller): trae la conexión con sus credenciales, para
+  // precargar el formulario de edición.
+  async getConnection(id: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (!NON_ML_TYPES.includes(conn.marketplace)) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+    return conn;
+  }
+
+  // Solo Super Admin (ver controller): permite corregir el nombre y/o las credenciales de
+  // una conexión ya creada. Las credenciales se fusionan (solo se sobreescriben las claves
+  // enviadas) y se prueban contra la plataforma ANTES de guardar — si fallan, no se toca
+  // la conexión existente y esta sigue funcionando con las credenciales anteriores.
+  async updateConnection(id: string, dto: UpdateConnectionDto, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (!NON_ML_TYPES.includes(conn.marketplace)) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+
+    const mergedCredentials = dto.credentials
+      ? { ...((conn.credentials as any) || {}), ...dto.credentials }
+      : (conn.credentials as any);
+
+    if (dto.credentials) {
+      const adapter = this.getAdapter(conn.marketplace);
+      const testResult = await adapter.testConnection({ ...conn, credentials: mergedCredentials }).catch((e) => ({
+        success: false, message: e.message,
+      }));
+      if (!testResult.success) {
+        throw new BadRequestException(`No se pudo conectar con las nuevas credenciales: ${testResult.message}`);
+      }
+    }
+
+    const updated = await this.prisma.marketplaceConnection.update({
+      where: { id },
+      data: {
+        ...(dto.name?.trim() ? { name: dto.name.trim() } : {}),
+        ...(dto.credentials ? { credentials: mergedCredentials } : {}),
+      },
+    });
+    return { ...updated, credentials: undefined };
   }
 
   async testConnection(id: string, user: any) {

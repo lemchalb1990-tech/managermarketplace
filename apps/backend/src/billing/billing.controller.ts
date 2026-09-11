@@ -8,7 +8,7 @@ import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { BillingService } from './billing.service';
 import {
-  CreateBillingConnectionDto, IssueInvoiceDto, IssueDraftDto, ListInvoicesDto,
+  CreateBillingConnectionDto, UpdateBillingConnectionDto, IssueInvoiceDto, IssueDraftDto, ListInvoicesDto,
   MarkInvoicePaidDto, UpsertBillingProfileDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -44,6 +44,19 @@ export class BillingController {
   @Delete('connections/:id')
   deleteConnection(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteConnection(id, user);
+  }
+
+  // Ver y editar credenciales de una conexión ya creada: solo Super Admin.
+  @Get('connections/:id')
+  @Roles(Role.SUPER_ADMIN)
+  getConnection(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getConnection(id, user);
+  }
+
+  @Patch('connections/:id')
+  @Roles(Role.SUPER_ADMIN)
+  updateConnection(@Param('id') id: string, @Body() dto: UpdateBillingConnectionDto, @CurrentUser() user: any) {
+    return this.service.updateConnection(id, dto, user);
   }
 
   @Post('connections/:id/test')
