@@ -746,6 +746,7 @@ export default function CatalogPage() {
         mlDescription: editForm.mlDescription || undefined,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
         warehouseId: editForm.warehouseId || undefined,
+        ...(isSuperAdmin && !selected.id ? { companyId: selectedCompanyId } : {}),
       };
       if (selected.id) {
         const updated = await api.catalog.update(selected.id, payload, token);

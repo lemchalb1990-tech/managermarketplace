@@ -70,7 +70,7 @@ export class CatalogService {
   }
 
   async create(dto: CreateProductDto, user: any) {
-    const companyId = this.getCompanyId(user);
+    const companyId = this.resolveCompanyId(user, dto.companyId);
     const exists = await this.prisma.product.findUnique({
       where: { sku_companyId: { sku: dto.sku, companyId } },
     });

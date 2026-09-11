@@ -74,6 +74,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  // Solo lo usa Super Admin: a qué empresa pertenece el producto (la que tiene
+  // seleccionada en el selector de empresa). Para el resto de los roles se ignora — el
+  // producto siempre queda en la empresa del usuario.
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class UpdateProductDto {
