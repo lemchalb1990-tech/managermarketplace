@@ -10,6 +10,7 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
+import { SyncService } from '../ecommerce/sync/sync.service';
 
 // Campos "de identidad" del producto que se pueden elegir campo por campo al unificar
 // duplicados (ver mergeProducts). Imágenes y proveedor dropship se resuelven aparte porque
@@ -44,6 +45,7 @@ export class CatalogService {
   constructor(
     private prisma: PrismaService,
     private costing: InventoryCostingService,
+    private sync: SyncService,
   ) {}
 
   private getCompanyId(user: any): string {
@@ -542,6 +544,11 @@ export class CatalogService {
 
       await tx.product.update({ where: { id: survivorId }, data });
     });
+
+    // Empuja el precio y stock finales a todas las publicaciones del sobreviviente (incluidas
+    // las que se le acaban de reasignar) — sin esperar la respuesta ni romper la fusión si
+    // alguna plataforma falla; el error queda registrado en esa publicación como de costumbre.
+    this.sync.syncProduct(survivorId, data.stock, Number(data.price)).catch(() => {});
 
     return this.findOne(survivorId, user);
   }

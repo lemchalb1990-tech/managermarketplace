@@ -49,7 +49,7 @@ export class SyncService {
     const { connection } = listing;
     try {
       if (connection.marketplace === MarketplaceType.MERCADO_LIBRE) {
-        await this.syncMlListing(listing, payload.stock);
+        await this.syncMlListing(listing, payload.stock, payload.price);
       } else {
         if (!listing.externalId) {
           this.logger.warn(`Sin externalId para listing=${listing.id} marketplace=${connection.marketplace}`);
@@ -73,20 +73,22 @@ export class SyncService {
     }
   }
 
-  private async syncMlListing(listing: any, newStock: number) {
+  private async syncMlListing(listing: any, newStock: number, price?: number) {
     if (!listing.externalId) return;
     const token = await this.getValidMlToken(listing.connection);
     const newMlStatus = newStock === 0 ? 'paused' : 'active';
+    const body: Record<string, unknown> = { available_quantity: newStock, status: newMlStatus };
+    if (price != null) body.price = Math.round(price);
     const res = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ available_quantity: newStock, status: newMlStatus }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const err = await res.json() as any;
       throw new Error(err.message || `ML HTTP ${res.status}`);
     }
-    this.logger.log(`ML sync: item=${listing.externalId} stock=${newStock} status=${newMlStatus}`);
+    this.logger.log(`ML sync: item=${listing.externalId} stock=${newStock}${price != null ? ` price=${Math.round(price)}` : ''} status=${newMlStatus}`);
   }
 
   private async getValidMlToken(connection: any): Promise<string> {
