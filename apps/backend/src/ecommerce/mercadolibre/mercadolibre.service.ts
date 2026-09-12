@@ -488,7 +488,39 @@ export class MercadolibreService {
 
   // ─── Publicaciones ───────────────────────────────────────────────────────────
 
-  async publishProduct(productId: string, connectionId: string, user: any) {
+  // Algunas categorías (según cuenta/cuándo se migró al modelo "User Products" de ML) exigen
+  // mandar la garantía del producto en "sale_terms" del body de /items — si no se manda, ML
+  // rechaza la publicación con el críptico "body does not contains ... [family_name]" en vez
+  // de decir claramente que falta la garantía. Se consulta con el token de la conexión
+  // porque, a diferencia de /categories/{id} y /attributes, este endpoint exige autenticación.
+  async getSaleTerms(categoryId: string, connectionId: string, user: any) {
+    await this.getConnectionForUser(connectionId, user);
+    try {
+      const token = await this.getValidToken(connectionId);
+      const res = await fetch(`${ML_API}/categories/${categoryId}/sale_terms`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      const data = await res.json() as any[];
+      return (Array.isArray(data) ? data : []).map((t) => ({
+        id: t.id as string,
+        name: t.name as string,
+        valueType: t.value_type as string,
+        required: !!t.tags?.required,
+        values: Array.isArray(t.values) ? t.values.map((v: any) => ({ id: v.id, name: v.name })) : [],
+      }));
+    } catch (err) {
+      this.logger.error('ML sale_terms fetch error', err);
+      return [];
+    }
+  }
+
+  async publishProduct(
+    productId: string,
+    connectionId: string,
+    user: any,
+    saleTerms?: { id: string; value_id?: string; value_name?: string }[],
+  ) {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
@@ -522,6 +554,7 @@ export class MercadolibreService {
         { id: 'SELLER_SKU', value_name: product.sku },
         ...((product as any).mlAttributes || []),
       ],
+      ...(saleTerms?.length ? { sale_terms: saleTerms } : {}),
     };
 
     const res = await fetch(`${ML_API}/items`, {

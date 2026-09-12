@@ -2,7 +2,8 @@ import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
   UseGuards, Res, Logger,
 } from '@nestjs/common';
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService } from './mercadolibre.service';
@@ -35,6 +36,21 @@ class UpdateMlConnectionDto {
 class ConfirmImportDto {
   @IsArray() @IsString({ each: true }) externalIds: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) unlinkIds?: string[];
+}
+
+class SaleTermDto {
+  @IsString() id: string;
+  @IsOptional() @IsString() value_id?: string;
+  @IsOptional() @IsString() value_name?: string;
+}
+
+class PublishOptionsDto {
+  // Garantía u otras condiciones de venta que exija la categoría (ver getSaleTerms).
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SaleTermDto)
+  saleTerms?: SaleTermDto[];
 }
 
 @Controller('ecommerce/ml')
@@ -262,8 +278,22 @@ export class MercadolibreController {
     @Param('productId') productId: string,
     @Param('connectionId') connectionId: string,
     @CurrentUser() user: any,
+    @Body() dto?: PublishOptionsDto,
   ) {
-    return this.service.publishProduct(productId, connectionId, user);
+    return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms);
+  }
+
+  // Condiciones de venta (p.ej. garantía) que exige la categoría, para pedirlas antes de
+  // publicar en vez de que Mercado Libre las rechace con un error críptico.
+  @Get('connections/:connectionId/categories/:categoryId/sale-terms')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  getSaleTerms(
+    @Param('connectionId') connectionId: string,
+    @Param('categoryId') categoryId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.getSaleTerms(categoryId, connectionId, user);
   }
 
   @Post('products/:productId/sync/:connectionId')

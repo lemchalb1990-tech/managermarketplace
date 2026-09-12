@@ -131,24 +131,32 @@ function LinkListingModal({ state, onChange, onSubmit, onClose, loading, error }
 
 type CheckStatus = 'ok' | 'warn' | 'error';
 interface PreflightCheck { label: string; value?: string | null; status: CheckStatus; }
+interface SaleTermOption { id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[]; }
 interface PublishModalState {
   connectionId: string;
   phase: 'preflight' | 'publishing' | 'error';
   checks: PreflightCheck[];
   mlErrors: string[];
   isRepublish: boolean;
+  // Condiciones de venta (p.ej. garantía) que exige la categoría — algunas cuentas de ML
+  // las requieren y si no se mandan, rechazan la publicación con un error críptico.
+  saleTerms: SaleTermOption[];
+  saleTermsLoading: boolean;
+  saleTermsValues: Record<string, { value_id?: string; value_name?: string }>;
 }
 
 const checkIcon: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️', error: '❌' };
 
-function PrePublishModal({ state, onConfirm, onClose }: {
+function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
   state: PublishModalState;
   onConfirm: () => void;
   onClose: () => void;
+  onSaleTermChange: (id: string, value: { value_id?: string; value_name?: string }) => void;
 }) {
   const hasErrors = state.checks.some(c => c.status === 'error');
   const isError = state.phase === 'error';
   const isPublishing = state.phase === 'publishing';
+  const missingSaleTerm = state.saleTerms.some((t) => t.required && !state.saleTermsValues[t.id]);
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -186,12 +194,56 @@ function PrePublishModal({ state, onConfirm, onClose }: {
               </div>
             ))
           )}
+
+          {!isError && state.saleTermsLoading && (
+            <p className="text-xs text-gray-400">Consultando condiciones de venta de la categoría...</p>
+          )}
+
+          {!isError && !state.saleTermsLoading && state.saleTerms.length > 0 && (
+            <div className="pt-2 mt-2 border-t border-gray-100 space-y-2.5">
+              <p className="text-xs font-semibold text-gray-600">Condiciones de venta que exige esta categoría</p>
+              {state.saleTerms.map((t) => {
+                const current = state.saleTermsValues[t.id];
+                return (
+                  <div key={t.id}>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      {t.name}{t.required ? ' *' : ''}
+                    </label>
+                    {t.values.length > 0 ? (
+                      <select
+                        value={current?.value_id || ''}
+                        onChange={(e) => {
+                          const opt = t.values.find((v) => v.id === e.target.value);
+                          if (opt) onSaleTermChange(t.id, { value_id: opt.id, value_name: opt.name });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">— Selecciona —</option>
+                        {t.values.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        value={current?.value_name || ''}
+                        onChange={(e) => onSaleTermChange(t.id, { value_name: e.target.value })}
+                        placeholder={t.name}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {!isError && hasErrors && (
+        {!isError && (hasErrors || missingSaleTerm) && (
           <div className="px-5 pb-2">
             <p className="text-xs text-red-600 font-medium">
-              Completa los campos obligatorios (❌) antes de publicar.
+              {hasErrors && missingSaleTerm
+                ? 'Completa los campos obligatorios (❌) y las condiciones de venta antes de publicar.'
+                : hasErrors
+                  ? 'Completa los campos obligatorios (❌) antes de publicar.'
+                  : 'Completa las condiciones de venta obligatorias (*) antes de publicar.'}
             </p>
           </div>
         )}
@@ -202,7 +254,7 @@ function PrePublishModal({ state, onConfirm, onClose }: {
             {isError ? 'Cerrar' : 'Cancelar'}
           </button>
           {!isError && (
-            <button onClick={onConfirm} disabled={hasErrors || isPublishing}
+            <button onClick={onConfirm} disabled={hasErrors || missingSaleTerm || isPublishing || state.saleTermsLoading}
               className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-gray-900 rounded-lg text-sm font-semibold">
               {isPublishing ? 'Publicando...' : 'Publicar ahora'}
             </button>
@@ -1031,17 +1083,40 @@ export default function CatalogPage() {
   }
 
   function openPublishModal(connectionId: string, isRepublish: boolean) {
-    setPublishModal({ connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [], isRepublish });
+    setPublishModal({
+      connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [], isRepublish,
+      saleTerms: [], saleTermsLoading: !!editForm.mlCategoryId, saleTermsValues: {},
+    });
+    if (!editForm.mlCategoryId) return;
+    const token = getToken()!;
+    api.marketplace.getSaleTerms(connectionId, editForm.mlCategoryId, token)
+      .then((terms) => {
+        // Precarga un valor por defecto en los campos de lista para no obligar a elegir
+        // cuando ya hay una opción obvia (p.ej. una sola alternativa).
+        const defaults: Record<string, { value_id?: string; value_name?: string }> = {};
+        for (const t of terms) {
+          if (t.values.length === 1) defaults[t.id] = { value_id: t.values[0].id, value_name: t.values[0].name };
+        }
+        setPublishModal((m) => m ? { ...m, saleTerms: terms, saleTermsLoading: false, saleTermsValues: { ...defaults, ...m.saleTermsValues } } : m);
+      })
+      .catch(() => setPublishModal((m) => m ? { ...m, saleTerms: [], saleTermsLoading: false } : m));
+  }
+
+  function updateSaleTermValue(id: string, value: { value_id?: string; value_name?: string }) {
+    setPublishModal((m) => m ? { ...m, saleTermsValues: { ...m.saleTermsValues, [id]: value } } : m);
   }
 
   async function confirmPublish() {
     if (!publishModal) return;
     const { connectionId } = publishModal;
+    const saleTerms = Object.entries(publishModal.saleTermsValues)
+      .filter(([, v]) => v.value_id || v.value_name)
+      .map(([id, v]) => ({ id, ...v }));
     setPublishModal(m => m ? { ...m, phase: 'publishing' } : m);
     setMlWarning('');
     try {
       const token = getToken()!;
-      const result = await api.marketplace.publish(selected.id, connectionId, token);
+      const result = await api.marketplace.publish(selected.id, connectionId, token, saleTerms);
       if (result?.descriptionWarning) setMlWarning(result.descriptionWarning);
       await refreshSelected(selected.id);
       setPublishModal(null);
@@ -2178,6 +2253,7 @@ export default function CatalogPage() {
           state={publishModal}
           onConfirm={confirmPublish}
           onClose={() => setPublishModal(null)}
+          onSaleTermChange={updateSaleTermValue}
         />
       )}
       {linkModal && (
