@@ -198,17 +198,12 @@ export default function EcommercePage() {
                   </button>
                 )}
 
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-16 h-10 rounded-lg overflow-hidden">
+                <div className="flex justify-center mb-4">
+                  <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
                     {p.logoUrl
                       ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" />
                       : Logos[p.id]}
                   </div>
-                  {isActive && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                      Activo
-                    </span>
-                  )}
                 </div>
                 <h2 className="font-semibold text-gray-900 mb-1">{p.displayName}</h2>
                 <p className="text-xs text-gray-500 leading-relaxed">{p.displayDescription}</p>
