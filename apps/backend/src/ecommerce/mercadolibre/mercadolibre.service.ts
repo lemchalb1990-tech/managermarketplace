@@ -566,9 +566,16 @@ export class MercadolibreService {
       if (r.ok) return { ok: true as const, data: await r.json() as any };
       const err = await r.json() as any;
       this.logger.error('ML publish error', JSON.stringify(err));
-      const mlErrors: string[] = Array.isArray(err.cause) && err.cause.length > 0
-        ? err.cause.map((c: any) => c.message || c.reference || c.code).filter(Boolean)
-        : [err.message || 'Error al publicar en Mercado Libre'];
+      // Se arma con el detalle más específico disponible en cada "cause" (si no trae
+      // message/reference/code legible, se manda el objeto completo en vez de perderlo) y,
+      // si no hay cause, se combinan message + error (código corto tipo "body.invalid_fields")
+      // en vez de mostrar solo uno — para no tener que adivinar la causa en la próxima vuelta.
+      const causeMessages: string[] = Array.isArray(err.cause)
+        ? err.cause.map((c: any) => c.message || c.reference || (c.code ? `${c.code}${c.data ? ` ${JSON.stringify(c.data)}` : ''}` : null) || JSON.stringify(c)).filter(Boolean)
+        : [];
+      const mlErrors = causeMessages.length
+        ? causeMessages
+        : [[err.message, err.error].filter(Boolean).join(' — ') || 'Error al publicar en Mercado Libre'];
       return { ok: false as const, mlErrors };
     };
 
