@@ -46,10 +46,17 @@ export type NotifEvent = {
   key: string;
   type: 'sale' | 'question' | 'claim';
   title: string;
-  subtitle: string;
+  channel: string;
+  connectionName: string | null;
+  productName: string | null;
+  orderRef: string | null;
   href: string;
   createdAt: string;
   read: boolean;
+};
+
+const TYPE_LABEL: Record<NotifEvent['type'], string> = {
+  sale: 'Venta', question: 'Pregunta', claim: 'Reclamo',
 };
 
 const TYPE_STYLE: Record<NotifEvent['type'], { icon: string; accent: string }> = {
@@ -136,7 +143,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         try { localStorage.setItem(SINCE_KEY, res.serverTime); } catch {}
         if (res.events.length) {
           const fresh: NotifEvent[] = res.events.map((e) => ({
-            key: `${e.type}-${e.id}`, type: e.type, title: e.title, subtitle: e.subtitle, href: e.href,
+            key: `${e.type}-${e.id}`, type: e.type, title: e.title, href: e.href,
+            channel: e.channel, connectionName: e.connectionName, productName: e.productName, orderRef: e.orderRef,
             createdAt: e.createdAt, read: false,
           }));
           setHistory((prev) => {
@@ -271,10 +279,17 @@ export function NotificationBell() {
                   >
                     <span className="text-base shrink-0 mt-0.5">{style.icon}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-gray-800">{e.title}</span>
-                      <span className="block text-xs text-gray-500 truncate">{e.subtitle}</span>
+                      <span className="block text-sm font-medium text-gray-800">
+                        {e.title}{e.orderRef ? ` · ${e.orderRef}` : ''}
+                      </span>
+                      <span className="block text-xs text-gray-500 truncate">
+                        {TYPE_LABEL[e.type]} · {e.channel}{e.connectionName ? ` · ${e.connectionName}` : ''}
+                      </span>
+                      {e.productName && (
+                        <span className="block text-xs text-gray-600 truncate">{e.productName}</span>
+                      )}
                       <span className="block text-[11px] text-gray-400 mt-0.5">
-                        {new Date(e.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(e.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </span>
                     {!e.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
@@ -307,8 +322,18 @@ export function NotificationToasts() {
           >
             <span className="text-lg shrink-0">{style.icon}</span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[var(--text)]">{t.title}</p>
-              <p className="text-xs text-[var(--text-muted)] truncate">{t.subtitle}</p>
+              <p className="text-sm font-semibold text-[var(--text)]">
+                {t.title}{t.orderRef ? ` · ${t.orderRef}` : ''}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] truncate">
+                {TYPE_LABEL[t.type]} · {t.channel}{t.connectionName ? ` · ${t.connectionName}` : ''}
+              </p>
+              {t.productName && (
+                <p className="text-xs text-[var(--text-2)] truncate">{t.productName}</p>
+              )}
+              <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                {new Date(t.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); dismissToast(t.key); }}

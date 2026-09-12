@@ -439,7 +439,11 @@ export const api = {
       const q = new URLSearchParams({ since });
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{
-        events: Array<{ type: 'sale' | 'question' | 'claim'; id: string; title: string; subtitle: string; createdAt: string; href: string }>;
+        events: Array<{
+          type: 'sale' | 'question' | 'claim'; id: string; title: string;
+          channel: string; connectionName: string | null; productName: string | null; orderRef: string | null;
+          createdAt: string; href: string;
+        }>;
         serverTime: string;
       }>(`/ecommerce/ml/notifications?${q}`, {}, token);
     },

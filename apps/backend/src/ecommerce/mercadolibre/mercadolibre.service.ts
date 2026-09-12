@@ -2319,19 +2319,37 @@ export class MercadolibreService {
       this.prisma.sale.findMany({
         // Cualquier canal (POS, Mercado Libre, Shopify, etc.) — no solo Mercado Libre.
         where: { ...where, createdAt: { gt: since } },
-        select: { id: true, externalId: true, total: true, channel: true, createdAt: true },
+        select: {
+          id: true, externalId: true, total: true, channel: true, createdAt: true,
+          connection: { select: { name: true } },
+          items: { take: 1, select: { product: { select: { name: true } } }, orderBy: { id: 'asc' } },
+          _count: { select: { items: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
       this.prisma.mlQuestion.findMany({
         where: { ...where, createdAt: { gt: since } },
-        select: { id: true, externalId: true, text: true, createdAt: true, product: { select: { name: true } } },
+        select: {
+          id: true, externalId: true, text: true, createdAt: true,
+          product: { select: { name: true } },
+          connection: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
       this.prisma.mlClaim.findMany({
         where: { ...where, createdAt: { gt: since } },
-        select: { id: true, externalId: true, type: true, createdAt: true, sale: { select: { externalId: true } } },
+        select: {
+          id: true, externalId: true, type: true, createdAt: true,
+          connection: { select: { name: true } },
+          sale: {
+            select: {
+              externalId: true,
+              items: { take: 1, select: { product: { select: { name: true } } }, orderBy: { id: 'asc' } },
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
@@ -2343,19 +2361,31 @@ export class MercadolibreService {
       PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
     };
     const events = [
-      ...sales.map((s) => ({
-        type: 'sale' as const,
-        id: s.id,
-        title: 'Nueva venta',
-        subtitle: `${channelLabel[s.channel] || s.channel} · Orden ${s.externalId || s.id.slice(-6).toUpperCase()} · $${Math.round(Number(s.total)).toLocaleString('es-CL')}`,
-        createdAt: s.createdAt,
-        href: '/dashboard/sales',
-      })),
+      ...sales.map((s) => {
+        const extra = s._count.items - 1;
+        const productName = s.items[0]?.product?.name
+          ? `${s.items[0].product.name}${extra > 0 ? ` +${extra} más` : ''}`
+          : null;
+        return {
+          type: 'sale' as const,
+          id: s.id,
+          title: 'Nueva venta',
+          channel: channelLabel[s.channel] || s.channel,
+          connectionName: s.connection?.name || null,
+          productName,
+          orderRef: s.externalId || s.id.slice(-6).toUpperCase(),
+          createdAt: s.createdAt,
+          href: '/dashboard/sales',
+        };
+      }),
       ...questions.map((q) => ({
         type: 'question' as const,
         id: q.id,
         title: 'Nueva pregunta',
-        subtitle: q.product?.name || q.text?.slice(0, 60) || 'Pregunta de Mercado Libre',
+        channel: 'Mercado Libre',
+        connectionName: q.connection?.name || null,
+        productName: q.product?.name || q.text?.slice(0, 60) || null,
+        orderRef: null as string | null,
         createdAt: q.createdAt,
         href: '/dashboard/mercadolibre/preguntas',
       })),
@@ -2363,7 +2393,10 @@ export class MercadolibreService {
         type: 'claim' as const,
         id: c.id,
         title: 'Nuevo reclamo',
-        subtitle: c.sale?.externalId ? `Orden ${c.sale.externalId}` : c.type,
+        channel: 'Mercado Libre',
+        connectionName: c.connection?.name || null,
+        productName: c.sale?.items[0]?.product?.name || null,
+        orderRef: c.sale?.externalId || null,
         createdAt: c.createdAt,
         href: '/dashboard/mercadolibre/reclamos',
       })),
