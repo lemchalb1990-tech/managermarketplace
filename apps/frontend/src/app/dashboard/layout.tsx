@@ -146,9 +146,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return {};
-    try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { return {}; }
+  // Acordeón de un solo grupo abierto a la vez: se guarda su key (o null si no hay
+  // ninguno abierto), no un mapa de booleanos por grupo.
+  const [openGroup, setOpenGroup] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try { return localStorage.getItem(OPEN_KEY) || null; } catch { return null; }
   });
   const [collapsed, setCollapsed] = useState(false);
 
@@ -182,15 +184,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setSidebarOpen(false);
   }, [pathname]);
 
-  // Al navegar, deja abierto el grupo de la ruta actual.
+  // Al navegar, el grupo de la ruta actual pasa a ser el único abierto (cierra
+  // cualquier otro que hubiera quedado abierto).
   useEffect(() => {
-    if (activeGroupKey) setOpenGroups((s) => (s[activeGroupKey] ? s : { ...s, [activeGroupKey]: true }));
+    if (activeGroupKey) {
+      setOpenGroup(activeGroupKey);
+      try { localStorage.setItem(OPEN_KEY, activeGroupKey); } catch { /* ignore */ }
+    }
   }, [activeGroupKey]);
 
   function toggleGroup(key: string) {
-    setOpenGroups((s) => {
-      const next = { ...s, [key]: !s[key] };
-      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    setOpenGroup((s) => {
+      const next = s === key ? null : key;
+      try {
+        if (next) localStorage.setItem(OPEN_KEY, next);
+        else localStorage.removeItem(OPEN_KEY);
+      } catch { /* ignore */ }
       return next;
     });
   }
@@ -266,7 +275,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           }
 
-          const open = !!openGroups[g.key];
+          const open = openGroup === g.key;
           const hasActive = g.key === activeGroupKey;
           return (
             <div key={g.key} className="border-b border-[var(--border-soft)] last:border-b-0">
