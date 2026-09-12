@@ -413,4 +413,13 @@ export class MercadolibreController {
   listFeedback(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
     return this.service.listFeedback(user, companyId);
   }
+
+  // ─── Notificaciones ──────────────────────────────────────────────────────────
+
+  @Get('notifications')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getRecentActivity(@CurrentUser() user: any, @Query('since') since: string, @Query('companyId') companyId?: string) {
+    return this.service.getRecentActivity(user, since, companyId);
+  }
 }

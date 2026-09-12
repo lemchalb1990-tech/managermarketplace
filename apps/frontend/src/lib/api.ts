@@ -428,6 +428,14 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/reputation`, {}, token),
     feedback: (token: string, companyId?: string) =>
       apiFetch<any[]>(`/ecommerce/ml/feedback${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    notifications: (token: string, since: string, companyId?: string) => {
+      const q = new URLSearchParams({ since });
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<{
+        events: Array<{ type: 'sale' | 'question' | 'claim'; id: string; title: string; subtitle: string; createdAt: string; href: string }>;
+        serverTime: string;
+      }>(`/ecommerce/ml/notifications?${q}`, {}, token);
+    },
   },
   connections: {
     list: (token: string, params?: { marketplace?: string; companyId?: string }) => {

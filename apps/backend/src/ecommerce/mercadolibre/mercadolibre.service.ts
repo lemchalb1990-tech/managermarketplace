@@ -2224,4 +2224,65 @@ export class MercadolibreService {
     });
     return { received: true };
   }
+
+  // ─── Notificaciones (para el aviso emergente del panel) ──────────────────────
+
+  // Devuelve ventas/preguntas/reclamos de ML creados después de "since" (según cuándo
+  // esta app se enteró, no la fecha del evento en ML — así una sincronización de
+  // historial no dispara un aluvión de avisos de cosas viejas).
+  async getRecentActivity(user: any, sinceIso: string, companyId?: string) {
+    const since = new Date(sinceIso);
+    const where = this.companyFilter(user, companyId);
+    if (isNaN(since.getTime())) throw new BadRequestException('Parámetro "since" inválido');
+
+    const [sales, questions, claims] = await Promise.all([
+      this.prisma.sale.findMany({
+        where: { ...where, channel: SaleChannel.MERCADO_LIBRE, createdAt: { gt: since } },
+        select: { id: true, externalId: true, total: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.mlQuestion.findMany({
+        where: { ...where, createdAt: { gt: since } },
+        select: { id: true, externalId: true, text: true, createdAt: true, product: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.mlClaim.findMany({
+        where: { ...where, createdAt: { gt: since } },
+        select: { id: true, externalId: true, type: true, createdAt: true, sale: { select: { externalId: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    const events = [
+      ...sales.map((s) => ({
+        type: 'sale' as const,
+        id: s.id,
+        title: 'Nueva venta',
+        subtitle: `Orden ${s.externalId || s.id.slice(-6).toUpperCase()} · $${Math.round(Number(s.total)).toLocaleString('es-CL')}`,
+        createdAt: s.createdAt,
+        href: '/dashboard/sales',
+      })),
+      ...questions.map((q) => ({
+        type: 'question' as const,
+        id: q.id,
+        title: 'Nueva pregunta',
+        subtitle: q.product?.name || q.text?.slice(0, 60) || 'Pregunta de Mercado Libre',
+        createdAt: q.createdAt,
+        href: '/dashboard/mercadolibre/preguntas',
+      })),
+      ...claims.map((c) => ({
+        type: 'claim' as const,
+        id: c.id,
+        title: 'Nuevo reclamo',
+        subtitle: c.sale?.externalId ? `Orden ${c.sale.externalId}` : c.type,
+        createdAt: c.createdAt,
+        href: '/dashboard/mercadolibre/reclamos',
+      })),
+    ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    return { events, serverTime: new Date().toISOString() };
+  }
 }

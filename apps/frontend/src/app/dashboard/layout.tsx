@@ -7,6 +7,7 @@ import { getToken, getUser, clearSession } from '@/lib/auth';
 import { hasModule } from '@/lib/modules';
 import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
+import MlNotifications from './MlNotifications';
 
 type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
 type NavGroup = { key: string; label: string; items: NavItem[] };
@@ -365,7 +366,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="font-bold tracking-tight">Marketplace</span>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">
-          <AdminCompanyProvider>{children}</AdminCompanyProvider>
+          <AdminCompanyProvider>
+            {children}
+            <MlNotifications />
+          </AdminCompanyProvider>
         </main>
       </div>
     </div>
