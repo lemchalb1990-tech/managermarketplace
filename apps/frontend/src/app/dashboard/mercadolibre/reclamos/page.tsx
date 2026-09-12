@@ -38,6 +38,8 @@ export default function MlReclamosPage() {
     setLoading(true);
     try {
       setData(await api.marketplace.claims(token, tab, companyId));
+    } catch (err: any) {
+      setFlash({ msg: err.message || 'No se pudieron cargar los reclamos.', ok: false });
     } finally {
       setLoading(false);
     }

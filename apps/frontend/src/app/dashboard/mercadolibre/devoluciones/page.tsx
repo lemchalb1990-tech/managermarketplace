@@ -36,6 +36,8 @@ export default function MlDevolucionesPage() {
         ...res,
         returns: res.returns.filter((r: any) => r.channel === 'MERCADO_LIBRE'),
       });
+    } catch (err: any) {
+      setFlash({ msg: err.message || 'No se pudieron cargar las devoluciones.', ok: false });
     } finally {
       setLoading(false);
     }

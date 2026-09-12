@@ -27,16 +27,20 @@ export default function MlCalificacionesPage() {
   const [reputation, setReputation] = useState<any>(null);
   const [feedback, setFeedback] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
     setLoading(true);
+    setError('');
     api.marketplace.connections(token, companyId).then((conns) => {
       setConnections(conns);
       setConnId(conns[0]?.id || '');
-    }).catch(() => {});
-    api.marketplace.feedback(token, companyId).then(setFeedback).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err: any) => setError(err.message || 'No se pudieron cargar las conexiones.'));
+    api.marketplace.feedback(token, companyId).then(setFeedback)
+      .catch((err: any) => setError(err.message || 'No se pudieron cargar las calificaciones.'))
+      .finally(() => setLoading(false));
   }, [companyId]);
 
   useEffect(() => {
@@ -59,6 +63,10 @@ export default function MlCalificacionesPage() {
         Reputación del vendedor y calificación que dejan los compradores tras la compra — ambas
         de solo lectura, tal como las expone Mercado Libre.
       </p>
+
+      {error && (
+        <div className="mb-4 px-4 py-2 rounded-lg text-sm text-[var(--danger)] bg-[var(--danger-bg)]">{error}</div>
+      )}
 
       {connections.length > 1 && (
         <select value={connId} onChange={(e) => setConnId(e.target.value)}

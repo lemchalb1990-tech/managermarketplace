@@ -30,6 +30,8 @@ export default function MlPreguntasPage() {
     setLoading(true);
     try {
       setData(await api.marketplace.questions(token, tab, companyId));
+    } catch (err: any) {
+      setFlash({ msg: err.message || 'No se pudieron cargar las preguntas.', ok: false });
     } finally {
       setLoading(false);
     }
