@@ -13,9 +13,6 @@ interface CartItem {
   quantity: number;
   imageUrl?: string;
   type?: string;
-  // Línea libre (mano de obra/servicio sin producto real) agregada solo para crear una
-  // orden de trabajo — nunca se puede cobrar como venta directa.
-  isFree?: boolean;
 }
 
 const PAGE_SIZE = 20;
@@ -72,9 +69,6 @@ export default function PosPage() {
   const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
   const [creatingWorkOrder, setCreatingWorkOrder] = useState(false);
   const [workOrderError, setWorkOrderError] = useState('');
-  const [freeDesc, setFreeDesc] = useState('');
-  const [freeQty, setFreeQty] = useState('1');
-  const [freePrice, setFreePrice] = useState('');
 
   // Documento tributario (DTE)
   const [billingConns, setBillingConns] = useState<any[]>([]);
@@ -220,26 +214,7 @@ export default function PosPage() {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
   }
 
-  const hasFreeItems = cart.some((c) => c.isFree);
-
-  function addFreeItemToCart(description: string, quantity: number, price: number) {
-    setCart((prev) => [
-      ...prev,
-      {
-        productId: `free-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        name: description,
-        sku: '',
-        price,
-        stock: Infinity,
-        quantity,
-        type: 'SERVICIO',
-        isFree: true,
-      },
-    ]);
-  }
-
   function openCheckout() {
-    if (hasFreeItems) return;
     setErrorMsg('');
     setSuccessMsg('');
     setShowCheckout(true);
@@ -355,9 +330,9 @@ export default function PosPage() {
         customerEmail: (selectedClient?.email || customerEmail) || undefined,
         notes: notes || undefined,
         items: cart.map((c) => ({
-          productId: c.isFree ? undefined : c.productId,
+          productId: c.productId,
           productName: c.name,
-          productSku: c.isFree ? undefined : c.sku,
+          productSku: c.sku,
           quantity: c.quantity,
           unitPrice: c.price,
         })),
@@ -653,14 +628,7 @@ export default function PosPage() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 leading-tight truncate">
-                  {item.name}
-                  {item.isFree && (
-                    <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-700 align-middle">
-                      Línea libre
-                    </span>
-                  )}
-                </p>
+                <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
                 <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL', { maximumFractionDigits: 0 })} c/u</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -686,33 +654,6 @@ export default function PosPage() {
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="px-4 py-2.5 border-t border-gray-100 bg-indigo-50/50">
-          <p className="text-[11px] font-medium text-gray-500 mb-1.5">
-            Línea libre (mano de obra, servicio sin producto) — solo para orden de trabajo
-          </p>
-          <div className="flex flex-wrap items-end gap-1.5">
-            <input value={freeDesc} onChange={(e) => setFreeDesc(e.target.value)}
-              placeholder="Ej: Mano de obra"
-              className="flex-1 min-w-[110px] px-2 py-1.5 border border-gray-300 rounded-lg text-xs" />
-            <input type="number" min={1} value={freeQty} onChange={(e) => setFreeQty(e.target.value)}
-              className="w-12 px-1.5 py-1.5 border border-gray-300 rounded-lg text-xs" />
-            <input type="number" min={0} value={freePrice} onChange={(e) => setFreePrice(e.target.value)}
-              placeholder="Precio"
-              className="w-20 px-1.5 py-1.5 border border-gray-300 rounded-lg text-xs" />
-            <button
-              type="button"
-              disabled={!freeDesc.trim()}
-              onClick={() => {
-                addFreeItemToCart(freeDesc.trim(), Math.max(1, parseInt(freeQty) || 1), Number(freePrice) || 0);
-                setFreeDesc(''); setFreeQty('1'); setFreePrice('');
-              }}
-              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-lg text-xs font-medium"
-            >
-              + Agregar
-            </button>
-          </div>
         </div>
 
         <div className="px-4 py-3 border-t border-gray-100 space-y-3">
@@ -754,15 +695,9 @@ export default function PosPage() {
             </div>
           )}
 
-          {hasFreeItems && (
-            <p className="text-[11px] text-amber-600">
-              El carrito tiene una línea libre: no se puede cobrar como venta directa, solo crear una orden de trabajo.
-            </p>
-          )}
-
           <button
             onClick={openCheckout}
-            disabled={cart.length === 0 || hasFreeItems}
+            disabled={cart.length === 0}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
           >
             Cobrar
