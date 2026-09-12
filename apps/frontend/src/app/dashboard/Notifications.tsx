@@ -11,6 +11,36 @@ const TOAST_DISMISS_MS = 10000;
 const HISTORY_LIMIT = 30;
 const SINCE_KEY = 'mp_notif_since';
 const HISTORY_KEY = 'mp_notif_history';
+const MUTED_KEY = 'mp_notif_muted';
+
+// Sonido corto tipo "ding-dong" generado con Web Audio (sin archivo de audio que alojar).
+function playNotificationSound() {
+  try {
+    if (localStorage.getItem(MUTED_KEY) === '1') return;
+  } catch {}
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    [880, 660].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = now + i * 0.15;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.35);
+    });
+    setTimeout(() => ctx.close(), 800);
+  } catch {
+    // Silencioso: algunos navegadores bloquean audio sin interacción previa del usuario.
+  }
+}
 
 export type NotifEvent = {
   key: string;
@@ -47,6 +77,8 @@ interface NotificationsCtx {
   toasts: NotifEvent[];
   dismissToast: (key: string) => void;
   go: (e: NotifEvent) => void;
+  muted: boolean;
+  toggleMuted: () => void;
 }
 
 const Ctx = createContext<NotificationsCtx | null>(null);
@@ -66,10 +98,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { isSuperAdmin, selectedCompanyId, companyId } = useAdminCompany();
   const [history, setHistory] = useState<NotifEvent[]>([]);
   const [toasts, setToasts] = useState<NotifEvent[]>([]);
+  const [muted, setMuted] = useState(false);
   const shouldPoll = !isSuperAdmin || !!selectedCompanyId;
 
   useEffect(() => {
     setHistory(loadHistory());
+    try { setMuted(localStorage.getItem(MUTED_KEY) === '1'); } catch {}
+  }, []);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(MUTED_KEY, next ? '1' : '0'); } catch {}
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -104,6 +146,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             return merged;
           });
           setToasts((prev) => [...fresh, ...prev]);
+          playNotificationSound();
         }
       } catch {
         // Silencioso: un fallo puntual de polling no debe interrumpir al usuario.
@@ -147,14 +190,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const unreadCount = history.filter((h) => !h.read).length;
 
   return (
-    <Ctx.Provider value={{ history, unreadCount, markAllRead, toasts, dismissToast, go }}>
+    <Ctx.Provider value={{ history, unreadCount, markAllRead, toasts, dismissToast, go, muted, toggleMuted }}>
       {children}
     </Ctx.Provider>
   );
 }
 
 export function NotificationBell() {
-  const { history, unreadCount, markAllRead, go } = useNotifications();
+  const { history, unreadCount, markAllRead, go, muted, toggleMuted } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -188,13 +231,31 @@ export function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-xl border border-gray-200 text-gray-900 z-[110] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 gap-2">
             <p className="text-sm font-semibold">Notificaciones</p>
-            {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                Marcar todo leído
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={toggleMuted}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
+                title={muted ? 'Activar sonido' : 'Silenciar sonido'}
+              >
+                {muted ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5 6 9H2v6h4l5 4V5Z" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                  </svg>
+                )}
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                  Marcar todo leído
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {history.length === 0 ? (
