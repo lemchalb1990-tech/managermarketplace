@@ -582,10 +582,13 @@ export class MercadolibreService {
     let attempt = await attemptPublish(mlItem);
     // Cuentas migradas al modelo "Precio por Variación" (User Products) de ML exigen
     // "family_name" (el título de la "familia" del producto en ese modelo, no un nombre de
-    // persona) — pero mandarlo siempre lo rechazan como campo inválido las cuentas que NO
-    // tienen ese modelo activo. Por eso se reintenta agregándolo solo si ML lo pide.
+    // persona) en vez de "title" — mandar ambos juntos lo rechaza ML como campo inválido
+    // ("title"), y mandar family_name siempre lo rechazan las cuentas que NO tienen ese
+    // modelo activo. Por eso se reintenta reemplazando title por family_name solo si ML pide
+    // específicamente family_name en el primer intento.
     if (!attempt.ok && attempt.mlErrors.some((m) => /family_name/i.test(m))) {
-      attempt = await attemptPublish({ ...mlItem, family_name: product.name });
+      const { title, ...itemWithoutTitle } = mlItem;
+      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: product.name });
     }
 
     if (!attempt.ok) {
