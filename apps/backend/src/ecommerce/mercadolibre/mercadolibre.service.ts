@@ -1877,7 +1877,13 @@ export class MercadolibreService {
     let total = 0;
     let synced = 0;
     do {
-      const params = new URLSearchParams({ seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset) });
+      // Sin ordenar, ML devuelve las preguntas en un orden que no prioriza las recientes —
+      // con una cuenta que tiene mucho historial, el tope de 200 se llenaba con preguntas
+      // viejas y las de ahora (las que realmente importan) nunca se alcanzaban a traer.
+      const params = new URLSearchParams({
+        seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset),
+        sort_fields: 'date_created', sort_types: 'DESC',
+      });
       const res = await fetch(`${ML_API}/questions/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         const errBody = await res.text();
@@ -2032,7 +2038,9 @@ export class MercadolibreService {
     let total = 0;
     let synced = 0;
     do {
-      const params = new URLSearchParams({ player_role: 'respondent', limit: '50', offset: String(offset) });
+      // Mismo motivo que en preguntas: sin ordenar, el tope de 200 puede llenarse con
+      // reclamos viejos y nunca llegar a los recientes.
+      const params = new URLSearchParams({ player_role: 'respondent', limit: '50', offset: String(offset), sort: 'date_created:desc' });
       const res = await fetch(`${ML_API}/post-purchase/v1/claims/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         const errBody = await res.text();
