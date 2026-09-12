@@ -440,6 +440,7 @@ enum MlQuestionStatus {
   UNDER_REVIEW
   BANNED
   DELETED
+  DISABLED
 }
 
 // Pregunta hecha por un comprador sobre una publicación de Mercado Libre (antes de

@@ -1889,8 +1889,14 @@ export class MercadolibreService {
       const data = await res.json() as any;
       total = data.total || 0;
       for (const q of data.questions || []) {
-        await this.upsertQuestion(q, connectionId, conn.companyId);
-        synced++;
+        try {
+          await this.upsertQuestion(q, connectionId, conn.companyId);
+          synced++;
+        } catch (err: any) {
+          // Una pregunta con un dato inesperado (p.ej. un status nuevo que ML agregó) no
+          // debe tirar abajo la sincronización completa de la cuenta.
+          this.logger.error(`upsertQuestion falló para pregunta ${q?.id}: ${err?.message || err}`);
+        }
       }
       offset += 50;
     } while (offset < total && offset < 200);
@@ -2038,8 +2044,12 @@ export class MercadolibreService {
       const data = await res.json() as any;
       total = data.paging?.total || 0;
       for (const c of data.data || []) {
-        await this.upsertClaim(c, connectionId, conn.companyId);
-        synced++;
+        try {
+          await this.upsertClaim(c, connectionId, conn.companyId);
+          synced++;
+        } catch (err: any) {
+          this.logger.error(`upsertClaim falló para reclamo ${c?.id}: ${err?.message || err}`);
+        }
       }
       offset += 50;
     } while (offset < total && offset < 200);
