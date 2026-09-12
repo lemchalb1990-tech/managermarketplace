@@ -13,6 +13,9 @@ interface CartItem {
   quantity: number;
   imageUrl?: string;
   type?: string;
+  // Línea libre (mano de obra/servicio sin producto real) agregada solo para crear una
+  // orden de trabajo — nunca se puede cobrar como venta directa.
+  isFree?: boolean;
 }
 
 const PAGE_SIZE = 20;
@@ -64,6 +67,14 @@ export default function PosPage() {
   const [showNewClient, setShowNewClient] = useState(false);
   const emptyClient = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '' };
   const [newClient, setNewClient] = useState(emptyClient);
+
+  // Orden de trabajo (mismo carrito, sin cobrar ni descontar stock hasta que se acepte)
+  const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
+  const [creatingWorkOrder, setCreatingWorkOrder] = useState(false);
+  const [workOrderError, setWorkOrderError] = useState('');
+  const [freeDesc, setFreeDesc] = useState('');
+  const [freeQty, setFreeQty] = useState('1');
+  const [freePrice, setFreePrice] = useState('');
 
   // Documento tributario (DTE)
   const [billingConns, setBillingConns] = useState<any[]>([]);
@@ -209,7 +220,26 @@ export default function PosPage() {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
   }
 
+  const hasFreeItems = cart.some((c) => c.isFree);
+
+  function addFreeItemToCart(description: string, quantity: number, price: number) {
+    setCart((prev) => [
+      ...prev,
+      {
+        productId: `free-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: description,
+        sku: '',
+        price,
+        stock: Infinity,
+        quantity,
+        type: 'SERVICIO',
+        isFree: true,
+      },
+    ]);
+  }
+
   function openCheckout() {
+    if (hasFreeItems) return;
     setErrorMsg('');
     setSuccessMsg('');
     setShowCheckout(true);
@@ -309,6 +339,45 @@ export default function PosPage() {
       setLoading(false);
     }
   }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+
+  const createWorkOrderFromCart = useCallback(async () => {
+    if (cart.length === 0) return;
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    if (isSuperAdmin && !selectedCompanyId) return;
+
+    setCreatingWorkOrder(true);
+    setWorkOrderError('');
+    try {
+      const dto: any = {
+        clientId: clientId || undefined,
+        customerName: (selectedClient?.name || customerName) || undefined,
+        customerPhone: (selectedClient?.phone || customerPhone) || undefined,
+        customerEmail: (selectedClient?.email || customerEmail) || undefined,
+        notes: notes || undefined,
+        items: cart.map((c) => ({
+          productId: c.isFree ? undefined : c.productId,
+          productName: c.name,
+          productSku: c.isFree ? undefined : c.sku,
+          quantity: c.quantity,
+          unitPrice: c.price,
+        })),
+      };
+      if (companyId) dto.companyId = companyId;
+
+      const workOrder = await api.pos.workOrders.create(dto, token);
+
+      setSuccessMsg(`Orden de trabajo N° ${String(workOrder.folio).padStart(4, '0')} creada — sin cobrar ni descontar stock.`);
+      setCart([]);
+      setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
+      setNotes('');
+      setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
+      setShowWorkOrderModal(false);
+    } catch (err: any) {
+      setWorkOrderError(err.message || 'No se pudo crear la orden de trabajo.');
+    } finally {
+      setCreatingWorkOrder(false);
+    }
+  }, [cart, isSuperAdmin, selectedCompanyId, clientId, selectedClient, customerName, customerPhone, customerEmail, notes, token]);
 
   async function saveNewClient() {
     if (newClient.name.trim().length < 2) { setErrorMsg('Nombre del cliente requerido'); return; }
@@ -584,7 +653,14 @@ export default function PosPage() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
+                <p className="text-sm font-medium text-gray-800 leading-tight truncate">
+                  {item.name}
+                  {item.isFree && (
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-700 align-middle">
+                      Línea libre
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL', { maximumFractionDigits: 0 })} c/u</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -610,6 +686,33 @@ export default function PosPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="px-4 py-2.5 border-t border-gray-100 bg-indigo-50/50">
+          <p className="text-[11px] font-medium text-gray-500 mb-1.5">
+            Línea libre (mano de obra, servicio sin producto) — solo para orden de trabajo
+          </p>
+          <div className="flex flex-wrap items-end gap-1.5">
+            <input value={freeDesc} onChange={(e) => setFreeDesc(e.target.value)}
+              placeholder="Ej: Mano de obra"
+              className="flex-1 min-w-[110px] px-2 py-1.5 border border-gray-300 rounded-lg text-xs" />
+            <input type="number" min={1} value={freeQty} onChange={(e) => setFreeQty(e.target.value)}
+              className="w-12 px-1.5 py-1.5 border border-gray-300 rounded-lg text-xs" />
+            <input type="number" min={0} value={freePrice} onChange={(e) => setFreePrice(e.target.value)}
+              placeholder="Precio"
+              className="w-20 px-1.5 py-1.5 border border-gray-300 rounded-lg text-xs" />
+            <button
+              type="button"
+              disabled={!freeDesc.trim()}
+              onClick={() => {
+                addFreeItemToCart(freeDesc.trim(), Math.max(1, parseInt(freeQty) || 1), Number(freePrice) || 0);
+                setFreeDesc(''); setFreeQty('1'); setFreePrice('');
+              }}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-lg text-xs font-medium"
+            >
+              + Agregar
+            </button>
+          </div>
         </div>
 
         <div className="px-4 py-3 border-t border-gray-100 space-y-3">
@@ -651,13 +754,26 @@ export default function PosPage() {
             </div>
           )}
 
+          {hasFreeItems && (
+            <p className="text-[11px] text-amber-600">
+              El carrito tiene una línea libre: no se puede cobrar como venta directa, solo crear una orden de trabajo.
+            </p>
+          )}
+
           <button
             onClick={openCheckout}
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || hasFreeItems}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
           >
             Cobrar
             <span className="text-base leading-none">→</span>
+          </button>
+          <button
+            onClick={() => { setErrorMsg(''); setSuccessMsg(''); setWorkOrderError(''); setShowWorkOrderModal(true); }}
+            disabled={cart.length === 0}
+            className="w-full bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed text-indigo-700 font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
+          >
+            Crear orden de trabajo
           </button>
         </div>
       </div>
@@ -912,6 +1028,87 @@ export default function PosPage() {
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
               >
                 {loading ? 'Procesando...' : 'Confirmar venta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de orden de trabajo */}
+      {showWorkOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Crear orden de trabajo</h2>
+              <button
+                onClick={() => setShowWorkOrderModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold transition"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                Queda pendiente, sin cobrar ni descontar stock. Se puede imprimir para el cliente y, si acepta, se cobra desde "Órdenes de trabajo".
+              </p>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Cliente (opcional)</h3>
+                <select value={clientId} onChange={(e) => setClientId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white mb-2">
+                  <option value="">— Sin cliente registrado —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}{c.rut ? ` · ${c.rut}` : ''}</option>
+                  ))}
+                </select>
+                {!selectedClient && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre (opcional)"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono (opcional)"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (opcional)"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 font-medium mb-1">Notas (opcional)</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Observaciones..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="border-t border-gray-100 pt-3 space-y-1">
+                {cart.map((item) => (
+                  <div key={item.productId} className="flex justify-between text-xs text-gray-500">
+                    <span className="truncate max-w-[220px]">{item.name} x{item.quantity}</span>
+                    <span>${(item.price * item.quantity).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100">
+              {workOrderError && (
+                <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">{workOrderError}</div>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-600">Total estimado</span>
+                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+              </div>
+              <button
+                onClick={createWorkOrderFromCart}
+                disabled={creatingWorkOrder}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
+              >
+                {creatingWorkOrder ? 'Creando...' : 'Crear orden de trabajo'}
               </button>
             </div>
           </div>

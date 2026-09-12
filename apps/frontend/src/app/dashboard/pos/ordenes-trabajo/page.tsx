@@ -110,13 +110,6 @@ export default function WorkOrdersPage() {
   const [freeQty, setFreeQty] = useState('1');
   const [freePrice, setFreePrice] = useState('');
 
-  function openCreate() {
-    setForm(emptyForm());
-    setFormError('');
-    setProductSearch(''); setProductResults([]);
-    setFreeDesc(''); setFreeQty('1'); setFreePrice('');
-  }
-
   function openEdit(wo: any) {
     setForm({
       id: wo.id,
@@ -189,7 +182,7 @@ export default function WorkOrdersPage() {
   const formTotal = (form?.items || []).reduce((s, i) => s + i.quantity * i.unitPrice, 0);
 
   async function handleSaveForm() {
-    if (!form) return;
+    if (!form?.id) return;
     if (!form.items.length) { setFormError('Agrega al menos un ítem.'); return; }
     setSaving(true);
     setFormError('');
@@ -208,14 +201,10 @@ export default function WorkOrdersPage() {
           unitPrice: i.unitPrice,
         })),
       };
-      if (form.id) {
-        await api.pos.workOrders.update(form.id, payload, token);
-      } else {
-        await api.pos.workOrders.create({ ...payload, companyId: isSuperAdmin ? selectedCompanyId : undefined }, token);
-      }
+      await api.pos.workOrders.update(form.id, payload, token);
       setForm(null);
       await loadWorkOrders(page);
-      notify(form.id ? 'Orden de trabajo actualizada.' : 'Orden de trabajo creada.');
+      notify('Orden de trabajo actualizada.');
     } catch (err: any) {
       setFormError(err.message || 'No se pudo guardar la orden de trabajo.');
     } finally {
@@ -330,9 +319,9 @@ export default function WorkOrdersPage() {
           </p>
         </div>
         {(!isSuperAdmin || selectedCompanyId) && (
-          <button onClick={openCreate} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+          <Link href="/dashboard/pos" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
             + Nueva orden de trabajo
-          </button>
+          </Link>
         )}
       </div>
 
@@ -449,7 +438,7 @@ export default function WorkOrdersPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 text-base">{form.id ? 'Editar orden de trabajo' : 'Nueva orden de trabajo'}</h2>
+              <h2 className="font-bold text-gray-900 text-base">Editar orden de trabajo</h2>
               <button onClick={() => setForm(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
