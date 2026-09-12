@@ -1879,7 +1879,13 @@ export class MercadolibreService {
     do {
       const params = new URLSearchParams({ seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset) });
       const res = await fetch(`${ML_API}/questions/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) break;
+      if (!res.ok) {
+        const errBody = await res.text();
+        this.logger.error(`ML questions/search falló [${res.status}] conexión ${connectionId}: ${errBody}`);
+        throw new BadRequestException(
+          `Mercado Libre rechazó la búsqueda de preguntas (HTTP ${res.status}): ${errBody.slice(0, 300)}`,
+        );
+      }
       const data = await res.json() as any;
       total = data.total || 0;
       for (const q of data.questions || []) {
@@ -1889,7 +1895,7 @@ export class MercadolibreService {
       offset += 50;
     } while (offset < total && offset < 200);
 
-    return { synced };
+    return { synced, total };
   }
 
   private async handleQuestionWebhook(body: any) {
@@ -2022,7 +2028,13 @@ export class MercadolibreService {
     do {
       const params = new URLSearchParams({ player_role: 'respondent', limit: '50', offset: String(offset) });
       const res = await fetch(`${ML_API}/post-purchase/v1/claims/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) break;
+      if (!res.ok) {
+        const errBody = await res.text();
+        this.logger.error(`ML claims/search falló [${res.status}] conexión ${connectionId}: ${errBody}`);
+        throw new BadRequestException(
+          `Mercado Libre rechazó la búsqueda de reclamos (HTTP ${res.status}): ${errBody.slice(0, 300)}`,
+        );
+      }
       const data = await res.json() as any;
       total = data.paging?.total || 0;
       for (const c of data.data || []) {
