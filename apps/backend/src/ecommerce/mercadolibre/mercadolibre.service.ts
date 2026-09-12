@@ -541,12 +541,6 @@ export class MercadolibreService {
 
     const mlItem = {
       title: product.name,
-      // Cuentas migradas al modelo "Precio por Variación" (User Products) de ML exigen este
-      // campo en toda publicación nueva — sin él rechazan con "body does not contains ...
-      // [family_name]". No es un nombre de persona: es el título de la "familia" del
-      // producto en ese modelo; para un ítem sin variantes, el mismo título alcanza. Mandarlo
-      // siempre es inofensivo para las cuentas que todavía no tienen ese modelo activo.
-      family_name: product.name,
       category_id: categoryId,
       price: Math.round(Number(product.mlPrice ?? product.price)),
       currency_id: 'CLP',
@@ -563,31 +557,41 @@ export class MercadolibreService {
       ...(saleTerms?.length ? { sale_terms: saleTerms } : {}),
     };
 
-    const res = await fetch(`${ML_API}/items`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(mlItem),
-    });
-
-    if (!res.ok) {
-      const err = await res.json() as any;
+    const attemptPublish = async (body: any) => {
+      const r = await fetch(`${ML_API}/items`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) return { ok: true as const, data: await r.json() as any };
+      const err = await r.json() as any;
       this.logger.error('ML publish error', JSON.stringify(err));
-
       const mlErrors: string[] = Array.isArray(err.cause) && err.cause.length > 0
         ? err.cause.map((c: any) => c.message || c.reference || c.code).filter(Boolean)
         : [err.message || 'Error al publicar en Mercado Libre'];
+      return { ok: false as const, mlErrors };
+    };
 
-      const summary = mlErrors[0];
-
-      await this.prisma.listing.upsert({
-        where: { productId_connectionId: { productId, connectionId } },
-        update: { status: ListingStatus.ERROR, errorMsg: mlErrors.join(' | ') },
-        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: mlErrors.join(' | ') },
-      });
-      throw new BadRequestException({ message: summary, mlErrors });
+    let attempt = await attemptPublish(mlItem);
+    // Cuentas migradas al modelo "Precio por Variación" (User Products) de ML exigen
+    // "family_name" (el título de la "familia" del producto en ese modelo, no un nombre de
+    // persona) — pero mandarlo siempre lo rechazan como campo inválido las cuentas que NO
+    // tienen ese modelo activo. Por eso se reintenta agregándolo solo si ML lo pide.
+    if (!attempt.ok && attempt.mlErrors.some((m) => /family_name/i.test(m))) {
+      attempt = await attemptPublish({ ...mlItem, family_name: product.name });
     }
 
-    const mlData = await res.json() as any;
+    if (!attempt.ok) {
+      const summary = attempt.mlErrors[0];
+      await this.prisma.listing.upsert({
+        where: { productId_connectionId: { productId, connectionId } },
+        update: { status: ListingStatus.ERROR, errorMsg: attempt.mlErrors.join(' | ') },
+        create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: attempt.mlErrors.join(' | ') },
+      });
+      throw new BadRequestException({ message: summary, mlErrors: attempt.mlErrors });
+    }
+
+    const mlData = attempt.data;
 
     // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
