@@ -381,7 +381,12 @@ export default function MercadoLibrePage() {
                             <button onClick={() => handleSyncClaims(c.id)}
                               disabled={syncingClaimsId === c.id}
                               className="px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
-                              {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos/devoluciones'}
+                              {syncingClaimsId === c.id ? 'Importando...' : 'Devoluciones'}
+                            </button>
+                            <button onClick={() => handleSyncClaims(c.id)}
+                              disabled={syncingClaimsId === c.id}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50">
+                              {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos'}
                             </button>
                             <button onClick={() => handleRefreshToken(c.id)}
                               disabled={refreshingId === c.id}
