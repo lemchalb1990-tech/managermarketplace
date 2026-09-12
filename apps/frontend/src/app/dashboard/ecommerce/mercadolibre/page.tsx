@@ -354,7 +354,8 @@ export default function MercadoLibrePage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-3">
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
                         {!c.authorized && (
                           <button onClick={() => handleAuthorize(c.id)}
                             disabled={authorizingId === c.id}
@@ -365,22 +366,22 @@ export default function MercadoLibrePage() {
                         {c.active && (
                           <>
                             <button onClick={() => setImportConn({ id: c.id, name: c.name })}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                              Importar publicaciones
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
+                              Publicaciones
                             </button>
                             <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
-                              className="text-xs text-purple-600 hover:text-purple-800 font-medium">
-                              Importar ventas
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">
+                              Ventas
                             </button>
                             <button onClick={() => handleSyncQuestions(c.id)}
                               disabled={syncingQuestionsId === c.id}
-                              className="text-xs text-teal-600 hover:text-teal-800 font-medium disabled:opacity-50">
-                              {syncingQuestionsId === c.id ? 'Importando...' : 'Importar preguntas'}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 disabled:opacity-50">
+                              {syncingQuestionsId === c.id ? 'Importando...' : 'Preguntas'}
                             </button>
                             <button onClick={() => handleSyncClaims(c.id)}
                               disabled={syncingClaimsId === c.id}
-                              className="text-xs text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50">
-                              {syncingClaimsId === c.id ? 'Importando...' : 'Importar reclamos/devoluciones'}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
+                              {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos/devoluciones'}
                             </button>
                             <button onClick={() => handleRefreshToken(c.id)}
                               disabled={refreshingId === c.id}
@@ -399,6 +400,7 @@ export default function MercadoLibrePage() {
                           className="text-xs text-red-500 hover:text-red-700 font-medium">
                           {c.authorized ? 'Desconectar' : 'Eliminar'}
                         </button>
+                        </div>
                       </td>
                     </tr>
                   );
