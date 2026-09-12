@@ -107,6 +107,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: (token: string) => apiFetch<any>('/auth/me', {}, token),
+  public: {
+    // Sin token: se usa también en el login y la landing, antes de iniciar sesión.
+    platformLogos: () =>
+      apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null }[]>(
+        '/public/platform-logos', {}),
+  },
   companies: {
     list: (token: string) => apiFetch<any[]>('/companies', {}, token),
     create: (data: any, token: string) =>

@@ -8,9 +8,11 @@ import { Logos } from '../components/logos';
 import { ImportModal } from './components/ImportModal';
 import { SalesImportModal } from './components/SalesImportModal';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 
 export default function MercadoLibrePage() {
   const { selectedCompanyId } = useAdminCompany();
+  const logoMap = usePlatformLogos();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [connections, setConnections] = useState<any[]>([]);
 
@@ -229,7 +231,7 @@ export default function MercadoLibrePage() {
         <span className="text-sm text-gray-600 font-medium">Mercado Libre</span>
       </div>
       <div className="flex items-center gap-3">
-        <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">{Logos.mercadolibre}</div>
+        <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">{resolvePlatformLogo(logoMap, 'mercadolibre', Logos.mercadolibre, 'Mercado Libre')}</div>
         <h1 className="text-2xl font-bold text-gray-900">Mercado Libre</h1>
       </div>
 

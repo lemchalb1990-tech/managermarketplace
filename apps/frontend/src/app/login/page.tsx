@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
+import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
 const brandChannels = ['mercadolibre', 'falabella', 'paris', 'ripley', 'walmart'] as const;
 
 export default function LoginPage() {
   const router = useRouter();
+  const logoMap = usePlatformLogos();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -62,7 +64,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-2">
             {brandChannels.map((k) => (
               <span key={k} className="flex h-9 w-14 items-center justify-center rounded-lg bg-white/8 p-1.5 ring-1 ring-white/10">
-                <span className="w-full [&>svg]:h-auto [&>svg]:w-full">{Logos[k]}</span>
+                <span className="w-full [&>svg]:h-auto [&>svg]:w-full">{resolvePlatformLogo(logoMap, k, Logos[k], k)}</span>
               </span>
             ))}
           </div>

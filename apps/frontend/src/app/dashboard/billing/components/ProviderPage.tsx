@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useBillingCompany } from '../BillingCompanyContext';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 
 export interface ProviderField {
   key: string;
@@ -30,6 +31,10 @@ interface Props { config: ProviderConfig }
 
 export default function ProviderPage({ config }: Props) {
   const { isSuperAdmin, companyId: activeCompanyId } = useBillingCompany();
+  const logoMap = usePlatformLogos();
+  const logoKey = config.provider.toLowerCase();
+  const displayName = resolvePlatformName(logoMap, logoKey, config.name);
+  const displayDescription = resolvePlatformDescription(logoMap, logoKey, config.description);
   const [connections, setConnections] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
@@ -152,16 +157,16 @@ export default function ProviderPage({ config }: Props) {
       <div className="flex items-center gap-2 mb-1">
         <a href="/dashboard/billing" className="text-sm text-gray-400 hover:text-gray-600">Facturación</a>
         <span className="text-gray-300">/</span>
-        <span className="text-sm text-gray-600 font-medium">{config.name}</span>
+        <span className="text-sm text-gray-600 font-medium">{displayName}</span>
       </div>
 
       <div className="flex items-center gap-3">
         <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">
-          {config.logo}
+          {resolvePlatformLogo(logoMap, logoKey, config.logo, displayName)}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{config.name}</h1>
-          <p className="text-sm text-gray-500">{config.description}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
+          <p className="text-sm text-gray-500">{displayDescription}</p>
         </div>
       </div>
 

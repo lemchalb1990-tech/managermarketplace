@@ -124,23 +124,47 @@ function LogoChip({ node }: { node: ReactNode }) {
   );
 }
 
-function LogosMarquee() {
+type LogoMap = Record<string, { logoUrl: string | null } | undefined>;
+
+function resolveLogoNode(map: LogoMap, key: string, fallback: ReactNode): ReactNode {
+  const url = map[key]?.logoUrl;
+  return url ? <img src={url} alt={key} className="h-full w-full object-contain" /> : fallback;
+}
+
+function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
   const loop = [...salesChannels, ...salesChannels];
   return (
     <div className="marquee-mask group overflow-hidden">
       <div className="flex w-max gap-7 py-1 animate-marquee group-hover:[animation-play-state:paused]">
         {loop.map((k, i) => (
-          <LogoChip key={`${k}-${i}`} node={Logos[k]} />
+          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
         ))}
       </div>
     </div>
   );
 }
 
+// Se pide en el servidor (no requiere sesión): así el logo personalizado de cada
+// plataforma se ve también en la landing pública, antes de iniciar sesión.
+async function getPlatformLogoMap(): Promise<LogoMap> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/api/public/platform-logos`, { next: { revalidate: 300 } });
+    if (!res.ok) return {};
+    const rows = await res.json() as Array<{ platform: string; logoUrl: string | null }>;
+    const map: LogoMap = {};
+    rows.forEach((r) => { map[r.platform] = r; });
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
-export default function Home() {
+export default async function Home() {
   const year = new Date().getFullYear();
+  const logoMap = await getPlatformLogoMap();
   return (
     <div className="ui-grain min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[var(--page-bg)] text-[var(--text)]">
       {/* Nav flotante */}
@@ -257,10 +281,10 @@ export default function Home() {
 
           <div className="ui-reveal mt-14 space-y-6">
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Funciona con lo que ya usas</p>
-            <LogosMarquee />
+            <LogosMarquee logoMap={logoMap} />
             <div className="flex flex-wrap items-center gap-x-7 gap-y-4 pt-2">
               {billingChannels.map((k) => (
-                <LogoChip key={k} node={BillingLogos[k]} />
+                <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
               ))}
             </div>
           </div>

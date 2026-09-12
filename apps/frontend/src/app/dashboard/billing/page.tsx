@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { BillingLogos } from './components/logos';
 import { useBillingCompany } from './BillingCompanyContext';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 
 const PROVIDERS = [
   {
@@ -58,6 +59,7 @@ const PROVIDER_ENUM: Record<string, string> = {
 
 export default function BillingPage() {
   const { companyId } = useBillingCompany();
+  const logoMap = usePlatformLogos();
   const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -111,21 +113,20 @@ export default function BillingPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {PROVIDERS.map((p) => {
           const isActive = activeProviders.has(PROVIDER_ENUM[p.id]);
+          const displayName = resolvePlatformName(logoMap, p.id, p.name);
+          const displayDescription = resolvePlatformDescription(logoMap, p.id, p.description);
           return (
             <Link key={p.id} href={p.href} className="block group">
               <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${
                 isActive ? p.activeBorder : 'border-gray-200 hover:border-gray-300'
               }`}>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-16 h-10 rounded-lg overflow-hidden">{BillingLogos[p.id]}</div>
-                  {isActive && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                      Activado
-                    </span>
-                  )}
+                <div className="flex justify-center mb-4">
+                  <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
+                    {resolvePlatformLogo(logoMap, p.id, BillingLogos[p.id], displayName)}
+                  </div>
                 </div>
-                <h2 className="font-semibold text-gray-900 mb-1">{p.name}</h2>
-                <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
+                <h2 className="font-semibold text-gray-900 mb-1">{displayName}</h2>
+                <p className="text-xs text-gray-500 leading-relaxed">{displayDescription}</p>
                 <p className={`mt-3 text-xs font-semibold group-hover:underline ${
                   isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'
                 }`}>

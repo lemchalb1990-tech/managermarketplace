@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
+import { invalidatePlatformLogosCache } from '@/lib/platformLogos';
 
 const DEFAULT_PLATFORMS = [
   {
@@ -147,6 +148,7 @@ export default function EcommercePage() {
         logoUrl: editForm.logoUrl.trim() || undefined,
       }, token);
       setCustomSettings((prev) => ({ ...prev, [editingId]: updated }));
+      invalidatePlatformLogosCache();
       setEditingId(null);
     } catch (err: any) {
       setSaveError(err.message || 'Error al guardar');
