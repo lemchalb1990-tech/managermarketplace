@@ -75,6 +75,13 @@ export class CreateProductDto {
   @IsString()
   warehouseId?: string;
 
+  // Dimensiones/peso del paquete de envío (opcional) — Mercado Libre las exige en algunas
+  // categorías; sin valor, se manda un respaldo genérico al publicar.
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageHeight?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWidth?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageLength?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWeight?: number;
+
   // Solo lo usa Super Admin: a qué empresa pertenece el producto (la que tiene
   // seleccionada en el selector de empresa). Para el resto de los roles se ignora — el
   // producto siempre queda en la empresa del usuario.
@@ -161,6 +168,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageHeight?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWidth?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageLength?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWeight?: number;
 }
 
 export class AdjustStockDto {

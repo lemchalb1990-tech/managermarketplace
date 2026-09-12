@@ -428,7 +428,11 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'stock';
 
-const emptyForm = { sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '', stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '' };
+const emptyForm = {
+  sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
+  stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '',
+  packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '',
+};
 
 const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
 
@@ -815,6 +819,10 @@ export default function CatalogPage() {
       mlDescription: product.mlDescription || '',
       mlAttributes: existingAttrs,
       warehouseId: product.warehouseId || '',
+      packageHeight: product.packageHeight != null ? String(Number(product.packageHeight)) : '',
+      packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
+      packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
+      packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
     });
     setTab('edit');
     setEditError('');
@@ -836,6 +844,10 @@ export default function CatalogPage() {
       mlDescription: product.mlDescription || '',
       mlAttributes: JSON.stringify(existingAttrs),
       warehouseId: product.warehouseId || '',
+      packageHeight: product.packageHeight != null ? String(Number(product.packageHeight)) : '',
+      packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
+      packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
+      packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
     };
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
@@ -887,6 +899,10 @@ export default function CatalogPage() {
         mlDescription: editForm.mlDescription || undefined,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
         warehouseId: editForm.warehouseId || undefined,
+        packageHeight: editForm.packageHeight !== '' ? parseFloat(editForm.packageHeight) : undefined,
+        packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
+        packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
+        packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
         ...(isSuperAdmin && !selected.id ? { companyId: selectedCompanyId } : {}),
       };
       if (selected.id) {
@@ -1888,6 +1904,34 @@ export default function CatalogPage() {
                           fetchCategoryAttrs(id, []);
                         }}
                       />
+                    </div>
+                  )}
+                  {hasMlModule && (selected.id || mlChecked) && (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Dimensiones del paquete de envío (opcional)
+                      </label>
+                      <div className="grid grid-cols-4 gap-2">
+                        <input type="number" min={0} step="0.1" value={editForm.packageHeight}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, packageHeight: e.target.value }))}
+                          placeholder="Alto (cm)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <input type="number" min={0} step="0.1" value={editForm.packageWidth}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, packageWidth: e.target.value }))}
+                          placeholder="Ancho (cm)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <input type="number" min={0} step="0.1" value={editForm.packageLength}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, packageLength: e.target.value }))}
+                          placeholder="Largo (cm)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <input type="number" min={0} step="1" value={editForm.packageWeight}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, packageWeight: e.target.value }))}
+                          placeholder="Peso (g)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Algunas categorías de Mercado Libre las exigen para calcular el envío. Si las dejas vacías, se manda un paquete genérico chico (15×15×10 cm, 500 g) al publicar.
+                      </p>
                     </div>
                   )}
                   <div className="col-span-2">

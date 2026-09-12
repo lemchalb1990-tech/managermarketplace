@@ -539,6 +539,18 @@ export class MercadolibreService {
     const toAbsolute = (url: string) =>
       url.startsWith('http') ? url : `${appUrl}${url}`;
 
+    // Algunas categorías (sin dato de paquete propio en el catálogo de ML) exigen estos 4
+    // atributos para calcular el envío — si el producto no tiene sus dimensiones cargadas, se
+    // manda un paquete genérico chico de respaldo para no bloquear la publicación.
+    const DEFAULT_PACKAGE = { height: 15, width: 15, length: 10, weight: 500 }; // cm/cm/cm/g
+    const p = product as any;
+    const packageAttributes = [
+      { id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Number(p.packageHeight ?? DEFAULT_PACKAGE.height)} cm` },
+      { id: 'SELLER_PACKAGE_WIDTH', value_name: `${Number(p.packageWidth ?? DEFAULT_PACKAGE.width)} cm` },
+      { id: 'SELLER_PACKAGE_LENGTH', value_name: `${Number(p.packageLength ?? DEFAULT_PACKAGE.length)} cm` },
+      { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Number(p.packageWeight ?? DEFAULT_PACKAGE.weight)} g` },
+    ];
+
     const mlItem = {
       title: product.name,
       category_id: categoryId,
@@ -552,6 +564,7 @@ export class MercadolibreService {
       pictures: primaryImage ? [{ source: toAbsolute(primaryImage.url) }] : [],
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
+        ...packageAttributes,
         ...((product as any).mlAttributes || []),
       ],
       ...(saleTerms?.length ? { sale_terms: saleTerms } : {}),

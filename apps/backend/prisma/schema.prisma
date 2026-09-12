@@ -328,6 +328,13 @@ model Product {
   active        Boolean     @default(true)
   // Producto fulfilleado por un proveedor dropship: no descuenta stock propio en las ventas.
   dropship      Boolean     @default(false)
+  // Dimensiones y peso del paquete de envío (opcional). Mercado Libre las exige como
+  // atributos SELLER_PACKAGE_* en categorías sin dato de paquete propio del catálogo; si
+  // quedan vacías, se manda un valor genérico de respaldo al publicar (ver publishProduct).
+  packageHeight Decimal?    @db.Decimal(8, 2) // cm
+  packageWidth  Decimal?    @db.Decimal(8, 2) // cm
+  packageLength Decimal?    @db.Decimal(8, 2) // cm
+  packageWeight Decimal?    @db.Decimal(8, 2) // g
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
