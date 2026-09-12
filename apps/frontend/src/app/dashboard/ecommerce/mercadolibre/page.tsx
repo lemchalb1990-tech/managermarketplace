@@ -142,6 +142,7 @@ export default function MercadoLibrePage() {
   }
 
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   async function handleRefreshToken(id: string) {
     setRefreshingId(id);
@@ -154,6 +155,39 @@ export default function MercadoLibrePage() {
       setError(err.message || 'No se pudo renovar el token.');
     } finally {
       setRefreshingId(null);
+    }
+  }
+
+  const [syncingQuestionsId, setSyncingQuestionsId] = useState<string | null>(null);
+  const [syncingClaimsId, setSyncingClaimsId] = useState<string | null>(null);
+
+  async function handleSyncQuestions(id: string) {
+    setSyncingQuestionsId(id);
+    setError('');
+    setNotice('');
+    try {
+      const token = getToken()!;
+      const res = await api.marketplace.syncQuestions(id, token);
+      setNotice(`${res.synced} pregunta(s) importada(s).`);
+    } catch (err: any) {
+      setError(err.message || 'No se pudieron importar las preguntas.');
+    } finally {
+      setSyncingQuestionsId(null);
+    }
+  }
+
+  async function handleSyncClaims(id: string) {
+    setSyncingClaimsId(id);
+    setError('');
+    setNotice('');
+    try {
+      const token = getToken()!;
+      const res = await api.marketplace.syncClaims(id, token);
+      setNotice(`${res.synced} reclamo(s)/devolución(es) importado(s).`);
+    } catch (err: any) {
+      setError(err.message || 'No se pudieron importar los reclamos y devoluciones.');
+    } finally {
+      setSyncingClaimsId(null);
     }
   }
 
@@ -218,6 +252,12 @@ export default function MercadoLibrePage() {
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
+            </div>
+          )}
+
+          {notice && (
+            <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              {notice}
             </div>
           )}
 
@@ -331,6 +371,16 @@ export default function MercadoLibrePage() {
                             <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
                               className="text-xs text-purple-600 hover:text-purple-800 font-medium">
                               Importar ventas
+                            </button>
+                            <button onClick={() => handleSyncQuestions(c.id)}
+                              disabled={syncingQuestionsId === c.id}
+                              className="text-xs text-teal-600 hover:text-teal-800 font-medium disabled:opacity-50">
+                              {syncingQuestionsId === c.id ? 'Importando...' : 'Importar preguntas'}
+                            </button>
+                            <button onClick={() => handleSyncClaims(c.id)}
+                              disabled={syncingClaimsId === c.id}
+                              className="text-xs text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50">
+                              {syncingClaimsId === c.id ? 'Importando...' : 'Importar reclamos/devoluciones'}
                             </button>
                             <button onClick={() => handleRefreshToken(c.id)}
                               disabled={refreshingId === c.id}
