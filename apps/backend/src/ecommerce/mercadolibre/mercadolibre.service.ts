@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import {
   Role, SaleChannel, MovementType, MarketplaceType,
-  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus,
+  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -62,6 +62,14 @@ const MLC_ROOT_CATEGORIES: { id: string; name: string }[] = [
 // un producto normal (piden datos de contacto del vendedor, no manejan stock como
 // inventario, etc.), que hoy esta app no arma — ver assertPublishableCategory. Chile no
 // tiene categoría de Empleos activa en Mercado Libre.
+interface MlShippingAddress {
+  addressLine: string | null;
+  commune: string | null;
+  region: string | null;
+  receiverName: string | null;
+  receiverPhone: string | null;
+}
+
 type MlListingType = 'PRODUCTO' | 'VEHICULO' | 'INMUEBLE' | 'SERVICIO';
 const CLASSIFIED_ROOT_IDS: Record<Exclude<MlListingType, 'PRODUCTO'>, string> = {
   VEHICULO: 'MLC1743',
@@ -1269,12 +1277,14 @@ export class MercadolibreService {
     return result;
   }
 
-  private async getMlShippingInfo(order: any, token: string): Promise<{ method: string | null; sellerCost: number | null }> {
+  private async getMlShippingInfo(order: any, token: string): Promise<{
+    method: string | null; sellerCost: number | null; address: MlShippingAddress | null; trackingCode: string | null;
+  }> {
     const orderId = order.id;
     const buyerShippingPaid = Number((order.payments || [])[0]?.shipping_cost || 0);
 
     const shippingId = order.shipping?.id;
-    if (!shippingId) return { method: null, sellerCost: null };
+    if (!shippingId) return { method: null, sellerCost: null, address: null, trackingCode: null };
     try {
       const [shipmentRes, costsRes] = await Promise.all([
         fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -1339,10 +1349,24 @@ export class MercadolibreService {
         `costo vendedor (senders.cost)=${sendersCost ?? 'n/d'}, costo vendedor (inferido)=${inferredSellerCost ?? 'n/d'}`,
       );
 
-      return { method, sellerCost };
+      const ra = shipment.receiver_address;
+      const address: MlShippingAddress | null = ra
+        ? {
+            addressLine: ra.address_line || [ra.street_name, ra.street_number].filter(Boolean).join(' ') || null,
+            // ML no separa "comuna"/"ciudad" para Chile: city.name es la comuna real
+            // (ej. "Providencia") y state.name es la región (ej. "Región Metropolitana").
+            commune: ra.city?.name || null,
+            region: ra.state?.name || null,
+            receiverName: ra.receiver_name || null,
+            receiverPhone: ra.receiver_phone || null,
+          }
+        : null;
+      const trackingCode = shipment.tracking_number ? String(shipment.tracking_number) : null;
+
+      return { method, sellerCost, address, trackingCode };
     } catch (err: any) {
       this.logger.warn(`No se pudo obtener datos de envío de la orden ${orderId}: ${err?.message || err}`);
-      return { method: null, sellerCost: null };
+      return { method: null, sellerCost: null, address: null, trackingCode: null };
     }
   }
 
@@ -1565,6 +1589,40 @@ export class MercadolibreService {
             },
           },
           include: { items: true },
+        });
+
+        // Solicitud de despacho automática: reutiliza el mismo Order que ya usa el POS,
+        // así la venta entra directo al tablero de despacho y puede imprimir su etiqueta
+        // sin que nadie tenga que cargarla a mano.
+        const warehouseCounts: Record<string, number> = {};
+        for (const { listing, quantity } of resolvedItems) {
+          const whId = listing.product.warehouseId;
+          if (whId) warehouseCounts[whId] = (warehouseCounts[whId] || 0) + quantity;
+        }
+        const autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
+
+        await tx.order.create({
+          data: {
+            fulfillmentType: FulfillmentType.DELIVERY,
+            customerName: shippingInfo.address?.receiverName || order.buyer?.nickname || null,
+            customerPhone: shippingInfo.address?.receiverPhone || null,
+            address: shippingInfo.address?.addressLine || null,
+            commune: shippingInfo.address?.commune || null,
+            region: shippingInfo.address?.region || null,
+            courier: shippingInfo.method,
+            trackingCode: shippingInfo.trackingCode,
+            companyId: companyId as string,
+            saleId: sale.id,
+            warehouseId: autoWarehouseId || undefined,
+            itemChecks: {
+              create: resolvedItems.map(({ listing, quantity }) => ({
+                productId: listing.productId,
+                productName: listing.product.name,
+                productSku: listing.product.sku,
+                expectedQty: quantity,
+              })),
+            },
+          },
         });
 
         for (let i = 0; i < resolvedItems.length; i++) {
