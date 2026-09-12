@@ -33,8 +33,12 @@ const INCLUDE = {
 export class ReturnsService {
   constructor(private prisma: PrismaService) {}
 
-  private baseWhere(user: any) {
-    return companyWhere(user);
+  private baseWhere(user: any, companyId?: string) {
+    const where = companyWhere(user);
+    // SUPER_ADMIN sin empresa propia: puede acotar a una puntual (igual patrón que el
+    // resto de los módulos). El resto de los roles ya queda acotado por companyWhere.
+    if (user.role === Role.SUPER_ADMIN && companyId) return { companyId };
+    return where;
   }
 
   private guard(ret: any, user: any) {
@@ -42,7 +46,7 @@ export class ReturnsService {
   }
 
   async list(user: any, dto: ListReturnsDto) {
-    const where: any = { ...this.baseWhere(user) };
+    const where: any = { ...this.baseWhere(user, dto.companyId) };
     if (dto.status === 'pending') where.status = ReturnStatus.PENDING;
     else if (dto.status === 'received') where.status = ReturnStatus.RECEIVED;
     if (dto.q?.trim()) {
@@ -65,11 +69,11 @@ export class ReturnsService {
         take: 300,
       }),
       this.prisma.return.count({
-        where: { ...this.baseWhere(user), status: ReturnStatus.PENDING },
+        where: { ...this.baseWhere(user, dto.companyId), status: ReturnStatus.PENDING },
       }),
       this.prisma.return.count({
         where: {
-          ...this.baseWhere(user),
+          ...this.baseWhere(user, dto.companyId),
           status: ReturnStatus.RECEIVED,
           receivedAt: { gte: new Date(Date.now() - 60 * 24 * 3600 * 1000) },
         },

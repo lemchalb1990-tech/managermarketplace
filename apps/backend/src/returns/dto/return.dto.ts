@@ -53,4 +53,6 @@ export class ScanReturnDto {
 export class ListReturnsDto {
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() q?: string;
+  // Solo SUPER_ADMIN: filtra a una empresa puntual (el resto siempre ve solo la suya).
+  @IsOptional() @IsString() companyId?: string;
 }
