@@ -314,6 +314,10 @@ model Product {
   description   String?     @db.Text
   mlDescription String?     @db.Text
   mlAttributes  Json?
+  // "family_name" de Mercado Libre (modelo "Precio por Variación"/User Products): se usa
+  // en vez de title al publicar si la cuenta lo exige (ver publishProduct). Se completa
+  // automáticamente al importar una publicación que ya lo tenía.
+  mlFamilyName  String?
   price         Decimal     @db.Decimal(10, 2)
   mlPrice       Decimal?    @db.Decimal(10, 2)
   cost          Decimal?    @db.Decimal(10, 2)

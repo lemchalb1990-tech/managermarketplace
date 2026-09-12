@@ -601,7 +601,7 @@ export class MercadolibreService {
     // específicamente family_name en el primer intento.
     if (!attempt.ok && attempt.mlErrors.some((m) => /family_name/i.test(m))) {
       const { title, ...itemWithoutTitle } = mlItem;
-      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: product.name });
+      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: (product as any).mlFamilyName || product.name });
     }
 
     if (!attempt.ok) {
@@ -822,6 +822,45 @@ export class MercadolibreService {
     return value || null;
   }
 
+  // Dimensiones/peso de paquete que la publicación de origen ya tenía cargadas (atributos
+  // SELLER_PACKAGE_*, formato "15 cm" / "500 g") — se rescatan al importar para no obligar
+  // al usuario a volver a tipearlas si luego se republica el producto.
+  private parsePackageDimensions(attributes: any[]): {
+    packageHeight?: number; packageWidth?: number; packageLength?: number; packageWeight?: number;
+  } {
+    if (!Array.isArray(attributes)) return {};
+    const find = (id: string) => attributes.find((a) => a.id === id);
+    const parseNum = (attr: any): number | undefined => {
+      const raw = attr?.value_name;
+      if (raw == null) return undefined;
+      const num = parseFloat(String(raw));
+      return Number.isFinite(num) ? num : undefined;
+    };
+    const result: { packageHeight?: number; packageWidth?: number; packageLength?: number; packageWeight?: number } = {};
+    const height = parseNum(find('SELLER_PACKAGE_HEIGHT'));
+    const width = parseNum(find('SELLER_PACKAGE_WIDTH'));
+    const length = parseNum(find('SELLER_PACKAGE_LENGTH'));
+    const weight = parseNum(find('SELLER_PACKAGE_WEIGHT'));
+    if (height !== undefined) result.packageHeight = height;
+    if (width !== undefined) result.packageWidth = width;
+    if (length !== undefined) result.packageLength = length;
+    if (weight !== undefined) result.packageWeight = weight;
+    return result;
+  }
+
+  // Atributos propios de la categoría (color, material, modelo, etc.) que la publicación
+  // de origen ya tenía, excluyendo SKU y paquete (que se guardan en columnas propias) —
+  // se guardan tal cual para reenviarlos si el producto se vuelve a publicar.
+  private extractAdditionalAttributes(attributes: any[]): Array<{ id: string; value_name?: string; value_id?: string }> {
+    if (!Array.isArray(attributes)) return [];
+    const excluded = new Set([
+      'SELLER_SKU', 'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT',
+    ]);
+    return attributes
+      .filter((a) => a?.id && !excluded.has(a.id) && (a.value_name || a.value_id))
+      .map((a) => ({ id: a.id, value_name: a.value_name, ...(a.value_id ? { value_id: a.value_id } : {}) }));
+  }
+
   // El ID de publicación de ML (item.id) es solo un identificador externo y se guarda
   // como externalId del Listing. Nunca debe usarse como SKU: cuando la publicación no
   // trae SELLER_SKU, se genera un SKU correlativo por empresa, editable luego por el usuario.
@@ -838,7 +877,7 @@ export class MercadolibreService {
   }
 
   private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
-    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures';
+    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures,family_name';
     const items: any[] = [];
     for (let i = 0; i < itemIds.length; i += 20) {
       const batch = itemIds.slice(i, i + 20);
@@ -1002,7 +1041,24 @@ export class MercadolibreService {
           continue;
         }
 
+        const packageDims = this.parsePackageDimensions(item.attributes);
+        const additionalAttrs = this.extractAdditionalAttributes(item.attributes);
+
         if (product) {
+          // Solo se completan campos que el producto del catálogo aún no tenía cargados —
+          // no se pisa lo que el usuario ya haya editado a mano.
+          const fillData: Record<string, any> = {};
+          if (!product.mlCategoryId && item.category_id) fillData.mlCategoryId = item.category_id;
+          if (!(product as any).mlFamilyName && item.family_name) fillData.mlFamilyName = item.family_name;
+          if (!(product as any).mlAttributes && additionalAttrs.length) fillData.mlAttributes = additionalAttrs;
+          if ((product as any).packageHeight == null && packageDims.packageHeight !== undefined) fillData.packageHeight = packageDims.packageHeight;
+          if ((product as any).packageWidth == null && packageDims.packageWidth !== undefined) fillData.packageWidth = packageDims.packageWidth;
+          if ((product as any).packageLength == null && packageDims.packageLength !== undefined) fillData.packageLength = packageDims.packageLength;
+          if ((product as any).packageWeight == null && packageDims.packageWeight !== undefined) fillData.packageWeight = packageDims.packageWeight;
+          if (Object.keys(fillData).length) {
+            await this.prisma.product.update({ where: { id: product.id }, data: fillData });
+          }
+
           await this.prisma.listing.create({
             data: {
               productId: product.id,
@@ -1024,6 +1080,9 @@ export class MercadolibreService {
               mlPrice: item.price,
               stock: item.available_quantity,
               mlCategoryId: item.category_id,
+              mlFamilyName: item.family_name || null,
+              mlAttributes: additionalAttrs.length ? additionalAttrs : undefined,
+              ...packageDims,
               companyId: conn.companyId,
             },
           });
