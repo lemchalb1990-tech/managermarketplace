@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatTile, StatRow, Badge } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
+import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 
 const RATING_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
   POSITIVE: { label: 'Positiva', tone: 'ok' },
@@ -28,6 +29,7 @@ export default function MlCalificacionesPage() {
   const [feedback, setFeedback] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [lightbox, setLightbox] = useState<LightboxImage>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -127,8 +129,17 @@ export default function MlCalificacionesPage() {
         <div className="space-y-3">
           {feedback.map((f) => {
             const r = RATING_LABEL[f.mlFeedbackRating] || { label: f.mlFeedbackRating, tone: 'neutral' as const };
+            const product = f.items?.[0]?.product;
+            const photoUrl = product?.images?.[0]?.url ? imgUrl(product.images[0].url) : undefined;
+            const cardTitle = `Orden ${f.externalId || f.id.slice(-6).toUpperCase()}`;
             return (
-              <SectionCard key={f.id} title={`Orden ${f.externalId || f.id.slice(-6).toUpperCase()}`}
+              <SectionCard key={f.id}
+                title={
+                  <span className="flex items-center gap-2.5">
+                    <ProductThumb url={photoUrl} alt={product?.name || cardTitle} onClick={() => setLightbox({ url: photoUrl!, alt: product?.name || cardTitle })} />
+                    {cardTitle}
+                  </span>
+                }
                 actions={<Badge tone={r.tone}>{r.label}</Badge>}>
                 <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
                   {f.mlFeedbackAt ? new Date(f.mlFeedbackAt).toLocaleString('es-CL') : ''}
@@ -143,6 +154,8 @@ export default function MlCalificacionesPage() {
           })}
         </div>
       )}
+
+      <PhotoLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }

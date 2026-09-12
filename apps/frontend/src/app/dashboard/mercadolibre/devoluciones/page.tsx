@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
+import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -20,6 +21,7 @@ export default function MlDevolucionesPage() {
   const [data, setData] = useState<{ returns: any[]; counts: { pending: number; received: number } } | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxImage>(null);
   const [receiving, setReceiving] = useState<any>(null);
   const [rcond, setRcond] = useState('GOOD');
   const [rnotes, setRnotes] = useState('');
@@ -129,13 +131,20 @@ export default function MlDevolucionesPage() {
                 {r.sale?.externalId ? `Orden ${r.sale.externalId}` : 'Sin venta vinculada'}
                 {r.reason ? ` · ${r.reason}` : ''}
               </p>
-              <ul className="space-y-1 mb-3">
-                {r.items.map((it: any) => (
-                  <li key={it.id} className="text-sm flex justify-between">
-                    <span className="text-[var(--text-2)]">{it.productName} {it.restocked && <Badge tone="ok">repuesto</Badge>}</span>
-                    <span className="text-xs text-[var(--text-muted)] font-mono">{it.productSku} ×{it.quantity}</span>
-                  </li>
-                ))}
+              <ul className="space-y-1.5 mb-3">
+                {r.items.map((it: any) => {
+                  const photoUrl = it.product?.images?.[0]?.url ? imgUrl(it.product.images[0].url) : undefined;
+                  return (
+                    <li key={it.id} className="text-sm flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 min-w-0 text-[var(--text-2)]">
+                        <ProductThumb url={photoUrl} alt={it.productName} onClick={() => setLightbox({ url: photoUrl!, alt: it.productName })} />
+                        <span className="truncate">{it.productName}</span>
+                        {it.restocked && <Badge tone="ok">repuesto</Badge>}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">{it.productSku} ×{it.quantity}</span>
+                    </li>
+                  );
+                })}
               </ul>
               {r.status === 'PENDING' ? (
                 <BrandButton onClick={() => openReceive(r)} className="w-full">Recepcionar</BrandButton>
@@ -148,6 +157,8 @@ export default function MlDevolucionesPage() {
           ))}
         </div>
       )}
+
+      <PhotoLightbox image={lightbox} onClose={() => setLightbox(null)} />
 
       {receiving && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">

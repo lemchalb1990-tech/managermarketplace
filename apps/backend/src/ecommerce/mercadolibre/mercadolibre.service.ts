@@ -1820,7 +1820,14 @@ export class MercadolibreService {
     const [rows, unanswered] = await Promise.all([
       this.prisma.mlQuestion.findMany({
         where,
-        include: { product: { select: { id: true, name: true, sku: true } } },
+        include: {
+          product: {
+            select: {
+              id: true, name: true, sku: true,
+              images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1, select: { url: true } },
+            },
+          },
+        },
         orderBy: [{ dateCreated: 'desc' }],
         take: 300,
       }),
@@ -1958,7 +1965,24 @@ export class MercadolibreService {
     const [rows, opened] = await Promise.all([
       this.prisma.mlClaim.findMany({
         where,
-        include: { sale: { select: { id: true, externalId: true, total: true } } },
+        include: {
+          sale: {
+            select: {
+              id: true, externalId: true, total: true,
+              items: {
+                take: 1,
+                select: {
+                  product: {
+                    select: {
+                      id: true, name: true,
+                      images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1, select: { url: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: [{ lastSyncedAt: 'desc' }],
         take: 300,
       }),
@@ -2161,6 +2185,17 @@ export class MercadolibreService {
       select: {
         id: true, externalId: true, total: true, createdAt: true,
         mlFeedbackRating: true, mlFeedbackComment: true, mlFeedbackAt: true,
+        items: {
+          take: 1,
+          select: {
+            product: {
+              select: {
+                id: true, name: true,
+                images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1, select: { url: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { mlFeedbackAt: 'desc' },
       take: 200,

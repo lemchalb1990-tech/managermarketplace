@@ -21,7 +21,12 @@ import {
 const INCLUDE = {
   items: {
     include: {
-      product: { select: { id: true, name: true, sku: true, stock: true } },
+      product: {
+        select: {
+          id: true, name: true, sku: true, stock: true,
+          images: { orderBy: [{ isPrimary: 'desc' as const }, { order: 'asc' as const }], take: 1, select: { url: true } },
+        },
+      },
     },
   },
   sale: { select: { id: true, channel: true, externalId: true } },

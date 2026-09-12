@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
+import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 
 const CLAIM_TYPE_LABEL: Record<string, string> = {
   return: 'Devolución',
@@ -22,6 +23,7 @@ export default function MlReclamosPage() {
   const [data, setData] = useState<{ claims: any[]; opened: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxImage>(null);
 
   const [open, setOpen] = useState<any>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -124,18 +126,30 @@ export default function MlReclamosPage() {
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin reclamos para mostrar</p></SectionCard>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {data!.claims.map((c: any) => (
+          {data!.claims.map((c: any) => {
+            const product = c.sale?.items?.[0]?.product;
+            const photoUrl = product?.images?.[0]?.url ? imgUrl(product.images[0].url) : undefined;
+            const cardTitle = `${typeLabel(c.type)}${c.sale?.externalId ? ` · orden ${c.sale.externalId}` : ''}`;
+            return (
             <SectionCard key={c.id}
-              title={`${typeLabel(c.type)}${c.sale?.externalId ? ` · orden ${c.sale.externalId}` : ''}`}
+              title={
+                <span className="flex items-center gap-2.5">
+                  <ProductThumb url={photoUrl} alt={product?.name || cardTitle} onClick={() => setLightbox({ url: photoUrl!, alt: product?.name || cardTitle })} />
+                  {cardTitle}
+                </span>
+              }
               actions={c.status === 'OPENED' ? <Badge tone="warn">Abierto</Badge> : <Badge tone="neutral">Cerrado</Badge>}>
               <p className="text-xs text-[var(--text-muted)] -mt-2 mb-3">
                 {c.stage ? `Etapa: ${c.stage} · ` : ''}{c.reason || 'Sin motivo detallado'}
               </p>
               <BrandButton onClick={() => openDetail(c)} className="w-full">Ver detalle y responder</BrandButton>
             </SectionCard>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <PhotoLightbox image={lightbox} onClose={() => setLightbox(null)} />
 
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">

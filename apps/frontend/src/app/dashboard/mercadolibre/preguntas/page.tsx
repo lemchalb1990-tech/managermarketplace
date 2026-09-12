@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
+import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 
 const TABS = [
   { key: 'UNANSWERED', label: 'Sin responder' },
@@ -20,6 +21,7 @@ export default function MlPreguntasPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxImage>(null);
 
   async function load() {
     const token = getToken();
@@ -85,9 +87,17 @@ export default function MlPreguntasPage() {
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin preguntas para mostrar</p></SectionCard>
       ) : (
         <div className="space-y-3">
-          {data!.questions.map((q: any) => (
+          {data!.questions.map((q: any) => {
+            const photoUrl = q.product?.images?.[0]?.url ? imgUrl(q.product.images[0].url) : undefined;
+            const productName = q.product?.name || q.itemTitle || q.itemId;
+            return (
             <SectionCard key={q.id}
-              title={q.product?.name || q.itemTitle || q.itemId}
+              title={
+                <span className="flex items-center gap-2.5">
+                  <ProductThumb url={photoUrl} alt={productName} onClick={() => setLightbox({ url: photoUrl!, alt: productName })} />
+                  {productName}
+                </span>
+              }
               actions={q.status === 'UNANSWERED' ? <Badge tone="warn">Sin responder</Badge> : q.status === 'ANSWERED' ? <Badge tone="ok">Respondida</Badge> : <Badge tone="neutral">{q.status}</Badge>}>
               <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
                 {q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL')}
@@ -111,9 +121,12 @@ export default function MlPreguntasPage() {
                 </div>
               )}
             </SectionCard>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <PhotoLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
