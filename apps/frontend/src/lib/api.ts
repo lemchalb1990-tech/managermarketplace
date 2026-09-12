@@ -399,6 +399,34 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ externalIds }) },
         token,
       ),
+    questions: (token: string, status?: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (status) q.set('status', status);
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<{ questions: any[]; unanswered: number }>(`/ecommerce/ml/questions?${q}`, {}, token);
+    },
+    answerQuestion: (externalId: string, text: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/questions/${externalId}/answer`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+    syncQuestions: (connectionId: string, token: string) =>
+      apiFetch<{ synced: number }>(`/ecommerce/ml/connections/${connectionId}/questions/sync`, { method: 'POST' }, token),
+    claims: (token: string, status?: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (status) q.set('status', status);
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<{ claims: any[]; opened: number }>(`/ecommerce/ml/claims?${q}`, {}, token);
+    },
+    claimDetail: (externalId: string, token: string) =>
+      apiFetch<{ claim: any; detail: any; messages: any; availableActions: any[] }>(`/ecommerce/ml/claims/${externalId}`, {}, token),
+    sendClaimMessage: (externalId: string, text: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/claims/${externalId}/messages`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+    takeClaimAction: (externalId: string, action: string, token: string, extra?: Record<string, any>) =>
+      apiFetch<any>(`/ecommerce/ml/claims/${externalId}/actions`, { method: 'POST', body: JSON.stringify({ action, extra }) }, token),
+    syncClaims: (connectionId: string, token: string) =>
+      apiFetch<{ synced: number }>(`/ecommerce/ml/connections/${connectionId}/claims/sync`, { method: 'POST' }, token),
+    reputation: (connectionId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/reputation`, {}, token),
+    feedback: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/ecommerce/ml/feedback${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
   },
   connections: {
     list: (token: string, params?: { marketplace?: string; companyId?: string }) => {
