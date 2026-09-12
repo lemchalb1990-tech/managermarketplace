@@ -541,6 +541,12 @@ export class MercadolibreService {
 
     const mlItem = {
       title: product.name,
+      // Cuentas migradas al modelo "Precio por Variación" (User Products) de ML exigen este
+      // campo en toda publicación nueva — sin él rechazan con "body does not contains ...
+      // [family_name]". No es un nombre de persona: es el título de la "familia" del
+      // producto en ese modelo; para un ítem sin variantes, el mismo título alcanza. Mandarlo
+      // siempre es inofensivo para las cuentas que todavía no tienen ese modelo activo.
+      family_name: product.name,
       category_id: categoryId,
       price: Math.round(Number(product.mlPrice ?? product.price)),
       currency_id: 'CLP',
