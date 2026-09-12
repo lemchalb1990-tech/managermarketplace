@@ -7,7 +7,8 @@ import { getToken, getUser, clearSession } from '@/lib/auth';
 import { hasModule } from '@/lib/modules';
 import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
-import MlNotifications from './MlNotifications';
+import { CompanyGate } from './CompanyGate';
+import { NotificationsProvider, NotificationBell, NotificationToasts } from './Notifications';
 
 type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
 type NavGroup = { key: string; label: string; items: NavItem[] };
@@ -325,53 +326,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="ui-dashboard h-dvh flex overflow-hidden bg-[var(--page-bg)]">
-      {/* Sidebar desktop: alto fijo (viewport), colapsable */}
-      <aside
-        className={`hidden md:flex md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col overflow-hidden transition-[width] duration-200 ${
-          collapsed ? 'md:w-0 md:border-r-0' : 'md:w-[var(--side-w)]'
-        }`}
-      >
-        {sidebarContent}
-      </aside>
-
-      {/* Drawer mobile */}
-      {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setSidebarOpen(false)} />
-      )}
-      <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-[var(--surface)] border-r border-[var(--border)] flex flex-col transition-transform duration-200 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {sidebarContent}
-      </aside>
-
-      <div className="flex-1 flex flex-col min-w-0 h-dvh">
-        <header className="flex items-center gap-3 px-4 h-[var(--topbar-h)] bg-[var(--topbar-bg)] text-[var(--topbar-fg)] shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden p-1 -ml-1"
-            aria-label="Abrir menú"
+    <AdminCompanyProvider>
+      <NotificationsProvider>
+        <div className="ui-dashboard h-dvh flex overflow-hidden bg-[var(--page-bg)]">
+          {/* Sidebar desktop: alto fijo (viewport), colapsable */}
+          <aside
+            className={`hidden md:flex md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col overflow-hidden transition-[width] duration-200 ${
+              collapsed ? 'md:w-0 md:border-r-0' : 'md:w-[var(--side-w)]'
+            }`}
           >
-            {MenuIcon}
-          </button>
-          <button
-            onClick={toggleCollapsed}
-            className="hidden md:inline-flex p-1 -ml-1 hover:opacity-80"
-            aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+            {sidebarContent}
+          </aside>
+
+          {/* Drawer mobile */}
+          {sidebarOpen && (
+            <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setSidebarOpen(false)} />
+          )}
+          <aside
+            className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-[var(--surface)] border-r border-[var(--border)] flex flex-col transition-transform duration-200 ${
+              sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           >
-            {MenuIcon}
-          </button>
-          <span className="font-bold tracking-tight">Marketplace</span>
-        </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">
-          <AdminCompanyProvider>
-            {children}
-            <MlNotifications />
-          </AdminCompanyProvider>
-        </main>
-      </div>
-    </div>
+            {sidebarContent}
+          </aside>
+
+          <div className="flex-1 flex flex-col min-w-0 h-dvh">
+            <header className="flex items-center gap-3 px-4 h-[var(--topbar-h)] bg-[var(--topbar-bg)] text-[var(--topbar-fg)] shrink-0">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden p-1 -ml-1"
+                aria-label="Abrir menú"
+              >
+                {MenuIcon}
+              </button>
+              <button
+                onClick={toggleCollapsed}
+                className="hidden md:inline-flex p-1 -ml-1 hover:opacity-80"
+                aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+              >
+                {MenuIcon}
+              </button>
+              <span className="font-bold tracking-tight flex-1">Marketplace</span>
+              <NotificationBell />
+            </header>
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">
+              <CompanyGate>{children}</CompanyGate>
+            </main>
+          </div>
+        </div>
+        <NotificationToasts />
+      </NotificationsProvider>
+    </AdminCompanyProvider>
   );
 }

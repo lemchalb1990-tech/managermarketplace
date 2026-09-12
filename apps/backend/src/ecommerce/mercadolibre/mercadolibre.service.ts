@@ -2237,8 +2237,9 @@ export class MercadolibreService {
 
     const [sales, questions, claims] = await Promise.all([
       this.prisma.sale.findMany({
-        where: { ...where, channel: SaleChannel.MERCADO_LIBRE, createdAt: { gt: since } },
-        select: { id: true, externalId: true, total: true, createdAt: true },
+        // Cualquier canal (POS, Mercado Libre, Shopify, etc.) — no solo Mercado Libre.
+        where: { ...where, createdAt: { gt: since } },
+        select: { id: true, externalId: true, total: true, channel: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
@@ -2256,12 +2257,17 @@ export class MercadolibreService {
       }),
     ]);
 
+    const channelLabel: Record<string, string> = {
+      POS: 'Punto de venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
+      WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
+      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+    };
     const events = [
       ...sales.map((s) => ({
         type: 'sale' as const,
         id: s.id,
         title: 'Nueva venta',
-        subtitle: `Orden ${s.externalId || s.id.slice(-6).toUpperCase()} · $${Math.round(Number(s.total)).toLocaleString('es-CL')}`,
+        subtitle: `${channelLabel[s.channel] || s.channel} · Orden ${s.externalId || s.id.slice(-6).toUpperCase()} · $${Math.round(Number(s.total)).toLocaleString('es-CL')}`,
         createdAt: s.createdAt,
         href: '/dashboard/sales',
       })),
