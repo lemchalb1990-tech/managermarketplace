@@ -314,113 +314,100 @@ export default function MercadoLibrePage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Tienda</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Client ID</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Token expira</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Conectada el</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {connections.map((c) => {
-                  const expired = c.expiresAt && new Date(c.expiresAt) < new Date();
-                  const statusLabel = c.authorized && c.active ? 'Autorizada' : c.authorized ? 'Inactiva' : 'Pendiente de autorizar';
-                  const statusClass = c.authorized && c.active
-                    ? 'bg-green-100 text-green-700'
-                    : c.authorized
-                      ? 'bg-gray-100 text-gray-500'
-                      : 'bg-amber-100 text-amber-700';
-                  return (
-                    <tr key={c.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{c.mlClientId || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}`}>
-                          {statusLabel}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.expiresAt ? (
-                          <span className={`text-xs ${expired ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+          {connections.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400">
+              <p className="text-sm mb-1">Sin tiendas registradas</p>
+              <p className="text-xs">Haz clic en "+ Agregar tienda" para guardar las credenciales de una cuenta de Mercado Libre.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {connections.map((c) => {
+                const expired = c.expiresAt && new Date(c.expiresAt) < new Date();
+                const statusLabel = c.authorized && c.active ? 'Autorizada' : c.authorized ? 'Inactiva' : 'Pendiente de autorizar';
+                const statusClass = c.authorized && c.active
+                  ? 'bg-green-100 text-green-700'
+                  : c.authorized
+                    ? 'bg-gray-100 text-gray-500'
+                    : 'bg-amber-100 text-amber-700';
+                return (
+                  <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{c.name}</p>
+                        <p className="font-mono text-xs text-gray-400 truncate">{c.mlClientId || '—'}</p>
+                      </div>
+                      <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                      <span>
+                        Token: {c.expiresAt ? (
+                          <span className={expired ? 'text-red-500 font-medium' : ''}>
                             {expired ? 'Expirado · ' : ''}{new Date(c.expiresAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </span>
-                        ) : <span className="text-gray-400 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                        {!c.authorized && (
-                          <button onClick={() => handleAuthorize(c.id)}
-                            disabled={authorizingId === c.id}
-                            className="text-xs text-green-600 hover:text-green-800 font-medium disabled:opacity-50">
-                            {authorizingId === c.id ? 'Abriendo...' : 'Autorizar'}
-                          </button>
-                        )}
-                        {c.active && (
-                          <>
-                            <button onClick={() => setImportConn({ id: c.id, name: c.name })}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
-                              Publicaciones
-                            </button>
-                            <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">
-                              Ventas
-                            </button>
-                            <button onClick={() => handleSyncQuestions(c.id)}
-                              disabled={syncingQuestionsId === c.id}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 disabled:opacity-50">
-                              {syncingQuestionsId === c.id ? 'Importando...' : 'Preguntas'}
-                            </button>
-                            <button onClick={() => handleSyncClaims(c.id)}
-                              disabled={syncingClaimsId === c.id}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
-                              {syncingClaimsId === c.id ? 'Importando...' : 'Devoluciones'}
-                            </button>
-                            <button onClick={() => handleSyncClaims(c.id)}
-                              disabled={syncingClaimsId === c.id}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50">
-                              {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos'}
-                            </button>
-                            <button onClick={() => handleRefreshToken(c.id)}
-                              disabled={refreshingId === c.id}
-                              className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
-                              {refreshingId === c.id ? 'Renovando...' : 'Renovar token'}
-                            </button>
-                          </>
-                        )}
-                        {isSuperAdmin && (
-                          <button onClick={() => openEdit(c)}
-                            className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
-                            Editar
-                          </button>
-                        )}
-                        <button onClick={() => handleDelete(c.id, c.name, c.authorized)}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium">
-                          {c.authorized ? 'Desconectar' : 'Eliminar'}
+                        ) : '—'}
+                      </span>
+                      <span>Conectada: {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-gray-100">
+                      {!c.authorized && (
+                        <button onClick={() => handleAuthorize(c.id)}
+                          disabled={authorizingId === c.id}
+                          className="text-xs text-green-600 hover:text-green-800 font-medium disabled:opacity-50">
+                          {authorizingId === c.id ? 'Abriendo...' : 'Autorizar'}
                         </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {connections.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
-                      <p className="text-sm mb-1">Sin tiendas registradas</p>
-                      <p className="text-xs">Haz clic en "+ Agregar tienda" para guardar las credenciales de una cuenta de Mercado Libre.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                      {c.active && (
+                        <>
+                          <button onClick={() => setImportConn({ id: c.id, name: c.name })}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
+                            Publicaciones
+                          </button>
+                          <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">
+                            Ventas
+                          </button>
+                          <button onClick={() => handleSyncQuestions(c.id)}
+                            disabled={syncingQuestionsId === c.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 disabled:opacity-50">
+                            {syncingQuestionsId === c.id ? 'Importando...' : 'Preguntas'}
+                          </button>
+                          <button onClick={() => handleSyncClaims(c.id)}
+                            disabled={syncingClaimsId === c.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
+                            {syncingClaimsId === c.id ? 'Importando...' : 'Devoluciones'}
+                          </button>
+                          <button onClick={() => handleSyncClaims(c.id)}
+                            disabled={syncingClaimsId === c.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50">
+                            {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos'}
+                          </button>
+                          <button onClick={() => handleRefreshToken(c.id)}
+                            disabled={refreshingId === c.id}
+                            className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                            {refreshingId === c.id ? 'Renovando...' : 'Renovar token'}
+                          </button>
+                        </>
+                      )}
+                      {isSuperAdmin && (
+                        <button onClick={() => openEdit(c)}
+                          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium ml-auto">
+                          Editar
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(c.id, c.name, c.authorized)}
+                        className={`text-xs text-red-500 hover:text-red-700 font-medium ${isSuperAdmin ? '' : 'ml-auto'}`}>
+                        {c.authorized ? 'Desconectar' : 'Eliminar'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

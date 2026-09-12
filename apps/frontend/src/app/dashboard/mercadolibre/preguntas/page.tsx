@@ -20,9 +20,6 @@ export default function MlPreguntasPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [connections, setConnections] = useState<any[]>([]);
-  const [syncConnId, setSyncConnId] = useState('');
-  const [syncing, setSyncing] = useState(false);
 
   async function load() {
     const token = getToken();
@@ -37,15 +34,6 @@ export default function MlPreguntasPage() {
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
-
-  useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-    api.marketplace.connections(token, companyId).then((conns) => {
-      setConnections(conns);
-      if (conns[0]) setSyncConnId(conns[0].id);
-    }).catch(() => {});
-  }, [companyId]);
 
   async function answer(externalId: string) {
     const text = (drafts[externalId] || '').trim();
@@ -65,22 +53,6 @@ export default function MlPreguntasPage() {
     }
   }
 
-  async function syncNow() {
-    if (!syncConnId) return;
-    setSyncing(true);
-    try {
-      const res = await api.marketplace.syncQuestions(syncConnId, getToken()!);
-      await load();
-      setFlash({ msg: `${res.synced} pregunta(s) sincronizada(s)`, ok: true });
-      setTimeout(() => setFlash(null), 2500);
-    } catch (err: any) {
-      setFlash({ msg: err.message, ok: false });
-      setTimeout(() => setFlash(null), 3000);
-    } finally {
-      setSyncing(false);
-    }
-  }
-
   return (
     <div>
       <PageHeader
@@ -94,29 +66,13 @@ export default function MlPreguntasPage() {
         </StatRow>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 my-4">
-        <div className="flex gap-2">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-[var(--brand-light)] text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {connections.length > 0 && (
-          <div className="flex items-center gap-2">
-            {connections.length > 1 && (
-              <select value={syncConnId} onChange={(e) => setSyncConnId(e.target.value)}
-                className="px-2.5 py-1.5 border border-[var(--border)] rounded-lg text-xs bg-white">
-                {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            )}
-            <button onClick={syncNow} disabled={syncing}
-              className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-xs text-[var(--text-2)] hover:bg-[var(--surface-soft)] disabled:opacity-50">
-              {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
-            </button>
-          </div>
-        )}
+      <div className="flex gap-2 my-4">
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-[var(--brand-light)] text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'}`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {flash && (
