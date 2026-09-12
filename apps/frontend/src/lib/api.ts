@@ -153,10 +153,11 @@ export const api = {
     },
   },
   returns: {
-    list: (token: string, params?: { status?: string; q?: string }) => {
+    list: (token: string, params?: { status?: string; q?: string; companyId?: string }) => {
       const p = new URLSearchParams();
       if (params?.status) p.set('status', params.status);
       if (params?.q) p.set('q', params.q);
+      if (params?.companyId) p.set('companyId', params.companyId);
       return apiFetch<{ returns: any[]; counts: { pending: number; received: number } }>(`/returns?${p}`, {}, token);
     },
     get: (id: string, token: string) => apiFetch<any>(`/returns/${id}`, {}, token),

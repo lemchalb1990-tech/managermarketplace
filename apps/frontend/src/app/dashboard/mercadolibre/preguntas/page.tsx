@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
+import { useMlCompany } from '../MlCompanyContext';
 
 const TABS = [
   { key: 'UNANSWERED', label: 'Sin responder' },
@@ -12,6 +13,7 @@ const TABS = [
 ] as const;
 
 export default function MlPreguntasPage() {
+  const { companyId } = useMlCompany();
   const [tab, setTab] = useState<typeof TABS[number]['key']>('UNANSWERED');
   const [data, setData] = useState<{ questions: any[]; unanswered: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,21 +29,21 @@ export default function MlPreguntasPage() {
     if (!token) return;
     setLoading(true);
     try {
-      setData(await api.marketplace.questions(token, tab));
+      setData(await api.marketplace.questions(token, tab, companyId));
     } finally {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    api.marketplace.connections(token).then((conns) => {
+    api.marketplace.connections(token, companyId).then((conns) => {
       setConnections(conns);
       if (conns[0]) setSyncConnId(conns[0].id);
     }).catch(() => {});
-  }, []);
+  }, [companyId]);
 
   async function answer(externalId: string) {
     const text = (drafts[externalId] || '').trim();

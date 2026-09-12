@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
+import { useMlCompany } from '../MlCompanyContext';
 
 const CLAIM_TYPE_LABEL: Record<string, string> = {
   return: 'Devolución',
@@ -16,6 +17,7 @@ const CLAIM_TYPE_LABEL: Record<string, string> = {
 const typeLabel = (t: string) => CLAIM_TYPE_LABEL[t] || t;
 
 export default function MlReclamosPage() {
+  const { companyId } = useMlCompany();
   const [tab, setTab] = useState<'OPENED' | 'CLOSED' | 'ALL'>('OPENED');
   const [data, setData] = useState<{ claims: any[]; opened: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,21 +37,21 @@ export default function MlReclamosPage() {
     if (!token) return;
     setLoading(true);
     try {
-      setData(await api.marketplace.claims(token, tab));
+      setData(await api.marketplace.claims(token, tab, companyId));
     } finally {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    api.marketplace.connections(token).then((conns) => {
+    api.marketplace.connections(token, companyId).then((conns) => {
       setConnections(conns);
       if (conns[0]) setSyncConnId(conns[0].id);
     }).catch(() => {});
-  }, []);
+  }, [companyId]);
 
   async function syncNow() {
     if (!syncConnId) return;

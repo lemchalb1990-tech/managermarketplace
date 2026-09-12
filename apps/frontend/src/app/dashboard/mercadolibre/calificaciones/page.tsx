@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatTile, StatRow, Badge } from '@/components/ui';
+import { useMlCompany } from '../MlCompanyContext';
 
 const RATING_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
   POSITIVE: { label: 'Positiva', tone: 'ok' },
@@ -20,6 +21,7 @@ const LEVEL_COLOR: Record<string, string> = {
 };
 
 export default function MlCalificacionesPage() {
+  const { companyId } = useMlCompany();
   const [connections, setConnections] = useState<any[]>([]);
   const [connId, setConnId] = useState('');
   const [reputation, setReputation] = useState<any>(null);
@@ -29,12 +31,13 @@ export default function MlCalificacionesPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    api.marketplace.connections(token).then((conns) => {
+    setLoading(true);
+    api.marketplace.connections(token, companyId).then((conns) => {
       setConnections(conns);
-      if (conns[0]) setConnId(conns[0].id);
+      setConnId(conns[0]?.id || '');
     }).catch(() => {});
-    api.marketplace.feedback(token).then(setFeedback).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    api.marketplace.feedback(token, companyId).then(setFeedback).catch(() => {}).finally(() => setLoading(false));
+  }, [companyId]);
 
   useEffect(() => {
     if (!connId) return;

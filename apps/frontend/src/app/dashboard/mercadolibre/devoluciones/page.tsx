@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
+import { useMlCompany } from '../MlCompanyContext';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -14,6 +15,7 @@ const CONDITIONS = [
 const condLabel = (k: string) => CONDITIONS.find((c) => c.key === k)?.label || k;
 
 export default function MlDevolucionesPage() {
+  const { companyId } = useMlCompany();
   const [tab, setTab] = useState<'pending' | 'received'>('pending');
   const [data, setData] = useState<{ returns: any[]; counts: { pending: number; received: number } } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export default function MlDevolucionesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.returns.list(token, { status: tab });
+      const res = await api.returns.list(token, { status: tab, companyId });
       setData({
         ...res,
         returns: res.returns.filter((r: any) => r.channel === 'MERCADO_LIBRE'),
@@ -38,7 +40,7 @@ export default function MlDevolucionesPage() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
 
   function openReceive(ret: any) {
     setReceiving(ret);
