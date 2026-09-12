@@ -957,6 +957,12 @@ export class MercadolibreService {
       const mlItems = await this.fetchMlItems(itemIds, token);
 
       const skus = mlItems.map((i) => this.extractSku(i.attributes)).filter((s): s is string => !!s);
+      // Un SKU que se repite en 2+ publicaciones DISTINTAS de este mismo lote es señal de
+      // que el vendedor usó un SKU genérico/reutilizado (ej. un código de barras "relleno")
+      // en vez de uno propio por producto — no es confiable para vincular automáticamente.
+      const skuCounts = new Map<string, number>();
+      for (const sku of skus) skuCounts.set(sku, (skuCounts.get(sku) || 0) + 1);
+
       const [existingProducts, existingListings] = await Promise.all([
         this.prisma.product.findMany({
           where: { companyId: conn.companyId, sku: { in: skus } },
@@ -974,6 +980,7 @@ export class MercadolibreService {
         .filter((i) => !listingByExternalId.has(i.id))
         .map((i) => {
           const sku = this.extractSku(i.attributes);
+          const skuSuspicious = !!sku && (skuCounts.get(sku) || 0) > 1;
           const matchedProduct = sku ? productBySku.get(sku) : undefined;
           return {
             externalId: i.id,
@@ -984,6 +991,7 @@ export class MercadolibreService {
             permalink: i.permalink,
             status: i.status,
             sku,
+            skuSuspicious,
             matchedProductId: matchedProduct?.id || null,
             matchedProductName: matchedProduct?.name || null,
           };
@@ -1019,6 +1027,16 @@ export class MercadolibreService {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Mismo resguardo que previewImport, pero verificado de nuevo acá (el frontend podría
+    // no haberlo aplicado): un SKU que se repite en 2+ publicaciones de este lote es
+    // genérico/reutilizado y NUNCA debe vincularse automáticamente a un producto existente,
+    // así el caller haya o no marcado "quitar vínculo" para ese ítem puntual.
+    const skuCountsInBatch = new Map<string, number>();
+    for (const item of mlItems) {
+      const s = this.extractSku(item.attributes);
+      if (s) skuCountsInBatch.set(s, (skuCountsInBatch.get(s) || 0) + 1);
+    }
+
     // Un producto solo puede tener una publicación por conexión (Listing es único por
     // productId+connectionId). Si dos ítems de ML del mismo lote resuelven al mismo SKU
     // (p.ej. variaciones o publicaciones duplicadas), sin este control el segundo intento
@@ -1038,9 +1056,13 @@ export class MercadolibreService {
         if (alreadyLinked) { skipped++; continue; }
 
         const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
-        const forceNew = unlinkSet.has(item.id);
         const matchedSku = this.extractSku(item.attributes);
+        const skuSuspicious = !!matchedSku && (skuCountsInBatch.get(matchedSku) || 0) > 1;
+        const forceNew = unlinkSet.has(item.id) || skuSuspicious;
         const sku = (!forceNew && matchedSku) || (await this.nextSku(conn.companyId));
+        if (skuSuspicious) {
+          this.logger.warn(`confirmImport: SKU "${matchedSku}" repetido ${skuCountsInBatch.get(matchedSku)}x en este lote (ítem ${item.id}) — se crea como producto nuevo, no se vincula automáticamente.`);
+        }
 
         const product = forceNew ? null : await this.prisma.product.findUnique({
           where: { sku_companyId: { sku, companyId: conn.companyId } },

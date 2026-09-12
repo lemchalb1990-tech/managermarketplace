@@ -13,6 +13,7 @@ type PreviewItem = {
   permalink: string;
   status: string;
   sku: string | null;
+  skuSuspicious?: boolean;
   matchedProductId: string | null;
   matchedProductName: string | null;
 };
@@ -87,6 +88,13 @@ export function ImportModal({
         setSelected((prev) => {
           const next = replace ? new Set<string>() : new Set(prev);
           data.items.forEach((i) => next.add(i.externalId));
+          return next;
+        });
+        // SKU genérico/repetido en el lote: por seguridad nunca se preselecciona el
+        // vínculo a un producto existente, aunque haya coincidido por SKU.
+        setUnlinked((prev) => {
+          const next = replace ? new Set<string>() : new Set(prev);
+          data.items.forEach((i: PreviewItem) => { if (i.matchedProductId && i.skuSuspicious) next.add(i.externalId); });
           return next;
         });
         cursor = data.nextScrollId;
@@ -256,12 +264,24 @@ export function ImportModal({
                             </span>
                           </td>
                           <td className="px-2 py-2 font-mono text-xs text-gray-500">
-                            {item.sku || <span className="italic text-gray-400">se generará automáticamente</span>}
+                            {item.sku ? (
+                              <span className="flex items-center gap-1">
+                                {item.sku}
+                                {item.skuSuspicious && (
+                                  <span title="Este SKU se repite en varias publicaciones distintas de este lote — parece genérico, no un identificador propio del producto."
+                                    className="text-amber-500 cursor-help">⚠</span>
+                                )}
+                              </span>
+                            ) : <span className="italic text-gray-400">se generará automáticamente</span>}
                           </td>
                           <td className="px-2 py-2 text-right text-gray-700">${Math.round(item.price).toLocaleString('es-CL')}</td>
                           <td className="px-2 py-2 text-right text-gray-700">{item.stock}</td>
                           <td className="px-2 py-2">
-                            {item.matchedProductId ? (
+                            {item.matchedProductId && item.skuSuspicious ? (
+                              <span className="text-xs text-amber-600" title={`El SKU "${item.sku}" se repite en otras publicaciones de este lote — se ignora la coincidencia y se crea como producto nuevo.`}>
+                                SKU genérico — se crea como nuevo
+                              </span>
+                            ) : item.matchedProductId ? (
                               unlinked.has(item.externalId) ? (
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs text-green-600">Crear producto nuevo</span>

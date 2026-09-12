@@ -374,6 +374,7 @@ export const api = {
         items: Array<{
           externalId: string; title: string; price: number; stock: number;
           thumbnail: string | null; permalink: string; status: string; sku: string | null;
+          skuSuspicious?: boolean;
           matchedProductId: string | null; matchedProductName: string | null;
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/import/preview${scrollId ? `?scrollId=${encodeURIComponent(scrollId)}` : ''}`, {}, token),
