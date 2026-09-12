@@ -13,14 +13,32 @@ const SINCE_KEY = 'mp_notif_since';
 const HISTORY_KEY = 'mp_notif_history';
 const MUTED_KEY = 'mp_notif_muted';
 
+// Los navegadores bloquean/suspenden el audio si no arranca dentro de una interacción
+// real del usuario (clic, tecla) — un beep disparado desde el polling (un timer) nunca
+// cuenta como eso. Por eso se deja UN AudioContext ya creado y resumido desde la primera
+// interacción real de la sesión, y el beep solo reutiliza ese contexto ya desbloqueado.
+let sharedAudioCtx: AudioContext | null = null;
+
+function unlockAudioContext() {
+  if (sharedAudioCtx) return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    sharedAudioCtx = new AudioCtx();
+    if (sharedAudioCtx.state === 'suspended') sharedAudioCtx.resume().catch(() => {});
+  } catch {
+    // Silencioso: sin Web Audio disponible, simplemente no habrá sonido.
+  }
+}
+
 // Sonido corto tipo "ding-dong" generado con Web Audio (sin archivo de audio que alojar).
 function playNotificationSound() {
   try {
     if (localStorage.getItem(MUTED_KEY) === '1') return;
   } catch {}
+  const ctx = sharedAudioCtx;
+  if (!ctx) return; // todavía no hubo ninguna interacción real del usuario en esta sesión
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const now = ctx.currentTime;
     [880, 660].forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -36,9 +54,8 @@ function playNotificationSound() {
       osc.start(start);
       osc.stop(start + 0.35);
     });
-    setTimeout(() => ctx.close(), 800);
   } catch {
-    // Silencioso: algunos navegadores bloquean audio sin interacción previa del usuario.
+    // Silencioso: no interrumpir al usuario por un fallo de audio.
   }
 }
 
@@ -111,6 +128,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setHistory(loadHistory());
     try { setMuted(localStorage.getItem(MUTED_KEY) === '1'); } catch {}
+  }, []);
+
+  // Desbloquea el audio con la primera interacción real del usuario en la sesión (clic,
+  // tecla o touch) — de ahí en más, el beep del polling ya puede sonar.
+  useEffect(() => {
+    const events: Array<keyof DocumentEventMap> = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((evt) => document.addEventListener(evt, unlockAudioContext));
+    return () => events.forEach((evt) => document.removeEventListener(evt, unlockAudioContext));
   }, []);
 
   const toggleMuted = useCallback(() => {
