@@ -1863,9 +1863,10 @@ export class MercadolibreService {
     });
   }
 
-  // Trae hasta 200 preguntas recientes de la cuenta (para poblar el histórico la
-  // primera vez o si se perdió alguna notificación); de ahí en más el webhook las
-  // mantiene al día en tiempo real.
+  // Trae TODO el historial de preguntas de la cuenta, de más reciente a más antigua
+  // (para poblar el histórico la primera vez o si se perdió alguna notificación); de ahí
+  // en más el webhook las mantiene al día en tiempo real. Como es un upsert por
+  // externalId, correrlo de nuevo nunca borra ni duplica lo que ya se había guardado.
   async syncQuestions(connectionId: string, user: any) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
@@ -1905,7 +1906,9 @@ export class MercadolibreService {
         }
       }
       offset += 50;
-    } while (offset < total && offset < 200);
+      // Tope de seguridad para no quedar en un loop infinito si "total" viniera mal —
+      // muy por encima de lo que tiene cualquier cuenta real.
+    } while (offset < total && offset < 20000);
 
     return { synced, total };
   }
@@ -2060,7 +2063,7 @@ export class MercadolibreService {
         }
       }
       offset += 50;
-    } while (offset < total && offset < 200);
+    } while (offset < total && offset < 20000);
 
     return { synced };
   }
