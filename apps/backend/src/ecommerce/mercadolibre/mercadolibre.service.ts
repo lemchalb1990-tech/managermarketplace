@@ -4,7 +4,10 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { Role, SaleChannel, MovementType, MarketplaceType } from '@prisma/client';
+import {
+  Role, SaleChannel, MovementType, MarketplaceType,
+  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -1642,6 +1645,9 @@ export class MercadolibreService {
 
   async handleWebhook(body: any) {
     this.logger.log(`ML Webhook: topic=${body.topic} resource=${body.resource}`);
+    if (body.topic === 'questions') return this.handleQuestionWebhook(body);
+    if (body.topic === 'claims') return this.handleClaimWebhook(body);
+    if (body.topic === 'orders_feedback') return this.handleFeedbackWebhook(body);
     if (body.topic !== 'orders_v2') return { received: true };
 
     try {
@@ -1774,5 +1780,373 @@ export class MercadolibreService {
     });
 
     return { imported, skipped, errors };
+  }
+
+  // ─── Módulo Mercado Libre: helpers comunes ───────────────────────────────────
+
+  private async findActiveMlConnections() {
+    return this.prisma.marketplaceConnection.findMany({
+      where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' } },
+    });
+  }
+
+  private companyFilter(user: any, companyId?: string): Record<string, any> {
+    if (user.role !== Role.SUPER_ADMIN) return { companyId: user.companyId };
+    return companyId ? { companyId } : {};
+  }
+
+  // Igual estrategia que el webhook de órdenes: una notificación de ML no dice a qué
+  // cuenta/empresa pertenece, así que se prueba cada conexión activa hasta que una
+  // pueda leer el recurso.
+  private async fetchWithAnyMlConnection(path: string): Promise<{ data: any; connection: any } | null> {
+    for (const conn of await this.findActiveMlConnections()) {
+      try {
+        const token = await this.getValidToken(conn.id);
+        const res = await fetch(`${ML_API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) continue;
+        return { data: await res.json(), connection: conn };
+      } catch {
+        /* probamos la siguiente conexión */
+      }
+    }
+    return null;
+  }
+
+  // ─── Preguntas ────────────────────────────────────────────────────────────────
+
+  async listQuestions(user: any, status?: string, companyId?: string) {
+    const where: any = this.companyFilter(user, companyId);
+    if (status && status !== 'ALL') where.status = status;
+    const [rows, unanswered] = await Promise.all([
+      this.prisma.mlQuestion.findMany({
+        where,
+        include: { product: { select: { id: true, name: true, sku: true } } },
+        orderBy: [{ dateCreated: 'desc' }],
+        take: 300,
+      }),
+      this.prisma.mlQuestion.count({ where: { ...this.companyFilter(user, companyId), status: MlQuestionStatus.UNANSWERED } }),
+    ]);
+    return { questions: rows, unanswered };
+  }
+
+  private async upsertQuestion(q: any, connectionId: string, companyId: string) {
+    const listing = q.item_id
+      ? await this.prisma.listing.findFirst({
+          where: { connectionId, externalId: q.item_id },
+          select: { productId: true, product: { select: { name: true } } },
+        })
+      : null;
+    await this.prisma.mlQuestion.upsert({
+      where: { externalId: String(q.id) },
+      update: {
+        text: q.text,
+        status: (q.status || 'UNANSWERED') as MlQuestionStatus,
+        answerText: q.answer?.text ?? null,
+        answeredAt: q.answer?.date_created ? new Date(q.answer.date_created) : null,
+        productId: listing?.productId ?? undefined,
+        itemTitle: listing?.product?.name ?? undefined,
+      },
+      create: {
+        externalId: String(q.id),
+        itemId: q.item_id,
+        itemTitle: listing?.product?.name ?? null,
+        text: q.text,
+        status: (q.status || 'UNANSWERED') as MlQuestionStatus,
+        answerText: q.answer?.text ?? null,
+        answeredAt: q.answer?.date_created ? new Date(q.answer.date_created) : null,
+        fromNickname: q.from?.id ? String(q.from.id) : null,
+        dateCreated: new Date(q.date_created),
+        companyId,
+        connectionId,
+        productId: listing?.productId ?? null,
+      },
+    });
+  }
+
+  // Trae hasta 200 preguntas recientes de la cuenta (para poblar el histórico la
+  // primera vez o si se perdió alguna notificación); de ahí en más el webhook las
+  // mantiene al día en tiempo real.
+  async syncQuestions(connectionId: string, user: any) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
+    const me = await meRes.json() as any;
+
+    let offset = 0;
+    let total = 0;
+    let synced = 0;
+    do {
+      const params = new URLSearchParams({ seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset) });
+      const res = await fetch(`${ML_API}/questions/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) break;
+      const data = await res.json() as any;
+      total = data.total || 0;
+      for (const q of data.questions || []) {
+        await this.upsertQuestion(q, connectionId, conn.companyId);
+        synced++;
+      }
+      offset += 50;
+    } while (offset < total && offset < 200);
+
+    return { synced };
+  }
+
+  private async handleQuestionWebhook(body: any) {
+    const questionId = String(body.resource || '').split('/').pop();
+    if (!questionId) return { received: true };
+    const found = await this.fetchWithAnyMlConnection(`/questions/${questionId}`);
+    if (!found) {
+      this.logger.warn(`ML Webhook questions: ninguna conexión pudo leer la pregunta ${questionId}`);
+      return { received: true };
+    }
+    await this.upsertQuestion(found.data, found.connection.id, found.connection.companyId);
+    return { received: true };
+  }
+
+  async answerQuestion(externalId: string, text: string, user: any) {
+    const question = await this.prisma.mlQuestion.findUnique({ where: { externalId } });
+    if (!question) throw new NotFoundException('Pregunta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && question.companyId !== user.companyId) throw new ForbiddenException();
+
+    const token = await this.getValidToken(question.connectionId);
+    const res = await fetch(`${ML_API}/answers`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question_id: Number(externalId), text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new BadRequestException(err.message || 'Mercado Libre rechazó la respuesta');
+    }
+    return this.prisma.mlQuestion.update({
+      where: { externalId },
+      data: { status: MlQuestionStatus.ANSWERED, answerText: text, answeredAt: new Date() },
+    });
+  }
+
+  // ─── Reclamos y devoluciones ──────────────────────────────────────────────────
+
+  // Tipos de reclamo que ML resuelve devolviendo el producto al vendedor. El resto
+  // (fraude, mediación por otros motivos, etc.) no genera devolución de stock.
+  private static readonly RETURN_CLAIM_TYPES = new Set(['return', 'dispute']);
+
+  async listClaims(user: any, status?: string, companyId?: string) {
+    const where: any = this.companyFilter(user, companyId);
+    if (status && status !== 'ALL') where.status = status;
+    const [rows, opened] = await Promise.all([
+      this.prisma.mlClaim.findMany({
+        where,
+        include: { sale: { select: { id: true, externalId: true, total: true } } },
+        orderBy: [{ lastSyncedAt: 'desc' }],
+        take: 300,
+      }),
+      this.prisma.mlClaim.count({ where: { ...this.companyFilter(user, companyId), status: MlClaimStatus.OPENED } }),
+    ]);
+    return { claims: rows, opened };
+  }
+
+  private async upsertClaim(c: any, connectionId: string, companyId: string) {
+    const orderExternalId = c.resource_id ? String(c.resource_id) : null;
+    const sale = orderExternalId
+      ? await this.prisma.sale.findFirst({
+          where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderExternalId },
+          include: { items: { include: { product: true } } },
+        })
+      : null;
+
+    const claim = await this.prisma.mlClaim.upsert({
+      where: { externalId: String(c.id) },
+      update: {
+        type: c.type,
+        status: String(c.status || 'opened').toUpperCase() as MlClaimStatus,
+        stage: c.stage ?? null,
+        reason: c.reason?.id ?? c.reason ?? null,
+        orderExternalId,
+        saleId: sale?.id ?? undefined,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        externalId: String(c.id),
+        type: c.type,
+        status: String(c.status || 'opened').toUpperCase() as MlClaimStatus,
+        stage: c.stage ?? null,
+        reason: c.reason?.id ?? c.reason ?? null,
+        orderExternalId,
+        companyId,
+        connectionId,
+        saleId: sale?.id ?? null,
+      },
+    });
+
+    if (sale && MercadolibreService.RETURN_CLAIM_TYPES.has(c.type)) {
+      await this.syncReturnFromClaim(claim, sale);
+    }
+    return claim;
+  }
+
+  // Crea/actualiza la fila compartida de Return (la misma que usa el módulo de
+  // Devoluciones) a partir de un reclamo de ML tipo devolución/disputa. Los ítems se
+  // toman de la venta original (ya vinculada a productos reales) en vez de tratar de
+  // interpretar el payload de retorno de ML, que no siempre trae el detalle por SKU.
+  private async syncReturnFromClaim(claim: { externalId: string; companyId: string; reason: string | null }, sale: any) {
+    const existing = await this.prisma.return.findFirst({ where: { externalId: claim.externalId } });
+    if (existing) return existing;
+    return this.prisma.return.create({
+      data: {
+        companyId: claim.companyId,
+        channel: SaleChannel.MERCADO_LIBRE,
+        externalId: claim.externalId,
+        reason: claim.reason || 'Reclamo de Mercado Libre',
+        saleId: sale.id,
+        status: ReturnStatus.PENDING,
+        items: {
+          create: sale.items.map((it: any) => ({
+            productId: it.product?.id ?? null,
+            productName: it.product?.name ?? 'Producto',
+            productSku: it.product?.sku ?? '',
+            quantity: it.quantity,
+          })),
+        },
+      },
+    });
+  }
+
+  async syncClaims(connectionId: string, user: any) {
+    const conn = await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+
+    let offset = 0;
+    let total = 0;
+    let synced = 0;
+    do {
+      const params = new URLSearchParams({ player_role: 'respondent', limit: '50', offset: String(offset) });
+      const res = await fetch(`${ML_API}/post-purchase/v1/claims/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) break;
+      const data = await res.json() as any;
+      total = data.paging?.total || 0;
+      for (const c of data.data || []) {
+        await this.upsertClaim(c, connectionId, conn.companyId);
+        synced++;
+      }
+      offset += 50;
+    } while (offset < total && offset < 200);
+
+    return { synced };
+  }
+
+  private async handleClaimWebhook(body: any) {
+    const claimId = String(body.resource || '').split('/').pop();
+    if (!claimId) return { received: true };
+    const found = await this.fetchWithAnyMlConnection(`/post-purchase/v1/claims/${claimId}`);
+    if (!found) {
+      this.logger.warn(`ML Webhook claims: ninguna conexión pudo leer el reclamo ${claimId}`);
+      return { received: true };
+    }
+    await this.upsertClaim(found.data, found.connection.id, found.connection.companyId);
+    return { received: true };
+  }
+
+  // Detalle en vivo (mensajes + acciones disponibles): a diferencia de preguntas, acá
+  // no se guarda una copia local del hilo — Mercado Libre sigue siendo la fuente de
+  // verdad y evita que el hilo se desincronice si alguien responde desde la app de ML.
+  async getClaimDetail(externalId: string, user: any) {
+    const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
+    if (!claim) throw new NotFoundException('Reclamo no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
+
+    const token = await this.getValidToken(claim.connectionId);
+    const [detailRes, messagesRes] = await Promise.all([
+      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/messages`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (!detailRes.ok) throw new BadRequestException('No se pudo obtener el detalle del reclamo en Mercado Libre');
+    const detail = await detailRes.json() as any;
+    const messages = messagesRes.ok ? await messagesRes.json() : [];
+    return { claim, detail, messages, availableActions: detail.available_actions || [] };
+  }
+
+  async sendClaimMessage(externalId: string, text: string, user: any) {
+    const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
+    if (!claim) throw new NotFoundException('Reclamo no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
+
+    const token = await this.getValidToken(claim.connectionId);
+    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, receiver_role: 'complainant' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new BadRequestException(err.message || 'Mercado Libre rechazó el mensaje');
+    }
+    return res.json();
+  }
+
+  async takeClaimAction(externalId: string, action: string, user: any, extra?: Record<string, any>) {
+    const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
+    if (!claim) throw new NotFoundException('Reclamo no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
+
+    const token = await this.getValidToken(claim.connectionId);
+    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/actions/${action}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(extra || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new BadRequestException(err.message || 'Mercado Libre rechazó la acción');
+    }
+    await this.prisma.mlClaim.update({ where: { externalId }, data: { lastSyncedAt: new Date() } });
+    return res.json().catch(() => ({ ok: true }));
+  }
+
+  // ─── Calificaciones ───────────────────────────────────────────────────────────
+
+  async getSellerReputation(connectionId: string, user: any) {
+    await this.getConnectionForUser(connectionId, user);
+    const token = await this.getValidToken(connectionId);
+    const res = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new BadRequestException('No se pudo obtener la reputación en Mercado Libre');
+    const me = await res.json() as any;
+    return me.seller_reputation || null;
+  }
+
+  async listFeedback(user: any, companyId?: string) {
+    const where: any = { ...this.companyFilter(user, companyId), channel: SaleChannel.MERCADO_LIBRE, mlFeedbackRating: { not: null } };
+    return this.prisma.sale.findMany({
+      where,
+      select: {
+        id: true, externalId: true, total: true, createdAt: true,
+        mlFeedbackRating: true, mlFeedbackComment: true, mlFeedbackAt: true,
+      },
+      orderBy: { mlFeedbackAt: 'desc' },
+      take: 200,
+    });
+  }
+
+  private async handleFeedbackWebhook(body: any) {
+    // El resource llega como /orders/{id}/feedback.
+    const match = String(body.resource || '').match(/orders\/(\d+)/);
+    const orderId = match?.[1];
+    if (!orderId) return { received: true };
+    const found = await this.fetchWithAnyMlConnection(`/orders/${orderId}/feedback`);
+    if (!found) return { received: true };
+    const buyerFeedback = found.data?.buyer;
+    if (!buyerFeedback?.rating) return { received: true };
+    const ratingMap: Record<string, SaleFeedbackRating> = {
+      positive: SaleFeedbackRating.POSITIVE,
+      neutral: SaleFeedbackRating.NEUTRAL,
+      negative: SaleFeedbackRating.NEGATIVE,
+    };
+    const rating = ratingMap[String(buyerFeedback.rating).toLowerCase()];
+    if (!rating) return { received: true };
+    await this.prisma.sale.updateMany({
+      where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderId },
+      data: { mlFeedbackRating: rating, mlFeedbackComment: buyerFeedback.message || null, mlFeedbackAt: new Date() },
+    });
+    return { received: true };
   }
 }

@@ -186,6 +186,8 @@ model Company {
   dropshipSuppliers  DropshipSupplier[]
   dropshipProducts   DropshipProduct[]
   dropshipOrders     DropshipOrder[]
+  mlQuestions        MlQuestion[]
+  mlClaims           MlClaim[]
 
   @@map("companies")
 }
@@ -272,8 +274,10 @@ model MarketplaceConnection {
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
-  listings Listing[]
-  sales    Sale[]
+  listings   Listing[]
+  sales      Sale[]
+  mlQuestions MlQuestion[]
+  mlClaims    MlClaim[]
 
   @@map("marketplace_connections")
 }
@@ -360,6 +364,7 @@ model Product {
   dropshipProduct    DropshipProduct?
   dropshipOrderItems DropshipOrderItem[]
   workOrderItems     WorkOrderItem[]
+  mlQuestions        MlQuestion[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -422,6 +427,80 @@ model ReturnItem {
   @@map("return_items")
 }
 
+enum SaleFeedbackRating {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum MlQuestionStatus {
+  UNANSWERED
+  ANSWERED
+  CLOSED_UNANSWERED
+  UNDER_REVIEW
+  BANNED
+  DELETED
+}
+
+// Pregunta hecha por un comprador sobre una publicación de Mercado Libre (antes de
+// comprar). Se sincroniza vía webhook (tópico "questions") y se responde desde acá.
+model MlQuestion {
+  id            String           @id @default(cuid())
+  externalId    String           @unique // id de la pregunta en ML
+  itemId        String // id del ítem de ML (MLC...)
+  itemTitle     String?
+  itemThumbnail String?
+  text          String           @db.Text
+  status        MlQuestionStatus @default(UNANSWERED)
+  answerText    String?          @db.Text
+  answeredAt    DateTime?
+  fromNickname  String?
+  dateCreated   DateTime
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  companyId    String
+  company      Company               @relation(fields: [companyId], references: [id])
+  connectionId String
+  connection   MarketplaceConnection @relation(fields: [connectionId], references: [id])
+  productId    String?
+  product      Product?              @relation(fields: [productId], references: [id])
+
+  @@index([companyId, status])
+  @@map("ml_questions")
+}
+
+enum MlClaimStatus {
+  OPENED
+  CLOSED
+}
+
+// Reclamo/disputa/devolución iniciada por el comprador tras la compra (API de
+// post-purchase de Mercado Libre). Las de tipo "return"/"dispute" además generan
+// una fila en Return para que, al recibir el paquete, se reponga el stock.
+model MlClaim {
+  id              String        @id @default(cuid())
+  externalId      String        @unique // id del reclamo en ML
+  type            String // mediations, cancel_sale, cancel_sale_by_iron, return, dispute, fraud, etc.
+  status          MlClaimStatus @default(OPENED)
+  stage           String?
+  reason          String?
+  orderExternalId String?
+  lastSyncedAt    DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  companyId    String
+  company      Company               @relation(fields: [companyId], references: [id])
+  connectionId String
+  connection   MarketplaceConnection @relation(fields: [connectionId], references: [id])
+  saleId       String?
+  sale         Sale?                 @relation(fields: [saleId], references: [id])
+
+  @@index([companyId, status])
+  @@map("ml_claims")
+}
+
 model ProductImage {
   id        String   @id @default(cuid())
   url       String
@@ -475,6 +554,11 @@ model Sale {
   address         String?
   commune         String?
   city            String?
+  // Calificación que el comprador dejó tras la compra (feedback de Mercado Libre:
+  // positiva/neutra/negativa + comentario). Solo aplica a canales que lo soporten.
+  mlFeedbackRating  SaleFeedbackRating?
+  mlFeedbackComment String?             @db.Text
+  mlFeedbackAt      DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -497,6 +581,7 @@ model Sale {
   returns       Return[]
   dropshipOrders DropshipOrder[]
   workOrder     WorkOrder?
+  mlClaims      MlClaim[]
 
   @@unique([channel, externalId])
   @@map("sales")

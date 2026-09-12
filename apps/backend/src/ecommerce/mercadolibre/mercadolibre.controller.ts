@@ -53,6 +53,19 @@ class PublishOptionsDto {
   saleTerms?: SaleTermDto[];
 }
 
+class AnswerQuestionDto {
+  @IsString() text: string;
+}
+
+class ClaimMessageDto {
+  @IsString() text: string;
+}
+
+class ClaimActionDto {
+  @IsString() action: string;
+  @IsOptional() extra?: Record<string, any>;
+}
+
 @Controller('ecommerce/ml')
 export class MercadolibreController {
   private readonly logger = new Logger(MercadolibreController.name);
@@ -323,5 +336,81 @@ export class MercadolibreController {
     @CurrentUser() user: any,
   ) {
     return this.service.toggleListingStatus(productId, connectionId, user);
+  }
+
+  // ─── Preguntas ─────────────────────────────────────────────────────────────
+
+  @Get('questions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  listQuestions(@CurrentUser() user: any, @Query('status') status?: string, @Query('companyId') companyId?: string) {
+    return this.service.listQuestions(user, status, companyId);
+  }
+
+  @Post('questions/:externalId/answer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  answerQuestion(@Param('externalId') externalId: string, @Body() dto: AnswerQuestionDto, @CurrentUser() user: any) {
+    return this.service.answerQuestion(externalId, dto.text, user);
+  }
+
+  @Post('connections/:id/questions/sync')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  syncQuestions(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.syncQuestions(id, user);
+  }
+
+  // ─── Reclamos y devoluciones ─────────────────────────────────────────────────
+
+  @Get('claims')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  listClaims(@CurrentUser() user: any, @Query('status') status?: string, @Query('companyId') companyId?: string) {
+    return this.service.listClaims(user, status, companyId);
+  }
+
+  @Get('claims/:externalId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getClaimDetail(@Param('externalId') externalId: string, @CurrentUser() user: any) {
+    return this.service.getClaimDetail(externalId, user);
+  }
+
+  @Post('claims/:externalId/messages')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  sendClaimMessage(@Param('externalId') externalId: string, @Body() dto: ClaimMessageDto, @CurrentUser() user: any) {
+    return this.service.sendClaimMessage(externalId, dto.text, user);
+  }
+
+  @Post('claims/:externalId/actions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  takeClaimAction(@Param('externalId') externalId: string, @Body() dto: ClaimActionDto, @CurrentUser() user: any) {
+    return this.service.takeClaimAction(externalId, dto.action, user, dto.extra);
+  }
+
+  @Post('connections/:id/claims/sync')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  syncClaims(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.syncClaims(id, user);
+  }
+
+  // ─── Calificaciones ──────────────────────────────────────────────────────────
+
+  @Get('connections/:id/reputation')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getSellerReputation(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getSellerReputation(id, user);
+  }
+
+  @Get('feedback')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  listFeedback(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.listFeedback(user, companyId);
   }
 }
