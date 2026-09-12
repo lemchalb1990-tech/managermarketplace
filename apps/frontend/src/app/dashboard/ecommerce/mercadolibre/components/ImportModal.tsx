@@ -19,6 +19,23 @@ type PreviewItem = {
 
 const PAGE_SIZE = 20;
 
+const mlStatusLabel: Record<string, string> = {
+  active: 'Activa',
+  paused: 'Pausada',
+  closed: 'Cerrada',
+  under_review: 'En revisión',
+  inactive: 'Inactiva',
+  payment_required: 'Pago requerido',
+};
+const mlStatusColor: Record<string, string> = {
+  active: 'bg-green-100 text-green-700',
+  paused: 'bg-amber-100 text-amber-700',
+  closed: 'bg-gray-200 text-gray-600',
+  under_review: 'bg-blue-100 text-blue-700',
+  inactive: 'bg-gray-200 text-gray-600',
+  payment_required: 'bg-red-100 text-red-700',
+};
+
 export function ImportModal({
   connectionId,
   connectionName,
@@ -205,6 +222,7 @@ export function ImportModal({
                           />
                         </th>
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">Publicación</th>
+                        <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">SKU</th>
                         <th className="px-2 py-2 text-right text-gray-600 font-medium">Precio</th>
                         <th className="px-2 py-2 text-right text-gray-600 font-medium">Stock</th>
@@ -231,6 +249,11 @@ export function ImportModal({
                                 {item.title}
                               </a>
                             </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${mlStatusColor[item.status] || 'bg-gray-100 text-gray-600'}`}>
+                              {mlStatusLabel[item.status] || item.status}
+                            </span>
                           </td>
                           <td className="px-2 py-2 font-mono text-xs text-gray-500">
                             {item.sku || <span className="italic text-gray-400">se generará automáticamente</span>}
