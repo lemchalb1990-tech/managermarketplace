@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 type Tab = 'purchases' | 'transfers';
 
@@ -13,10 +14,9 @@ const emptyTransferForm = { productId: '', fromWarehouseId: '', toWarehouseId: '
 const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
 export default function PurchasesPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [tab, setTab] = useState<Tab>('purchases');
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [purchases, setPurchases] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -67,12 +67,7 @@ export default function PurchasesPage() {
   }
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    const token = getToken();
-    if (token && u?.role === 'SUPER_ADMIN') {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-    }
+    setCurrentUser(getUser());
   }, []);
 
   useEffect(() => {
@@ -80,12 +75,6 @@ export default function PurchasesPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedCompanyId]);
-
-  function selectCompany(companyId: string) {
-    setSelectedCompanyId(companyId);
-    setShowPurchaseForm(false);
-    setShowTransferForm(false);
-  }
 
   function addItemRow() {
     setItems((prev) => [...prev, { ...emptyItem }]);
@@ -159,18 +148,6 @@ export default function PurchasesPage() {
             Registra compras a proveedores por lotes; el costo de cada producto se calcula automáticamente.
           </p>
         </div>
-        {isSuperAdmin && (
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => selectCompany(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-          >
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        )}
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { calcProfit, calcVeredicto, effectiveMyPrice, formatCLP } from '@/lib/profitability-calc';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMADO: 'Confirmado',
@@ -121,9 +122,8 @@ function GananciaBar({ ganancia, max }: { ganancia: number | null; max: number }
 }
 
 export default function RentabilidadPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -155,10 +155,7 @@ export default function RentabilidadPage() {
   }
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    const token = getToken();
-    if (token && u?.role === 'SUPER_ADMIN') api.companies.list(token).then(setCompanies).catch(() => {});
+    setCurrentUser(getUser());
   }, []);
 
   useEffect(() => {
@@ -326,16 +323,6 @@ export default function RentabilidadPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isSuperAdmin && (
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-            >
-              <option value="">— Selecciona una empresa —</option>
-              {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
           {rows.length > 0 && (
             <button onClick={exportCsv} className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
               Descargar CSV

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../../AdminCompanyContext';
 
 interface LineItem {
   productId?: string;
@@ -35,11 +36,10 @@ const emptyForm = () => ({
 });
 
 export default function WorkOrdersPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : user?.companyId;
 
   const [workOrders, setWorkOrders] = useState<any[]>([]);
@@ -59,11 +59,6 @@ export default function WorkOrdersPage() {
     const u = getUser();
     if (t && u) { setToken(t); setUser(u); }
   }, []);
-
-  useEffect(() => {
-    if (!token) return;
-    if (user?.role === 'SUPER_ADMIN') api.companies.list(token).then(setCompanies).catch(() => {});
-  }, [token, user]);
 
   const loadWorkOrders = useCallback(async (p = 1) => {
     if (!token) return;
@@ -324,17 +319,6 @@ export default function WorkOrdersPage() {
           </Link>
         )}
       </div>
-
-      {isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <label className="block text-xs font-semibold text-blue-700 mb-1">Empresa a gestionar</label>
-          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="w-full sm:w-96 px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
 
       {notice && (
         <div className={`px-4 py-3 rounded-lg text-sm border ${noticeIsError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>

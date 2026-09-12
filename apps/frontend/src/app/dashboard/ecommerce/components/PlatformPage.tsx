@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../../AdminCompanyContext';
 
 export interface PlatformField {
   key: string;
@@ -34,9 +35,8 @@ interface Props {
 }
 
 export default function PlatformPage({ config }: Props) {
+  const { selectedCompanyId } = useAdminCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [connections, setConnections] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
@@ -67,10 +67,7 @@ export default function PlatformPage({ config }: Props) {
     if (!token) return;
     const me = await api.me(token);
     setCurrentUser(me);
-    if (me.role === 'SUPER_ADMIN') {
-      const comps = await api.companies.list(token);
-      setCompanies(comps);
-    } else {
+    if (me.role !== 'SUPER_ADMIN') {
       await loadConnections();
     }
   }
@@ -197,17 +194,6 @@ export default function PlatformPage({ config }: Props) {
           <p className="text-sm text-gray-500">{config.description}</p>
         </div>
       </div>
-
-      {isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <label className="block text-xs font-semibold text-blue-700 mb-1">Empresa a gestionar</label>
-          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
 
       {isSuperAdmin && !selectedCompanyId ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">

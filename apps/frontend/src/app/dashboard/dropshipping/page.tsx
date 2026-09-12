@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 type Tab = 'suppliers' | 'products' | 'orders' | 'report';
 
@@ -35,10 +36,9 @@ const emptySupplierForm = { supplierId: '', name: '', taxId: '', email: '', phon
 const emptyProductForm = { productId: '', dropshipSupplierId: '', supplierCost: '', supplierSku: '', leadTimeDays: '' };
 
 export default function DropshippingPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [tab, setTab] = useState<Tab>('suppliers');
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -62,10 +62,7 @@ export default function DropshippingPage() {
   const blocked = isSuperAdmin && !selectedCompanyId;
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    const token = getToken();
-    if (token && u?.role === 'SUPER_ADMIN') api.companies.list(token).then(setCompanies).catch(() => {});
+    setCurrentUser(getUser());
   }, []);
 
   async function load() {
@@ -171,16 +168,6 @@ export default function DropshippingPage() {
           </button>
         )}
       </div>
-
-      {isSuperAdmin && (
-        <div className="mb-4">
-          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
 
       <div className="flex gap-1 border-b border-gray-200 mb-4">
         {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (

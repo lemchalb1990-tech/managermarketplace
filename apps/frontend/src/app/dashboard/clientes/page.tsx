@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const emptyForm = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
 
@@ -18,11 +19,10 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 export default function ClientsPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
@@ -65,12 +65,7 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    const token = getToken();
-    if (token && u?.role === 'SUPER_ADMIN') {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-    }
+    setCurrentUser(getUser());
   }, []);
 
   useEffect(() => {
@@ -78,11 +73,6 @@ export default function ClientsPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedCompanyId]);
-
-  function selectCompany(companyId: string) {
-    setSelectedCompanyId(companyId);
-    setShowCreate(false);
-  }
 
   function toPayload(f: typeof emptyForm) {
     return {
@@ -188,18 +178,6 @@ export default function ClientsPage() {
           <p className="text-gray-500 text-sm mt-0.5">Clientes para solicitudes de pedido y facturación.</p>
         </div>
         <div className="flex items-center gap-3">
-          {isSuperAdmin && (
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => selectCompany(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-            >
-              <option value="">— Selecciona una empresa —</option>
-              {companies.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
           {canCreate && (!isSuperAdmin || selectedCompanyId) && (
             <button
               onClick={() => { setShowCreate(!showCreate); setCreateForm(emptyForm); setCreateError(''); }}

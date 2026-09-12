@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
+import { useAdminCompany } from '../AdminCompanyContext';
 import MergeModal from './MergeModal';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
@@ -464,9 +465,8 @@ const listingChipDefaultColor = 'bg-red-100 text-red-700';
 
 export default function CatalogPage() {
   const searchParams = useSearchParams();
+  const { selectedCompanyId } = useAdminCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [genericConnections, setGenericConnections] = useState<any[]>([]);
@@ -588,16 +588,11 @@ export default function CatalogPage() {
     if (!token) return;
     const me = await api.me(token).catch(() => null);
     setCurrentUser(me);
-    if (me?.role === 'SUPER_ADMIN') {
-      const comps = await api.companies.list(token).catch(() => []);
-      setCompanies(comps);
-      return;
-    }
     const [conns, generic, whs, cats] = await Promise.all([
-      api.marketplace.connections(token).catch(() => []),
-      api.connections.list(token).catch(() => []),
-      api.warehouses.list(token).catch(() => []),
-      api.catalog.categories(token).catch(() => []),
+      api.marketplace.connections(token, selectedCompanyId || undefined).catch(() => []),
+      api.connections.list(token, selectedCompanyId ? { companyId: selectedCompanyId } : undefined).catch(() => []),
+      api.warehouses.list(token, selectedCompanyId || undefined).catch(() => []),
+      api.catalog.categories(token, selectedCompanyId || undefined).catch(() => []),
     ]);
     setConnections(conns);
     setGenericConnections(generic);
@@ -606,28 +601,10 @@ export default function CatalogPage() {
     await loadProducts(1);
   }
 
+  // La empresa activa (para Super Admin) ya está fijada antes de que esta página se
+  // monte —AdminCompanyContext remonta todo el módulo al cambiarla—, así que un solo
+  // load() al montar alcanza; no hace falta re-cargar en un efecto aparte.
   useEffect(() => { load(); }, []);
-
-  useEffect(() => {
-    if (!isSuperAdmin || !selectedCompanyId) return;
-    (async () => {
-      const token = getToken();
-      if (!token) return;
-      const [conns, generic, whs, cats] = await Promise.all([
-        api.marketplace.connections(token, selectedCompanyId).catch(() => []),
-        api.connections.list(token, { companyId: selectedCompanyId }).catch(() => []),
-        api.warehouses.list(token, selectedCompanyId).catch(() => []),
-        api.catalog.categories(token, selectedCompanyId).catch(() => []),
-      ]);
-      setConnections(conns);
-      setGenericConnections(generic);
-      setWarehouses(whs);
-      setCategories(cats);
-      setWarehouseFilter('');
-      setCategoryFilter('');
-      await loadProducts(1);
-    })();
-  }, [selectedCompanyId, isSuperAdmin]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -1343,17 +1320,6 @@ export default function CatalogPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-          <label className="block text-xs font-semibold text-blue-700 mb-1">Empresa a gestionar</label>
-          <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="w-full sm:w-96 px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
         </div>
       )}
 

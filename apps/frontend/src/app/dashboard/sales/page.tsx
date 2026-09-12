@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -55,10 +56,9 @@ export default function SalesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  const { selectedCompanyId } = useAdminCompany();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -162,12 +162,6 @@ export default function SalesPage() {
   }, [token, summaryDate, isSuperAdmin, selectedCompanyId]);
 
   useEffect(() => {
-    if (token && isSuperAdmin) {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-    }
-  }, [token, isSuperAdmin]);
-
-  useEffect(() => {
     if (token) {
       loadSales(1);
       loadSummary();
@@ -180,18 +174,6 @@ export default function SalesPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Ventas</h1>
-        {isSuperAdmin && (
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-          >
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        )}
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 interface CartItem {
   productId: string;
@@ -26,11 +27,10 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 export default function PosPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -104,13 +104,6 @@ export default function PosPage() {
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
   }
 
-  useEffect(() => {
-    if (!token) return;
-    if (user?.role === 'SUPER_ADMIN') {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-    }
-  }, [token, user]);
-
   const loadProducts = useCallback(async (p: number) => {
     if (!token) return;
     if (isSuperAdmin && !selectedCompanyId) {
@@ -160,13 +153,6 @@ export default function PosPage() {
       .then((cs) => { setBillingConns(cs); if (cs[0]) setDteConnId(cs[0].id); })
       .catch(() => setBillingConns([]));
   }, [token, isSuperAdmin, selectedCompanyId]);
-
-  function selectCompany(companyId: string) {
-    setSelectedCompanyId(companyId);
-    setClientId(''); setEmitDte(false);
-    setCategoryFilter('');
-    setCart([]);
-  }
 
   function addToCart(product: any) {
     const isService = product.type === 'SERVICIO';
@@ -406,21 +392,6 @@ export default function PosPage() {
     <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-8rem)]">
       {/* Productos */}
       <div className="flex-1 flex flex-col min-w-0 lg:min-h-0">
-        {isSuperAdmin && (
-          <div className="flex items-center justify-end mb-4">
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => selectCompany(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-            >
-              <option value="">— Selecciona una empresa —</option>
-              {companies.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {isSuperAdmin && !selectedCompanyId ? (
           <div className="flex-1 flex items-center justify-center text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl">
             <div>

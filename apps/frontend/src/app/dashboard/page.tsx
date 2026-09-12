@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
+import { useAdminCompany } from './AdminCompanyContext';
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -44,11 +45,10 @@ function KpiCard({
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { selectedCompanyId, companies } = useAdminCompany();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [summary, setSummary] = useState<any>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
@@ -64,10 +64,6 @@ export default function DashboardPage() {
     if (u.role === 'VENDEDOR') { router.replace('/dashboard/pos'); return; }
     if (u.role === 'DESPACHADOR') { router.replace('/dashboard/mis-rutas'); return; }
     setUser(u);
-    if (u.role === 'SUPER_ADMIN') {
-      api.companies.list(token).then(setCompanies).catch(() => {});
-      setLoading(false);
-    }
   }, []);
 
   useEffect(() => {
@@ -121,34 +117,6 @@ export default function DashboardPage() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  if (isSuperAdmin && !selectedCompanyId) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Bienvenido, {user?.name}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Super Administrador</p>
-          </div>
-          <p className="text-sm text-gray-400 capitalize hidden sm:block">{dateLabel}</p>
-        </div>
-        <div className="flex flex-col items-center justify-center gap-4 text-center border border-dashed border-gray-300 rounded-2xl py-20">
-          <p className="text-3xl">🏢</p>
-          <p className="text-sm text-gray-400">Selecciona una empresa para ver su panel.</p>
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"
-          >
-            <option value="">— Selecciona una empresa —</option>
-            {companies.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -171,21 +139,7 @@ export default function DashboardPage() {
           },
         ]}
         updatedAt={new Date()}
-        actions={
-          isSuperAdmin ? (
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-white font-medium max-w-full"
-            >
-              {companies.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          ) : (
-            <span className="text-sm text-[var(--text-muted)] capitalize hidden sm:block">{dateLabel}</span>
-          )
-        }
+        actions={<span className="text-sm text-[var(--text-muted)] capitalize hidden sm:block">{dateLabel}</span>}
       />
 
       {/* KPI cards */}
