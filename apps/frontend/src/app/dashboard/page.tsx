@@ -4,9 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
 import { useAdminCompany } from './AdminCompanyContext';
+
+function primaryImageUrl(product: any): string | undefined {
+  const img = product?.images?.find((i: any) => i.isPrimary) || product?.images?.[0];
+  return img ? imgUrl(img.url) : undefined;
+}
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -289,22 +294,31 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-400 text-center py-6">Sin ventas recientes</p>
           ) : (
             <div className="space-y-0">
-              {recentSales.map((sale: any, i: number) => (
+              {recentSales.map((sale: any, i: number) => {
+                const firstItem = sale.items?.[0];
+                const photoUrl = primaryImageUrl(firstItem?.product);
+                const extraItems = (sale.items?.length || 0) - 1;
+                const description = firstItem?.product?.name
+                  ? `${firstItem.product.name}${extraItems > 0 ? ` +${extraItems} más` : ''}`
+                  : (CHANNEL_LABEL[sale.channel] ?? sale.channel);
+                return (
                 <div
                   key={sale.id}
                   className={`flex items-center gap-3 py-2.5 ${i < recentSales.length - 1 ? 'border-b border-gray-50' : ''}`}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-blue-600">
-                      {CHANNEL_LABEL[sale.channel]?.slice(0, 2) ?? 'PO'}
-                    </span>
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 overflow-hidden">
+                    {photoUrl ? (
+                      <img src={photoUrl} alt={firstItem?.product?.name || ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-bold text-blue-600">
+                        {CHANNEL_LABEL[sale.channel]?.slice(0, 2) ?? 'PO'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">
-                      {CHANNEL_LABEL[sale.channel] ?? sale.channel}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    <p className="text-sm font-medium text-gray-800 truncate">{description}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {CHANNEL_LABEL[sale.channel] ?? sale.channel} · {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                       {sale.customerName && ` · ${sale.customerName}`}
                     </p>
                   </div>
@@ -312,7 +326,8 @@ export default function DashboardPage() {
                     ${Number(sale.total).toLocaleString('es-CL')}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -335,12 +350,16 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {criticalProducts.map((p: any) => (
+              {criticalProducts.map((p: any) => {
+                const photoUrl = primaryImageUrl(p);
+                return (
                 <div key={p.id} className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                    p.stock === 0 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                  }`}>
-                    {p.stock}
+                  <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+                    {photoUrl ? (
+                      <img src={photoUrl} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate leading-tight">{p.name}</p>
@@ -352,7 +371,8 @@ export default function DashboardPage() {
                     {p.stock === 0 ? 'Sin stock' : `${p.stock} ud.`}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
