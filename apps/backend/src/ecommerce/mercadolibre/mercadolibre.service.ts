@@ -2036,14 +2036,21 @@ export class MercadolibreService {
   async syncClaims(connectionId: string, user: any) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
+    const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
+    const me = await meRes.json() as any;
 
     let offset = 0;
     let total = 0;
     let synced = 0;
     do {
       // Mismo motivo que en preguntas: sin ordenar, el tope de 200 puede llenarse con
-      // reclamos viejos y nunca llegar a los recientes.
-      const params = new URLSearchParams({ player_role: 'respondent', limit: '50', offset: String(offset), sort: 'date_created:desc' });
+      // reclamos viejos y nunca llegar a los recientes. ML exige player_role junto con
+      // player_user_id (no alcanza con player_role solo).
+      const params = new URLSearchParams({
+        player_role: 'respondent', player_user_id: String(me.id),
+        limit: '50', offset: String(offset), sort: 'date_created:desc',
+      });
       const res = await fetch(`${ML_API}/post-purchase/v1/claims/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         const errBody = await res.text();
