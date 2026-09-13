@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, ForbiddenException,
   BadRequestException, ConflictException, Logger,
 } from '@nestjs/common';
-import { OrderStatus, FulfillmentType, Role } from '@prisma/client';
+import { OrderStatus, FulfillmentType, PrepStage, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateOrderDto, UpdateOrderDto, UpdateStatusDto, CheckItemDto, FindOrdersDto } from './dto/order.dto';
@@ -218,6 +218,21 @@ export class OrdersService {
     const data: any = { status: dto.status };
     if (dto.status === OrderStatus.DELIVERED) data.deliveredAt = new Date();
 
+    // Homologar con Picking/Packing: un admin puede avanzar el estado a mano desde
+    // Órdenes (sin pasar por el tablero de bodega), pero si no se hace esto prepStage
+    // queda desincronizado — un pedido en PREPARING con prepStage UNASSIGNED no
+    // aparece en Picking, y uno en READY sin PACKED no cuenta como empacado hoy.
+    if (dto.status === OrderStatus.PREPARING && order.prepStage === PrepStage.UNASSIGNED) {
+      data.prepStage = PrepStage.ASSIGNED;
+      data.assignedToId = order.assignedToId ?? user.id;
+      data.assignedAt = order.assignedAt ?? new Date();
+    }
+    if (dto.status === OrderStatus.READY && order.prepStage !== PrepStage.PACKED) {
+      data.prepStage = PrepStage.PACKED;
+      data.packedById = user.id;
+      data.packedAt = new Date();
+    }
+
     const updated = await this.prisma.order.update({ where: { id }, data, include: ORDER_INCLUDE });
 
     this.email.sendOrderEmail(updated).catch(e =>
@@ -235,7 +250,7 @@ export class OrdersService {
     const item = order.itemChecks.find((i: any) => i.id === itemId);
     if (!item) throw new NotFoundException('Ítem no encontrado');
 
-    return this.prisma.orderItemCheck.update({
+    const updated = await this.prisma.orderItemCheck.update({
       where: { id: itemId },
       data: {
         checked: true,
@@ -245,6 +260,14 @@ export class OrdersService {
         checkedById: user.id,
       },
     });
+    // Mismo avance que hace Picking al marcar un ítem: si un admin verifica ítems
+    // desde Órdenes en vez de usar el tablero de bodega, el pedido igual pasa a
+    // "en picking" — no queda visualmente "Sin asignar" mientras ya se está trabajando.
+    await this.prisma.order.updateMany({
+      where: { id: orderId, prepStage: PrepStage.ASSIGNED },
+      data: { prepStage: PrepStage.PICKING },
+    });
+    return updated;
   }
 
   async uncheckItem(orderId: string, itemId: string, user: any) {
