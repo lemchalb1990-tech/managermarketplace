@@ -14,7 +14,10 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PREPARING:  [OrderStatus.READY, OrderStatus.CANCELLED],
   READY:      [OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
   IN_TRANSIT: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-  DELIVERED:  [],
+  // Admin/Super Admin puede revertir una entrega marcada por error (o que hay que
+  // rehacer) de vuelta a preparación — a diferencia del resto de las transiciones, esta
+  // va "hacia atrás" en el flujo normal.
+  DELIVERED:  [OrderStatus.PREPARING],
   CANCELLED:  [],
 };
 
@@ -218,6 +221,18 @@ export class OrdersService {
     const data: any = { status: dto.status };
     if (dto.status === OrderStatus.DELIVERED) data.deliveredAt = new Date();
 
+    // Revertir una entrega: ya no está entregada, así que deliveredAt deja de ser
+    // válido, y si ya estaba PACKED eso tampoco es cierto mientras se vuelve a
+    // preparar — se limpia para que no siga contando como "empacado hoy" en bodega.
+    if (order.status === OrderStatus.DELIVERED && dto.status === OrderStatus.PREPARING) {
+      data.deliveredAt = null;
+      if (order.prepStage === PrepStage.PACKED) {
+        data.prepStage = PrepStage.ASSIGNED;
+        data.packedById = null;
+        data.packedAt = null;
+      }
+    }
+
     // Homologar con Picking/Packing: un admin puede avanzar el estado a mano desde
     // Órdenes (sin pasar por el tablero de bodega), pero si no se hace esto prepStage
     // queda desincronizado — un pedido en PREPARING con prepStage UNASSIGNED no
@@ -235,9 +250,14 @@ export class OrdersService {
 
     const updated = await this.prisma.order.update({ where: { id }, data, include: ORDER_INCLUDE });
 
-    this.email.sendOrderEmail(updated).catch(e =>
-      this.logger.error(`Email ${dto.status} failed: ${e.message}`),
-    );
+    // No avisar al cliente que "su pedido está en preparación" cuando en realidad es
+    // una corrección interna de una entrega ya hecha, no un pedido nuevo empezando.
+    const isDeliveredRevert = order.status === OrderStatus.DELIVERED && dto.status === OrderStatus.PREPARING;
+    if (!isDeliveredRevert) {
+      this.email.sendOrderEmail(updated).catch(e =>
+        this.logger.error(`Email ${dto.status} failed: ${e.message}`),
+      );
+    }
 
     return updated;
   }

@@ -296,6 +296,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 Cancelar orden
               </button>
             )}
+            {order.status === 'DELIVERED' && isAdmin && (
+              <button
+                onClick={async () => {
+                  if (await confirmDialog(
+                    '¿Volver esta orden a "Preparando"? Se usa para corregir una entrega marcada por error o que hay que rehacer. No se le avisará al cliente por correo.',
+                  )) handleStatus('PREPARING');
+                }}
+                disabled={statusLoading}
+                className="text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
+              >
+                ← Volver a preparación
+              </button>
+            )}
             {statusError && <p className="text-xs text-red-600 max-w-xs text-right">{statusError}</p>}
             {currentUser?.role === 'SUPER_ADMIN' && (
               <button
