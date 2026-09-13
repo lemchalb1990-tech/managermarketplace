@@ -1224,7 +1224,10 @@ model NotificationSound {
 
 model Order {
   id              String          @id @default(cuid())
-  status          OrderStatus     @default(PENDING)
+  // Toda orden nueva nace directamente "en preparación": en la práctica nunca hay un
+  // paso previo real de espera antes de empezar a prepararla (a diferencia de otros
+  // modelos con su propio PENDING, como WorkOrder/DropshipOrder, que sí lo necesitan).
+  status          OrderStatus     @default(PREPARING)
   fulfillmentType FulfillmentType @default(DELIVERY)
   notes           String?
   customerName    String?
