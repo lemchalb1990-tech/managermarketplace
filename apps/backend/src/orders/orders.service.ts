@@ -31,7 +31,12 @@ const ORDER_INCLUDE = {
   },
   photos: { orderBy: { createdAt: 'asc' as const } },
   warehouse: { select: { id: true, name: true } },
-  sale: { select: { id: true, channel: true, total: true, createdAt: true } },
+  sale: {
+    select: {
+      id: true, channel: true, total: true, createdAt: true,
+      connection: { select: { id: true, name: true } },
+    },
+  },
   createdBy: { select: { id: true, name: true } },
   company: { select: { id: true, name: true } },
 };

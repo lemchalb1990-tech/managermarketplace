@@ -275,6 +275,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               {order.sale && (
                 <span className="text-xs text-gray-400">
                   Canal: {CHANNEL_LABEL[order.sale.channel] || order.sale.channel}
+                  {order.sale.connection?.name && ` · ${order.sale.connection.name}`}
                 </span>
               )}
             </div>
@@ -689,6 +690,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   <span className="text-gray-400 w-16 shrink-0">Canal</span>
                   <span className="text-gray-800 font-medium">{CHANNEL_LABEL[order.sale.channel] || order.sale.channel}</span>
                 </div>
+                {order.sale.connection?.name && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-16 shrink-0">Tienda</span>
+                    <span className="text-gray-800 font-medium">{order.sale.connection.name}</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-16 shrink-0">Total</span>
                   <span className="text-gray-800 font-medium">
