@@ -364,6 +364,8 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/debug-order/${orderId}`, {}, token),
     printLabel: (orderId: string, token: string) =>
       apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label`, token),
+    refreshOrder: (orderId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/orders/${orderId}/refresh`, { method: 'POST' }, token),
     printLabelsBulk: (orderIds: string[], token: string) =>
       apiFetch<{
         pdfs: { connectionName: string; base64: string }[];

@@ -124,6 +124,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  async function handleRefreshFromMl() {
+    setLabelError('');
+    setLabelLoading(true);
+    try {
+      const token = getToken()!;
+      await api.marketplace.refreshOrder(id, token);
+      await load();
+    } catch (err: any) {
+      setLabelError(err.message || 'No se pudo actualizar desde Mercado Libre.');
+    } finally {
+      setLabelLoading(false);
+    }
+  }
+
   async function handleCheck(item: any) {
     const qty = checkQty[item.id] ?? item.expectedQty;
     setCheckLoading((l) => ({ ...l, [item.id]: true }));
@@ -692,7 +706,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           {/* Info de venta origen */}
           {order.sale && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-800 mb-3 text-sm">Venta de origen</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-gray-800 text-sm">Venta de origen</h2>
+                {isMlOrder && isAdmin && (
+                  <button onClick={handleRefreshFromMl} disabled={labelLoading}
+                    className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+                    {labelLoading ? 'Actualizando...' : 'Actualizar desde ML'}
+                  </button>
+                )}
+              </div>
+              {labelError && <p className="text-xs text-red-600 mb-2">{labelError}</p>}
               <div className="space-y-2 text-xs">
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-20 shrink-0">Canal</span>

@@ -2061,6 +2061,54 @@ export class MercadolibreService {
     });
   }
 
+  // Vuelve a traer los datos reales desde Mercado Libre para una Orden ya existente:
+  // order_id/pack_id/shipment_id de la venta, y courier (Turbo incluido)/región/tracking
+  // del despacho. Pensado para corregir órdenes creadas antes de estos fixes, o cuando ML
+  // simplemente no entregó bien el dato la primera vez. No descuenta stock ni cambia el
+  // estado de la orden.
+  async refreshOrderFromMl(orderId: string, user: any) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { sale: true } });
+    if (!order) throw new NotFoundException('Orden no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) throw new ForbiddenException();
+    if (order.sale?.channel !== SaleChannel.MERCADO_LIBRE || !order.sale.externalId) {
+      throw new BadRequestException('Esta orden no corresponde a una venta de Mercado Libre.');
+    }
+    if (!order.sale.connectionId) {
+      throw new BadRequestException('La venta no tiene una conexión de Mercado Libre asociada.');
+    }
+
+    const token = await this.getValidToken(order.sale.connectionId);
+    const orderRes = await fetch(`${ML_API}/orders/${order.sale.externalId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!orderRes.ok) throw new BadRequestException('No se pudo consultar la orden en Mercado Libre.');
+    const mlOrder = await orderRes.json();
+
+    const packId = mlOrder.pack_id != null ? String(mlOrder.pack_id) : null;
+    const mlShippingId = mlOrder.shipping?.id != null ? String(mlOrder.shipping.id) : null;
+    const shippingInfo = await this.getMlShippingInfo(mlOrder, token);
+
+    await this.prisma.sale.update({
+      where: { id: order.sale.id },
+      data: {
+        ...(packId ? { mlPackId: packId } : {}),
+        ...(mlShippingId ? { mlShippingId } : {}),
+      },
+    });
+
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        ...(shippingInfo.method ? { courier: shippingInfo.method } : {}),
+        ...(shippingInfo.trackingCode ? { trackingCode: shippingInfo.trackingCode } : {}),
+        ...(shippingInfo.address?.region ? { region: shippingInfo.address.region } : {}),
+        ...(shippingInfo.address?.commune ? { commune: shippingInfo.address.commune } : {}),
+        ...(shippingInfo.address?.addressLine ? { address: shippingInfo.address.addressLine } : {}),
+      },
+      include: { sale: { select: { id: true, externalId: true, mlPackId: true, mlShippingId: true } } },
+    });
+
+    return updated;
+  }
+
   async printShippingLabel(orderId: string, user: any): Promise<Buffer> {
     const { order, shippingId, token, shipment } = await this.resolvePrintableShipment(orderId, user);
 

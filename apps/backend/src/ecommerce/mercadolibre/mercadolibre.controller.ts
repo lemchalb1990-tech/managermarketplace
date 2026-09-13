@@ -141,6 +141,13 @@ export class MercadolibreController {
 
   // ─── Etiqueta de envío ───────────────────────────────────────────────────────
 
+  @Post('orders/:orderId/refresh')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  refreshOrderFromMl(@Param('orderId') orderId: string, @CurrentUser() user: any) {
+    return this.service.refreshOrderFromMl(orderId, user);
+  }
+
   @Get('orders/:orderId/label')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
