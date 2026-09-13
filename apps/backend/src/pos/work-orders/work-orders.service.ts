@@ -40,6 +40,7 @@ export class WorkOrdersService {
           productSku: item.productSku || null,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          reservedWarehouseId: null,
         };
       }
       const product = products.find((p) => p.id === item.productId);
@@ -50,8 +51,42 @@ export class WorkOrdersService {
         productSku: product.sku,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        // Se reserva contra la bodega por defecto del producto al momento de crear la
+        // línea; si el producto no tiene bodega asignada, simplemente no hay nada que
+        // reservar (no bloquea la orden de trabajo).
+        reservedWarehouseId: product.warehouseId,
       };
     });
+  }
+
+  // Fase 3 (inventario central): reserva/libera cantidad en ProductStock.reserved para las
+  // líneas que sí tienen producto + bodega. No descuenta "quantity" (existencia real) — eso
+  // sigue pasando solo cuando la orden se convierte en venta, vía el flujo de POS de siempre.
+  private async adjustReservation(
+    tx: any,
+    items: Array<{ productId: string | null; quantity: number; reservedWarehouseId: string | null }>,
+    delta: 1 | -1,
+  ) {
+    for (const item of items) {
+      if (!item.productId || !item.reservedWarehouseId) continue;
+      if (delta > 0) {
+        await tx.productStock.upsert({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: item.reservedWarehouseId } },
+          update: { reserved: { increment: item.quantity } },
+          create: { productId: item.productId, warehouseId: item.reservedWarehouseId, quantity: 0, reserved: item.quantity },
+        });
+      } else {
+        const row = await tx.productStock.findUnique({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: item.reservedWarehouseId } },
+        });
+        if (!row) continue;
+        await tx.productStock.update({
+          where: { id: row.id },
+          // Nunca negativo: protege contra una liberación duplicada o desincronizada.
+          data: { reserved: Math.max(0, row.reserved - item.quantity) },
+        });
+      }
+    }
   }
 
   async create(dto: CreateWorkOrderDto, user: any) {
@@ -68,19 +103,23 @@ export class WorkOrdersService {
     const agg = await this.prisma.workOrder.aggregate({ where: { companyId }, _max: { folio: true } });
     const folio = (agg._max.folio || 0) + 1;
 
-    return this.prisma.workOrder.create({
-      data: {
-        folio,
-        companyId,
-        clientId: dto.clientId || null,
-        userId: user.id,
-        customerName: dto.customerName || null,
-        customerPhone: dto.customerPhone || null,
-        customerEmail: dto.customerEmail || null,
-        notes: dto.notes || null,
-        items: { create: itemsData },
-      },
-      include: { items: true, client: true, user: { select: { id: true, name: true } } },
+    return this.prisma.$transaction(async (tx) => {
+      const workOrder = await tx.workOrder.create({
+        data: {
+          folio,
+          companyId,
+          clientId: dto.clientId || null,
+          userId: user.id,
+          customerName: dto.customerName || null,
+          customerPhone: dto.customerPhone || null,
+          customerEmail: dto.customerEmail || null,
+          notes: dto.notes || null,
+          items: { create: itemsData },
+        },
+        include: { items: true, client: true, user: { select: { id: true, name: true } } },
+      });
+      await this.adjustReservation(tx, itemsData, 1);
+      return workOrder;
     });
   }
 
@@ -148,9 +187,13 @@ export class WorkOrdersService {
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
         if (!dto.items.length) throw new BadRequestException('La orden debe tener al menos un ítem');
+        // Se libera lo reservado con los ítems viejos y se reserva de nuevo con los
+        // nuevos — más simple y seguro que tratar de calcular solo la diferencia.
+        await this.adjustReservation(tx, workOrder.items, -1);
         const itemsData = await this.buildItemsData(dto.items, workOrder.companyId);
         await tx.workOrderItem.deleteMany({ where: { workOrderId: id } });
         await tx.workOrderItem.createMany({ data: itemsData.map((d) => ({ ...d, workOrderId: id })) });
+        await this.adjustReservation(tx, itemsData, 1);
       }
       return tx.workOrder.update({
         where: { id },
@@ -171,9 +214,12 @@ export class WorkOrdersService {
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Solo se pueden rechazar órdenes de trabajo pendientes');
     }
-    return this.prisma.workOrder.update({
-      where: { id },
-      data: { status: WorkOrderStatus.REJECTED, closedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      await this.adjustReservation(tx, workOrder.items, -1);
+      return tx.workOrder.update({
+        where: { id },
+        data: { status: WorkOrderStatus.REJECTED, closedAt: new Date() },
+      });
     });
   }
 
@@ -182,9 +228,12 @@ export class WorkOrdersService {
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Solo se pueden anular órdenes de trabajo pendientes');
     }
-    return this.prisma.workOrder.update({
-      where: { id },
-      data: { status: WorkOrderStatus.CANCELLED, closedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      await this.adjustReservation(tx, workOrder.items, -1);
+      return tx.workOrder.update({
+        where: { id },
+        data: { status: WorkOrderStatus.CANCELLED, closedAt: new Date() },
+      });
     });
   }
 
@@ -241,9 +290,14 @@ export class WorkOrdersService {
       items: saleItems,
     }, user);
 
-    await this.prisma.workOrder.update({
-      where: { id },
-      data: { status: WorkOrderStatus.CONVERTED, saleId: sale.id, convertedAt: new Date() },
+    // La reserva se libera recién ahora que la venta ya se concretó — createSale ya
+    // descontó la existencia real, así que "reserved" pasa a consumido, no a disponible.
+    await this.prisma.$transaction(async (tx) => {
+      await this.adjustReservation(tx, workOrder.items, -1);
+      await tx.workOrder.update({
+        where: { id },
+        data: { status: WorkOrderStatus.CONVERTED, saleId: sale.id, convertedAt: new Date() },
+      });
     });
 
     return sale;

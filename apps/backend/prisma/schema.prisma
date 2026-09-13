@@ -302,6 +302,7 @@ model Warehouse {
   stockMovements StockMovement[]
   transfersFrom  StockTransfer[] @relation("TransferFrom")
   transfersTo    StockTransfer[] @relation("TransferTo")
+  workOrderItems WorkOrderItem[]
 
   @@map("warehouses")
 }
@@ -749,9 +750,15 @@ model PurchaseItem {
 // Stock real por bodega. Product.stock es un total cacheado (suma de estas
 // filas), mantenido en la misma transacción, para no romper el código
 // existente que ya lee product.stock directo (POS, ML, catálogo).
+//
+// Fase 3 (inventario central): "reserved" es lo comprometido por una orden de trabajo
+// pendiente u otro documento que retiene stock sin haberlo vendido todavía — "disponible"
+// (quantity - reserved) se calcula en el código, no se guarda, para que nunca pueda
+// desincronizarse. La reserva atómica de pedidos (fase 9) reutiliza este mismo campo.
 model ProductStock {
   id        String   @id @default(cuid())
   quantity  Int      @default(0)
+  reserved  Int      @default(0)
   updatedAt DateTime @updatedAt
 
   productId   String
@@ -1005,6 +1012,11 @@ model WorkOrderItem {
   workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   productId   String?
   product     Product?  @relation(fields: [productId], references: [id])
+  // Bodega contra la que se reservó esta línea (fase 3) — se guarda acá, no se relee de
+  // Product.warehouseId al liberar, para que un cambio posterior de bodega por defecto del
+  // producto no libere la reserva en una bodega distinta a la que realmente se comprometió.
+  reservedWarehouseId String?
+  reservedWarehouse   Warehouse? @relation(fields: [reservedWarehouseId], references: [id])
 
   @@map("work_order_items")
 }

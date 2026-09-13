@@ -69,9 +69,12 @@ export class TransfersService {
     if (!product || product.companyId !== companyId) throw new BadRequestException('Producto inválido');
     if (!fromWarehouse || fromWarehouse.companyId !== companyId) throw new BadRequestException('Bodega de origen inválida');
     if (!toWarehouse || toWarehouse.companyId !== companyId) throw new BadRequestException('Bodega de destino inválida');
-    if (!stock || stock.quantity < dto.quantity) {
+    // Disponible = existencia real menos lo reservado por órdenes de trabajo pendientes
+    // (fase 3) — un traspaso no puede dejar sin stock una reserva ya comprometida.
+    const available = (stock?.quantity ?? 0) - (stock?.reserved ?? 0);
+    if (!stock || available < dto.quantity) {
       throw new BadRequestException(
-        `Stock insuficiente en la bodega de origen: disponible ${stock?.quantity ?? 0}, solicitado ${dto.quantity}`,
+        `Stock insuficiente en la bodega de origen: disponible ${available}, solicitado ${dto.quantity}`,
       );
     }
 
