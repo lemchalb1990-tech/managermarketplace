@@ -614,7 +614,14 @@ export class MercadolibreService {
     // específicamente family_name en el primer intento.
     if (!attempt.ok && attempt.mlErrors.some((m) => /family_name/i.test(m))) {
       const { title, ...itemWithoutTitle } = mlItem;
-      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: (product as any).mlFamilyName || product.name });
+      const rawFamilyName = (product as any).mlFamilyName || product.name;
+      // ML rechaza family_name de más de 60 caracteres — el nombre interno del catálogo
+      // suele ser más descriptivo que un título de ML y fácilmente lo supera. Se recorta
+      // en el último espacio antes del límite para no cortar una palabra a la mitad.
+      const familyName = rawFamilyName.length > 60
+        ? (rawFamilyName.slice(0, 60).replace(/\s+\S*$/, '') || rawFamilyName.slice(0, 60))
+        : rawFamilyName;
+      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: familyName });
     }
 
     if (!attempt.ok) {
