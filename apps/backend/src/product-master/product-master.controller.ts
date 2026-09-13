@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ProductMasterService } from './product-master.service';
-import { CreateProductMasterDto, UpdateProductMasterDto, LinkProductDto } from './dto/product-master.dto';
+import { CreateProductMasterDto, UpdateProductMasterDto, LinkProductDto, SetVariantAttributesDto } from './dto/product-master.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -47,5 +47,14 @@ export class ProductMasterController {
   @Post('unlink/:productId')
   unlinkProduct(@Param('productId') productId: string, @CurrentUser() user: any) {
     return this.service.unlinkProduct(productId, user);
+  }
+
+  @Patch('products/:productId/attributes')
+  setVariantAttributes(
+    @Param('productId') productId: string,
+    @Body() dto: SetVariantAttributesDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.setVariantAttributes(productId, dto.attributes, user);
   }
 }

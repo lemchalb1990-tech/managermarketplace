@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateProductMasterDto, UpdateProductMasterDto } from './dto/product-master.dto';
+import { CreateProductMasterDto, UpdateProductMasterDto, VariantAttributeDto } from './dto/product-master.dto';
 
 // Fase 1 de la reorganización de catálogo: CRUD del Producto Maestro y un enganche
 // manual a productos existentes. A propósito NO hay nada automático acá — ni auto-crear
@@ -42,6 +42,7 @@ export class ProductMasterService {
           select: {
             id: true, sku: true, name: true, stock: true, price: true, active: true,
             listings: { select: { id: true, status: true, connection: { select: { name: true, marketplace: true } } } },
+            variantAttributes: { select: { id: true, name: true, value: true } },
           },
         },
       },
@@ -111,5 +112,30 @@ export class ProductMasterService {
     if (!product) throw new NotFoundException('Producto no encontrado');
     if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
     return this.prisma.product.update({ where: { id: productId }, data: { productMasterId: null } });
+  }
+
+  // Fase 2: qué distingue a este producto de sus hermanos bajo el mismo maestro (ej.
+  // Color=Negro). Reemplaza el set completo — más simple para un formulario que hace
+  // "guardar" con todos los atributos de la variante a la vez.
+  async setVariantAttributes(productId: string, attributes: VariantAttributeDto[], user: any) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
+
+    const names = attributes.map((a) => a.name.trim()).filter(Boolean);
+    if (new Set(names).size !== names.length) {
+      throw new BadRequestException('Hay atributos repetidos (el mismo nombre no puede aparecer dos veces)');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.variantAttribute.deleteMany({ where: { productId } }),
+      ...attributes
+        .filter((a) => a.name.trim())
+        .map((a) => this.prisma.variantAttribute.create({
+          data: { productId, name: a.name.trim(), value: a.value.trim() },
+        })),
+    ]);
+
+    return this.prisma.variantAttribute.findMany({ where: { productId } });
   }
 }

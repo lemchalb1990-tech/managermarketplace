@@ -371,6 +371,7 @@ model Product {
   dropshipOrderItems DropshipOrderItem[]
   workOrderItems     WorkOrderItem[]
   mlQuestions        MlQuestion[]
+  variantAttributes  VariantAttribute[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -406,6 +407,23 @@ model ProductMaster {
 
   @@unique([masterSku, companyId])
   @@map("product_masters")
+}
+
+// Fase 2: lo que distingue a un Product cuando actúa como variante vendible de un
+// Producto Maestro (ej. name="Color", value="Negro"). El SKU vendible sigue siendo
+// Product.sku — no se duplica campo de stock/precio acá, esos ya viven en Product y en
+// la fase 3 (Inventario Central) se les da tratamiento por bodega. El variation_id de
+// Mercado Libre por canal es fase 4 (ChannelListingVariant), no esto.
+model VariantAttribute {
+  id    String @id @default(cuid())
+  name  String
+  value String
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, name])
+  @@map("variant_attributes")
 }
 
 enum ReturnStatus {

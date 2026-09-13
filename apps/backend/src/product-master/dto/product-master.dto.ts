@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ProductType, ProductMasterStatus } from '@prisma/client';
 
 export class CreateProductMasterDto {
@@ -24,4 +25,16 @@ export class UpdateProductMasterDto {
 
 export class LinkProductDto {
   @IsString() productId: string;
+}
+
+export class VariantAttributeDto {
+  @IsString() name: string;
+  @IsString() value: string;
+}
+
+export class SetVariantAttributesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariantAttributeDto)
+  attributes: VariantAttributeDto[];
 }
