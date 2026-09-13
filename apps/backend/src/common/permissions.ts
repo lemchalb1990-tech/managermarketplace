@@ -23,7 +23,6 @@ export const PERMISSION_GROUPS: {
     label: 'Ventas',
     items: [
       { key: 'orders', label: 'Órdenes' },
-      { key: 'shipping', label: 'Órdenes y envíos (despacho)' },
       { key: 'returns', label: 'Devoluciones' },
       { key: 'sales', label: 'Ventas' },
       { key: 'pos', label: 'Punto de venta' },
@@ -116,7 +115,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.COMPANY_ADMIN]: [
     'dashboard',
     'orders',
-    'shipping',
     'returns',
     'sales',
     'pos',
@@ -150,7 +148,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.CATALOG_MANAGER]: [
     'dashboard',
     'orders',
-    'shipping',
     'returns',
     'sales',
     'pos',
@@ -178,7 +175,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   ],
   [Role.VENDEDOR]: [
     'orders',
-    'shipping',
     'returns',
     'sales',
     'pos',
