@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
+import { invalidateNotificationSoundsCache } from '@/lib/notificationSounds';
+
+const NOTIF_SOUND_KEYS = ['NOTIF_SOUND_SALE', 'NOTIF_SOUND_QUESTION', 'NOTIF_SOUND_CLAIM'];
 
 const TIMEZONE_OPTIONS = [
   { value: 'America/Santiago', label: 'Santiago (Chile)' },
@@ -18,12 +21,14 @@ const TIMEZONE_OPTIONS = [
 const GROUP_LABELS: Record<string, string> = {
   sistema: 'Sistema',
   mercadolibre: 'Mercado Libre',
+  notificaciones: 'Notificaciones',
   otros: 'Otros',
 };
 
 const GROUP_HINTS: Record<string, string> = {
   sistema: 'URLs base de la plataforma. Requieren redespliegue si se cambian en variables de entorno.',
   mercadolibre: 'Configuración de integración con Mercado Libre. La URL de callback debe coincidir exactamente con la registrada en ML Developer.',
+  notificaciones: 'Sonido que suena en la campanita al llegar cada tipo de evento. Sube archivos MP3/WAV/OGG (máx. 2 MB) y elige cuál usa cada tipo.',
 };
 
 export default function SettingsPage() {
@@ -36,6 +41,55 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState('');
   const canEdit = getUser()?.role === 'SUPER_ADMIN';
+
+  const [sounds, setSounds] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [uploadingSound, setUploadingSound] = useState(false);
+  const [soundError, setSoundError] = useState('');
+  const [playingId, setPlayingId] = useState('');
+
+  function loadSounds() {
+    const token = getToken();
+    if (!token) return;
+    api.notificationSounds.list(token).then(setSounds).catch(() => {});
+  }
+
+  async function handleUploadSound(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSoundError('');
+    setUploadingSound(true);
+    try {
+      const token = getToken()!;
+      await api.notificationSounds.upload(file, token);
+      loadSounds();
+    } catch (err: any) {
+      setSoundError(err.message || 'No se pudo subir el sonido.');
+    } finally {
+      setUploadingSound(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleDeleteSound(id: string) {
+    if (!confirm('¿Eliminar este sonido? Los tipos de evento que lo tengan elegido volverán al beep por defecto.')) return;
+    const token = getToken()!;
+    await api.notificationSounds.remove(id, token).catch(() => {});
+    invalidateNotificationSoundsCache();
+    loadSounds();
+    setSettings((prev) => prev.map((s) => (NOTIF_SOUND_KEYS.includes(s.key) && s.value === id ? { ...s, value: '' } : s)));
+    setDraft((d) => {
+      const next = { ...d };
+      NOTIF_SOUND_KEYS.forEach((k) => { if (next[k] === id) next[k] = ''; });
+      return next;
+    });
+  }
+
+  function handlePreviewSound(url: string, id: string) {
+    setPlayingId(id);
+    const audio = new Audio(imgUrl(url));
+    audio.play().catch(() => {});
+    audio.onended = () => setPlayingId('');
+  }
 
   function handleCopyField(key: string, value: string) {
     if (!value) return;
@@ -57,6 +111,7 @@ export default function SettingsPage() {
       })
       .catch(() => setError('No se pudo cargar la configuración.'))
       .finally(() => setLoading(false));
+    loadSounds();
   }, []);
 
   async function handleSave(e: React.FormEvent) {
@@ -70,6 +125,7 @@ export default function SettingsPage() {
       const items = Object.entries(draft).map(([key, value]) => ({ key, value }));
       await api.settings.update(items, token);
       invalidateDashboardTimezoneCache();
+      invalidateNotificationSoundsCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
@@ -85,7 +141,7 @@ export default function SettingsPage() {
     return acc;
   }, {});
 
-  const groupOrder = ['sistema', 'mercadolibre', 'otros'];
+  const groupOrder = ['sistema', 'mercadolibre', 'notificaciones', 'otros'];
   const callbackUri = draft['APP_URL']
     ? `${draft['APP_URL'].replace(/\/+$/, '')}/api/ecommerce/ml/callback`
     : '';
@@ -123,6 +179,49 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="divide-y divide-gray-50">
+                {group === 'notificaciones' && (
+                  <div className="px-5 py-4 space-y-3">
+                    <label className="text-sm font-medium text-gray-700">Biblioteca de sonidos</label>
+                    {sounds.length === 0 ? (
+                      <p className="text-xs text-gray-400">Aún no hay sonidos subidos. Se usará el beep por defecto.</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {sounds.map((s) => (
+                          <li key={s.id} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => handlePreviewSound(s.url, s.id)}
+                              className="text-blue-600 hover:text-blue-800 shrink-0"
+                              aria-label={`Reproducir ${s.name}`}
+                            >
+                              {playingId === s.id ? '⏸' : '▶'}
+                            </button>
+                            <span className="text-sm text-gray-700 truncate flex-1">{s.name}</span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSound(s.id)}
+                                className="text-gray-400 hover:text-red-600 text-xs shrink-0"
+                                aria-label={`Eliminar ${s.name}`}
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {canEdit && (
+                      <div>
+                        <label className={`inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer ${uploadingSound ? 'opacity-50 pointer-events-none' : ''}`}>
+                          {uploadingSound ? 'Subiendo...' : '+ Subir sonido (MP3/WAV/OGG)'}
+                          <input type="file" accept="audio/*" className="hidden" onChange={handleUploadSound} disabled={uploadingSound} />
+                        </label>
+                        {soundError && <p className="text-xs text-red-600 mt-1.5">{soundError}</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {group === 'mercadolibre' && (
                   <div className="px-5 py-4">
                     <div className="flex items-start justify-between mb-1.5">
@@ -177,6 +276,17 @@ export default function SettingsPage() {
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
                         </select>
+                      ) : NOTIF_SOUND_KEYS.includes(s.key) ? (
+                        <select
+                          value={draft[s.key] ?? ''}
+                          onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">🔔 Beep por defecto</option>
+                          {sounds.map((snd) => (
+                            <option key={snd.id} value={snd.id}>{snd.name}</option>
+                          ))}
+                        </select>
                       ) : (
                         <input
                           type={s.sensitive ? 'password' : 'text'}
@@ -193,6 +303,8 @@ export default function SettingsPage() {
                           type={s.sensitive ? 'password' : 'text'}
                           value={s.key === 'DASHBOARD_TIMEZONE'
                             ? (TIMEZONE_OPTIONS.find((o) => o.value === draft[s.key])?.label ?? draft[s.key] ?? '')
+                            : NOTIF_SOUND_KEYS.includes(s.key)
+                            ? (sounds.find((snd) => snd.id === draft[s.key])?.name ?? (draft[s.key] ? draft[s.key] : '🔔 Beep por defecto'))
                             : draft[s.key] ?? ''}
                           className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-mono text-gray-600"
                         />

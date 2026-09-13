@@ -113,6 +113,8 @@ export const api = {
       apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null }[]>(
         '/public/platform-logos', {}),
     timezone: () => apiFetch<{ timezone: string }>('/public/timezone', {}),
+    notificationSounds: () =>
+      apiFetch<{ sale: string | null; question: string | null; claim: string | null }>('/public/notification-sounds', {}),
   },
   companies: {
     list: (token: string) => apiFetch<any[]>('/companies', {}, token),
@@ -657,6 +659,11 @@ export const api = {
       update: (platform: string, data: { displayName?: string; description?: string; logoUrl?: string }, token: string) =>
         apiFetch<any>(`/settings/platforms/${platform}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     },
+  },
+  notificationSounds: {
+    list: (token: string) => apiFetch<{ id: string; name: string; url: string }[]>('/notification-sounds', {}, token),
+    upload: (file: File, token: string) => apiUpload<{ id: string; name: string; url: string }>('/notification-sounds', file, token),
+    remove: (id: string, token: string) => apiFetch<any>(`/notification-sounds/${id}`, { method: 'DELETE' }, token),
   },
   pos: {
     createSale: (data: any, token: string) =>

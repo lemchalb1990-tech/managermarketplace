@@ -26,3 +26,16 @@ export class PublicTimezoneController {
     return { timezone: await this.service.getTimezone() };
   }
 }
+
+// Sin guard a propósito: cualquier rol con la campanita de notificaciones abierta debe
+// poder reproducir el sonido elegido por Super Admin para cada tipo de evento, no solo
+// quien puede subir/elegir sonidos (eso sigue restringido a Super Admin).
+@Controller('public/notification-sounds')
+export class PublicNotificationSoundsController {
+  constructor(private service: SettingsService) {}
+
+  @Get()
+  getSoundMap() {
+    return this.service.getNotificationSoundMap();
+  }
+}

@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { getNotificationSoundMap } from '@/lib/notificationSounds';
 
 const POLL_MS = 25000;
 const TOAST_DISMISS_MS = 10000;
@@ -18,9 +19,12 @@ const MUTED_KEY = 'mp_notif_muted';
 // real del usuario (clic, tecla) — un beep disparado desde el polling (un timer) nunca
 // cuenta como eso. Por eso se deja UN AudioContext ya creado y resumido desde la primera
 // interacción real de la sesión, y el beep solo reutiliza ese contexto ya desbloqueado.
+// hasUserGesture además habilita <audio>.play() para los sonidos subidos por Super Admin.
 let sharedAudioCtx: AudioContext | null = null;
+let hasUserGesture = false;
 
 function unlockAudioContext() {
+  hasUserGesture = true;
   if (sharedAudioCtx) return;
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -31,11 +35,9 @@ function unlockAudioContext() {
   }
 }
 
-// Sonido corto tipo "ding-dong" generado con Web Audio (sin archivo de audio que alojar).
-function playNotificationSound() {
-  try {
-    if (localStorage.getItem(MUTED_KEY) === '1') return;
-  } catch {}
+// Sonido corto tipo "ding-dong" generado con Web Audio (sin archivo de audio que alojar) —
+// se usa como sonido por defecto y como respaldo si Super Admin no eligió uno propio.
+function playBeep() {
   const ctx = sharedAudioCtx;
   if (!ctx) return; // todavía no hubo ninguna interacción real del usuario en esta sesión
   try {
@@ -58,6 +60,28 @@ function playNotificationSound() {
   } catch {
     // Silencioso: no interrumpir al usuario por un fallo de audio.
   }
+}
+
+// Reproduce el sonido que Super Admin eligió para este tipo de evento (venta/pregunta/
+// reclamo) en Configuración, o el beep por defecto si no eligió ninguno.
+async function playNotificationSound(type: 'sale' | 'question' | 'claim') {
+  try {
+    if (localStorage.getItem(MUTED_KEY) === '1') return;
+  } catch {}
+  if (!hasUserGesture) return; // todavía no hubo ninguna interacción real del usuario en esta sesión
+  const map = await getNotificationSoundMap();
+  const url = map[type];
+  if (url) {
+    try {
+      const audio = new Audio(url);
+      audio.volume = 0.7;
+      await audio.play();
+      return;
+    } catch {
+      // Si el archivo subido falla (bloqueado, formato no soportado, etc.), cae al beep.
+    }
+  }
+  playBeep();
 }
 
 export type NotifEvent = {
@@ -180,7 +204,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             return merged;
           });
           setToasts((prev) => [...fresh, ...prev]);
-          playNotificationSound();
+          playNotificationSound(fresh[0].type);
         }
       } catch {
         // Silencioso: un fallo puntual de polling no debe interrumpir al usuario.

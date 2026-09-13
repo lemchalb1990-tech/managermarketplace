@@ -39,7 +39,34 @@ export const SETTING_DEFINITIONS = [
     hint: 'Necesaria para el mapa de "Zonas de demanda". Se obtiene en Google Cloud Console (Maps JavaScript API).',
     sensitive: true,
   },
+  {
+    key: 'NOTIF_SOUND_SALE',
+    label: 'Sonido — Nueva venta',
+    group: 'notificaciones',
+    hint: 'Sonido de la biblioteca que suena al llegar una venta nueva. Vacío = beep por defecto.',
+    sensitive: false,
+  },
+  {
+    key: 'NOTIF_SOUND_QUESTION',
+    label: 'Sonido — Nueva pregunta',
+    group: 'notificaciones',
+    hint: 'Sonido de la biblioteca que suena al llegar una pregunta nueva de Mercado Libre. Vacío = beep por defecto.',
+    sensitive: false,
+  },
+  {
+    key: 'NOTIF_SOUND_CLAIM',
+    label: 'Sonido — Nuevo reclamo',
+    group: 'notificaciones',
+    hint: 'Sonido de la biblioteca que suena al llegar un reclamo o devolución nuevo. Vacío = beep por defecto.',
+    sensitive: false,
+  },
 ];
+
+export const NOTIF_SOUND_SETTING_KEYS = {
+  sale: 'NOTIF_SOUND_SALE',
+  question: 'NOTIF_SOUND_QUESTION',
+  claim: 'NOTIF_SOUND_CLAIM',
+} as const;
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -99,6 +126,41 @@ export class SettingsService implements OnModuleInit {
       update: { ...data, updatedAt: new Date() },
       create: { platform, ...data },
     });
+  }
+
+  async listNotificationSounds() {
+    return this.prisma.notificationSound.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async addNotificationSound(name: string, url: string) {
+    return this.prisma.notificationSound.create({ data: { name, url } });
+  }
+
+  async removeNotificationSound(id: string) {
+    // Si el sonido eliminado estaba elegido para algún tipo de evento, ese tipo vuelve
+    // a usar el beep por defecto en vez de quedar apuntando a un id inexistente.
+    const keys = Object.values(NOTIF_SOUND_SETTING_KEYS);
+    await this.prisma.setting.updateMany({ where: { key: { in: keys }, value: id }, data: { value: '' } });
+    return this.prisma.notificationSound.delete({ where: { id } });
+  }
+
+  /** Sonido elegido (o null = beep por defecto) para cada tipo de evento, para el endpoint público. */
+  async getNotificationSoundMap(): Promise<Record<'sale' | 'question' | 'claim', string | null>> {
+    const [saleId, questionId, claimId] = await Promise.all([
+      this.get(NOTIF_SOUND_SETTING_KEYS.sale),
+      this.get(NOTIF_SOUND_SETTING_KEYS.question),
+      this.get(NOTIF_SOUND_SETTING_KEYS.claim),
+    ]);
+    const ids = [saleId, questionId, claimId].filter(Boolean);
+    const sounds = ids.length
+      ? await this.prisma.notificationSound.findMany({ where: { id: { in: ids } } })
+      : [];
+    const urlById = new Map(sounds.map((s) => [s.id, s.url]));
+    return {
+      sale: urlById.get(saleId) ?? null,
+      question: urlById.get(questionId) ?? null,
+      claim: urlById.get(claimId) ?? null,
+    };
   }
 
   async upsertMany(items: { key: string; value: string }[]) {

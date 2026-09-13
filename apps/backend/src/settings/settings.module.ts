@@ -1,12 +1,19 @@
 import { Module } from '@nestjs/common';
 import { SettingsController } from './settings.controller';
-import { PublicSettingsController, PublicTimezoneController } from './public-settings.controller';
+import { PublicSettingsController, PublicTimezoneController, PublicNotificationSoundsController } from './public-settings.controller';
+import { NotificationSoundsController } from './notification-sounds.controller';
 import { SettingsService } from './settings.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [SettingsController, PublicSettingsController, PublicTimezoneController],
+  controllers: [
+    SettingsController,
+    PublicSettingsController,
+    PublicTimezoneController,
+    PublicNotificationSoundsController,
+    NotificationSoundsController,
+  ],
   providers: [SettingsService],
   exports: [SettingsService],
 })

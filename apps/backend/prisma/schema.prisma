@@ -1210,6 +1210,18 @@ model PlatformSetting {
   @@map("platform_settings")
 }
 
+// Biblioteca global de sonidos de notificación que el Super Admin puede subir; cada
+// tipo de evento (venta/pregunta/reclamo) elige uno de esta lista via Setting
+// (NOTIF_SOUND_SALE/QUESTION/CLAIM), o usa el beep sintetizado por defecto si no hay uno elegido.
+model NotificationSound {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  createdAt DateTime @default(now())
+
+  @@map("notification_sounds")
+}
+
 model Order {
   id              String          @id @default(cuid())
   status          OrderStatus     @default(PENDING)
