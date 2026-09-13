@@ -422,7 +422,14 @@ export default function OrdersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    {o.sale ? CHANNEL_LABEL[o.sale.channel] || o.sale.channel : 'Manual'}
+                    {o.sale ? (
+                      <>
+                        {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}
+                        {o.sale.connection?.name && (
+                          <span className="block text-[11px] text-gray-400">{o.sale.connection.name}</span>
+                        )}
+                      </>
+                    ) : 'Manual'}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {o.warehouse?.name || <span className="text-gray-300">—</span>}

@@ -82,7 +82,12 @@ export class OrdersService {
         where,
         include: {
           warehouse: { select: { id: true, name: true } },
-          sale: { select: { id: true, channel: true, total: true } },
+          sale: {
+            select: {
+              id: true, channel: true, total: true,
+              connection: { select: { id: true, name: true } },
+            },
+          },
           _count: { select: { itemChecks: true, photos: true } },
         },
         orderBy: { createdAt: 'desc' },
