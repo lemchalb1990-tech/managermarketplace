@@ -575,7 +575,7 @@ export const api = {
   warehouses: {
     list: (token: string, companyId?: string) =>
       apiFetch<any[]>(`/warehouses${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-    create: (data: { name: string; description?: string }, token: string) =>
+    create: (data: { name: string; description?: string; companyId?: string }, token: string) =>
       apiFetch<any>('/warehouses', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: { name?: string; description?: string; active?: boolean }, token: string) =>
       apiFetch<any>(`/warehouses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),

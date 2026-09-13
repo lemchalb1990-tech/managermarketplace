@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const emptyForm = { name: '', description: '' };
 
 export default function WarehousesPage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -26,14 +28,17 @@ export default function WarehousesPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
+  const blocked = isSuperAdmin && !selectedCompanyId;
 
   async function load() {
     const token = getToken();
     if (!token) return;
+    if (blocked) { setWarehouses([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const data = await api.warehouses.list(token);
+      const data = await api.warehouses.list(token, isSuperAdmin ? selectedCompanyId : undefined);
       setWarehouses(data);
     } catch {
       setWarehouses([]);
@@ -43,10 +48,14 @@ export default function WarehousesPage() {
   }
 
   useEffect(() => {
-    const u = getUser();
-    setCurrentUser(u);
-    load();
+    setCurrentUser(getUser());
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, selectedCompanyId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +66,7 @@ export default function WarehousesPage() {
       await api.warehouses.create({
         name: createForm.name.trim(),
         description: createForm.description.trim() || undefined,
+        companyId: isSuperAdmin ? selectedCompanyId : undefined,
       }, token);
       setCreateForm(emptyForm);
       setShowCreate(false);

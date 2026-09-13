@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse.dto';
@@ -6,6 +6,15 @@ import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse.dto';
 @Injectable()
 export class WarehousesService {
   constructor(private prisma: PrismaService) {}
+
+  private resolveCompanyId(user: any, companyId?: string): string {
+    if (user.role === Role.SUPER_ADMIN) {
+      if (!companyId) throw new BadRequestException('companyId requerido para Super Admin');
+      return companyId;
+    }
+    if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
+    return user.companyId;
+  }
 
   async findAll(user: any, companyId?: string) {
     const where = user.role === Role.SUPER_ADMIN
@@ -22,10 +31,10 @@ export class WarehousesService {
   }
 
   async create(dto: CreateWarehouseDto, user: any) {
-    if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
-    const companyId = user.role === Role.SUPER_ADMIN ? user.companyId : user.companyId;
+    const companyId = this.resolveCompanyId(user, dto.companyId);
+    const { companyId: _omit, ...data } = dto;
     return this.prisma.warehouse.create({
-      data: { ...dto, companyId },
+      data: { ...data, companyId },
       include: { _count: { select: { products: true } } },
     });
   }

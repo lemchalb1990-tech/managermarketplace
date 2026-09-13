@@ -8,6 +8,10 @@ export class CreateWarehouseDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class UpdateWarehouseDto {
