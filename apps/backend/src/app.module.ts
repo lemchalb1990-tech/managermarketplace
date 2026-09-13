@@ -20,6 +20,7 @@ import { OrdersModule } from './orders/orders.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { EmailModule } from './email/email.module';
 import { ClientsModule } from './clients/clients.module';
+import { ProductMasterModule } from './product-master/product-master.module';
 import { ProfitabilityModule } from './profitability/profitability.module';
 import { AccessProfilesModule } from './access-profiles/access-profiles.module';
 import { WarehouseFlowModule } from './warehouse/warehouse.module';
@@ -52,6 +53,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
     DispatchModule,
     EmailModule,
     ClientsModule,
+    ProductMasterModule,
     ProfitabilityModule,
     AccessProfilesModule,
     WarehouseFlowModule,

@@ -188,6 +188,7 @@ model Company {
   dropshipOrders     DropshipOrder[]
   mlQuestions        MlQuestion[]
   mlClaims           MlClaim[]
+  productMasters     ProductMaster[]
 
   @@map("companies")
 }
@@ -350,6 +351,11 @@ model Product {
   company     Company    @relation(fields: [companyId], references: [id])
   warehouseId String?
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  // Producto Maestro al que pertenece (fase 1 de la reorganización de catálogo). Opcional
+  // a propósito: ligar los 4.139 productos existentes es una migración aparte (fase 10),
+  // no algo que este campo fuerce por sí solo.
+  productMasterId String?
+  productMaster   ProductMaster? @relation(fields: [productMasterId], references: [id])
 
   images             ProductImage[]
   listings           Listing[]
@@ -368,6 +374,38 @@ model Product {
 
   @@unique([sku, companyId])
   @@map("products")
+}
+
+enum ProductMasterStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+// Fase 1 de la reorganización de catálogo (ver auditoría): el "padre comercial" que
+// agrupa las variantes de un mismo producto real. Convive con Product sin reemplazarlo
+// todavía — Product.productMasterId es opcional y nada lo autocompleta hoy. Las fases
+// siguientes agregan Variant (SKU vendible real), Inventario por variante/bodega y
+// Publicación por canal; esta fase solo deja la entidad y el enganche listos.
+model ProductMaster {
+  id               String              @id @default(cuid())
+  masterSku        String
+  name             String
+  brand            String?
+  model            String?
+  internalCategory String?
+  type             ProductType         @default(ARTICULO)
+  status           ProductMasterStatus @default(DRAFT)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  products Product[]
+
+  @@unique([masterSku, companyId])
+  @@map("product_masters")
 }
 
 enum ReturnStatus {
