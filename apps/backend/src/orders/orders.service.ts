@@ -34,6 +34,7 @@ const ORDER_INCLUDE = {
   sale: {
     select: {
       id: true, channel: true, total: true, createdAt: true,
+      externalId: true, mlPackId: true, mlShippingId: true,
       connection: { select: { id: true, name: true } },
     },
   },

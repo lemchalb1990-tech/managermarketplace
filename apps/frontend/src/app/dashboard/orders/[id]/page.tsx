@@ -694,23 +694,41 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <h2 className="font-semibold text-gray-800 mb-3 text-sm">Venta de origen</h2>
               <div className="space-y-2 text-xs">
                 <div className="flex gap-2">
-                  <span className="text-gray-400 w-16 shrink-0">Canal</span>
+                  <span className="text-gray-400 w-20 shrink-0">Canal</span>
                   <span className="text-gray-800 font-medium">{CHANNEL_LABEL[order.sale.channel] || order.sale.channel}</span>
                 </div>
                 {order.sale.connection?.name && (
                   <div className="flex gap-2">
-                    <span className="text-gray-400 w-16 shrink-0">Tienda</span>
+                    <span className="text-gray-400 w-20 shrink-0">Tienda</span>
                     <span className="text-gray-800 font-medium">{order.sale.connection.name}</span>
                   </div>
                 )}
+                {order.sale.externalId && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Order ID</span>
+                    <span className="text-gray-800 font-mono">{order.sale.externalId}</span>
+                  </div>
+                )}
+                {order.sale.mlPackId && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Pack ID</span>
+                    <span className="text-gray-800 font-mono">{order.sale.mlPackId}</span>
+                  </div>
+                )}
+                {order.sale.mlShippingId && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Shipment ID</span>
+                    <span className="text-gray-800 font-mono">{order.sale.mlShippingId}</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <span className="text-gray-400 w-16 shrink-0">Total</span>
+                  <span className="text-gray-400 w-20 shrink-0">Total</span>
                   <span className="text-gray-800 font-medium">
                     ${Number(order.sale.total).toLocaleString('es-CL')}
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <span className="text-gray-400 w-16 shrink-0">Fecha</span>
+                  <span className="text-gray-400 w-20 shrink-0">Fecha</span>
                   <span className="text-gray-800">
                     {new Date(order.sale.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}
                   </span>
