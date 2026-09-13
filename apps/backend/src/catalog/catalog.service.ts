@@ -138,6 +138,15 @@ export class CatalogService {
         }`,
       );
       where.id = { in: critical.map((r) => r.id) };
+    } else if (query.stockFilter === 'out') {
+      // Servicios y productos dropship no manejan stock propio (siempre queda en 0 por
+      // diseño) — "Sin stock" no aplica a ellos, solo a artículos con stock propio agotado.
+      where.AND = [
+        ...(where.AND || []),
+        { type: { not: 'SERVICIO' } },
+        { dropship: false },
+        { stock: { lte: 0 } },
+      ];
     }
     if (query.search?.trim()) {
       const term = query.search.trim();

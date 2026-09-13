@@ -1420,6 +1420,7 @@ export default function CatalogPage() {
           >
             <option value="">Todos</option>
             <option value="critical">Stock crítico</option>
+            <option value="out">Sin stock</option>
           </select>
         </div>
         <button
@@ -1439,6 +1440,11 @@ export default function CatalogPage() {
       {stockFilter === 'critical' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
           <span>⚠️ Mostrando solo productos activos con stock igual o menor a su umbral de stock crítico.</span>
+        </div>
+      )}
+      {stockFilter === 'out' && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          <span>⚠️ Mostrando solo artículos con stock agotado (no incluye servicios ni productos dropship).</span>
         </div>
       )}
       <datalist id="category-suggestions">
