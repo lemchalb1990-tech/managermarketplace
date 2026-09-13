@@ -101,6 +101,7 @@ export default function WorkOrdersPage() {
   // ── Crear / editar ──────────────────────────────────────────────────────
   const [form, setForm] = useState<ReturnType<typeof emptyForm> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [productResults, setProductResults] = useState<any[]>([]);
@@ -212,23 +213,29 @@ export default function WorkOrdersPage() {
 
   async function handleReject(id: string) {
     if (!(await confirmDialog('¿Marcar esta orden de trabajo como rechazada por el cliente?', { danger: true }))) return;
+    setActionLoadingId(id);
     try {
       await api.pos.workOrders.reject(id, token);
       await loadWorkOrders(page);
       notify('Orden de trabajo rechazada.');
     } catch (err: any) {
       notify(err.message || 'No se pudo rechazar la orden.', true);
+    } finally {
+      setActionLoadingId(null);
     }
   }
 
   async function handleCancel(id: string) {
     if (!(await confirmDialog('¿Anular esta orden de trabajo?', { danger: true }))) return;
+    setActionLoadingId(id);
     try {
       await api.pos.workOrders.cancel(id, token);
       await loadWorkOrders(page);
       notify('Orden de trabajo anulada.');
     } catch (err: any) {
       notify(err.message || 'No se pudo anular la orden.', true);
+    } finally {
+      setActionLoadingId(null);
     }
   }
 
@@ -390,8 +397,14 @@ export default function WorkOrdersPage() {
                           <>
                             <button onClick={() => openEdit(wo)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Editar</button>
                             <button onClick={() => openConvert(wo)} className="text-xs text-green-600 hover:text-green-800 font-medium">Aceptar y cobrar</button>
-                            <button onClick={() => handleReject(wo.id)} className="text-xs text-amber-600 hover:text-amber-800 font-medium">Rechazar</button>
-                            <button onClick={() => handleCancel(wo.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Anular</button>
+                            <button onClick={() => handleReject(wo.id)} disabled={actionLoadingId === wo.id}
+                              className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                              {actionLoadingId === wo.id ? '...' : 'Rechazar'}
+                            </button>
+                            <button onClick={() => handleCancel(wo.id)} disabled={actionLoadingId === wo.id}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+                              {actionLoadingId === wo.id ? '...' : 'Anular'}
+                            </button>
                           </>
                         )}
                         {wo.status === 'CONVERTED' && wo.saleId && (

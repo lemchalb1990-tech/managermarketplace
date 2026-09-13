@@ -25,6 +25,8 @@ export default function SuppliersPage() {
   const [editError, setEditError] = useState('');
 
   const [deleteError, setDeleteError] = useState('');
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
@@ -113,24 +115,30 @@ export default function SuppliersPage() {
   }
 
   async function handleToggleActive(s: any) {
-    const token = getToken()!;
+    setTogglingId(s.id);
     try {
+      const token = getToken()!;
       await api.suppliers.update(s.id, { active: !s.active }, token);
       await load();
     } catch (err: any) {
       await alertDialog(err.message);
+    } finally {
+      setTogglingId(null);
     }
   }
 
   async function handleDelete(s: any) {
     setDeleteError('');
     if (!(await confirmDialog(`¿Eliminar el proveedor "${s.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
-    const token = getToken()!;
+    setDeletingId(s.id);
     try {
+      const token = getToken()!;
       await api.suppliers.remove(s.id, token);
       await load();
     } catch (err: any) {
       setDeleteError(err.message || 'Error al eliminar');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -222,14 +230,14 @@ export default function SuppliersPage() {
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                           Editar
                         </button>
-                        <button onClick={() => handleToggleActive(s)}
-                          className="text-xs text-gray-400 hover:text-gray-600 font-medium">
-                          {s.active ? 'Desactivar' : 'Activar'}
+                        <button onClick={() => handleToggleActive(s)} disabled={togglingId === s.id}
+                          className="text-xs text-gray-400 hover:text-gray-600 font-medium disabled:opacity-50">
+                          {togglingId === s.id ? '...' : (s.active ? 'Desactivar' : 'Activar')}
                         </button>
                         {s._count?.purchases === 0 && (
-                          <button onClick={() => handleDelete(s)}
-                            className="text-xs text-red-400 hover:text-red-600 font-medium">
-                            Eliminar
+                          <button onClick={() => handleDelete(s)} disabled={deletingId === s.id}
+                            className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                            {deletingId === s.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         )}
                       </div>

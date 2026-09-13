@@ -64,6 +64,9 @@ export default function InvoicesPage() {
   const [payError, setPayError] = useState('');
   const [actionError, setActionError] = useState('');
   const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [unpayingId, setUnpayingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [viewingInvoice, setViewingInvoice] = useState<any>(null);
 
@@ -94,14 +97,20 @@ export default function InvoicesPage() {
 
   async function handleCancel(id: string) {
     if (!(await confirmDialog('¿Anular este documento?', { danger: true }))) return;
-    const token = getToken()!;
-    await api.billing.invoices.cancel(id, token).catch(() => {});
-    load(page);
+    setCancelingId(id);
+    try {
+      const token = getToken()!;
+      await api.billing.invoices.cancel(id, token).catch(() => {});
+      await load(page);
+    } finally {
+      setCancelingId(null);
+    }
   }
 
   async function handleDelete(id: string) {
     if (!(await confirmDialog('¿Eliminar definitivamente este documento? Nunca se emitió (sin folio), así que se borra por completo y no queda registro. Esta acción no se puede deshacer.', { danger: true }))) return;
     setActionError('');
+    setDeletingId(id);
     try {
       const token = getToken()!;
       await api.billing.invoices.remove(id, token);
@@ -109,6 +118,8 @@ export default function InvoicesPage() {
       await load(page);
     } catch (err: any) {
       setActionError(err.message || 'No se pudo eliminar el documento.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -157,12 +168,15 @@ export default function InvoicesPage() {
   async function handleUnpay(id: string) {
     setActionError('');
     if (!(await confirmDialog('¿Revertir el pago de este documento? Volverá a contar como deuda del cliente.', { danger: true }))) return;
-    const token = getToken()!;
+    setUnpayingId(id);
     try {
+      const token = getToken()!;
       await api.billing.invoices.unpay(id, token);
       await load(page);
     } catch (err: any) {
       setActionError(err.message || 'Error al revertir el pago');
+    } finally {
+      setUnpayingId(null);
     }
   }
 
@@ -318,8 +332,10 @@ export default function InvoicesPage() {
                     )}
                     {['ISSUED', 'ACCEPTED'].includes(inv.status) && (
                       inv.paid ? (
-                        <button onClick={() => handleUnpay(inv.id)}
-                          className="text-xs text-gray-500 hover:text-gray-700 font-medium">Revertir pago</button>
+                        <button onClick={() => handleUnpay(inv.id)} disabled={unpayingId === inv.id}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50">
+                          {unpayingId === inv.id ? 'Revirtiendo...' : 'Revertir pago'}
+                        </button>
                       ) : (
                         <button onClick={() => openPay(inv)}
                           className="text-xs text-green-600 hover:text-green-700 font-medium">Marcar pagada</button>
@@ -327,12 +343,16 @@ export default function InvoicesPage() {
                     )}
                     {inv.folio ? (
                       inv.status !== 'CANCELLED' && (
-                        <button onClick={() => handleCancel(inv.id)}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium">Anular</button>
+                        <button onClick={() => handleCancel(inv.id)} disabled={cancelingId === inv.id}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+                          {cancelingId === inv.id ? 'Anulando...' : 'Anular'}
+                        </button>
                       )
                     ) : (
-                      <button onClick={() => handleDelete(inv.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium">Eliminar</button>
+                      <button onClick={() => handleDelete(inv.id)} disabled={deletingId === inv.id}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+                        {deletingId === inv.id ? 'Eliminando...' : 'Eliminar'}
+                      </button>
                     )}
                   </div>
                 </td>

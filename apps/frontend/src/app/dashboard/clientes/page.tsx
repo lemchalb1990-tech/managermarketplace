@@ -38,6 +38,8 @@ export default function ClientsPage() {
   const [editError, setEditError] = useState('');
 
   const [deleteError, setDeleteError] = useState('');
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [historyClient, setHistoryClient] = useState<any>(null);
   const [historyData, setHistoryData] = useState<any>(null);
@@ -137,12 +139,15 @@ export default function ClientsPage() {
   }
 
   async function handleToggleActive(c: any) {
-    const token = getToken()!;
+    setTogglingId(c.id);
     try {
+      const token = getToken()!;
       await api.clients.update(c.id, { active: !c.active }, token);
       await load();
     } catch (err: any) {
       await alertDialog(err.message);
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -164,12 +169,15 @@ export default function ClientsPage() {
   async function handleDelete(c: any) {
     setDeleteError('');
     if (!(await confirmDialog(`¿Eliminar el cliente "${c.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
-    const token = getToken()!;
+    setDeletingId(c.id);
     try {
+      const token = getToken()!;
       await api.clients.remove(c.id, token);
       await load();
     } catch (err: any) {
       setDeleteError(err.message || 'Error al eliminar');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -260,14 +268,14 @@ export default function ClientsPage() {
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                           Editar
                         </button>
-                        <button onClick={() => handleToggleActive(c)}
-                          className="text-xs text-gray-400 hover:text-gray-600 font-medium">
-                          {c.active ? 'Desactivar' : 'Activar'}
+                        <button onClick={() => handleToggleActive(c)} disabled={togglingId === c.id}
+                          className="text-xs text-gray-400 hover:text-gray-600 font-medium disabled:opacity-50">
+                          {togglingId === c.id ? '...' : (c.active ? 'Desactivar' : 'Activar')}
                         </button>
                         {canDelete && c._count?.invoices === 0 && (
-                          <button onClick={() => handleDelete(c)}
-                            className="text-xs text-red-400 hover:text-red-600 font-medium">
-                            Eliminar
+                          <button onClick={() => handleDelete(c)} disabled={deletingId === c.id}
+                            className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                            {deletingId === c.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         )}
                       </div>

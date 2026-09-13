@@ -23,6 +23,8 @@ export default function WarehousesPage() {
   const [editError, setEditError] = useState('');
 
   const [deleteError, setDeleteError] = useState('');
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
 
@@ -94,24 +96,30 @@ export default function WarehousesPage() {
   }
 
   async function handleToggleActive(wh: any) {
-    const token = getToken()!;
+    setTogglingId(wh.id);
     try {
+      const token = getToken()!;
       await api.warehouses.update(wh.id, { active: !wh.active }, token);
       await load();
     } catch (err: any) {
       await alertDialog(err.message);
+    } finally {
+      setTogglingId(null);
     }
   }
 
   async function handleDelete(wh: any) {
     setDeleteError('');
     if (!(await confirmDialog(`¿Eliminar la bodega "${wh.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
-    const token = getToken()!;
+    setDeletingId(wh.id);
     try {
+      const token = getToken()!;
       await api.warehouses.remove(wh.id, token);
       await load();
     } catch (err: any) {
       setDeleteError(err.message || 'Error al eliminar');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -235,14 +243,14 @@ export default function WarehousesPage() {
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                           Editar
                         </button>
-                        <button onClick={() => handleToggleActive(wh)}
-                          className="text-xs text-gray-400 hover:text-gray-600 font-medium">
-                          {wh.active ? 'Desactivar' : 'Activar'}
+                        <button onClick={() => handleToggleActive(wh)} disabled={togglingId === wh.id}
+                          className="text-xs text-gray-400 hover:text-gray-600 font-medium disabled:opacity-50">
+                          {togglingId === wh.id ? '...' : (wh.active ? 'Desactivar' : 'Activar')}
                         </button>
                         {wh._count?.products === 0 && (
-                          <button onClick={() => handleDelete(wh)}
-                            className="text-xs text-red-400 hover:text-red-600 font-medium">
-                            Eliminar
+                          <button onClick={() => handleDelete(wh)} disabled={deletingId === wh.id}
+                            className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                            {deletingId === wh.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         )}
                       </div>

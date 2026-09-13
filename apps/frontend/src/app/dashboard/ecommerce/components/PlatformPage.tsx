@@ -57,6 +57,8 @@ export default function PlatformPage({ config }: Props) {
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
@@ -124,9 +126,14 @@ export default function PlatformPage({ config }: Props) {
 
   async function handleDelete(id: string, name: string) {
     if (!(await confirmDialog(`¿Desconectar "${name}"?`, { danger: true }))) return;
-    const token = getToken()!;
-    await api.connections.remove(id, token);
-    await loadConnections(activeCompanyId || undefined);
+    setDeletingId(id);
+    try {
+      const token = getToken()!;
+      await api.connections.remove(id, token);
+      await loadConnections(activeCompanyId || undefined);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   // Editar credenciales de una conexión ya creada: solo Super Admin (ver botón "Editar").
@@ -173,9 +180,14 @@ export default function PlatformPage({ config }: Props) {
   }
 
   async function handleTest(id: string) {
-    const token = getToken()!;
-    const result = await api.connections.test(id, token).catch((e) => ({ success: false, message: e.message }));
-    await alertDialog(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
+    setTestingId(id);
+    try {
+      const token = getToken()!;
+      const result = await api.connections.test(id, token).catch((e) => ({ success: false, message: e.message }));
+      await alertDialog(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
+    } finally {
+      setTestingId(null);
+    }
   }
 
   const showContent = !isSuperAdmin || selectedCompanyId;
@@ -294,13 +306,13 @@ export default function PlatformPage({ config }: Props) {
                           Editar
                         </button>
                       )}
-                      <button onClick={() => handleTest(c.id)}
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                        Probar
+                      <button onClick={() => handleTest(c.id)} disabled={testingId === c.id}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+                        {testingId === c.id ? 'Probando...' : 'Probar'}
                       </button>
-                      <button onClick={() => handleDelete(c.id, c.name)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium">
-                        Desconectar
+                      <button onClick={() => handleDelete(c.id, c.name)} disabled={deletingId === c.id}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+                        {deletingId === c.id ? 'Desconectando...' : 'Desconectar'}
                       </button>
                     </td>
                   </tr>

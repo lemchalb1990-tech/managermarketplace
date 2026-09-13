@@ -138,12 +138,19 @@ export default function MercadoLibrePage() {
     setError('');
   }
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   async function handleDelete(id: string, name: string, authorized: boolean) {
     const question = authorized ? `¿Desconectar la tienda "${name}"?` : `¿Eliminar las credenciales de "${name}"?`;
     if (!(await confirmDialog(question, { danger: true }))) return;
-    const token = getToken()!;
-    await api.marketplace.deleteConnection(id, token);
-    await loadConnections(activeCompanyId || undefined);
+    setDeletingId(id);
+    try {
+      const token = getToken()!;
+      await api.marketplace.deleteConnection(id, token);
+      await loadConnections(activeCompanyId || undefined);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -403,9 +410,9 @@ export default function MercadoLibrePage() {
                           Editar
                         </button>
                       )}
-                      <button onClick={() => handleDelete(c.id, c.name, c.authorized)}
-                        className={`text-xs text-red-500 hover:text-red-700 font-medium ${isSuperAdmin ? '' : 'ml-auto'}`}>
-                        {c.authorized ? 'Desconectar' : 'Eliminar'}
+                      <button onClick={() => handleDelete(c.id, c.name, c.authorized)} disabled={deletingId === c.id}
+                        className={`text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50 ${isSuperAdmin ? '' : 'ml-auto'}`}>
+                        {deletingId === c.id ? 'Eliminando...' : (c.authorized ? 'Desconectar' : 'Eliminar')}
                       </button>
                     </div>
                   </div>

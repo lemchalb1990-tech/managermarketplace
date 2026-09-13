@@ -525,6 +525,7 @@ export default function CatalogPage() {
   const [editError, setEditError] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [mlLoading, setMlLoading] = useState<Record<string, boolean>>({});
+  const [imageActionLoading, setImageActionLoading] = useState<Record<string, boolean>>({});
   const [mlWarning, setMlWarning] = useState('');
   const [listNotice, setListNotice] = useState('');
   const [listNoticeIsWarning, setListNoticeIsWarning] = useState(false);
@@ -1014,15 +1015,25 @@ export default function CatalogPage() {
   }
 
   async function handleDeleteImage(imageId: string) {
-    const token = getToken()!;
-    await api.catalog.deleteImage(selected.id, imageId, token);
-    await refreshSelected(selected.id);
+    setImageActionLoading((s) => ({ ...s, [imageId]: true }));
+    try {
+      const token = getToken()!;
+      await api.catalog.deleteImage(selected.id, imageId, token);
+      await refreshSelected(selected.id);
+    } finally {
+      setImageActionLoading((s) => ({ ...s, [imageId]: false }));
+    }
   }
 
   async function handleSetPrimary(imageId: string) {
-    const token = getToken()!;
-    await api.catalog.setPrimaryImage(selected.id, imageId, token);
-    await refreshSelected(selected.id);
+    setImageActionLoading((s) => ({ ...s, [imageId]: true }));
+    try {
+      const token = getToken()!;
+      await api.catalog.setPrimaryImage(selected.id, imageId, token);
+      await refreshSelected(selected.id);
+    } finally {
+      setImageActionLoading((s) => ({ ...s, [imageId]: false }));
+    }
   }
 
   function buildPreflightChecks(): PreflightCheck[] {
@@ -2057,14 +2068,14 @@ export default function CatalogPage() {
                           )}
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             {!img.isPrimary && (
-                              <button onClick={() => handleSetPrimary(img.id)}
-                                className="text-xs bg-white text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 font-medium">
-                                Principal
+                              <button onClick={() => handleSetPrimary(img.id)} disabled={imageActionLoading[img.id]}
+                                className="text-xs bg-white text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 font-medium disabled:opacity-50">
+                                {imageActionLoading[img.id] ? '...' : 'Principal'}
                               </button>
                             )}
-                            <button onClick={() => handleDeleteImage(img.id)}
-                              className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 font-medium">
-                              Eliminar
+                            <button onClick={() => handleDeleteImage(img.id)} disabled={imageActionLoading[img.id]}
+                              className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 font-medium disabled:opacity-50">
+                              {imageActionLoading[img.id] ? '...' : 'Eliminar'}
                             </button>
                           </div>
                         </div>

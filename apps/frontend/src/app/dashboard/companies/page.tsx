@@ -49,6 +49,7 @@ export default function CompaniesPage() {
   const [showForm, setShowForm] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [listingsLoadingId, setListingsLoadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditState>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -65,12 +66,15 @@ export default function CompaniesPage() {
   async function handleDelete(id: string, name: string) {
     if (!(await confirmDialog(`¿Eliminar la empresa "${name}"?`, { danger: true }))) return;
     setDeleteError('');
+    setDeletingId(id);
     try {
       const token = getToken()!;
       await api.companies.remove(id, token);
       await load();
     } catch (err: any) {
       setDeleteError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -396,9 +400,9 @@ export default function CompaniesPage() {
                     className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
                     {listingsLoadingId === c.id ? 'Eliminando...' : 'Eliminar publicaciones'}
                   </button>
-                  <button onClick={() => handleDelete(c.id, c.name)}
-                    className="text-xs text-red-500 hover:text-red-700 font-medium">
-                    Eliminar
+                  <button onClick={() => handleDelete(c.id, c.name)} disabled={deletingId === c.id}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+                    {deletingId === c.id ? 'Eliminando...' : 'Eliminar'}
                   </button>
                 </td>
               </tr>
