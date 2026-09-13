@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { ProductType, Role, SaleChannel, WorkOrderStatus } from '@prisma/client';
+import { ProductType, Role, SaleChannel, WorkOrderStatus, FulfillmentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PosService } from '../pos.service';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, ConvertWorkOrderDto, WorkOrderItemDto } from './work-orders.dto';
@@ -288,6 +288,10 @@ export class WorkOrdersService {
       notes: workOrder.notes || undefined,
       companyId: workOrder.companyId,
       items: saleItems,
+      // Sin esto createSale no genera la Orden de despacho/retiro (el gate es
+      // "if (dto.fulfillmentType)") — una orden de trabajo siempre es retiro en
+      // mostrador, no hay dirección de entrega que capturar.
+      fulfillmentType: FulfillmentType.PICKUP,
     }, user);
 
     // La reserva se libera recién ahora que la venta ya se concretó — createSale ya
