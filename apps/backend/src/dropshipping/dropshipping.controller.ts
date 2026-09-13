@@ -6,6 +6,7 @@ import {
   CreateDropshipProductDto, UpdateDropshipProductDto,
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
   GenerateDropshipOrdersDto, DropshipReportQueryDto, SyncDropshipCatalogDto,
+  PreviewDropshipFeedDto,
 } from './dto/dropshipping.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -28,6 +29,11 @@ export class DropshippingController {
   @Post('suppliers')
   createSupplier(@Body() dto: CreateDropshipSupplierDto, @CurrentUser() user: any) {
     return this.service.createSupplier(dto, user);
+  }
+
+  @Post('suppliers/preview-feed')
+  previewFeed(@Body() dto: PreviewDropshipFeedDto) {
+    return this.service.previewFeed(dto.catalogUrl);
   }
 
   @Patch('suppliers/:id')

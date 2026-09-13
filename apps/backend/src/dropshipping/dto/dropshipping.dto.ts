@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsInt, IsEnum, Min, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsInt, IsEnum, Min, MaxLength, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DropshipOrderStatus } from '@prisma/client';
 
@@ -27,11 +27,18 @@ export class UpdateDropshipSupplierDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) leadTimeDays?: number | null;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
   @IsOptional() @IsString() @MaxLength(1000) catalogUrl?: string | null;
+  // { sku, name, description, imageUrl, stock, cost, price } -> nombre de la columna real
+  // del feed del proveedor. null limpia el mapeo (vuelve a la detección automática).
+  @IsOptional() @IsObject() fieldMapping?: Record<string, string | null> | null;
 }
 
 export class SyncDropshipCatalogDto {
   // Si no se envía, se usa el catalogUrl guardado en el proveedor.
   @IsOptional() @IsString() @MaxLength(1000) catalogUrl?: string;
+}
+
+export class PreviewDropshipFeedDto {
+  @IsString() @MaxLength(1000) catalogUrl: string;
 }
 
 // ─── Productos dropship ─────────────────────────────────────────────────────

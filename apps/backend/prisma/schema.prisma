@@ -1528,6 +1528,10 @@ model DropshipSupplier {
   notes            String?
   // Feed del catálogo del proveedor (CSV o JSON) para sincronizar productos.
   catalogUrl       String?
+  // Asociación manual { sku, name, description, imageUrl, stock, cost, price } -> nombre
+  // real de la columna/campo que entrega el feed de este proveedor. Si es null, se usa
+  // la detección automática por alias (rowFromRecord) como antes.
+  fieldMapping     Json?
   lastSyncedAt     DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

@@ -51,10 +51,24 @@ function num(v: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function rowFromRecord(rec: Record<string, any>): CatalogRow {
+function normalizeKey(k: string): string {
+  return k.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+// Con mapeo explícito (configurado por el admin), cada campo usa la columna que él
+// asoció y nada más — si la dejó sin asociar, ese campo simplemente no se completa,
+// no se cae a adivinar por alias. Sin mapeo (proveedor nunca configurado), se mantiene
+// el comportamiento anterior de detectar por nombre de columna conocido.
+function rowFromRecord(rec: Record<string, any>, mapping?: Record<string, string | null> | null): CatalogRow {
   const lower: Record<string, any> = {};
-  for (const [k, v] of Object.entries(rec)) lower[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
+  for (const [k, v] of Object.entries(rec)) lower[normalizeKey(k)] = v;
   const pick = (field: keyof CatalogRow) => {
+    if (mapping) {
+      const col = mapping[field];
+      if (!col) return undefined;
+      const val = lower[normalizeKey(col)];
+      return val != null && val !== '' ? val : undefined;
+    }
     for (const alias of FIELD_ALIASES[field]) {
       if (lower[alias] != null && lower[alias] !== '') return lower[alias];
     }
@@ -90,22 +104,23 @@ function splitCsvLine(line: string): string[] {
   return out.map((s) => s.trim());
 }
 
-function parseCatalogFeed(text: string): CatalogRow[] {
+// Registros crudos (sin todavía interpretar cuál columna es cuál) del feed del proveedor,
+// sea JSON o CSV/TSV. Se usa tanto para sincronizar como para armar la vista previa de
+// columnas al configurar el mapeo.
+function extractFeedRecords(text: string): Record<string, any>[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
 
-  // JSON: array de objetos, o { products: [...] } / { data: [...] }
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed);
       const arr = Array.isArray(parsed) ? parsed : (parsed.products ?? parsed.data ?? parsed.items ?? []);
-      if (Array.isArray(arr)) return arr.map(rowFromRecord).filter((r) => r.sku);
+      if (Array.isArray(arr)) return arr.filter((r) => r && typeof r === 'object');
     } catch {
       // cae a CSV
     }
   }
 
-  // CSV / TSV: primera línea = cabeceras
   const lines = trimmed.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
   const headers = splitCsvLine(lines[0]);
@@ -113,8 +128,28 @@ function parseCatalogFeed(text: string): CatalogRow[] {
     const cells = splitCsvLine(line);
     const rec: Record<string, any> = {};
     headers.forEach((h, i) => { rec[h] = cells[i]; });
-    return rowFromRecord(rec);
-  }).filter((r) => r.sku);
+    return rec;
+  });
+}
+
+function parseCatalogFeed(text: string, mapping?: Record<string, string | null> | null): CatalogRow[] {
+  return extractFeedRecords(text).map((rec) => rowFromRecord(rec, mapping)).filter((r) => r.sku);
+}
+
+// Para la pantalla de mapeo: por cada campo nuestro, propone la columna del proveedor
+// que calzaría según la misma lista de alias que usa la detección automática.
+function suggestMapping(columns: string[]): Record<string, string | null> {
+  const byNormalized: Record<string, string> = {};
+  for (const c of columns) byNormalized[normalizeKey(c)] = c;
+  const result: Record<string, string | null> = {};
+  (Object.keys(FIELD_ALIASES) as (keyof CatalogRow)[]).forEach((field) => {
+    let found: string | null = null;
+    for (const alias of FIELD_ALIASES[field]) {
+      if (byNormalized[alias]) { found = byNormalized[alias]; break; }
+    }
+    result[field] = found;
+  });
+  return result;
 }
 
 @Injectable()
@@ -204,9 +239,41 @@ export class DropshippingService {
         leadTimeDays: dto.leadTimeDays,
         notes: dto.notes,
         catalogUrl: dto.catalogUrl === '' ? null : dto.catalogUrl,
+        ...(dto.fieldMapping !== undefined ? { fieldMapping: dto.fieldMapping as any } : {}),
       },
       include: { supplier: true, _count: { select: { products: true, orders: true } } },
     });
+  }
+
+  // Trae una muestra del feed del proveedor (sin guardar nada) para que el admin vea
+  // qué columnas entrega realmente y las asocie con nuestros campos antes de sincronizar.
+  async previewFeed(catalogUrl: string) {
+    const url = (catalogUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      throw new BadRequestException('Ingresa una URL de catálogo válida (http/https)');
+    }
+
+    let text: string;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      text = await res.text();
+    } catch (err: any) {
+      throw new BadRequestException(`No se pudo descargar el catálogo: ${err?.message || err}`);
+    }
+
+    const records = extractFeedRecords(text);
+    if (!records.length) throw new BadRequestException('El catálogo no tiene filas legibles (se espera JSON o CSV)');
+
+    const columnSet = new Set<string>();
+    records.slice(0, 20).forEach((r) => Object.keys(r).forEach((k) => columnSet.add(k)));
+    const columns = Array.from(columnSet);
+
+    return {
+      columns,
+      sample: records.slice(0, 3),
+      suggestedMapping: suggestMapping(columns),
+    };
   }
 
   // ─── Sincronización del catálogo del proveedor ────────────────────────────
@@ -233,7 +300,7 @@ export class DropshippingService {
       throw new BadRequestException(`No se pudo descargar el catálogo: ${err?.message || err}`);
     }
 
-    const rows = parseCatalogFeed(text);
+    const rows = parseCatalogFeed(text, ds.fieldMapping as Record<string, string | null> | null);
     if (!rows.length) throw new BadRequestException('El catálogo no tiene filas legibles (se espera JSON o CSV con columna sku)');
 
     let created = 0;
