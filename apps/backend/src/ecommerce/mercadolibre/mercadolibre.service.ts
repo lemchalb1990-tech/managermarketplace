@@ -1976,41 +1976,51 @@ export class MercadolibreService {
     if (!meRes.ok) throw new BadRequestException('No se pudo obtener el usuario de Mercado Libre');
     const me = await meRes.json() as any;
 
-    let offset = 0;
-    let total = 0;
     let synced = 0;
-    do {
-      // Sin ordenar, ML devuelve las preguntas en un orden que no prioriza las recientes —
-      // con una cuenta que tiene mucho historial, el tope de 200 se llenaba con preguntas
-      // viejas y las de ahora (las que realmente importan) nunca se alcanzaban a traer.
-      const params = new URLSearchParams({
-        seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset),
-        sort_fields: 'date_created', sort_types: 'DESC',
-      });
-      const res = await fetch(`${ML_API}/questions/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        const errBody = await res.text();
-        this.logger.error(`ML questions/search falló [${res.status}] conexión ${connectionId}: ${errBody}`);
-        throw new BadRequestException(
-          `Mercado Libre rechazó la búsqueda de preguntas (HTTP ${res.status}): ${errBody.slice(0, 300)}`,
-        );
-      }
-      const data = await res.json() as any;
-      total = data.total || 0;
-      for (const q of data.questions || []) {
-        try {
-          await this.upsertQuestion(q, connectionId, conn.companyId);
-          synced++;
-        } catch (err: any) {
-          // Una pregunta con un dato inesperado (p.ej. un status nuevo que ML agregó) no
-          // debe tirar abajo la sincronización completa de la cuenta.
-          this.logger.error(`upsertQuestion falló para pregunta ${q?.id}: ${err?.message || err}`);
+
+    const fetchAndUpsertPages = async (extraParams: Record<string, string>) => {
+      let offset = 0;
+      let pageTotal = 0;
+      do {
+        // Sin ordenar, ML devuelve las preguntas en un orden que no prioriza las recientes —
+        // con una cuenta que tiene mucho historial, el tope de 200 se llenaba con preguntas
+        // viejas y las de ahora (las que realmente importan) nunca se alcanzaban a traer.
+        const params = new URLSearchParams({
+          seller_id: String(me.id), api_version: '4', limit: '50', offset: String(offset),
+          sort_fields: 'date_created', sort_types: 'DESC', ...extraParams,
+        });
+        const res = await fetch(`${ML_API}/questions/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          const errBody = await res.text();
+          this.logger.error(`ML questions/search falló [${res.status}] conexión ${connectionId}: ${errBody}`);
+          throw new BadRequestException(
+            `Mercado Libre rechazó la búsqueda de preguntas (HTTP ${res.status}): ${errBody.slice(0, 300)}`,
+          );
         }
-      }
-      offset += 50;
-      // Tope de seguridad para no quedar en un loop infinito si "total" viniera mal —
-      // muy por encima de lo que tiene cualquier cuenta real.
-    } while (offset < total && offset < 20000);
+        const data = await res.json() as any;
+        pageTotal = data.total || 0;
+        for (const q of data.questions || []) {
+          try {
+            await this.upsertQuestion(q, connectionId, conn.companyId);
+            synced++;
+          } catch (err: any) {
+            // Una pregunta con un dato inesperado (p.ej. un status nuevo que ML agregó) no
+            // debe tirar abajo la sincronización completa de la cuenta.
+            this.logger.error(`upsertQuestion falló para pregunta ${q?.id}: ${err?.message || err}`);
+          }
+        }
+        offset += 50;
+        // Tope de seguridad para no quedar en un loop infinito si "total" viniera mal —
+        // muy por encima de lo que tiene cualquier cuenta real.
+      } while (offset < pageTotal && offset < 20000);
+      return pageTotal;
+    };
+
+    // La búsqueda general (sin filtro de status) puede no devolver las preguntas
+    // todavía sin responder de algunas cuentas — se piden aparte primero para no
+    // perderlas nunca; el upsert es idempotente así que no duplica nada.
+    await fetchAndUpsertPages({ status: 'UNANSWERED' });
+    const total = await fetchAndUpsertPages({});
 
     return { synced, total };
   }
