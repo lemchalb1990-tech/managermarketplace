@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
@@ -53,6 +54,7 @@ const emptyCreate = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const tz = useDashboardTimezone();
   const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
   const [orders, setOrders] = useState<any[]>([]);
@@ -337,7 +339,8 @@ export default function OrdersPage() {
             ) : orders.map((o) => {
               const cfg = STATUS_CONFIG[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-500' };
               return (
-                <tr key={o.id} className="hover:bg-gray-50">
+                <tr key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
+                  className="hover:bg-gray-50 cursor-pointer">
                   <td className="px-4 py-3 font-mono text-xs font-bold text-gray-700">
                     #{shortId(o.id)}
                   </td>
@@ -366,7 +369,7 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-xs text-gray-400">
                     {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-3 justify-end">
                       <Link href={`/dashboard/orders/${o.id}`}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium">
