@@ -34,13 +34,13 @@ export class PosController {
   }
 
   @Delete('sales/:id')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  @Roles(Role.SUPER_ADMIN)
   deleteSale(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.deleteSale(id, user);
   }
 
   @Post('sales/bulk-delete')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  @Roles(Role.SUPER_ADMIN)
   bulkDeleteSales(@Body() dto: BulkDeleteSalesDto, @CurrentUser() user: any) {
     return this.service.bulkDeleteSales(dto.ids, user);
   }

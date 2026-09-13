@@ -61,7 +61,6 @@ export default function SalesPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const { selectedCompanyId } = useAdminCompany();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   function toggleSelect(id: string) {
@@ -299,7 +298,7 @@ export default function SalesPage() {
           <h2 className="font-semibold text-gray-800">Historial de ventas</h2>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-gray-500">{total} registros</span>
-            {isAdmin && selectedIds.size > 0 && (
+            {isSuperAdmin && selectedIds.size > 0 && (
               <button
                 onClick={handleBulkDelete}
                 disabled={bulkDeleting}
@@ -318,7 +317,7 @@ export default function SalesPage() {
           </div>
         </div>
 
-        {isAdmin && sales.length > 0 && (
+        {isSuperAdmin && sales.length > 0 && (
           <div className="px-5 py-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50">
             <input type="checkbox"
               checked={sales.length > 0 && selectedIds.size === sales.length}
@@ -339,7 +338,7 @@ export default function SalesPage() {
                   className="flex items-center gap-3 cursor-pointer"
                   onClick={() => setExpandedId(expandedId === sale.id ? null : sale.id)}
                 >
-                  {isAdmin && (
+                  {isSuperAdmin && (
                     <input type="checkbox" checked={selectedIds.has(sale.id)}
                       onChange={() => toggleSelect(sale.id)}
                       onClick={(e) => e.stopPropagation()} />
@@ -485,7 +484,7 @@ export default function SalesPage() {
                       >
                         Facturar
                       </Link>
-                      {isAdmin && (
+                      {isSuperAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteSale(sale.id); }}
                           disabled={deletingId === sale.id}
