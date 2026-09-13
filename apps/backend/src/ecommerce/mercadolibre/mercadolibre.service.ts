@@ -1718,6 +1718,7 @@ export class MercadolibreService {
   ): Promise<'imported' | 'skipped' | 'merged'> {
     const orderTotal = Number(order.total_amount || 0);
     const packId = order.pack_id != null ? String(order.pack_id) : null;
+    const mlShippingId = order.shipping?.id != null ? String(order.shipping.id) : null;
 
     let companyId: string | null = companyIdHint || null;
     const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
@@ -1753,12 +1754,19 @@ export class MercadolibreService {
     if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
     charges.totalPaid = this.computeSellerNetAmount(order, charges);
 
-    // Carrito de compras de ML: si otro ítem de este mismo pack ya generó la venta y la
-    // orden de despacho, los productos de ESTA orden se agregan ahí en vez de crear una
-    // venta/orden aparte — el comprador pagó junto y ML arma un solo envío para el pack.
-    const existingPackSale = packId
+    // Carrito de compras de ML: si otro ítem de este mismo pack (o del mismo envío — ML no
+    // siempre informa pack_id aunque comparta shipping.id con otra orden) ya generó la
+    // venta y la orden de despacho, los productos de ESTA orden se agregan ahí en vez de
+    // crear una venta/orden aparte.
+    const existingPackSale = packId || mlShippingId
       ? await this.prisma.sale.findFirst({
-          where: { channel: SaleChannel.MERCADO_LIBRE, mlPackId: packId },
+          where: {
+            channel: SaleChannel.MERCADO_LIBRE,
+            OR: [
+              ...(packId ? [{ mlPackId: packId }] : []),
+              ...(mlShippingId ? [{ mlShippingId }] : []),
+            ],
+          },
           include: { order: true },
         })
       : null;
@@ -1780,6 +1788,8 @@ export class MercadolibreService {
                 ? Number(existingPackSale.netAmount) + charges.totalPaid : charges.totalPaid,
               marketplaceFee: existingPackSale.marketplaceFee != null && charges.marketplaceFee != null
                 ? Number(existingPackSale.marketplaceFee) + charges.marketplaceFee : existingPackSale.marketplaceFee,
+              mlPackId: existingPackSale.mlPackId ?? packId,
+              mlShippingId: existingPackSale.mlShippingId ?? mlShippingId,
             },
           });
           if (existingPackSale.order) {
@@ -1811,6 +1821,7 @@ export class MercadolibreService {
               channel: SaleChannel.MERCADO_LIBRE,
               externalId: orderId,
               mlPackId: packId,
+              mlShippingId,
               total: orderTotal,
               shippingCost: charges.shippingCost,
               marketplaceFee: charges.marketplaceFee,
@@ -1899,6 +1910,79 @@ export class MercadolibreService {
     }
 
     return existingPackSale ? 'merged' : 'imported';
+  }
+
+  // Recuperación manual para carritos que ML dividió en varias "orders" con pack_id vacío
+  // y que por eso no se consolidaron solas (ver processOrder) — se detectaron a mano
+  // comparando shipping.id. Traslada los ítems/checklist de la venta duplicada a la
+  // principal, repone el stock que se descontó de más (mismo criterio que una devolución:
+  // no reconstruye los lotes FIFO consumidos, solo devuelve la cantidad al total del
+  // producto) y elimina la venta/orden duplicada.
+  async mergeDuplicateSales(primarySaleId: string, duplicateSaleId: string, user: any): Promise<{ mergedItems: number; restockedProducts: number }> {
+    if (primarySaleId === duplicateSaleId) throw new BadRequestException('No se puede fusionar una venta consigo misma.');
+
+    const [primary, duplicate] = await Promise.all([
+      this.prisma.sale.findUnique({ where: { id: primarySaleId }, include: { order: { include: { itemChecks: true } } } }),
+      this.prisma.sale.findUnique({ where: { id: duplicateSaleId }, include: { order: { include: { itemChecks: true } }, items: true } }),
+    ]);
+    if (!primary || !duplicate) throw new NotFoundException('Venta no encontrada');
+    if (primary.channel !== SaleChannel.MERCADO_LIBRE || duplicate.channel !== SaleChannel.MERCADO_LIBRE) {
+      throw new BadRequestException('Esta fusión solo aplica a ventas de Mercado Libre.');
+    }
+    if (primary.companyId !== duplicate.companyId) throw new BadRequestException('Las ventas pertenecen a empresas distintas.');
+    if (user.role !== Role.SUPER_ADMIN && user.companyId !== primary.companyId) throw new ForbiddenException();
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: duplicate.items.map((i) => i.productId) } },
+      select: { id: true, dropship: true },
+    });
+    const dropshipIds = new Set(products.filter((p) => p.dropship).map((p) => p.id));
+
+    let restockedProducts = 0;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.saleItem.updateMany({ where: { saleId: duplicateSaleId }, data: { saleId: primarySaleId } });
+
+      await tx.sale.update({
+        where: { id: primarySaleId },
+        data: {
+          total: Number(primary.total) + Number(duplicate.total),
+          netAmount: primary.netAmount != null || duplicate.netAmount != null
+            ? Number(primary.netAmount ?? 0) + Number(duplicate.netAmount ?? 0) : undefined,
+          marketplaceFee: primary.marketplaceFee != null || duplicate.marketplaceFee != null
+            ? Number(primary.marketplaceFee ?? 0) + Number(duplicate.marketplaceFee ?? 0) : undefined,
+          mlPackId: primary.mlPackId ?? duplicate.mlPackId,
+          mlShippingId: primary.mlShippingId ?? duplicate.mlShippingId,
+        },
+      });
+
+      for (const item of duplicate.items) {
+        if (dropshipIds.has(item.productId)) continue;
+        await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        await tx.stockMovement.create({
+          data: {
+            type: MovementType.ADJUSTMENT,
+            quantity: item.quantity,
+            reason: `Repone stock por fusión de venta duplicada de ML (orden ${duplicate.externalId} unida a ${primary.externalId})`,
+            productId: item.productId,
+            userId: user.id,
+          },
+        });
+        restockedProducts++;
+      }
+
+      if (duplicate.order) {
+        if (primary.order) {
+          await tx.orderItemCheck.updateMany({ where: { orderId: duplicate.order.id }, data: { orderId: primary.order.id } });
+          await tx.order.delete({ where: { id: duplicate.order.id } });
+        } else {
+          await tx.order.update({ where: { id: duplicate.order.id }, data: { saleId: primarySaleId } });
+        }
+      }
+
+      await tx.sale.delete({ where: { id: duplicateSaleId } });
+    });
+
+    return { mergedItems: duplicate.items.length, restockedProducts };
   }
 
   // ─── Etiqueta de envío (Mercado Envíos 2) ──────────────────────────────────────
@@ -2054,15 +2138,22 @@ export class MercadolibreService {
   // más — son estados finales. Devuelve true si efectivamente cambió algo.
   private async syncInternalOrderFromMl(mlOrder: any, token: string): Promise<boolean> {
     // Si esta orden es parte de un pack (carrito) ya consolidado bajo OTRO order id, el
-    // externalId de la venta no va a calzar — se busca también por pack_id para no perder
-    // los avisos de estado de los demás ítems del mismo carrito/envío.
+    // externalId de la venta no va a calzar — se busca también por pack_id o por
+    // shipping.id (ML no siempre informa pack_id aunque comparta envío) para no perder los
+    // avisos de estado de los demás ítems del mismo carrito/envío.
     let sale = await this.prisma.sale.findFirst({
       where: { channel: SaleChannel.MERCADO_LIBRE, externalId: String(mlOrder.id) },
       include: { order: true },
     });
-    if (!sale && mlOrder.pack_id != null) {
+    if (!sale && (mlOrder.pack_id != null || mlOrder.shipping?.id != null)) {
       sale = await this.prisma.sale.findFirst({
-        where: { channel: SaleChannel.MERCADO_LIBRE, mlPackId: String(mlOrder.pack_id) },
+        where: {
+          channel: SaleChannel.MERCADO_LIBRE,
+          OR: [
+            ...(mlOrder.pack_id != null ? [{ mlPackId: String(mlOrder.pack_id) }] : []),
+            ...(mlOrder.shipping?.id != null ? [{ mlShippingId: String(mlOrder.shipping.id) }] : []),
+          ],
+        },
         include: { order: true },
       });
     }

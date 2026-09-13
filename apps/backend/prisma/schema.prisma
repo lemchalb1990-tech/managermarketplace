@@ -778,6 +778,11 @@ model Sale {
   // "orders" de ML que comparten este pack_id y un solo envío. Se usa para consolidarlas
   // en una sola Venta/Orden interna en vez de una por cada ítem.
   mlPackId        String?
+  // Respaldo de lo anterior: ML no siempre informa pack_id aunque el comprador haya pagado
+  // varios productos juntos, pero esas "orders" SIEMPRE comparten el mismo shipping.id (un
+  // envío = un bulto físico). Se usa igual que mlPackId para consolidar cuando pack_id
+  // viene vacío.
+  mlShippingId    String?
   total           Decimal          @db.Decimal(10, 2)
   shippingCost    Decimal?         @db.Decimal(10, 2)
   marketplaceFee  Decimal?         @db.Decimal(10, 2)
@@ -825,6 +830,7 @@ model Sale {
 
   @@unique([channel, externalId])
   @@index([channel, mlPackId])
+  @@index([channel, mlShippingId])
   @@map("sales")
 }
 

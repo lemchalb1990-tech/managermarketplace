@@ -23,6 +23,11 @@ class PrintLabelsBulkDto {
   @IsArray() @IsString({ each: true }) orderIds: string[];
 }
 
+class MergeDuplicateSalesDto {
+  @IsString() primarySaleId: string;
+  @IsString() duplicateSaleId: string;
+}
+
 class CreateMlConnectionDto {
   @IsString() name: string;
   @IsString() mlClientId: string;
@@ -163,6 +168,16 @@ export class MercadolibreController {
       printed,
       errors,
     };
+  }
+
+  // Recuperación manual: fusiona dos ventas de ML que ML dividió en dos "orders" para un
+  // mismo carrito/envío sin informar pack_id (se detectan comparando shipping.id). Ver
+  // MercadolibreService.mergeDuplicateSales.
+  @Post('sales/merge-duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  mergeDuplicateSales(@Body() dto: MergeDuplicateSalesDto, @CurrentUser() user: any) {
+    return this.service.mergeDuplicateSales(dto.primarySaleId, dto.duplicateSaleId, user);
   }
 
   private renderCallbackPage(ok: boolean, detail: string): string {
