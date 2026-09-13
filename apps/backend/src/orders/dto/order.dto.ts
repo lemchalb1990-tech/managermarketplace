@@ -153,4 +153,8 @@ export class FindOrdersDto {
   @IsOptional()
   @IsString()
   page?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

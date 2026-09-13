@@ -566,7 +566,7 @@ export const api = {
     },
   },
   orders: {
-    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string }) => {
+    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string; search?: string }) => {
       const q = new URLSearchParams();
       if (params?.status) q.set('status', params.status);
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
@@ -574,6 +574,7 @@ export const api = {
       if (params?.to) q.set('to', params.to);
       if (params?.page) q.set('page', String(params.page));
       if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.search) q.set('search', params.search);
       return apiFetch<any>(`/orders?${q}`, {}, token);
     },
     get: (id: string, token: string) => apiFetch<any>(`/orders/${id}`, {}, token),

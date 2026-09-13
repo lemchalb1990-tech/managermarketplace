@@ -77,6 +77,15 @@ export class OrdersService {
       if (query.from) where.createdAt.gte = new Date(query.from);
       if (query.to) where.createdAt.lte = new Date(query.to);
     }
+    const search = query.search?.trim();
+    if (search) {
+      where.OR = [
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { id: { contains: search, mode: 'insensitive' } },
+        { trackingCode: { contains: search, mode: 'insensitive' } },
+        { sale: { externalId: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
 
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
@@ -85,7 +94,7 @@ export class OrdersService {
           warehouse: { select: { id: true, name: true } },
           sale: {
             select: {
-              id: true, channel: true, total: true,
+              id: true, channel: true, total: true, externalId: true,
               connection: { select: { id: true, name: true } },
             },
           },

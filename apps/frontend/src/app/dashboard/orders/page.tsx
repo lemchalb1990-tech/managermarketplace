@@ -63,6 +63,7 @@ export default function OrdersPage() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [deletingId, setDeletingId] = useState('');
 
@@ -83,12 +84,12 @@ export default function OrdersPage() {
   // Super Admin veía órdenes de TODAS las empresas mezcladas.
   const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
 
-  async function load(p = 1, status = statusFilter) {
+  async function load(p = 1, status = statusFilter, q = search) {
     const token = getToken();
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.orders.list(token, { status: status || undefined, page: p, companyId });
+      const res = await api.orders.list(token, { status: status || undefined, page: p, companyId, search: q || undefined });
       setOrders(res.orders);
       setTotal(res.total);
       setPage(res.page);
@@ -117,6 +118,12 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => onActivity(['sale'], () => load(page, statusFilter)), [page, statusFilter]);
+
+  useEffect(() => {
+    const t = setTimeout(() => load(1, statusFilter, search), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   async function handleDelete(id: string) {
     if (!(await confirmDialog('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.', { danger: true }))) return;
@@ -219,6 +226,16 @@ export default function OrdersPage() {
             + Nueva orden
           </button>
         )}
+      </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por número de orden o nombre de cliente..."
+          className="w-full sm:w-96 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       {showCreate && isAdmin && (
@@ -408,7 +425,7 @@ export default function OrdersPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs font-bold text-gray-700">
-                    #{shortId(o.id)}
+                    #{o.sale && o.sale.channel !== 'POS' && o.sale.externalId ? o.sale.externalId : shortId(o.id)}
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
