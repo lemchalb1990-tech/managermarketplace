@@ -2344,7 +2344,10 @@ export class MercadolibreService {
         take: 20,
       }),
       this.prisma.mlQuestion.findMany({
-        where: { ...where, createdAt: { gt: since } },
+        // Solo preguntas que de verdad necesitan respuesta: un sync de historial puede
+        // insertar por primera vez preguntas que ya venían respondidas desde Mercado
+        // Libre (o desde otra sesión), y esas no deben avisar "nueva pregunta".
+        where: { ...where, createdAt: { gt: since }, status: MlQuestionStatus.UNANSWERED },
         select: {
           id: true, externalId: true, text: true, createdAt: true,
           product: { select: { name: true } },
@@ -2354,7 +2357,9 @@ export class MercadolibreService {
         take: 20,
       }),
       this.prisma.mlClaim.findMany({
-        where: { ...where, createdAt: { gt: since } },
+        // Mismo criterio que las preguntas: un reclamo que ya llegó CERRADO en el
+        // primer sync (backlog) no necesita aviso — solo los que siguen abiertos.
+        where: { ...where, createdAt: { gt: since }, status: MlClaimStatus.OPENED },
         select: {
           id: true, externalId: true, type: true, createdAt: true,
           connection: { select: { name: true } },
