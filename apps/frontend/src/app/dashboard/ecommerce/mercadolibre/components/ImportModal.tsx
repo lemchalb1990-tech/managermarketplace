@@ -158,13 +158,20 @@ export function ImportModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col relative">
+        {importing && (
+          <div className="absolute inset-0 bg-white/90 rounded-xl flex flex-col items-center justify-center gap-3 z-10">
+            <div className="w-8 h-8 border-4 border-gray-200 border-t-yellow-500 rounded-full animate-spin" />
+            <p className="text-sm text-gray-600 font-medium">Importando publicaciones...</p>
+            <p className="text-xs text-gray-400">Esto puede tardar unos segundos, no cierres esta ventana.</p>
+          </div>
+        )}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-gray-900">Importar publicaciones de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">Revisa lo que se traerá antes de confirmar.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <button onClick={onClose} disabled={importing} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -347,7 +354,7 @@ export function ImportModal({
             <>
               <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
               <div className="flex gap-2">
-                <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                <button onClick={onClose} disabled={importing} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
                   Cancelar
                 </button>
                 <button
