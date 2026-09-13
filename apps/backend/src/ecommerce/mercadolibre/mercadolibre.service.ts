@@ -1620,14 +1620,75 @@ export class MercadolibreService {
   // parte de una MarketplaceConnection concreta), se pasan para acotar la resolución de
   // los ítems a ESA conexión. Sin esto, un mismo item de ML vinculado en dos conexiones
   // (dos cuentas / dos empresas) haría que la venta descuente stock de la cuenta equivocada.
+  // Aplica el descuento de stock (o el paso dropship) y el pausado por stock crítico de
+  // UN ítem ya resuelto. Compartido entre crear una venta nueva y sumar ítems a una venta
+  // de pack ya existente, para que ambos caminos tengan exactamente el mismo efecto.
+  private async applyItemStockEffects(
+    tx: any,
+    companyId: string,
+    orderId: string,
+    listing: any,
+    quantity: number,
+    saleItemId: string,
+  ): Promise<void> {
+    const product = listing.product;
+
+    // Productos dropship: no descuentan stock propio ni pausan la publicación.
+    // El módulo de dropshipping genera el pedido al proveedor y costea la línea.
+    if (product.dropship) {
+      await tx.listing.update({
+        where: { id: listing.id },
+        data: { status: ListingStatus.ACTIVE, syncedAt: new Date() },
+      });
+      return;
+    }
+
+    const newStock = Math.max(0, product.stock - quantity);
+
+    const totalCost = await this.costing.consumeForSale(tx, {
+      companyId,
+      productId: listing.productId,
+      warehouseId: product.warehouseId,
+      quantity,
+      saleItemId,
+      reason: `Venta Mercado Libre orden #${orderId}`,
+    });
+    if (totalCost != null) {
+      await tx.saleItem.update({ where: { id: saleItemId }, data: { totalCost } });
+    }
+
+    // Pausa la publicación al llegar al stock crítico del producto (0 por defecto).
+    const criticalStock = Math.max(0, product.criticalStock ?? 0);
+    const belowCritical = newStock <= criticalStock;
+    const newStatus = belowCritical ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+    await tx.listing.update({
+      where: { id: listing.id },
+      data: { status: newStatus, syncedAt: new Date() },
+    });
+
+    // Pausar en ML solo al cruzar el umbral (evita re-pausar una publicación ya pausada).
+    if (belowCritical && listing.status !== ListingStatus.PAUSED) {
+      const itemToken = await this.getValidToken(listing.connectionId);
+      await fetch(`${ML_API}/items/${listing.externalId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paused' }),
+      });
+      this.logger.log(`ML orden ${orderId}: producto=${listing.productId} pausado por stock crítico (${newStock} ≤ ${criticalStock})`);
+    }
+
+    this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
+  }
+
   private async processOrder(
     orderId: string,
     order: any,
     token: string,
     companyIdHint?: string,
     connectionId?: string,
-  ): Promise<'imported' | 'skipped'> {
+  ): Promise<'imported' | 'skipped' | 'merged'> {
     const orderTotal = Number(order.total_amount || 0);
+    const packId = order.pack_id != null ? String(order.pack_id) : null;
 
     let companyId: string | null = companyIdHint || null;
     const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
@@ -1663,124 +1724,127 @@ export class MercadolibreService {
     if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
     charges.totalPaid = this.computeSellerNetAmount(order, charges);
 
+    // Carrito de compras de ML: si otro ítem de este mismo pack ya generó la venta y la
+    // orden de despacho, los productos de ESTA orden se agregan ahí en vez de crear una
+    // venta/orden aparte — el comprador pagó junto y ML arma un solo envío para el pack.
+    const existingPackSale = packId
+      ? await this.prisma.sale.findFirst({
+          where: { channel: SaleChannel.MERCADO_LIBRE, mlPackId: packId },
+          include: { order: true },
+        })
+      : null;
+
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const sale = await tx.sale.create({
-          data: {
-            channel: SaleChannel.MERCADO_LIBRE,
-            externalId: orderId,
-            total: orderTotal,
-            shippingCost: charges.shippingCost,
-            marketplaceFee: charges.marketplaceFee,
-            taxes: charges.taxes,
-            discount: charges.coupon,
-            netAmount: charges.totalPaid,
-            shippingMethod: shippingInfo.method,
-            companyId: companyId as string,
-            connectionId: resolvedItems[0].listing.connectionId,
-            customerName: order.buyer?.nickname || null,
-            items: {
-              create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
-                productId: listing.productId,
-                quantity,
-                unitPrice,
-              })),
-            },
-          },
-          include: { items: true },
-        });
-
-        // Solicitud de despacho automática: reutiliza el mismo Order que ya usa el POS,
-        // así la venta entra directo al tablero de despacho y puede imprimir su etiqueta
-        // sin que nadie tenga que cargarla a mano.
-        const warehouseCounts: Record<string, number> = {};
-        for (const { listing, quantity } of resolvedItems) {
-          const whId = listing.product.warehouseId;
-          if (whId) warehouseCounts[whId] = (warehouseCounts[whId] || 0) + quantity;
-        }
-        const autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
-
-        await tx.order.create({
-          data: {
-            // A diferencia de POS (nace directo en Preparando), una venta de ML sí tiene
-            // una espera real antes de empezar a prepararla: falta imprimir la etiqueta de
-            // Mercado Envíos, que es lo que finalmente la deja Lista para el transportista.
-            status: OrderStatus.PENDING,
-            fulfillmentType: FulfillmentType.DELIVERY,
-            customerName: shippingInfo.address?.receiverName || order.buyer?.nickname || null,
-            customerPhone: shippingInfo.address?.receiverPhone || null,
-            address: shippingInfo.address?.addressLine || null,
-            commune: shippingInfo.address?.commune || null,
-            region: shippingInfo.address?.region || null,
-            courier: shippingInfo.method,
-            trackingCode: shippingInfo.trackingCode,
-            companyId: companyId as string,
-            saleId: sale.id,
-            warehouseId: autoWarehouseId || undefined,
-            itemChecks: {
-              create: resolvedItems.map(({ listing, quantity }) => ({
-                productId: listing.productId,
-                productName: listing.product.name,
-                productSku: listing.product.sku,
-                expectedQty: quantity,
-              })),
-            },
-          },
-        });
-
-        for (let i = 0; i < resolvedItems.length; i++) {
-          const { listing, quantity } = resolvedItems[i];
-          const saleItem = sale.items[i];
-
-          const product = listing.product;
-
-          // Productos dropship: no descuentan stock propio ni pausan la publicación.
-          // El módulo de dropshipping genera el pedido al proveedor y costea la línea.
-          if (product.dropship) {
-            await tx.listing.update({
-              where: { id: listing.id },
-              data: { status: ListingStatus.ACTIVE, syncedAt: new Date() },
-            });
-            continue;
+      if (existingPackSale) {
+        await this.prisma.$transaction(async (tx) => {
+          const newSaleItems = [];
+          for (const { listing, quantity, unitPrice } of resolvedItems) {
+            newSaleItems.push(await tx.saleItem.create({
+              data: { saleId: existingPackSale.id, productId: listing.productId, quantity, unitPrice },
+            }));
           }
-
-          const newStock = Math.max(0, product.stock - quantity);
-
-          const totalCost = await this.costing.consumeForSale(tx, {
-            companyId,
-            productId: listing.productId,
-            warehouseId: product.warehouseId,
-            quantity,
-            saleItemId: saleItem.id,
-            reason: `Venta Mercado Libre orden #${orderId}`,
+          await tx.sale.update({
+            where: { id: existingPackSale.id },
+            data: {
+              total: Number(existingPackSale.total) + orderTotal,
+              netAmount: existingPackSale.netAmount != null
+                ? Number(existingPackSale.netAmount) + charges.totalPaid : charges.totalPaid,
+              marketplaceFee: existingPackSale.marketplaceFee != null && charges.marketplaceFee != null
+                ? Number(existingPackSale.marketplaceFee) + charges.marketplaceFee : existingPackSale.marketplaceFee,
+            },
           });
-          if (totalCost != null) {
-            await tx.saleItem.update({ where: { id: saleItem.id }, data: { totalCost } });
+          if (existingPackSale.order) {
+            await tx.order.update({
+              where: { id: existingPackSale.order.id },
+              data: {
+                itemChecks: {
+                  create: resolvedItems.map(({ listing, quantity }) => ({
+                    productId: listing.productId,
+                    productName: listing.product.name,
+                    productSku: listing.product.sku,
+                    expectedQty: quantity,
+                  })),
+                },
+              },
+            });
           }
-
-          // Pausa la publicación al llegar al stock crítico del producto (0 por defecto).
-          const criticalStock = Math.max(0, product.criticalStock ?? 0);
-          const belowCritical = newStock <= criticalStock;
-          const newStatus = belowCritical ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
-          await tx.listing.update({
-            where: { id: listing.id },
-            data: { status: newStatus, syncedAt: new Date() },
+          for (let i = 0; i < resolvedItems.length; i++) {
+            const { listing, quantity } = resolvedItems[i];
+            await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, newSaleItems[i].id);
+          }
+        });
+      } else {
+        await this.prisma.$transaction(async (tx) => {
+          const sale = await tx.sale.create({
+            data: {
+              channel: SaleChannel.MERCADO_LIBRE,
+              externalId: orderId,
+              mlPackId: packId,
+              total: orderTotal,
+              shippingCost: charges.shippingCost,
+              marketplaceFee: charges.marketplaceFee,
+              taxes: charges.taxes,
+              discount: charges.coupon,
+              netAmount: charges.totalPaid,
+              shippingMethod: shippingInfo.method,
+              companyId: companyId as string,
+              connectionId: resolvedItems[0].listing.connectionId,
+              customerName: order.buyer?.nickname || null,
+              items: {
+                create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
+                  productId: listing.productId,
+                  quantity,
+                  unitPrice,
+                })),
+              },
+            },
+            include: { items: true },
           });
 
-          // Pausar en ML solo al cruzar el umbral (evita re-pausar una publicación ya pausada).
-          if (belowCritical && listing.status !== ListingStatus.PAUSED) {
-            const itemToken = await this.getValidToken(listing.connectionId);
-            await fetch(`${ML_API}/items/${listing.externalId}`, {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${itemToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'paused' }),
-            });
-            this.logger.log(`ML orden ${orderId}: producto=${listing.productId} pausado por stock crítico (${newStock} ≤ ${criticalStock})`);
+          // Solicitud de despacho automática: reutiliza el mismo Order que ya usa el POS,
+          // así la venta entra directo al tablero de despacho y puede imprimir su etiqueta
+          // sin que nadie tenga que cargarla a mano.
+          const warehouseCounts: Record<string, number> = {};
+          for (const { listing, quantity } of resolvedItems) {
+            const whId = listing.product.warehouseId;
+            if (whId) warehouseCounts[whId] = (warehouseCounts[whId] || 0) + quantity;
           }
+          const autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
 
-          this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
-        }
-      });
+          await tx.order.create({
+            data: {
+              // A diferencia de POS (nace directo en Preparando), una venta de ML sí tiene
+              // una espera real antes de empezar a prepararla: falta imprimir la etiqueta de
+              // Mercado Envíos, que es lo que finalmente la deja Lista para el transportista.
+              status: OrderStatus.PENDING,
+              fulfillmentType: FulfillmentType.DELIVERY,
+              customerName: shippingInfo.address?.receiverName || order.buyer?.nickname || null,
+              customerPhone: shippingInfo.address?.receiverPhone || null,
+              address: shippingInfo.address?.addressLine || null,
+              commune: shippingInfo.address?.commune || null,
+              region: shippingInfo.address?.region || null,
+              courier: shippingInfo.method,
+              trackingCode: shippingInfo.trackingCode,
+              companyId: companyId as string,
+              saleId: sale.id,
+              warehouseId: autoWarehouseId || undefined,
+              itemChecks: {
+                create: resolvedItems.map(({ listing, quantity }) => ({
+                  productId: listing.productId,
+                  productName: listing.product.name,
+                  productSku: listing.product.sku,
+                  expectedQty: quantity,
+                })),
+              },
+            },
+          });
+
+          for (let i = 0; i < resolvedItems.length; i++) {
+            const { listing, quantity } = resolvedItems[i];
+            await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, sale.items[i].id);
+          }
+        });
+      }
     } catch (err: any) {
       // Otra corrida (webhook vs cron, o dos ticks del cron solapados) ya insertó esta orden
       // entre nuestro chequeo previo y este create: el constraint único la frena acá.
@@ -1799,7 +1863,7 @@ export class MercadolibreService {
       );
     }
 
-    return 'imported';
+    return existingPackSale ? 'merged' : 'imported';
   }
 
   // ─── Etiqueta de envío (Mercado Envíos 2) ──────────────────────────────────────
@@ -1878,17 +1942,28 @@ export class MercadolibreService {
   // retrocede un estado ya alcanzado) y una orden CANCELLED o DELIVERED ya no se toca
   // más — son estados finales. Devuelve true si efectivamente cambió algo.
   private async syncInternalOrderFromMl(mlOrder: any, token: string): Promise<boolean> {
-    const sale = await this.prisma.sale.findFirst({
+    // Si esta orden es parte de un pack (carrito) ya consolidado bajo OTRO order id, el
+    // externalId de la venta no va a calzar — se busca también por pack_id para no perder
+    // los avisos de estado de los demás ítems del mismo carrito/envío.
+    let sale = await this.prisma.sale.findFirst({
       where: { channel: SaleChannel.MERCADO_LIBRE, externalId: String(mlOrder.id) },
       include: { order: true },
     });
+    if (!sale && mlOrder.pack_id != null) {
+      sale = await this.prisma.sale.findFirst({
+        where: { channel: SaleChannel.MERCADO_LIBRE, mlPackId: String(mlOrder.pack_id) },
+        include: { order: true },
+      });
+    }
     const order = sale?.order;
     if (!order) return false;
     if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) return false;
 
     // Una orden cancelada en ML gana siempre, sin importar en qué etapa interna estaba
     // (picking/packing/despacho) — puede requerir revertir algo físico, por eso queda
-    // una nota visible en la orden en vez de cancelarla en silencio.
+    // una nota visible en la orden en vez de cancelarla en silencio. Nota: si el pack tiene
+    // varios ítems y ML cancela solo uno, esto igual cancela la orden consolidada completa
+    // (no hay soporte todavía para anular una sola línea de un pack).
     if (mlOrder.status === 'cancelled') {
       const note = `⚠️ Cancelada en Mercado Libre (${new Date().toLocaleString('es-CL')}). Revisa si ya se preparó o despachó.`;
       await this.prisma.order.update({
@@ -2093,7 +2168,7 @@ export class MercadolibreService {
         const order = await orderRes.json() as any;
 
         const result = await this.processOrder(orderId, order, token, connection.companyId, connection.id);
-        if (result === 'imported') imported++; else skipped++;
+        if (result === 'imported' || result === 'merged') imported++; else skipped++;
       } catch (err: any) {
         errors++;
         this.logger.error(`Auto-sync ML: error procesando orden ${orderId} (conexión ${connectionId}): ${err?.message || err}`);

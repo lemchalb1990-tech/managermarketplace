@@ -774,6 +774,10 @@ model Sale {
   id              String           @id @default(cuid())
   channel         SaleChannel      @default(POS)
   externalId      String?
+  // Carrito de compras de Mercado Libre: varios ítems comprados juntos generan varias
+  // "orders" de ML que comparten este pack_id y un solo envío. Se usa para consolidarlas
+  // en una sola Venta/Orden interna en vez de una por cada ítem.
+  mlPackId        String?
   total           Decimal          @db.Decimal(10, 2)
   shippingCost    Decimal?         @db.Decimal(10, 2)
   marketplaceFee  Decimal?         @db.Decimal(10, 2)
@@ -820,6 +824,7 @@ model Sale {
   mlClaims      MlClaim[]
 
   @@unique([channel, externalId])
+  @@index([channel, mlPackId])
   @@map("sales")
 }
 
