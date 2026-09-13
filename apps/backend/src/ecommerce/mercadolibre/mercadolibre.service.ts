@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import {
   Role, SaleChannel, MovementType, MarketplaceType,
-  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType,
+  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType, OrderStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -1798,6 +1798,103 @@ export class MercadolibreService {
     return 'imported';
   }
 
+  // ─── Estado de la Orden interna reflejando Mercado Libre ──────────────────────
+
+  // Trae el estado real del envío en Mercado Libre y lo refleja en la Orden interna
+  // vinculada a esa venta. Solo avanza hacia adelante en el ciclo de vida (nunca
+  // retrocede un estado ya alcanzado) y una orden CANCELLED o DELIVERED ya no se toca
+  // más — son estados finales. Devuelve true si efectivamente cambió algo.
+  private async syncInternalOrderFromMl(mlOrder: any, token: string): Promise<boolean> {
+    const sale = await this.prisma.sale.findFirst({
+      where: { channel: SaleChannel.MERCADO_LIBRE, externalId: String(mlOrder.id) },
+      include: { order: true },
+    });
+    const order = sale?.order;
+    if (!order) return false;
+    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) return false;
+
+    // Una orden cancelada en ML gana siempre, sin importar en qué etapa interna estaba
+    // (picking/packing/despacho) — puede requerir revertir algo físico, por eso queda
+    // una nota visible en la orden en vez de cancelarla en silencio.
+    if (mlOrder.status === 'cancelled') {
+      const note = `⚠️ Cancelada en Mercado Libre (${new Date().toLocaleString('es-CL')}). Revisa si ya se preparó o despachó.`;
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED, notes: [order.notes, note].filter(Boolean).join('\n') },
+      });
+      return true;
+    }
+
+    // El estado del envío solo existe si la publicación usa Mercado Envíos — un
+    // despacho propio (self_service) no tiene shipping.id o su estado no lo controla ML.
+    const shippingId = mlOrder.shipping?.id;
+    if (!shippingId) return false;
+
+    let shipment: any;
+    try {
+      const res = await fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return false;
+      shipment = await res.json();
+    } catch {
+      return false;
+    }
+
+    if (shipment.status === 'delivered') {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.DELIVERED, deliveredAt: new Date() },
+      });
+      return true;
+    }
+
+    if (shipment.status === 'shipped' && order.status !== OrderStatus.IN_TRANSIT) {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.IN_TRANSIT,
+          trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
+          courier: shipment.shipping_option?.name || order.courier,
+        },
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  // Barrido periódico (Auto-sync ML): revisa las órdenes de esta conexión que todavía
+  // no llegaron a un estado final por si algún webhook de ML se perdió. Se acota a los
+  // últimos 30 días para no reconsultar historial completo en cada corrida.
+  async syncActiveOrderStatuses(connectionId: string): Promise<{ checked: number; updated: number }> {
+    const connection = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!connection) return { checked: 0, updated: 0 };
+    const token = await this.getValidToken(connectionId);
+
+    const sales = await this.prisma.sale.findMany({
+      where: {
+        channel: SaleChannel.MERCADO_LIBRE,
+        companyId: connection.companyId,
+        createdAt: { gt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        order: { status: { notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] } },
+      },
+      select: { externalId: true },
+      take: 100,
+    });
+
+    let updated = 0;
+    for (const s of sales) {
+      try {
+        const res = await fetch(`${ML_API}/orders/${s.externalId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) continue;
+        const mlOrder = await res.json();
+        if (await this.syncInternalOrderFromMl(mlOrder, token)) updated++;
+      } catch {
+        // seguir con la siguiente orden
+      }
+    }
+    return { checked: sales.length, updated };
+  }
+
   // ─── Webhook ─────────────────────────────────────────────────────────────────
 
   async handleWebhook(body: any) {
@@ -1811,14 +1908,12 @@ export class MercadolibreService {
       const orderId = body.resource?.split('/').pop();
       if (!orderId) return { received: true };
 
-      // Evitar procesar la misma orden dos veces
+      // Si ya existe la venta, este webhook no la crea de nuevo — pero sí puede traer un
+      // cambio de estado (cancelada, despachada, entregada) que hay que reflejar en la
+      // Orden interna, así que igual seguimos y consultamos la orden fresca en ML.
       const existing = await this.prisma.sale.findFirst({
         where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderId },
       });
-      if (existing) {
-        this.logger.log(`ML Webhook: orden ${orderId} ya procesada`);
-        return { received: true };
-      }
 
       // La orden pertenece a una cuenta de ML concreta: probamos cada conexión de ML
       // activa y nos quedamos con la que puede leer la orden (las demás dan 401/403/404).
@@ -1851,7 +1946,11 @@ export class MercadolibreService {
         return { received: true };
       }
 
-      await this.processOrder(orderId, order, token, companyId, connectionId);
+      if (existing) {
+        await this.syncInternalOrderFromMl(order, token);
+      } else {
+        await this.processOrder(orderId, order, token, companyId, connectionId);
+      }
     } catch (error) {
       this.logger.error('Error procesando webhook ML', error);
     }

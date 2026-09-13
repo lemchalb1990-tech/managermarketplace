@@ -92,6 +92,16 @@ export class SalesImportCronService {
             } catch (err: any) {
               this.logger.error(`Auto-sync ML reclamos/devoluciones falló para conexión ${connection.id}: ${err?.message || err}`);
             }
+            // Respaldo por si algún webhook de orders_v2 se perdió: revisa el estado real
+            // en ML de las órdenes que todavía no llegaron a un estado final.
+            try {
+              const result = await this.mercadolibre.syncActiveOrderStatuses(connection.id);
+              if (result.updated) {
+                this.logger.log(`Auto-sync ML estados de orden conexión ${connection.id}: ${JSON.stringify(result)}`);
+              }
+            } catch (err: any) {
+              this.logger.error(`Auto-sync ML estados de orden falló para conexión ${connection.id}: ${err?.message || err}`);
+            }
             break;
           }
           default: {
