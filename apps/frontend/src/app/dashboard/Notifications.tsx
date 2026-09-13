@@ -376,7 +376,7 @@ export function NotificationBell() {
 // tocar nada (p. ej. probando desde otro dispositivo), el beep queda bloqueado en
 // silencio y sin este botón no habría forma de notar por qué no sonó.
 export function SoundEnableBanner() {
-  const { soundEnabled, muted, enableSound } = useNotifications();
+  const { soundEnabled, muted, enableSound, toggleMuted } = useNotifications();
   const [dismissed, setDismissed] = useState(false);
   if (soundEnabled || muted || dismissed) return null;
 
@@ -386,7 +386,7 @@ export function SoundEnableBanner() {
         <span className="text-lg shrink-0">🔈</span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--text)]">Activa el sonido de notificaciones</p>
-          <p className="text-xs text-[var(--text-muted)]">El navegador necesita un clic tuyo antes de poder sonar.</p>
+          <p className="text-xs text-[var(--text-muted)]">El navegador necesita un clic tuyo antes de poder sonar. Si prefieres no recibir sonido, puedes desactivarlo en Configuración.</p>
         </div>
         <button
           onClick={() => { enableSound(); setDismissed(true); }}
@@ -395,9 +395,12 @@ export function SoundEnableBanner() {
           Activar
         </button>
         <button
-          onClick={() => setDismissed(true)}
+          // Cerrar sin activar se toma como "no quiero sonido" — se guarda igual que el
+          // silenciar de la campanita, así no vuelve a preguntar en cada sesión.
+          onClick={() => { toggleMuted(); setDismissed(true); }}
           className="text-[var(--text-muted)] hover:text-[var(--text)] leading-none shrink-0"
-          aria-label="Cerrar"
+          aria-label="Cerrar y no volver a preguntar"
+          title="Cerrar y no volver a preguntar"
         >
           ✕
         </button>

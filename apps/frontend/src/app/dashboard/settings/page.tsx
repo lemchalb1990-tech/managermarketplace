@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
 import { invalidateNotificationSoundsCache } from '@/lib/notificationSounds';
 import { confirmDialog } from '../ConfirmDialog';
+import { useNotifications } from '../Notifications';
 
 const NOTIF_SOUND_KEYS = ['NOTIF_SOUND_SALE', 'NOTIF_SOUND_QUESTION', 'NOTIF_SOUND_CLAIM'];
 
@@ -42,6 +43,7 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState('');
   const canEdit = getUser()?.role === 'SUPER_ADMIN';
+  const { muted, toggleMuted } = useNotifications();
 
   const [sounds, setSounds] = useState<{ id: string; name: string; url: string }[]>([]);
   const [uploadingSound, setUploadingSound] = useState(false);
@@ -180,6 +182,23 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="divide-y divide-gray-50">
+                {group === 'notificaciones' && (
+                  <div className="px-5 py-4 border-b border-gray-50">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!muted}
+                        onChange={toggleMuted}
+                        className="w-4 h-4 accent-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Sonido de notificaciones</span>
+                    </label>
+                    <p className="text-xs text-gray-400 mt-1 ml-6">
+                      Solo para ti, en este navegador. Si lo desactivas, la campanita y los avisos emergentes
+                      siguen funcionando igual — solo deja de sonar, y no vuelve a pedirte que actives el sonido.
+                    </p>
+                  </div>
+                )}
                 {group === 'notificaciones' && (
                   <div className="px-5 py-4 space-y-3">
                     <label className="text-sm font-medium text-gray-700">Biblioteca de sonidos</label>
