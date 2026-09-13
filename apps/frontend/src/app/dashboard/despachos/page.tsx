@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -23,6 +24,7 @@ const TABS = [
 const emptyForm = { name: '', date: '', dispatcherId: '', notes: '' };
 
 export default function DespachosPage() {
+  const tz = useDashboardTimezone();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const [routes, setRoutes] = useState<any[]>([]);
@@ -131,8 +133,8 @@ export default function DespachosPage() {
             const delivered = route.stops?.filter((s: any) => s.deliveredAt).length ?? 0;
             const total = route._count?.stops ?? 0;
             const progress = total > 0 ? Math.round((delivered / total) * 100) : 0;
-            const dateStr = new Date(route.date + 'T12:00:00').toLocaleDateString('es-CL', {
-              weekday: 'long', day: 'numeric', month: 'long',
+            const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+              weekday: 'long', day: 'numeric', month: 'long', timeZone: tz,
             });
             return (
               <Link

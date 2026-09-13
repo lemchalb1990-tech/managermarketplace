@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -49,6 +50,7 @@ const emptyCreate = {
 };
 
 export default function OrdersPage() {
+  const tz = useDashboardTimezone();
   const [orders, setOrders] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -335,7 +337,7 @@ export default function OrdersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
-                    {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                   </td>
                   <td className="px-4 py-3">
                     <Link href={`/dashboard/orders/${o.id}`}

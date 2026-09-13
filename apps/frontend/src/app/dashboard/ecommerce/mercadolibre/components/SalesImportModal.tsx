@@ -3,6 +3,7 @@
 import { Fragment, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
 type OrderCharges = { shippingCost: number; marketplaceFee: number; taxes: number; coupon: number; totalPaid: number };
@@ -13,12 +14,12 @@ type OrderPreview = {
 
 const PAGE_SIZE = 20;
 
-function firstDayOfMonth() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+function firstDayOfMonth(tz: string) {
+  const key = dateKeyInTz(tz);
+  return `${key.slice(0, 7)}-01`;
 }
-function today() {
-  return new Date().toISOString().split('T')[0];
+function today(tz: string) {
+  return dateKeyInTz(tz);
 }
 
 export function SalesImportModal({
@@ -30,8 +31,9 @@ export function SalesImportModal({
   connectionName: string;
   onClose: () => void;
 }) {
-  const [from, setFrom] = useState(firstDayOfMonth());
-  const [to, setTo] = useState(today());
+  const tz = useDashboardTimezone();
+  const [from, setFrom] = useState(() => firstDayOfMonth(tz));
+  const [to, setTo] = useState(() => today(tz));
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
@@ -205,7 +207,7 @@ export function SalesImportModal({
                                 checked={selected.has(o.externalId)} onChange={() => toggle(o.externalId)} />
                             </td>
                             <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
-                              {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                             </td>
                             <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerNickname || '—'}</td>
                             <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>

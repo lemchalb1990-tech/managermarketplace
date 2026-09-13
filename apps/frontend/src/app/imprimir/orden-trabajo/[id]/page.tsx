@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Presupuesto pendiente', CONVERTED: 'Cobrada', REJECTED: 'Rechazada', CANCELLED: 'Anulada',
@@ -10,6 +11,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const tz = useDashboardTimezone();
   const [workOrder, setWorkOrder] = useState<any>(null);
   const [error, setError] = useState('');
   const user = getUser();
@@ -66,7 +68,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
         <div style={{ textAlign: 'right' }}>
           <p style={{ fontSize: 18, fontWeight: 'bold', margin: 0 }}>N° {String(workOrder.folio).padStart(4, '0')}</p>
           <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
-            {new Date(workOrder.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })}
+            {new Date(workOrder.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric', timeZone: tz })}
           </p>
           <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>{STATUS_LABEL[workOrder.status] || workOrder.status}</p>
         </div>

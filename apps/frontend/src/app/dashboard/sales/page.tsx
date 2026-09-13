@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -33,6 +34,7 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 
 export default function SalesPage() {
   const searchParams = useSearchParams();
+  const tz = useDashboardTimezone();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
@@ -47,7 +49,7 @@ export default function SalesPage() {
   const [from, setFrom] = useState(() => searchParams.get('from') || '');
   const [to, setTo] = useState(() => searchParams.get('to') || '');
   const [search, setSearch] = useState('');
-  const [summaryDate, setSummaryDate] = useState(() => searchParams.get('from') || new Date().toISOString().split('T')[0]);
+  const [summaryDate, setSummaryDate] = useState(() => searchParams.get('from') || dateKeyInTz(tz));
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
@@ -341,7 +343,7 @@ export default function SalesPage() {
                   <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
                     <div>
                       <p className="text-sm font-medium text-gray-800">
-                        {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
                       </p>
                       {sale.customerName && (
                         <p className="text-xs text-gray-400 truncate">{sale.customerName}</p>

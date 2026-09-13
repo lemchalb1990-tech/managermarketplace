@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const TABS = [
   { key: 'UNANSWERED', label: 'Sin responder' },
@@ -15,6 +16,7 @@ const TABS = [
 
 export default function MlPreguntasPage() {
   const { companyId } = useMlCompany();
+  const tz = useDashboardTimezone();
   const [tab, setTab] = useState<typeof TABS[number]['key']>('UNANSWERED');
   const [data, setData] = useState<{ questions: any[]; unanswered: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +102,7 @@ export default function MlPreguntasPage() {
               }
               actions={q.status === 'UNANSWERED' ? <Badge tone="warn">Sin responder</Badge> : q.status === 'ANSWERED' ? <Badge tone="ok">Respondida</Badge> : <Badge tone="neutral">{q.status}</Badge>}>
               <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
-                {q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL')}
+                {q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL', { timeZone: tz })}
               </p>
               <p className="text-sm text-[var(--text)] mb-3">"{q.text}"</p>
               {q.status === 'ANSWERED' ? (

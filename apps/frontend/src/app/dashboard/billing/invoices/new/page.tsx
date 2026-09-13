@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import InvoiceDocument from '../../components/InvoiceDocument';
 import { useBillingCompany } from '../../BillingCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const DTE_TYPES = [
   { value: 'FACTURA', label: 'Factura Electrónica (33)', taxed: true },
@@ -35,6 +36,7 @@ function splitItemName(raw: string): { name: string; longDescription: string } {
 export default function NewInvoicePage() {
   const router = useRouter();
   const { companyId } = useBillingCompany();
+  const tz = useDashboardTimezone();
   const searchParams = useSearchParams();
   const saleId = searchParams.get('saleId');
   const draftId = searchParams.get('draftId');
@@ -419,7 +421,7 @@ export default function NewInvoicePage() {
           ) : sale ? (
             <>
               Facturando la venta del{' '}
-              {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {new Date(sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
               {' '}por <strong>${Math.round(Number(sale.total)).toLocaleString('es-CL')}</strong>.
               {' '}Los ítems se precargaron abajo; completa el RUT del receptor.
               {sale.invoices?.length > 0 && (

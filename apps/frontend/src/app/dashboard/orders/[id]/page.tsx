@@ -4,6 +4,7 @@ import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -23,6 +24,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const tz = useDashboardTimezone();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -615,7 +617,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-16 shrink-0">Fecha</span>
                   <span className="text-gray-800">
-                    {new Date(order.sale.createdAt).toLocaleDateString('es-CL')}
+                    {new Date(order.sale.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}
                   </span>
                 </div>
               </div>
@@ -629,14 +631,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <div className="flex gap-2">
                 <span className="text-gray-400 w-20 shrink-0">Creada</span>
                 <span className="text-gray-700">
-                  {new Date(order.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(order.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
                 </span>
               </div>
               {order.deliveredAt && (
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-20 shrink-0">Entregada</span>
                   <span className="text-green-700 font-medium">
-                    {new Date(order.deliveredAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(order.deliveredAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
                   </span>
                 </div>
               )}

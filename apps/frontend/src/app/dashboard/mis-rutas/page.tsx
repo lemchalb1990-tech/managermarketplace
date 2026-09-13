@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -104,12 +105,13 @@ function Section({ title, accent, children }: { title: string; accent: string; c
 }
 
 function RouteCard({ route, highlight, muted }: { route: any; highlight?: boolean; muted?: boolean }) {
+  const tz = useDashboardTimezone();
   const cfg = STATUS_CFG[route.status] ?? STATUS_CFG.PENDING;
   const stops = route._count?.stops ?? route.stops?.length ?? 0;
   const delivered = route.stops?.filter((s: any) => s.deliveredAt).length ?? 0;
   const progress = stops > 0 ? Math.round((delivered / stops) * 100) : 0;
-  const dateStr = new Date(route.date + 'T12:00:00').toLocaleDateString('es-CL', {
-    weekday: 'short', day: 'numeric', month: 'short',
+  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: tz,
   });
 
   return (

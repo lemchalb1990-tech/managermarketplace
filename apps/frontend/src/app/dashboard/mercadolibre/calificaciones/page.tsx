@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatTile, StatRow, Badge } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const RATING_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
   POSITIVE: { label: 'Positiva', tone: 'ok' },
@@ -23,6 +24,7 @@ const LEVEL_COLOR: Record<string, string> = {
 
 export default function MlCalificacionesPage() {
   const { companyId } = useMlCompany();
+  const tz = useDashboardTimezone();
   const [connections, setConnections] = useState<any[]>([]);
   const [connId, setConnId] = useState('');
   const [reputation, setReputation] = useState<any>(null);
@@ -142,7 +144,7 @@ export default function MlCalificacionesPage() {
                 }
                 actions={<Badge tone={r.tone}>{r.label}</Badge>}>
                 <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
-                  {f.mlFeedbackAt ? new Date(f.mlFeedbackAt).toLocaleString('es-CL') : ''}
+                  {f.mlFeedbackAt ? new Date(f.mlFeedbackAt).toLocaleString('es-CL', { timeZone: tz }) : ''}
                 </p>
                 {f.mlFeedbackComment ? (
                   <p className="text-sm text-[var(--text)]">"{f.mlFeedbackComment}"</p>

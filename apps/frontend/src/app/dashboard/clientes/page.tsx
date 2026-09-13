@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const emptyForm = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
 
@@ -16,10 +17,11 @@ const DTE_LABELS: Record<string, string> = {
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Borrador', ISSUED: 'Emitido', ACCEPTED: 'Aceptado', REJECTED: 'Rechazado', CANCELLED: 'Anulado',
 };
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtDate = (d: string, tz: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz });
 
 export default function ClientsPage() {
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -475,7 +477,7 @@ export default function ClientsPage() {
                           <tbody className="divide-y divide-gray-100">
                             {historyData.invoices.map((inv: any) => (
                               <tr key={inv.id}>
-                                <td className="px-3 py-2 text-gray-600">{fmtDate(inv.createdAt)}</td>
+                                <td className="px-3 py-2 text-gray-600">{fmtDate(inv.createdAt, tz)}</td>
                                 <td className="px-3 py-2 text-gray-600">{DTE_LABELS[inv.dteType] ?? inv.dteType}</td>
                                 <td className="px-3 py-2 font-mono text-gray-500">{inv.folio ?? '—'}</td>
                                 <td className="px-3 py-2 text-right font-medium text-gray-900">{fmt(Number(inv.totalAmount))}</td>

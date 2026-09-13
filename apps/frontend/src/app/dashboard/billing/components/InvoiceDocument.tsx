@@ -1,4 +1,7 @@
+'use client';
+
 import { imgUrl } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 export interface InvoiceDocumentItem {
   name: string;
@@ -33,6 +36,7 @@ export default function InvoiceDocument({
   profile, dteLabel, folio, statusBadge, connectionName, connectionProvider,
   receptor, items, isTaxed, netAmount, tax, totalAmount, notes, paymentInfo, extraNote,
 }: Props) {
+  const tz = useDashboardTimezone();
   const itemTotal = (i: InvoiceDocumentItem) => i.unitPrice * i.quantity * (1 - (i.discount ?? 0) / 100);
 
   return (
@@ -61,7 +65,7 @@ export default function InvoiceDocument({
           {profile?.resolutionNumber && (
             <p className="text-gray-400 text-[10px] mt-1">
               Res. {profile.resolutionNumber}
-              {profile.resolutionDate && ` del ${new Date(profile.resolutionDate).toLocaleDateString('es-CL')}`}
+              {profile.resolutionDate && ` del ${new Date(profile.resolutionDate).toLocaleDateString('es-CL', { timeZone: tz })}`}
             </p>
           )}
           {statusBadge && <div className="mt-2">{statusBadge}</div>}

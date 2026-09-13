@@ -9,9 +9,11 @@ import { ImportModal } from './components/ImportModal';
 import { SalesImportModal } from './components/SalesImportModal';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 export default function MercadoLibrePage() {
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const logoMap = usePlatformLogos();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [connections, setConnections] = useState<any[]>([]);
@@ -347,11 +349,11 @@ export default function MercadoLibrePage() {
                       <span>
                         Token: {c.expiresAt ? (
                           <span className={expired ? 'text-red-500 font-medium' : ''}>
-                            {expired ? 'Expirado · ' : ''}{new Date(c.expiresAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {expired ? 'Expirado · ' : ''}{new Date(c.expiresAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                           </span>
                         ) : '—'}
                       </span>
-                      <span>Conectada: {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <span>Conectada: {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}</span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-gray-100">

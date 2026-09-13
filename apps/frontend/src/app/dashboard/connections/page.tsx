@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const MARKETPLACE_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -29,6 +30,7 @@ type Row = {
 };
 
 export default function ConnectionsPage() {
+  const tz = useDashboardTimezone();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -199,12 +201,12 @@ export default function ConnectionsPage() {
                   <td className="px-4 py-3">
                     {r.expiresAt ? (
                       <span className={`text-xs ${expired ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
-                        {expired ? 'Expirado · ' : ''}{new Date(r.expiresAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {expired ? 'Expirado · ' : ''}{new Date(r.expiresAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                       </span>
                     ) : <span className="text-gray-400 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
-                    {new Date(r.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(r.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {r.isMercadoLibre && !r.authorized && (

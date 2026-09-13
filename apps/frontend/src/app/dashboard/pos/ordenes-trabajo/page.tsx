@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 interface LineItem {
   productId?: string;
@@ -37,6 +38,7 @@ const emptyForm = () => ({
 
 export default function WorkOrdersPage() {
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -376,7 +378,7 @@ export default function WorkOrdersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {new Date(wo.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {new Date(wo.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                       </td>
                       <td className="px-4 py-3 text-right space-x-3 whitespace-nowrap">
                         <Link href={`/imprimir/orden-trabajo/${wo.id}`} target="_blank"

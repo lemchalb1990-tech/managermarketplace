@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import MergeModal from './MergeModal';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
@@ -466,6 +467,7 @@ const listingChipDefaultColor = 'bg-red-100 text-red-700';
 export default function CatalogPage() {
   const searchParams = useSearchParams();
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
@@ -2125,7 +2127,7 @@ export default function CatalogPage() {
                               {mov.user && <p className="text-xs text-gray-400">Por: {mov.user.name}</p>}
                             </div>
                             <p className="text-xs text-gray-400 shrink-0">
-                              {new Date(mov.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(mov.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: tz })}
                             </p>
                           </div>
                         );

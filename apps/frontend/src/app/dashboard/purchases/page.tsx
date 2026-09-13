@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 type Tab = 'purchases' | 'transfers';
 
@@ -15,6 +16,7 @@ const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
 export default function PurchasesPage() {
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const [tab, setTab] = useState<Tab>('purchases');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -292,7 +294,7 @@ export default function PurchasesPage() {
                 <tbody className="divide-y divide-gray-100">
                   {purchases.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">{new Date(p.date).toLocaleDateString('es-CL')}</td>
+                      <td className="px-4 py-3 text-gray-600">{new Date(p.date).toLocaleDateString('es-CL', { timeZone: tz })}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{p.supplier?.name}</td>
                       <td className="px-4 py-3 text-gray-600">{p.warehouse?.name}</td>
                       <td className="px-4 py-3 text-gray-500">{p.documentNumber || <span className="text-gray-300">—</span>}</td>
@@ -405,7 +407,7 @@ export default function PurchasesPage() {
                 <tbody className="divide-y divide-gray-100">
                   {transfers.map((t) => (
                     <tr key={t.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">{new Date(t.createdAt).toLocaleDateString('es-CL')}</td>
+                      <td className="px-4 py-3 text-gray-600">{new Date(t.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{t.product?.name}</td>
                       <td className="px-4 py-3 text-gray-600">{t.fromWarehouse?.name}</td>
                       <td className="px-4 py-3 text-gray-600">{t.toWarehouse?.name}</td>

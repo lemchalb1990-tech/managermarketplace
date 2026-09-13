@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useBillingCompany } from '../BillingCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 export interface ProviderField {
   key: string;
@@ -31,6 +32,7 @@ interface Props { config: ProviderConfig }
 
 export default function ProviderPage({ config }: Props) {
   const { isSuperAdmin, companyId: activeCompanyId } = useBillingCompany();
+  const tz = useDashboardTimezone();
   const logoMap = usePlatformLogos();
   const logoKey = config.provider.toLowerCase();
   const displayName = resolvePlatformName(logoMap, logoKey, config.name);
@@ -257,7 +259,7 @@ export default function ProviderPage({ config }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                     </td>
                     <td className="px-4 py-3 text-right flex gap-3 justify-end">
                       {isSuperAdmin && (

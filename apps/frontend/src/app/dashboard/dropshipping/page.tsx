@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 type Tab = 'suppliers' | 'products' | 'orders' | 'report';
 
@@ -37,6 +38,7 @@ const emptyProductForm = { productId: '', dropshipSupplierId: '', supplierCost: 
 
 export default function DropshippingPage() {
   const { selectedCompanyId } = useAdminCompany();
+  const tz = useDashboardTimezone();
   const [tab, setTab] = useState<Tab>('suppliers');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -281,7 +283,7 @@ export default function DropshippingPage() {
                         </button>
                       </div>
                       {s.lastSyncedAt && (
-                        <p className="text-[11px] text-gray-400 mt-0.5">Última: {new Date(s.lastSyncedAt).toLocaleString('es-CL')}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Última: {new Date(s.lastSyncedAt).toLocaleString('es-CL', { timeZone: tz })}</p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -490,7 +492,7 @@ export default function DropshippingPage() {
               <tbody className="divide-y divide-gray-100">
                 {report.rows.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-500 text-xs">{new Date(r.createdAt).toLocaleDateString('es-CL')}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{new Date(r.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}</td>
                     <td className="px-4 py-3 text-gray-700">{r.supplierName}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{r.saleChannel} · {r.saleRef}</td>
                     <td className="px-4 py-3 text-right text-gray-700">{fmt(r.saleAmount)}</td>

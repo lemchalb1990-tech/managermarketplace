@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -21,6 +22,7 @@ type Stop = {
 
 export default function MiRutaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const tz = useDashboardTimezone();
   const [token, setToken] = useState('');
   const [route, setRoute] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -115,8 +117,8 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
   const isActive = route.status === 'IN_PROGRESS';
   const isPending = route.status === 'PENDING';
   const isCompleted = route.status === 'COMPLETED';
-  const dateStr = new Date(route.date + 'T12:00:00').toLocaleDateString('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long',
+  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: tz,
   });
 
   const mapStops = stops.map(s => ({
@@ -267,7 +269,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
                     )}
                     {done && stop.deliveredAt && (
                       <p className="text-xs text-green-600 mt-0.5">
-                        Entregado {new Date(stop.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        Entregado {new Date(stop.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}
                         {stop.deliveredLat != null && stop.deliveredLng != null && (
                           <a
                             href={`https://maps.google.com/?q=${stop.deliveredLat},${stop.deliveredLng}`}
@@ -303,7 +305,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
           <p className="font-bold text-green-700">¡Ruta completada!</p>
           <p className="text-sm text-green-600 mt-1">
             {delivered} entrega{delivered !== 1 ? 's' : ''} realizadas
-            {route.completedAt && ` · finalizada a las ${new Date(route.completedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`}
+            {route.completedAt && ` · finalizada a las ${new Date(route.completedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}`}
           </p>
         </div>
       )}

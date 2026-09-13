@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; trigger: string }> = {
   ORDER_CONFIRMED:        { label: 'Orden confirmada',       icon: '🎉', trigger: 'Al crear una orden' },
@@ -25,6 +26,7 @@ const VARS = [
 ];
 
 export default function EmailsPage() {
+  const tz = useDashboardTimezone();
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState('');
   const [tab, setTab] = useState<'templates' | 'smtp'>('templates');
@@ -157,7 +159,7 @@ export default function EmailsPage() {
     .replace('{{companyName}}', user?.company?.name ?? 'Mi Empresa')
     .replace('{{total}}', '$29.990')
     .replace('{{address}}', 'Av. Providencia 1234, Providencia, Santiago')
-    .replace('{{date}}', new Date().toLocaleDateString('es-CL'))
+    .replace('{{date}}', new Date().toLocaleDateString('es-CL', { timeZone: tz }))
     .replace('{{itemsTable}}', `<table width="100%" style="margin-bottom:8px;"><thead><tr style="background:#f9fafb;"><th style="padding:8px 0;text-align:left;font-size:12px;color:#9ca3af;">Producto</th><th style="padding:8px;text-align:center;font-size:12px;color:#9ca3af;">Cant.</th><th style="padding:8px 0;text-align:right;font-size:12px;color:#9ca3af;">Subtotal</th></tr></thead><tbody><tr><td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;">Zapato deportivo talla 42</td><td style="padding:8px;text-align:center;font-size:14px;color:#6b7280;">2</td><td style="padding:8px 0;text-align:right;font-size:14px;">$19.980</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;">Calcetines deporte x3</td><td style="padding:8px;text-align:center;font-size:14px;color:#6b7280;">1</td><td style="padding:8px 0;text-align:right;font-size:14px;">$4.990</td></tr></tbody></table>`)
     .replace('{{deliveryBlock}}', `<div style="margin:16px 0;padding:14px 16px;background:#f9fafb;border-radius:8px;font-size:14px;color:#374151;"><strong>🏠 Dirección de entrega</strong><br><span style="color:#6b7280;">Av. Providencia 1234, Providencia</span></div>`)
     : '';

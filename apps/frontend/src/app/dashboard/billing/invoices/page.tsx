@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import { api, openDocumentUrl } from '@/lib/api';
 import InvoiceDocument from '../components/InvoiceDocument';
 import { useBillingCompany } from '../BillingCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
 
@@ -44,6 +45,7 @@ const emptyPayForm = { paymentMethod: 'TRANSFER', paymentReference: '', paidAt: 
 
 export default function InvoicesPage() {
   const { companyId } = useBillingCompany();
+  const tz = useDashboardTimezone();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -272,7 +274,7 @@ export default function InvoicesPage() {
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-400">{inv.connection?.provider ?? '—'}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">
-                  {new Date(inv.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {new Date(inv.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex gap-2 justify-end items-center">
@@ -443,7 +445,7 @@ export default function InvoicesPage() {
                 notes={viewingInvoice.notes}
                 paymentInfo={
                   viewingInvoice.paymentCondition === 'CREDITO'
-                    ? `Crédito${viewingInvoice.dueDate ? ` · vence ${new Date(viewingInvoice.dueDate).toLocaleDateString('es-CL')}` : ''}`
+                    ? `Crédito${viewingInvoice.dueDate ? ` · vence ${new Date(viewingInvoice.dueDate).toLocaleDateString('es-CL', { timeZone: tz })}` : ''}`
                     : viewingInvoice.paymentCondition === 'CONTADO'
                       ? `Contado${viewingInvoice.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[viewingInvoice.paymentMethod] ?? viewingInvoice.paymentMethod}` : ''}`
                       : undefined

@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -33,6 +34,7 @@ type Stop = {
 export default function DespachoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const tz = useDashboardTimezone();
   const [token, setToken] = useState('');
   const [route, setRoute] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -149,8 +151,8 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
   const canEdit = route.status === 'PENDING' || route.status === 'IN_PROGRESS';
   const canStart = route.status === 'PENDING';
   const canCancel = route.status !== 'COMPLETED' && route.status !== 'CANCELLED';
-  const dateStr = new Date(route.date + 'T12:00:00').toLocaleDateString('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
 
   const mapStops = stops.map(s => ({
@@ -219,10 +221,10 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
           <div><span className="text-gray-400">Entregadas</span> <span className="font-bold text-green-600 ml-1">{delivered}</span></div>
           <div><span className="text-gray-400">Pendientes</span> <span className="font-bold text-amber-600 ml-1">{stops.length - delivered}</span></div>
           {route.startedAt && (
-            <div><span className="text-gray-400">Inicio</span> <span className="font-medium ml-1">{new Date(route.startedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span></div>
+            <div><span className="text-gray-400">Inicio</span> <span className="font-medium ml-1">{new Date(route.startedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}</span></div>
           )}
           {route.completedAt && (
-            <div><span className="text-gray-400">Fin</span> <span className="font-medium ml-1">{new Date(route.completedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span></div>
+            <div><span className="text-gray-400">Fin</span> <span className="font-medium ml-1">{new Date(route.completedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}</span></div>
           )}
         </div>
       )}
@@ -284,7 +286,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
                       {stop.notes && <p className="text-xs text-gray-400 italic mt-0.5">{stop.notes}</p>}
                       {done && stop.deliveredAt && (
                         <p className="text-xs text-green-600 mt-0.5">
-                          Entregado {new Date(stop.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                          Entregado {new Date(stop.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}
                         </p>
                       )}
                     </div>

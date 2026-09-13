@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const money = (n: any) => `$${Number(n || 0).toLocaleString('es-CL')}`;
 
 export default function RemuneracionPage() {
+  const tz = useDashboardTimezone();
   const [summary, setSummary] = useState<any[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export default function RemuneracionPage() {
                     <tr key={b.id}>
                       <td className="px-5 py-2.5 text-[var(--text)]">{b.driver?.name}</td>
                       <td className="px-5 py-2.5 text-xs text-[var(--text-muted)]">
-                        {new Date(b.periodFrom).toLocaleDateString('es-CL')} – {new Date(b.periodTo).toLocaleDateString('es-CL')}
+                        {new Date(b.periodFrom).toLocaleDateString('es-CL', { timeZone: tz })} – {new Date(b.periodTo).toLocaleDateString('es-CL', { timeZone: tz })}
                       </td>
                       <td className="px-5 py-2.5 text-right text-[var(--text-2)]">{b.packages}</td>
                       <td className="px-5 py-2.5 text-right text-[var(--text-2)]">{money(b.amount)}</td>
