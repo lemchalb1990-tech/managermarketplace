@@ -1400,7 +1400,15 @@ export class MercadolibreService {
       }
 
       const logisticType = shipment.logistic_type || shipment.shipping_option?.name;
-      const method = logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
+      // Turbo NO es un logistic_type propio en la API de ML — un envío Turbo devuelve
+      // logistic_type "self_service" igual que un Flex normal; la única forma de
+      // distinguirlo es por el tag "turbo" en shipment.tags. Sin este chequeo, todo pedido
+      // Turbo se etiquetaba como "Flex" común.
+      // Ver https://developers.mercadolibre.com.ar/es_ar/envios-turbo#Identificar-órdenes-Turbo
+      const isTurbo = Array.isArray(shipment.tags) && shipment.tags.includes('turbo');
+      const method = isTurbo
+        ? 'Turbo'
+        : logisticType ? (MercadolibreService.ML_LOGISTIC_LABELS[logisticType] || logisticType) : null;
 
       const sender = Array.isArray(costs?.senders) ? costs.senders[0] : undefined;
 

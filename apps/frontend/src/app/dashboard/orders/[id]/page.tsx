@@ -606,6 +606,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       </div>
                     </div>
                     <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Región</label>
+                      <input value={shipForm.region}
+                        onChange={(e) => setShipForm((f: any) => ({ ...f, region: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Courier</label>
                       <input value={shipForm.courier}
                         placeholder="Starken, Chilexpress, Blue Express..."
@@ -660,6 +666,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     { label: 'Dirección', value: order.address },
                     { label: 'Comuna', value: order.commune },
                     { label: 'Ciudad', value: order.city },
+                    { label: 'Región', value: order.region },
                     { label: 'Courier', value: order.courier },
                     { label: 'Tracking', value: order.trackingCode },
                   ] : []),
