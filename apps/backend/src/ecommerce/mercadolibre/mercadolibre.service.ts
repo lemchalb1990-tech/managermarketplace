@@ -521,6 +521,13 @@ export class MercadolibreService {
     }
   }
 
+  // ML enmascara el nombre/teléfono del comprador como "XXXXXXX" hasta que la dirección
+  // queda "revelada" (normalmente al confirmar el pago) — nunca hay que guardar esto como
+  // si fuera el dato real, ni al crear la orden ni al refrescarla después.
+  private isMaskedMlValue(v: string | null | undefined): boolean {
+    return !v || /^x+$/i.test(v.trim());
+  }
+
   // Texto que ve el comprador cuando escribió la descripción con el editor enriquecido
   // (mlDescription en HTML) pero la categoría actual ya no admite HTML — sin esto, las
   // etiquetas quedarían visibles como texto literal en la publicación.
@@ -1872,8 +1879,10 @@ export class MercadolibreService {
               // Mercado Envíos, que es lo que finalmente la deja Lista para el transportista.
               status: OrderStatus.PENDING,
               fulfillmentType: FulfillmentType.DELIVERY,
-              customerName: shippingInfo.address?.receiverName || order.buyer?.nickname || null,
-              customerPhone: shippingInfo.address?.receiverPhone || null,
+              customerName: !this.isMaskedMlValue(shippingInfo.address?.receiverName)
+                ? shippingInfo.address!.receiverName : (order.buyer?.nickname || null),
+              customerPhone: !this.isMaskedMlValue(shippingInfo.address?.receiverPhone)
+                ? shippingInfo.address!.receiverPhone : null,
               address: shippingInfo.address?.addressLine || null,
               commune: shippingInfo.address?.commune || null,
               region: shippingInfo.address?.region || null,
@@ -2094,6 +2103,11 @@ export class MercadolibreService {
       },
     });
 
+    // No pisa un dato bueno con la máscara "XXXXXXX" de ML: solo aplica nombre/teléfono si
+    // lo que llega ahora ya está revelado.
+    const receiverName = shippingInfo.address?.receiverName;
+    const receiverPhone = shippingInfo.address?.receiverPhone;
+
     const updated = await this.prisma.order.update({
       where: { id: order.id },
       data: {
@@ -2102,6 +2116,8 @@ export class MercadolibreService {
         ...(shippingInfo.address?.region ? { region: shippingInfo.address.region } : {}),
         ...(shippingInfo.address?.commune ? { commune: shippingInfo.address.commune } : {}),
         ...(shippingInfo.address?.addressLine ? { address: shippingInfo.address.addressLine } : {}),
+        ...(!this.isMaskedMlValue(receiverName) ? { customerName: receiverName } : {}),
+        ...(!this.isMaskedMlValue(receiverPhone) ? { customerPhone: receiverPhone } : {}),
       },
       include: { sale: { select: { id: true, externalId: true, mlPackId: true, mlShippingId: true } } },
     });
