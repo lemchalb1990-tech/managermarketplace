@@ -8,7 +8,7 @@ import { hasModule } from '@/lib/modules';
 import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate } from './CompanyGate';
-import { NotificationsProvider, NotificationBell, NotificationToasts } from './Notifications';
+import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 
 type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
 type NavGroup = { key: string; label: string; items: NavItem[] };
@@ -375,6 +375,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <NotificationToasts />
+        <SoundEnableBanner />
       </NotificationsProvider>
     </AdminCompanyProvider>
   );

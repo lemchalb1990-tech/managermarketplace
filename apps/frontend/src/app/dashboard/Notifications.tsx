@@ -128,6 +128,8 @@ interface NotificationsCtx {
   go: (e: NotifEvent) => void;
   muted: boolean;
   toggleMuted: () => void;
+  soundEnabled: boolean;
+  enableSound: () => void;
 }
 
 const Ctx = createContext<NotificationsCtx | null>(null);
@@ -148,6 +150,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<NotifEvent[]>([]);
   const [toasts, setToasts] = useState<NotifEvent[]>([]);
   const [muted, setMuted] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const shouldPoll = !isSuperAdmin || !!selectedCompanyId;
 
   useEffect(() => {
@@ -156,11 +159,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Desbloquea el audio con la primera interacción real del usuario en la sesión (clic,
-  // tecla o touch) — de ahí en más, el beep del polling ya puede sonar.
+  // tecla o touch) — de ahí en más, el beep/sonido del polling ya puede sonar. Si el
+  // usuario solo mira el dashboard sin tocar nada (p.ej. probando desde otra pestaña/
+  // dispositivo), nunca hay gesto y el navegador bloquea el audio en silencio — por eso
+  // soundEnabled se expone para mostrar un botón explícito de "Activar sonido".
   useEffect(() => {
+    if (sharedAudioCtx || hasUserGesture) setSoundEnabled(true);
+    const handler = () => { unlockAudioContext(); setSoundEnabled(true); };
     const events: Array<keyof DocumentEventMap> = ['pointerdown', 'keydown', 'touchstart'];
-    events.forEach((evt) => document.addEventListener(evt, unlockAudioContext));
-    return () => events.forEach((evt) => document.removeEventListener(evt, unlockAudioContext));
+    events.forEach((evt) => document.addEventListener(evt, handler));
+    return () => events.forEach((evt) => document.removeEventListener(evt, handler));
+  }, []);
+
+  const enableSound = useCallback(() => {
+    unlockAudioContext();
+    setSoundEnabled(true);
+    playBeep(); // confirmación audible de que ya quedó activado
   }, []);
 
   const toggleMuted = useCallback(() => {
@@ -248,7 +262,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const unreadCount = history.filter((h) => !h.read).length;
 
   return (
-    <Ctx.Provider value={{ history, unreadCount, markAllRead, toasts, dismissToast, go, muted, toggleMuted }}>
+    <Ctx.Provider value={{ history, unreadCount, markAllRead, toasts, dismissToast, go, muted, toggleMuted, soundEnabled, enableSound }}>
       {children}
     </Ctx.Provider>
   );
@@ -351,6 +365,41 @@ export function NotificationBell() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Banner explícito para activar el sonido: los navegadores exigen un gesto real del
+// usuario (clic) antes de permitir audio — si la persona solo mira el dashboard sin
+// tocar nada (p. ej. probando desde otro dispositivo), el beep queda bloqueado en
+// silencio y sin este botón no habría forma de notar por qué no sonó.
+export function SoundEnableBanner() {
+  const { soundEnabled, muted, enableSound } = useNotifications();
+  const [dismissed, setDismissed] = useState(false);
+  if (soundEnabled || muted || dismissed) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 z-[100] w-[min(320px,calc(100vw-2rem))]">
+      <div className="ui-card flex items-center gap-3 px-4 py-3 shadow-lg border-l-4" style={{ borderLeftColor: 'var(--info)' }}>
+        <span className="text-lg shrink-0">🔈</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[var(--text)]">Activa el sonido de notificaciones</p>
+          <p className="text-xs text-[var(--text-muted)]">El navegador necesita un clic tuyo antes de poder sonar.</p>
+        </div>
+        <button
+          onClick={() => { enableSound(); setDismissed(true); }}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-800 shrink-0 whitespace-nowrap"
+        >
+          Activar
+        </button>
+        <button
+          onClick={() => setDismissed(true)}
+          className="text-[var(--text-muted)] hover:text-[var(--text)] leading-none shrink-0"
+          aria-label="Cerrar"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
