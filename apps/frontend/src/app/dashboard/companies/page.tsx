@@ -259,7 +259,10 @@ export default function CompaniesPage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-600">Auto-importar ventas por plataforma</label>
+              <label className="text-xs font-medium text-gray-600">Auto-sync por plataforma</label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Trae solo, sin apretar ningún botón: ventas, preguntas y reclamos/devoluciones nuevos.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {SYNC_SALE_PLATFORMS.map((p) => {
                   const checked = editing.autoSyncSalesPlatforms.includes(p.key);
