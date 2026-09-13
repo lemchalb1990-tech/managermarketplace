@@ -436,6 +436,8 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/claims/${externalId}/actions`, { method: 'POST', body: JSON.stringify({ action, extra }) }, token),
     syncClaims: (connectionId: string, token: string) =>
       apiFetch<{ synced: number }>(`/ecommerce/ml/connections/${connectionId}/claims/sync`, { method: 'POST' }, token),
+    syncOrderStatuses: (connectionId: string, token: string) =>
+      apiFetch<{ checked: number; updated: number }>(`/ecommerce/ml/connections/${connectionId}/orders/sync`, { method: 'POST' }, token),
     reputation: (connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/reputation`, {}, token),
     feedback: (token: string, companyId?: string) =>

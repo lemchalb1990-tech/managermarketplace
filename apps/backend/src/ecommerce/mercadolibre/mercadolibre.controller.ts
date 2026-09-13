@@ -419,6 +419,15 @@ export class MercadolibreController {
     return this.service.syncClaims(id, user);
   }
 
+  // ─── Órdenes ───────────────────────────────────────────────────────────────────
+
+  @Post('connections/:id/orders/sync')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  syncOrderStatuses(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.syncActiveOrderStatuses(id, user);
+  }
+
   // ─── Calificaciones ──────────────────────────────────────────────────────────
 
   @Get('connections/:id/reputation')

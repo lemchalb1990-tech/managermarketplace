@@ -172,6 +172,7 @@ export default function MercadoLibrePage() {
 
   const [syncingQuestionsId, setSyncingQuestionsId] = useState<string | null>(null);
   const [syncingClaimsId, setSyncingClaimsId] = useState<string | null>(null);
+  const [syncingOrdersId, setSyncingOrdersId] = useState<string | null>(null);
 
   async function handleSyncQuestions(id: string) {
     setSyncingQuestionsId(id);
@@ -200,6 +201,21 @@ export default function MercadoLibrePage() {
       setError(err.message || 'No se pudieron importar los reclamos y devoluciones.');
     } finally {
       setSyncingClaimsId(null);
+    }
+  }
+
+  async function handleSyncOrders(id: string) {
+    setSyncingOrdersId(id);
+    setError('');
+    setNotice('');
+    try {
+      const token = getToken()!;
+      const res = await api.marketplace.syncOrderStatuses(id, token);
+      setNotice(`${res.checked} orden(es) revisada(s), ${res.updated} actualizada(s).`);
+    } catch (err: any) {
+      setError(err.message || 'No se pudo sincronizar el estado de las órdenes.');
+    } finally {
+      setSyncingOrdersId(null);
     }
   }
 
@@ -396,6 +412,12 @@ export default function MercadoLibrePage() {
                             disabled={syncingClaimsId === c.id}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50">
                             {syncingClaimsId === c.id ? 'Importando...' : 'Reclamos'}
+                          </button>
+                          <button onClick={() => handleSyncOrders(c.id)}
+                            disabled={syncingOrdersId === c.id}
+                            title="Revisa el estado real en ML de las órdenes activas y lo refleja acá (cancelada/en camino/entregada)"
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50">
+                            {syncingOrdersId === c.id ? 'Sincronizando...' : 'Órdenes'}
                           </button>
                           <button onClick={() => handleRefreshToken(c.id)}
                             disabled={refreshingId === c.id}

@@ -2048,9 +2048,8 @@ export class MercadolibreService {
   // Barrido periódico (Auto-sync ML): revisa las órdenes de esta conexión que todavía
   // no llegaron a un estado final por si algún webhook de ML se perdió. Se acota a los
   // últimos 30 días para no reconsultar historial completo en cada corrida.
-  async syncActiveOrderStatuses(connectionId: string): Promise<{ checked: number; updated: number }> {
-    const connection = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
-    if (!connection) return { checked: 0, updated: 0 };
+  async syncActiveOrderStatuses(connectionId: string, user: any): Promise<{ checked: number; updated: number }> {
+    const connection = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
     const sales = await this.prisma.sale.findMany({

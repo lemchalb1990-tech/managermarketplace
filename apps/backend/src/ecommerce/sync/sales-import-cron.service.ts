@@ -95,7 +95,7 @@ export class SalesImportCronService {
             // Respaldo por si algún webhook de orders_v2 se perdió: revisa el estado real
             // en ML de las órdenes que todavía no llegaron a un estado final.
             try {
-              const result = await this.mercadolibre.syncActiveOrderStatuses(connection.id);
+              const result = await this.mercadolibre.syncActiveOrderStatuses(connection.id, SYSTEM_USER);
               if (result.updated) {
                 this.logger.log(`Auto-sync ML estados de orden conexión ${connection.id}: ${JSON.stringify(result)}`);
               }
