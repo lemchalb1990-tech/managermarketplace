@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
@@ -8,6 +8,7 @@ import { api, imgUrl } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
 import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+import { onActivity } from '@/lib/activityBus';
 
 function primaryImageUrl(product: any): string | undefined {
   const img = product?.images?.find((i: any) => i.isPrimary) || product?.images?.[0];
@@ -73,7 +74,7 @@ export default function DashboardPage() {
     setUser(u);
   }, []);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
     const token = getToken();
     if (!token || !user) return;
     if (isSuperAdmin && !selectedCompanyId) return;
@@ -115,6 +116,9 @@ export default function DashboardPage() {
       setCriticalProducts(critical);
     }).finally(() => setLoading(false));
   }, [user, isSuperAdmin, selectedCompanyId, tz]);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
 
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
 

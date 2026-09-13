@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import { onActivity } from '@/lib/activityBus';
 
 const MANAGER = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'];
 
@@ -31,6 +32,7 @@ export default function PickingPage() {
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mine]);
+  useEffect(() => onActivity(['sale'], load), [mine]);
 
   function upsertOrder(o: any) {
     setOrders((prev) => {

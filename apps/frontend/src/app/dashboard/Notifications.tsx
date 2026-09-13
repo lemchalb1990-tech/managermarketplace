@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { getNotificationSoundMap } from '@/lib/notificationSounds';
+import { emitActivity } from '@/lib/activityBus';
 
 const POLL_MS = 25000;
 const TOAST_DISMISS_MS = 10000;
@@ -219,6 +220,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           });
           setToasts((prev) => [...fresh, ...prev]);
           playNotificationSound(fresh[0].type);
+          emitActivity([...new Set(fresh.map((f) => f.type))]);
         }
       } catch {
         // Silencioso: un fallo puntual de polling no debe interrumpir al usuario.

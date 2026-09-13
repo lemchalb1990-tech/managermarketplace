@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { onActivity } from '@/lib/activityBus';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -108,6 +109,8 @@ export default function OrdersPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => onActivity(['sale'], () => load(page, statusFilter)), [page, statusFilter]);
 
   async function handleDelete(id: string) {
     if (!(await confirmDialog('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.', { danger: true }))) return;

@@ -7,6 +7,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+import { onActivity } from '@/lib/activityBus';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -170,6 +171,8 @@ export default function SalesPage() {
       loadSummary();
     }
   }, [token, selectedCompanyId, loadSales, loadSummary]);
+
+  useEffect(() => onActivity(['sale'], () => { loadSales(page); loadSummary(); }), [page, loadSales, loadSummary]);
 
   const fmt = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
 

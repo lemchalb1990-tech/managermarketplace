@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, BrandButton } from '@/components/ui';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { onActivity } from '@/lib/activityBus';
 
 const roleShort: Record<string, string> = {
   COMPANY_ADMIN: 'Admin', CATALOG_MANAGER: 'Catálogo', VENDEDOR: 'Vendedor', SUPER_ADMIN: 'Super',
@@ -39,6 +40,7 @@ export default function BodegaBoardPage() {
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => onActivity(['sale'], load), []);
 
   function toggle(id: string) {
     setSelected((s) => {

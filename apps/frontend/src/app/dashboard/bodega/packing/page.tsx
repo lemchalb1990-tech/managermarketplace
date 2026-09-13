@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import { onActivity } from '@/lib/activityBus';
 
 export default function PackingPage() {
   const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
@@ -25,6 +26,7 @@ export default function PackingPage() {
     }
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => onActivity(['sale'], load), []);
 
   function drop(id: string) { setOrders((p) => p.filter((x) => x.id !== id)); }
 

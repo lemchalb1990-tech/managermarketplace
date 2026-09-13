@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
+import { onActivity } from '@/lib/activityBus';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { confirmDialog } from '../../ConfirmDialog';
 
@@ -45,6 +46,7 @@ export default function MlReclamosPage() {
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
+  useEffect(() => onActivity(['claim'], load), [tab, companyId]);
 
   async function openDetail(claim: any) {
     setOpen(claim);

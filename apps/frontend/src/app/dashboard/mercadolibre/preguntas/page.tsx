@@ -7,6 +7,7 @@ import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { onActivity } from '@/lib/activityBus';
 
 const TABS = [
   { key: 'UNANSWERED', label: 'Sin responder' },
@@ -38,6 +39,7 @@ export default function MlPreguntasPage() {
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
+  useEffect(() => onActivity(['question'], load), [tab, companyId]);
 
   async function answer(externalId: string) {
     const text = (drafts[externalId] || '').trim();
