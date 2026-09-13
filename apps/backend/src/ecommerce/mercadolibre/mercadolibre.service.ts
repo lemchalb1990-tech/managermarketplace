@@ -562,10 +562,12 @@ export class MercadolibreService {
       { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Number(p.packageWeight ?? DEFAULT_PACKAGE.weight)} g` },
     ];
 
+    const effectivePrice = await this.getEffectivePrice(productId, connectionId, Number(product.mlPrice ?? product.price));
+
     const mlItem = {
       title: product.name,
       category_id: categoryId,
-      price: Math.round(Number(product.mlPrice ?? product.price)),
+      price: Math.round(effectivePrice),
       currency_id: 'CLP',
       available_quantity: product.stock,
       buying_mode: 'buy_it_now',
@@ -662,15 +664,28 @@ export class MercadolibreService {
     return { ...listing, descriptionWarning };
   }
 
+  // Fase 7 (motor de precios): si esta variante tiene un precio propio para esta cuenta
+  // puntual (ChannelPrice), se usa ese en vez de mlPrice/price — así "Altiro Nuevo" y
+  // "Merca todo" pueden vender el mismo producto a precios distintos. Sin override,
+  // el comportamiento es exactamente el de siempre.
+  private async getEffectivePrice(productId: string, connectionId: string, fallback: number): Promise<number> {
+    const override = await this.prisma.channelPrice.findUnique({
+      where: { productId_connectionId: { productId, connectionId } },
+    });
+    return override ? Number(override.price) : fallback;
+  }
+
   private async syncListingCore(product: any, listing: any, token: string): Promise<{ warnings: string[] }> {
     const warnings: string[] = [];
+
+    const price = await this.getEffectivePrice(product.id, listing.connectionId, Number(product.mlPrice ?? product.price));
 
     // Sincronizar precio y stock (ML no permite cambiar título de items activos)
     const itemRes = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        price: Math.round(Number(product.mlPrice ?? product.price)),
+        price: Math.round(price),
         available_quantity: product.stock,
       }),
     });

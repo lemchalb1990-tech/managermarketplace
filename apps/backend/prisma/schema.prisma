@@ -189,6 +189,7 @@ model Company {
   mlQuestions        MlQuestion[]
   mlClaims           MlClaim[]
   productMasters     ProductMaster[]
+  categories         Category[]
 
   @@map("companies")
 }
@@ -279,6 +280,8 @@ model MarketplaceConnection {
   sales      Sale[]
   mlQuestions MlQuestion[]
   mlClaims    MlClaim[]
+  channelPrices  ChannelPrice[]
+  syncQueueItems SyncQueueItem[]
 
   @@map("marketplace_connections")
 }
@@ -330,6 +333,8 @@ model Product {
   // Precio que cobra el proveedor dropship (≠ precio de venta). Solo se usa/edita
   // cuando la empresa tiene el módulo de dropshipping activo.
   supplierPrice Decimal?    @db.Decimal(10, 2)
+  // Fase 7 (motor de precios): precio mayorista, aparte del precio de venta normal.
+  wholesalePrice Decimal?   @db.Decimal(10, 2)
   stock         Int         @default(0)
   // Umbral de stock crítico: al alcanzarlo (o bajarlo) las ventas pausan la publicación.
   criticalStock Int         @default(0)
@@ -373,6 +378,8 @@ model Product {
   workOrderItems     WorkOrderItem[]
   mlQuestions        MlQuestion[]
   variantAttributes  VariantAttribute[]
+  channelPrices      ChannelPrice[]
+  syncQueueItems     SyncQueueItem[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -390,24 +397,189 @@ enum ProductMasterStatus {
 // siguientes agregan Variant (SKU vendible real), Inventario por variante/bodega y
 // Publicación por canal; esta fase solo deja la entidad y el enganche listos.
 model ProductMaster {
-  id               String              @id @default(cuid())
-  masterSku        String
-  name             String
-  brand            String?
-  model            String?
-  internalCategory String?
-  type             ProductType         @default(ARTICULO)
-  status           ProductMasterStatus @default(DRAFT)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id        String              @id @default(cuid())
+  masterSku String
+  name      String
+  brand     String?
+  model     String?
+  type      ProductType         @default(ARTICULO)
+  status    ProductMasterStatus @default(DRAFT)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
+  // Fase 5: taxonomía propia (antes era un string suelto, "internalCategory" — se
+  // reemplaza por un árbol real antes de que nada lo usara todavía).
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
 
   products Product[]
+  // Fase 6: contenido/SEO maestro (1 a 1) y overrides por canal (1 a N).
+  content        ProductContent?
+  channelContent ChannelContent[]
+  images         ProductMasterImage[]
 
   @@unique([masterSku, companyId])
   @@map("product_masters")
+}
+
+// Fase 5: taxonomía interna propia (Automóvil → Seguridad → Sensores de retroceso),
+// independiente de la categoría que cada canal use — la relación con la categoría de
+// Mercado Libre/Jumpseller/etc. vive en CategoryChannelMapping, no mezclada acá.
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+
+  productMasters  ProductMaster[]
+  channelMappings CategoryChannelMapping[]
+
+  @@unique([companyId, parentId, name])
+  @@map("categories")
+}
+
+// A qué categoría de cada canal corresponde una categoría interna — "platform" usa el
+// mismo formato de clave que PlatformSetting.platform (ej. "mercadolibre", "jumpseller").
+model CategoryChannelMapping {
+  id                   String  @id @default(cuid())
+  platform             String
+  externalCategoryId   String
+  externalCategoryName String?
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, platform])
+  @@map("category_channel_mappings")
+}
+
+enum ContentMode {
+  AUTO
+  CUSTOM
+}
+
+// Fase 6: contenido/SEO del Producto Maestro. titleMode/descriptionMode en CUSTOM
+// significa "esto lo editó una persona, no lo pise un cambio automático del maestro".
+model ProductContent {
+  id              String      @id @default(cuid())
+  seoTitle        String?
+  h1              String?
+  slug            String?
+  metaDescription String?     @db.Text
+  keywords        String?
+  description     String?     @db.Text
+  features        Json?
+  specifications  Json?
+  compatibility   Json?
+  titleMode       ContentMode @default(AUTO)
+  descriptionMode ContentMode @default(AUTO)
+  updatedAt       DateTime    @updatedAt
+
+  productMasterId String        @unique
+  productMaster   ProductMaster @relation(fields: [productMasterId], references: [id], onDelete: Cascade)
+
+  @@map("product_content")
+}
+
+// Override de título/descripción para un canal puntual (ej. "Título ALTIRO" distinto del
+// "Título Mercado Libre"). Ausente = se usa el contenido maestro tal cual.
+model ChannelContent {
+  id          String      @id @default(cuid())
+  platform    String
+  title       String?
+  description String?     @db.Text
+  mode        ContentMode @default(AUTO)
+  updatedAt   DateTime    @updatedAt
+
+  productMasterId String
+  productMaster   ProductMaster @relation(fields: [productMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([productMasterId, platform])
+  @@map("channel_content")
+}
+
+// Fotos generales del Producto Maestro (ej. foto de familia con las 4 variantes juntas).
+// Las fotos propias de cada variante siguen siendo ProductImage, en Product.
+model ProductMasterImage {
+  id        String   @id @default(cuid())
+  url       String
+  filename  String
+  alt       String?
+  isPrimary Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  productMasterId String
+  productMaster   ProductMaster @relation(fields: [productMasterId], references: [id], onDelete: Cascade)
+
+  @@map("product_master_images")
+}
+
+// Fase 7: precio de este producto (variante) en una cuenta/conexión puntual — permite que
+// "Altiro Nuevo" y "Merca todo" (dos cuentas de Mercado Libre) tengan precios distintos
+// para el mismo producto, algo que Product.mlPrice (un solo valor) no podía expresar.
+// Ausente = se sigue usando mlPrice/price como hasta ahora (fallback, sin romper nada).
+model ChannelPrice {
+  id        String   @id @default(cuid())
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productId    String
+  product      Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   MarketplaceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, connectionId])
+  @@map("channel_prices")
+}
+
+enum SyncQueueField {
+  STOCK
+  PRICE
+  TITLE
+  IMAGES
+  DESCRIPTION
+  CATEGORY
+  ATTRIBUTES
+}
+
+enum SyncQueueStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// Fase 8: motor de sincronización con reintentos y trazabilidad. Stock/Precio se procesan
+// solos (igual regla "inmediata"/"automática controlada" del plan); Título/Imágenes/
+// Descripción/Categoría/Atributos quedan en PENDING para revisión manual — nunca se
+// autopublican, tal cual la regla "🛡️ Validar" del plan de sincronización.
+model SyncQueueItem {
+  id          String          @id @default(cuid())
+  field       SyncQueueField
+  status      SyncQueueStatus @default(PENDING)
+  payload     Json?
+  attempts    Int             @default(0)
+  lastError   String?
+  createdAt   DateTime        @default(now())
+  processedAt DateTime?
+
+  productId    String
+  product      Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   MarketplaceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("sync_queue_items")
 }
 
 // Fase 2: lo que distingue a un Product cuando actúa como variante vendible de un
