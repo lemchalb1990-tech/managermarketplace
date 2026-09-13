@@ -101,11 +101,3 @@ export function resolveCutoffs(
   }
   return out;
 }
-
-/** ¿La hora actual ya pasó el cutoff HH:MM de hoy? */
-export function isOverdue(cutoff: string, now = new Date()): boolean {
-  const [h, m] = cutoff.split(':').map(Number);
-  const limit = new Date(now);
-  limit.setHours(h, m, 0, 0);
-  return now.getTime() > limit.getTime();
-}

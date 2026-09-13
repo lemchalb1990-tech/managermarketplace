@@ -112,6 +112,7 @@ export const api = {
     platformLogos: () =>
       apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null }[]>(
         '/public/platform-logos', {}),
+    timezone: () => apiFetch<{ timezone: string }>('/public/timezone', {}),
   },
   companies: {
     list: (token: string) => apiFetch<any[]>('/companies', {}, token),

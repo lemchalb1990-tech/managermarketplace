@@ -13,3 +13,16 @@ export class PublicSettingsController {
     return this.service.getPlatformSettings();
   }
 }
+
+// Sin guard a propósito: todos los roles necesitan saber en qué huso horario está
+// expresado "hoy" en el dashboard/despacho para mostrar horas coherentes, no solo
+// quien puede editarlo (eso sigue restringido a Super Admin en SettingsController).
+@Controller('public/timezone')
+export class PublicTimezoneController {
+  constructor(private service: SettingsService) {}
+
+  @Get()
+  async getTimezone() {
+    return { timezone: await this.service.getTimezone() };
+  }
+}

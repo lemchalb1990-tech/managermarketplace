@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
+import { endOfDayInTz, isOverdueInTz } from '../common/timezone';
 import { companyWhere } from '../common/tenant';
 import { BoardDto, DispatchDto } from './dto/shipping.dto';
 import {
@@ -13,7 +15,6 @@ import {
   CARRIER_ORDER,
   carrierGroupKey,
   resolveCutoffs,
-  isOverdue,
 } from './carriers';
 
 const CARD_INCLUDE = {
@@ -41,7 +42,10 @@ const CARD_INCLUDE = {
 
 @Injectable()
 export class ShippingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private settings: SettingsService,
+  ) {}
 
   private baseWhere(user: any, warehouseId?: string) {
     const where: any = companyWhere(user);
@@ -89,9 +93,9 @@ export class ShippingService {
     const scope = dto.scope || 'today';
     const base = this.baseWhere(user, dto.warehouseId);
     const cutoffs = await this.companyCutoffs(user);
+    const tz = await this.settings.getTimezone();
 
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
+    const endOfToday = endOfDayInTz(tz);
 
     const where: any = { ...base, AND: [] as any[] };
     if (dto.q?.trim()) {
@@ -148,7 +152,7 @@ export class ShippingService {
     const groups = CARRIER_ORDER.filter((k) => byCarrier.has(k)).map((k) => {
       const list = byCarrier.get(k)!;
       const cutoff = cutoffs[k];
-      const overdue = scope === 'today' && isOverdue(cutoff, now);
+      const overdue = scope === 'today' && isOverdueInTz(cutoff, tz, now);
       return {
         key: k,
         label: CARRIER_GROUPS[k].label,

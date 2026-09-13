@@ -3,6 +3,17 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
+
+const TIMEZONE_OPTIONS = [
+  { value: 'America/Santiago', label: 'Santiago (Chile)' },
+  { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (Argentina)' },
+  { value: 'America/Montevideo', label: 'Montevideo (Uruguay)' },
+  { value: 'America/Lima', label: 'Lima (Perú)' },
+  { value: 'America/Bogota', label: 'Bogotá (Colombia)' },
+  { value: 'America/Mexico_City', label: 'Ciudad de México (México)' },
+  { value: 'UTC', label: 'UTC' },
+];
 
 const GROUP_LABELS: Record<string, string> = {
   sistema: 'Sistema',
@@ -58,6 +69,7 @@ export default function SettingsPage() {
       const token = getToken()!;
       const items = Object.entries(draft).map(([key, value]) => ({ key, value }));
       await api.settings.update(items, token);
+      invalidateDashboardTimezoneCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
@@ -152,19 +164,36 @@ export default function SettingsPage() {
                       <p className="text-xs text-gray-400 mb-2 leading-relaxed">{s.hint}</p>
                     )}
                     {canEdit ? (
-                      <input
-                        type={s.sensitive ? 'password' : 'text'}
-                        value={draft[s.key] ?? ''}
-                        onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
-                        placeholder={s.sensitive ? '••••••••' : `Ej: ${s.key === 'APP_URL' ? 'https://api.tudominio.com' : s.key === 'FRONTEND_URL' ? 'https://tudominio.com' : ''}`}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      s.key === 'DASHBOARD_TIMEZONE' ? (
+                        <select
+                          value={draft[s.key] ?? ''}
+                          onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {!TIMEZONE_OPTIONS.some((o) => o.value === draft[s.key]) && draft[s.key] && (
+                            <option value={draft[s.key]}>{draft[s.key]}</option>
+                          )}
+                          {TIMEZONE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={s.sensitive ? 'password' : 'text'}
+                          value={draft[s.key] ?? ''}
+                          onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                          placeholder={s.sensitive ? '••••••••' : `Ej: ${s.key === 'APP_URL' ? 'https://api.tudominio.com' : s.key === 'FRONTEND_URL' ? 'https://tudominio.com' : ''}`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      )
                     ) : (
                       <div className="flex gap-2">
                         <input
                           readOnly
                           type={s.sensitive ? 'password' : 'text'}
-                          value={draft[s.key] ?? ''}
+                          value={s.key === 'DASHBOARD_TIMEZONE'
+                            ? (TIMEZONE_OPTIONS.find((o) => o.value === draft[s.key])?.label ?? draft[s.key] ?? '')
+                            : draft[s.key] ?? ''}
                           className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-mono text-gray-600"
                         />
                         <button

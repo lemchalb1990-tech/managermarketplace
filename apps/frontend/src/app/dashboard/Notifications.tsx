@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from './AdminCompanyContext';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const POLL_MS = 25000;
 const TOAST_DISMISS_MS = 10000;
@@ -233,6 +234,7 @@ export function NotificationBell() {
   const { history, unreadCount, markAllRead, go, muted, toggleMuted } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const tz = useDashboardTimezone();
 
   useEffect(() => {
     if (!open) return;
@@ -314,7 +316,7 @@ export function NotificationBell() {
                         <span className="block text-xs text-gray-600 truncate">{e.productName}</span>
                       )}
                       <span className="block text-[11px] text-gray-400 mt-0.5">
-                        {new Date(e.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(e.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
                       </span>
                     </span>
                     {!e.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
@@ -331,6 +333,7 @@ export function NotificationBell() {
 
 export function NotificationToasts() {
   const { toasts, dismissToast, go } = useNotifications();
+  const tz = useDashboardTimezone();
   if (!toasts.length) return null;
 
   return (
@@ -357,7 +360,7 @@ export function NotificationToasts() {
                 <p className="text-xs text-[var(--text-2)] truncate">{t.productName}</p>
               )}
               <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                {new Date(t.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                {new Date(t.createdAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: tz })}
               </p>
             </div>
             <button

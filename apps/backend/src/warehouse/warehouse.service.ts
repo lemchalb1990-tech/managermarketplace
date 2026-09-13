@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, PrepStage, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
+import { startOfDayInTz } from '../common/timezone';
 import { companyWhere, assertSameCompany } from '../common/tenant';
 import {
   AssignDto,
@@ -38,7 +40,10 @@ const ORDER_CARD_INCLUDE = {
 
 @Injectable()
 export class WarehouseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private settings: SettingsService,
+  ) {}
 
   /** where base con aislamiento por empresa (+ bodega opcional). */
   private baseWhere(user: any, warehouseId?: string) {
@@ -63,8 +68,7 @@ export class WarehouseService {
       status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
     };
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = startOfDayInTz(await this.settings.getTimezone());
 
     const [
       unassigned,

@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
+import { SettingsService } from '../settings/settings.service';
+import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
 @Injectable()
@@ -15,6 +17,7 @@ export class PosService {
     private sync: SyncService,
     private email: EmailService,
     private costing: InventoryCostingService,
+    private settings: SettingsService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -172,10 +175,11 @@ export class PosService {
 
   async getWeeklySales(user: any, companyId?: string, days = 7) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+    const tz = await this.settings.getTimezone();
+    const todayKey = dateKeyStringInTz(new Date(), tz);
 
-    const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const from = startOfDayInTz(tz, shiftDateKey(todayKey, -(days - 1)));
+    const to = new Date(startOfDayInTz(tz, todayKey).getTime() + 24 * 60 * 60 * 1000);
 
     const where: any = { createdAt: { gte: from, lt: to } };
     if (cid) where.companyId = cid;
@@ -187,9 +191,8 @@ export class PosService {
 
     const result = [];
     for (let i = days - 1; i >= 0; i--) {
-      const day = new Date(now);
-      day.setDate(now.getDate() - i);
-      const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+      const dayKey = shiftDateKey(todayKey, -i);
+      const dayStart = startOfDayInTz(tz, dayKey);
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
       const daySales = sales.filter(s => s.createdAt >= dayStart && s.createdAt < dayEnd);
@@ -201,8 +204,8 @@ export class PosService {
         .reduce((sum, s) => sum + Number(s.total), 0);
 
       result.push({
-        date: dayStart.toISOString().split('T')[0],
-        label: dayStart.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' }),
+        date: dayKey,
+        label: dayStart.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', timeZone: tz }),
         total: posTotal + ecomTotal,
         count: daySales.length,
         posTotal,
@@ -399,8 +402,9 @@ export class PosService {
 
   async getDailySummary(user: any, companyId?: string, date?: string) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
-    const day = date ? new Date(date) : new Date();
-    const from = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const tz = await this.settings.getTimezone();
+    const dayKey = date || dateKeyStringInTz(new Date(), tz);
+    const from = startOfDayInTz(tz, dayKey);
     const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
 
     const where: any = { createdAt: { gte: from, lt: to } };
@@ -427,7 +431,7 @@ export class PosService {
     }, {});
 
     return {
-      date: from.toISOString().split('T')[0],
+      date: dayKey,
       totalSales: sales.length,
       totalRevenue: sales.reduce((s, v) => s + Number(v.total), 0),
       byChannel,

@@ -7,6 +7,7 @@ import {
 import { Role, StopOutcome, DriverPaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { startOfDayInTz, endOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { resolveCompanyId } from '../common/tenant';
 import {
   UpsertDriverProfileDto,
@@ -26,13 +27,12 @@ export class DriversService {
     return resolveCompanyId(user);
   }
 
-  private range(dto: RangeDto) {
-    const to = dto.to ? new Date(dto.to) : new Date();
-    to.setHours(23, 59, 59, 999);
-    const from = dto.from
-      ? new Date(dto.from)
-      : new Date(to.getTime() - 30 * 24 * 3600 * 1000);
-    from.setHours(0, 0, 0, 0);
+  private async range(dto: RangeDto) {
+    const tz = await this.settings.getTimezone();
+    const toKey = dto.to ? dto.to.slice(0, 10) : dateKeyStringInTz(new Date(), tz);
+    const to = endOfDayInTz(tz, toKey);
+    const fromKey = dto.from ? dto.from.slice(0, 10) : shiftDateKey(toKey, -30);
+    const from = startOfDayInTz(tz, fromKey);
     return { from, to };
   }
 
@@ -49,8 +49,7 @@ export class DriversService {
   // ── Flota ──────────────────────────────────────────────────────────────────
   async fleet(user: any) {
     const companyId = this.companyId(user);
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = startOfDayInTz(await this.settings.getTimezone());
 
     const drivers = await this.prisma.user.findMany({
       where: { companyId, role: Role.DESPACHADOR },
@@ -160,7 +159,8 @@ export class DriversService {
   // ── Métricas ───────────────────────────────────────────────────────────────
   async metrics(user: any, dto: RangeDto) {
     const companyId = this.companyId(user);
-    const { from, to } = this.range(dto);
+    const tz = await this.settings.getTimezone();
+    const { from, to } = await this.range(dto);
 
     const stops = await this.prisma.routeStop.findMany({
       where: {
@@ -188,7 +188,7 @@ export class DriversService {
       if (s.outcome === StopOutcome.DELIVERED && s.deliveredAt) {
         const due = s.order.scheduledDate;
         const isLate = due
-          ? s.deliveredAt.getTime() > new Date(due).setHours(23, 59, 59, 999)
+          ? s.deliveredAt.getTime() > endOfDayInTz(tz, dateKeyStringInTz(due, tz)).getTime()
           : false;
         if (isLate) late++;
         else onTime++;
@@ -231,7 +231,7 @@ export class DriversService {
   // ── Remuneración ───────────────────────────────────────────────────────────
   async paymentsSummary(user: any, dto: RangeDto) {
     const companyId = this.companyId(user);
-    const { from, to } = this.range(dto);
+    const { from, to } = await this.range(dto);
 
     const drivers = await this.prisma.user.findMany({
       where: { companyId, role: Role.DESPACHADOR },
@@ -351,7 +351,7 @@ export class DriversService {
   // ── Zonas de demanda ───────────────────────────────────────────────────────
   async zones(user: any, dto: RangeDto) {
     const companyId = this.companyId(user);
-    const { from, to } = this.range(dto);
+    const { from, to } = await this.range(dto);
 
     const orders = await this.prisma.order.findMany({
       where: {

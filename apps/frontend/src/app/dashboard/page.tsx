@@ -7,6 +7,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
 import { useAdminCompany } from './AdminCompanyContext';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 function primaryImageUrl(product: any): string | undefined {
   const img = product?.images?.find((i: any) => i.isPrimary) || product?.images?.[0];
@@ -54,6 +55,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const tz = useDashboardTimezone();
 
   const [summary, setSummary] = useState<any>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
@@ -117,9 +119,9 @@ export default function DashboardPage() {
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
 
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = dateKeyInTz(tz, now);
   const dateLabel = now.toLocaleDateString('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
 
   if (loading) {
@@ -318,7 +320,7 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{description}</p>
                     <p className="text-xs text-gray-400 truncate">
-                      {CHANNEL_LABEL[sale.channel] ?? sale.channel} · {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                      {CHANNEL_LABEL[sale.channel] ?? sale.channel} · {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: tz })}
                       {sale.customerName && ` · ${sale.customerName}`}
                     </p>
                   </div>

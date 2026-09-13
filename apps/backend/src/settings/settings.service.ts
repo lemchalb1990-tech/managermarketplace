@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { DEFAULT_TIMEZONE } from '../common/timezone';
 
 export const SETTING_DEFINITIONS = [
   {
@@ -8,6 +9,13 @@ export const SETTING_DEFINITIONS = [
     label: 'URL del backend',
     group: 'sistema',
     hint: 'URL pública del backend, usada para construir URLs absolutas de imágenes. Ej: https://api.tudominio.com',
+    sensitive: false,
+  },
+  {
+    key: 'DASHBOARD_TIMEZONE',
+    label: 'Horario del dashboard',
+    group: 'sistema',
+    hint: 'Zona horaria usada para calcular "hoy" en el dashboard, tablero de despacho, entregas de repartidores y cutoff de transportistas. Solo Super Admin puede cambiarla.',
     sensitive: false,
   },
   {
@@ -48,7 +56,7 @@ export class SettingsService implements OnModuleInit {
     for (const def of SETTING_DEFINITIONS) {
       const exists = await this.prisma.setting.findUnique({ where: { key: def.key } });
       if (!exists) {
-        const envValue = this.config.get<string>(def.key) || '';
+        const envValue = this.config.get<string>(def.key) || (def.key === 'DASHBOARD_TIMEZONE' ? DEFAULT_TIMEZONE : '');
         await this.prisma.setting.create({
           data: {
             key: def.key,
@@ -74,6 +82,11 @@ export class SettingsService implements OnModuleInit {
   async get(key: string): Promise<string> {
     const row = await this.prisma.setting.findUnique({ where: { key } });
     return row?.value || this.config.get<string>(key) || '';
+  }
+
+  /** Zona horaria configurada por el Super Admin para "hoy" en dashboard/despacho/entregas. */
+  async getTimezone(): Promise<string> {
+    return (await this.get('DASHBOARD_TIMEZONE')) || DEFAULT_TIMEZONE;
   }
 
   async getPlatformSettings() {

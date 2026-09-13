@@ -7,9 +7,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { EcommerceModule } from '../ecommerce/ecommerce.module';
 import { EmailModule } from '../email/email.module';
 import { PurchasesModule } from '../purchases/purchases.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, EcommerceModule, EmailModule, PurchasesModule],
+  imports: [PrismaModule, EcommerceModule, EmailModule, PurchasesModule, SettingsModule],
   controllers: [PosController, WorkOrdersController],
   providers: [PosService, WorkOrdersService],
   exports: [PosService],
