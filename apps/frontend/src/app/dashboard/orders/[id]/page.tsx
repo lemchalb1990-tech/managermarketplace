@@ -669,6 +669,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     { label: 'Región', value: order.region },
                     { label: 'Courier', value: order.courier },
                     { label: 'Tracking', value: order.trackingCode },
+                    { label: 'Pack ID', value: order.sale?.mlPackId },
                   ] : []),
                   { label: 'Bodega', value: order.warehouse?.name },
                 ].map(({ label, value }) => (
