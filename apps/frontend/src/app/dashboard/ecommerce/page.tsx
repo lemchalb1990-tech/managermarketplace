@@ -120,7 +120,7 @@ export default function EcommercePage() {
       (nonMl as any[])
         .filter((c: any) => c.active)
         .forEach((c: any) => { if (c.marketplace) active.add(c.marketplace as string); });
-      if ((ml as any[]).length > 0) active.add('MERCADO_LIBRE');
+      if ((ml as any[]).some((c: any) => c.active && c.authorized)) active.add('MERCADO_LIBRE');
       setActiveMarketplaces(active);
     });
   }, []);
