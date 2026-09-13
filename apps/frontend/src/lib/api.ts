@@ -418,7 +418,7 @@ export const api = {
         alreadyImportedCount: number;
         orders: Array<{
           externalId: string; date: string; total: number; buyerNickname: string | null;
-          importable: boolean;
+          importable: boolean; alreadyRegistered: boolean;
           items: Array<{ title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null }>;
           charges: { shippingCost: number; marketplaceFee: number; taxes: number; coupon: number; totalPaid: number };
         }>;

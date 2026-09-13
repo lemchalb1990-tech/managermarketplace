@@ -1522,7 +1522,10 @@ export class MercadolibreService {
     const existingIds = new Set(existingSales.map((s) => s.externalId));
     const listingByItemId = new Map(listings.map((l) => [l.externalId, l]));
 
-    const unfiltered = orders.map((o) => {
+    // Se muestran TODAS las órdenes del rango, ya estén registradas o no, para tener el
+    // panorama completo del período — las ya registradas quedan marcadas y no se pueden
+    // volver a seleccionar, pero no se ocultan.
+    const orderResults = orders.map((o) => {
       const orderItems = (o.order_items || []).map((oi: any) => {
         const listing = listingByItemId.get(oi.item?.id);
         return {
@@ -1533,7 +1536,8 @@ export class MercadolibreService {
           productName: listing?.product?.name || null,
         };
       });
-      const importable = orderItems.length > 0 && orderItems.every((i: any) => i.resolved);
+      const alreadyRegistered = existingIds.has(String(o.id));
+      const importable = !alreadyRegistered && orderItems.length > 0 && orderItems.every((i: any) => i.resolved);
       const charges = this.computeOrderCharges(o);
       return {
         externalId: String(o.id),
@@ -1543,11 +1547,11 @@ export class MercadolibreService {
         items: orderItems,
         charges,
         importable,
+        alreadyRegistered,
       };
     });
 
-    const orderResults = unfiltered.filter((o) => !existingIds.has(o.externalId));
-    const alreadyImportedCount = unfiltered.length - orderResults.length;
+    const alreadyImportedCount = orderResults.filter((o) => o.alreadyRegistered).length;
 
     return { connectionName: conn.name, total, truncated, alreadyImportedCount, orders: orderResults };
   }

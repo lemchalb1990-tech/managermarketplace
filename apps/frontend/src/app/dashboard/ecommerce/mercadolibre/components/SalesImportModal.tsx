@@ -9,7 +9,7 @@ type OrderItem = { title: string; quantity: number; unitPrice: number; resolved:
 type OrderCharges = { shippingCost: number; marketplaceFee: number; taxes: number; coupon: number; totalPaid: number };
 type OrderPreview = {
   externalId: string; date: string; total: number; buyerNickname: string | null;
-  importable: boolean; items: OrderItem[]; charges: OrderCharges;
+  importable: boolean; alreadyRegistered: boolean; items: OrderItem[]; charges: OrderCharges;
 };
 
 const PAGE_SIZE = 20;
@@ -105,7 +105,7 @@ export function SalesImportModal({
   }
 
   const importableCount = orders.filter((o) => o.importable).length;
-  const unresolvedCount = orders.length - importableCount;
+  const unresolvedCount = orders.filter((o) => !o.importable && !o.alreadyRegistered).length;
   const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
@@ -163,9 +163,7 @@ export function SalesImportModal({
           {!error && !result && searched && (
             orders.length === 0 ? (
               <div className="p-12 text-center text-gray-400 text-sm">
-                {alreadyImportedCount > 0
-                  ? 'Todas las ventas de este período ya fueron importadas.'
-                  : 'No se encontraron ventas en el período seleccionado.'}
+                No se encontraron ventas en el período seleccionado.
               </div>
             ) : (
               <>
@@ -177,7 +175,7 @@ export function SalesImportModal({
                 <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
                   <span>{importableCount} listas para importar</span>
                   {unresolvedCount > 0 && <span>{unresolvedCount} con productos no vinculados en el catálogo</span>}
-                  {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importadas (no se muestran)</span>}
+                  {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya registradas en el sistema</span>}
                 </div>
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm mt-3">
@@ -213,9 +211,13 @@ export function SalesImportModal({
                             <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerNickname || '—'}</td>
                             <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
                             <td className="px-2 py-2">
-                              {o.importable
-                                ? <span className="text-xs text-green-600">Lista</span>
-                                : <span className="text-xs text-red-500">No importable</span>}
+                              {o.importable ? (
+                                <span className="text-xs text-green-600">Lista</span>
+                              ) : o.alreadyRegistered ? (
+                                <span className="text-xs text-gray-400">Ya registrada</span>
+                              ) : (
+                                <span className="text-xs text-red-500">No importable</span>
+                              )}
                             </td>
                             <td className="px-2 py-2 text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</td>
                           </tr>
