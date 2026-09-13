@@ -8,6 +8,12 @@ import { useMlCompany } from '../MlCompanyContext';
 import { onActivity } from '@/lib/activityBus';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { confirmDialog } from '../../ConfirmDialog';
+import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+
+const PLAYER_TYPE_LABEL: Record<string, string> = {
+  buyer: 'Comprador', seller: 'Vendedor', internal: 'Mercado Libre',
+};
+const fmtMoney = (n: any) => (n == null ? null : `$${Number(n).toLocaleString('es-CL')}`);
 
 const CLAIM_TYPE_LABEL: Record<string, string> = {
   return: 'Devolución',
@@ -21,6 +27,7 @@ const typeLabel = (t: string) => CLAIM_TYPE_LABEL[t] || t;
 
 export default function MlReclamosPage() {
   const { companyId } = useMlCompany();
+  const tz = useDashboardTimezone();
   const [tab, setTab] = useState<'OPENED' | 'CLOSED' | 'ALL'>('OPENED');
   const [data, setData] = useState<{ claims: any[]; opened: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +149,16 @@ export default function MlReclamosPage() {
                 </span>
               }
               actions={c.status === 'OPENED' ? <Badge tone="warn">Abierto</Badge> : <Badge tone="neutral">Cerrado</Badge>}>
-              <p className="text-xs text-[var(--text-muted)] -mt-2 mb-3">
+              {product?.name && (
+                <p className="text-sm text-[var(--text)] -mt-2 mb-1 truncate">{product.name}</p>
+              )}
+              <p className="text-xs text-[var(--text-muted)] mb-1">
+                {c.sale?.createdAt
+                  ? `Compra: ${new Date(c.sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}`
+                  : 'Compra: sin venta vinculada'}
+                {fmtMoney(c.sale?.total) ? ` · ${fmtMoney(c.sale.total)}` : ''}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mb-3">
                 {c.stage ? `Etapa: ${c.stage} · ` : ''}{c.reason || 'Sin motivo detallado'}
               </p>
               <BrandButton onClick={() => openDetail(c)} className="w-full">Ver detalle y responder</BrandButton>
@@ -169,6 +185,32 @@ export default function MlReclamosPage() {
                 <p className="text-sm text-[var(--text-muted)] text-center py-6">Cargando detalle…</p>
               ) : (
                 <>
+                  {detail?.detail && (
+                    <div className="text-xs text-[var(--text-2)] bg-[var(--surface-soft)] rounded-lg px-3 py-2.5 mb-4 space-y-1">
+                      {detail.detail.date_created && (
+                        <p>
+                          Abierto el{' '}
+                          {new Date(detail.detail.date_created).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
+                          {(() => {
+                            const initiator = detail.detail.players?.find((p: any) => p.role === 'complainant');
+                            return initiator ? ` · Iniciado por: ${PLAYER_TYPE_LABEL[initiator.type] || initiator.type}` : '';
+                          })()}
+                        </p>
+                      )}
+                      {detail.detail.resolution && (
+                        <p>
+                          Resuelto el{' '}
+                          {detail.detail.resolution.date_created
+                            ? new Date(detail.detail.resolution.date_created).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })
+                            : '—'}
+                          {' · '}Motivo: {detail.detail.resolution.reason || 'sin especificar'}
+                          {Array.isArray(detail.detail.resolution.benefited) && detail.detail.resolution.benefited.length > 0
+                            ? ` · A favor de: ${detail.detail.resolution.benefited.map((b: string) => PLAYER_TYPE_LABEL[b] || (b === 'complainant' ? 'Comprador' : b === 'respondent' ? 'Vendedor' : b)).join(', ')}`
+                            : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {(Array.isArray(detail?.messages) ? detail.messages : detail?.messages?.results || []).length > 0 && (
                     <div className="space-y-2 mb-4">
                       {(Array.isArray(detail?.messages) ? detail.messages : detail?.messages?.results || []).map((m: any, i: number) => (
