@@ -7,6 +7,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -78,17 +79,17 @@ export default function SalesPage() {
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`¿Eliminar ${selectedIds.size} venta(s) seleccionada(s)? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar ${selectedIds.size} venta(s) seleccionada(s)? Esta acción no se puede deshacer.`, { danger: true }))) return;
     setBulkDeleting(true);
     try {
       const res = await api.pos.bulkDeleteSales(Array.from(selectedIds), token);
       setSelectedIds(new Set());
       await loadSales(page);
       if (res.failed.length > 0) {
-        alert(`${res.deleted} eliminada(s). ${res.failed.length} no se pudieron eliminar (tienen factura, orden o movimientos de stock asociados).`);
+        await alertDialog(`${res.deleted} eliminada(s). ${res.failed.length} no se pudieron eliminar (tienen factura, orden o movimientos de stock asociados).`);
       }
     } catch (err: any) {
-      alert(err.message || 'No se pudieron eliminar las ventas seleccionadas.');
+      await alertDialog(err.message || 'No se pudieron eliminar las ventas seleccionadas.');
     } finally {
       setBulkDeleting(false);
     }
@@ -100,20 +101,20 @@ export default function SalesPage() {
     try {
       await api.pos.exportSales({ companyId: isSuperAdmin ? selectedCompanyId : undefined, channel: channel || undefined, from: from || undefined, to: to || undefined }, token);
     } catch (err: any) {
-      alert(err.message || 'No se pudo exportar el archivo.');
+      await alertDialog(err.message || 'No se pudo exportar el archivo.');
     } finally {
       setExporting(false);
     }
   }
 
   async function handleDeleteSale(id: string) {
-    if (!confirm('¿Eliminar esta venta? Esta acción no se puede deshacer.')) return;
+    if (!(await confirmDialog('¿Eliminar esta venta? Esta acción no se puede deshacer.', { danger: true }))) return;
     setDeletingId(id);
     try {
       await api.pos.deleteSale(id, token);
       await loadSales(page);
     } catch (err: any) {
-      alert(err.message || 'No se pudo eliminar la venta.');
+      await alertDialog(err.message || 'No se pudo eliminar la venta.');
     } finally {
       setDeletingId(null);
     }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
+import { confirmDialog } from '../ConfirmDialog';
 
 type Group = { key: string; label: string; items: { key: string; label: string }[] };
 type Profile = {
@@ -118,7 +119,7 @@ export default function AccessProfilesPage() {
   }
 
   async function remove(p: Profile) {
-    if (!confirm(`¿Eliminar el perfil "${p.name}"?`)) return;
+    if (!(await confirmDialog(`¿Eliminar el perfil "${p.name}"?`, { danger: true }))) return;
     try {
       await api.accessProfiles.remove(p.id, getToken()!);
       await load();

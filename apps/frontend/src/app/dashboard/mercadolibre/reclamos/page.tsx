@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
+import { confirmDialog } from '../../ConfirmDialog';
 
 const CLAIM_TYPE_LABEL: Record<string, string> = {
   return: 'Devolución',
@@ -78,7 +79,7 @@ export default function MlReclamosPage() {
 
   async function runAction(action: string) {
     if (!open) return;
-    if (!confirm(`¿Confirmar la acción "${action}" en Mercado Libre?`)) return;
+    if (!(await confirmDialog(`¿Confirmar la acción "${action}" en Mercado Libre?`))) return;
     setBusy(true);
     try {
       await api.marketplace.takeClaimAction(open.externalId, action, getToken()!);

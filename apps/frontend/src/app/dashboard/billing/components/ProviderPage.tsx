@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useBillingCompany } from '../BillingCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 
 export interface ProviderField {
   key: string;
@@ -98,7 +99,7 @@ export default function ProviderPage({ config }: Props) {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`¿Desconectar "${name}"?`)) return;
+    if (!(await confirmDialog(`¿Desconectar "${name}"?`, { danger: true }))) return;
     const token = getToken()!;
     await api.billing.connections.remove(id, token);
     await loadConnections(activeCompanyId || undefined);
@@ -117,7 +118,7 @@ export default function ProviderPage({ config }: Props) {
       }
       setEditing({ id: c.id, name: c.name, fields });
     } catch (err: any) {
-      alert(err.message || 'No se pudo cargar la conexión.');
+      await alertDialog(err.message || 'No se pudo cargar la conexión.');
     } finally {
       setEditLoading(false);
     }
@@ -151,7 +152,7 @@ export default function ProviderPage({ config }: Props) {
     const token = getToken()!;
     const result = await api.billing.connections.test(id, token)
       .catch((e: any) => ({ success: false, message: e.message }));
-    alert(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
+    await alertDialog(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
   }
 
   return (

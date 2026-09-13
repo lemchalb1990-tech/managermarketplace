@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const emptyForm = { name: '', description: '' };
 
@@ -98,13 +99,13 @@ export default function WarehousesPage() {
       await api.warehouses.update(wh.id, { active: !wh.active }, token);
       await load();
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     }
   }
 
   async function handleDelete(wh: any) {
     setDeleteError('');
-    if (!confirm(`¿Eliminar la bodega "${wh.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar la bodega "${wh.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
     const token = getToken()!;
     try {
       await api.warehouses.remove(wh.id, token);

@@ -9,6 +9,7 @@ import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
+import { DialogProvider } from './ConfirmDialog';
 
 type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
 type NavGroup = { key: string; label: string; items: NavItem[] };
@@ -327,6 +328,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
+    <DialogProvider>
     <AdminCompanyProvider>
       <NotificationsProvider>
         <div className="ui-dashboard h-dvh flex overflow-hidden bg-[var(--page-bg)]">
@@ -379,5 +381,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <SoundEnableBanner />
       </NotificationsProvider>
     </AdminCompanyProvider>
+    </DialogProvider>
   );
 }

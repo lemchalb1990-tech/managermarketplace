@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -118,7 +119,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       }, token);
       await load();
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setCheckLoading((l) => ({ ...l, [item.id]: false }));
     }
@@ -131,7 +132,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       await api.orders.uncheckItem(id, item.id, token);
       await load();
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setCheckLoading((l) => ({ ...l, [item.id]: false }));
     }
@@ -166,21 +167,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function handleDeletePhoto(photoId: string) {
-    if (!confirm('¿Eliminar esta foto?')) return;
+    if (!(await confirmDialog('¿Eliminar esta foto?', { danger: true }))) return;
     const token = getToken()!;
     await api.orders.deletePhoto(id, photoId, token).catch(() => {});
     await load();
   }
 
   async function handleDeleteOrder() {
-    if (!confirm('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.')) return;
+    if (!(await confirmDialog('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.', { danger: true }))) return;
     setDeleting(true);
     try {
       const token = getToken()!;
       await api.orders.remove(id, token);
       router.push('/dashboard/orders');
     } catch (err: any) {
-      alert(err.message || 'No se pudo eliminar la orden.');
+      await alertDialog(err.message || 'No se pudo eliminar la orden.');
       setDeleting(false);
     }
   }

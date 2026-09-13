@@ -7,6 +7,7 @@ import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
@@ -640,10 +641,11 @@ export default function CatalogPage() {
 
   async function handleBulkDeleteListings() {
     if (selectedIds.size === 0) return;
-    if (!confirm(
+    if (!(await confirmDialog(
       `¿Eliminar la publicación de ${selectedIds.size} producto(s) seleccionado(s)?\n\n` +
       `Esto solo borra el vínculo interno con Mercado Libre (u otra plataforma): la publicación seguirá viva en el marketplace, pero dejará de estar asociada a estos productos en el sistema.`,
-    )) return;
+      { danger: true },
+    ))) return;
     setBulkLoading(true);
     setBulkError('');
     try {
@@ -700,7 +702,7 @@ export default function CatalogPage() {
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`¿Eliminar ${selectedIds.size} producto(s) seleccionado(s)? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar ${selectedIds.size} producto(s) seleccionado(s)? Esta acción no se puede deshacer.`, { danger: true }))) return;
     setBulkLoading(true);
     setBulkError('');
     setBulkFailed([]);
@@ -721,7 +723,7 @@ export default function CatalogPage() {
   }
 
   async function handleForceDelete(id: string, name: string) {
-    if (!confirm(`¿Eliminar definitivamente "${name}"? Esto borra también su historial de movimientos de stock (no ventas, esas ya no existen). Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar definitivamente "${name}"? Esto borra también su historial de movimientos de stock (no ventas, esas ya no existen). Esta acción no se puede deshacer.`, { danger: true }))) return;
     setForceDeleteLoading(id);
     try {
       const token = getToken()!;
@@ -729,7 +731,7 @@ export default function CatalogPage() {
       setBulkFailed((prev) => prev.filter((f) => f.id !== id));
       await loadProducts(page);
     } catch (err: any) {
-      alert(err.message || 'Error al forzar la eliminación');
+      await alertDialog(err.message || 'Error al forzar la eliminación');
     } finally {
       setForceDeleteLoading(null);
     }
@@ -1004,7 +1006,7 @@ export default function CatalogPage() {
         }
       }
       await refreshSelected(selected.id);
-      if (errors.length) alert(`Algunas imágenes no se pudieron subir:\n${errors.join('\n')}`);
+      if (errors.length) await alertDialog(`Algunas imágenes no se pudieron subir:\n${errors.join('\n')}`);
     } finally {
       setUploadLoading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -1063,7 +1065,7 @@ export default function CatalogPage() {
 
   async function changeTab(newTab: Tab) {
     if (newTab !== tab && tab === 'edit' && isDirty) {
-      if (!window.confirm('Tienes cambios sin guardar. ¿Salir sin guardar?')) return;
+      if (!(await confirmDialog('Tienes cambios sin guardar. ¿Salir sin guardar?', { danger: true }))) return;
     }
     setTab(newTab);
     if (newTab === 'stock' && selected) {
@@ -1133,7 +1135,7 @@ export default function CatalogPage() {
         setMlWarning(result.warnings.join(' | '));
       }
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setMlLoading(l => ({ ...l, [`sync_${connectionId}`]: false }));
     }
@@ -1155,11 +1157,11 @@ export default function CatalogPage() {
         await loadProducts(page);
         if (result.failedCount > 0) {
           const errors = result.results.filter(r => !r.success).map(r => `${r.connectionName}: ${r.error}`);
-          alert(`${result.syncedCount} sincronizada(s), ${result.failedCount} con error:\n${errors.join('\n')}`);
+          await alertDialog(`${result.syncedCount} sincronizada(s), ${result.failedCount} con error:\n${errors.join('\n')}`);
         }
       }
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setSyncAllLoading(null);
     }
@@ -1172,21 +1174,21 @@ export default function CatalogPage() {
       await api.marketplace.toggleListing(selected.id, connectionId, token);
       await refreshSelected(selected.id);
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setMlLoading(l => ({ ...l, [`toggle_${connectionId}`]: false }));
     }
   }
 
   async function handleDeleteListing(connectionId: string) {
-    if (!confirm('¿Eliminar el vínculo con esta publicación? La publicación seguirá viva en Mercado Libre (u otra plataforma); el sistema solo dejará de rastrearla.')) return;
+    if (!(await confirmDialog('¿Eliminar el vínculo con esta publicación? La publicación seguirá viva en Mercado Libre (u otra plataforma); el sistema solo dejará de rastrearla.', { danger: true }))) return;
     setMlLoading(l => ({ ...l, [`delete_${connectionId}`]: true }));
     try {
       const token = getToken()!;
       await api.catalog.deleteListing(selected.id, connectionId, token);
       await refreshSelected(selected.id);
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     } finally {
       setMlLoading(l => ({ ...l, [`delete_${connectionId}`]: false }));
     }

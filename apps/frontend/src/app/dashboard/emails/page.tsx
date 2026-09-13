@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog } from '../ConfirmDialog';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; trigger: string }> = {
   ORDER_CONFIRMED:        { label: 'Orden confirmada',       icon: '🎉', trigger: 'Al crear una orden' },
@@ -114,7 +115,7 @@ export default function EmailsPage() {
   }
 
   async function handleReset() {
-    if (!selectedType || !confirm('¿Restaurar la plantilla al diseño predeterminado?')) return;
+    if (!selectedType || !(await confirmDialog('¿Restaurar la plantilla al diseño predeterminado?'))) return;
     setResetting(true);
     try {
       await api.email.resetTemplate(selectedType, token);

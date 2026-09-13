@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const emptyForm = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
 
@@ -141,7 +142,7 @@ export default function ClientsPage() {
       await api.clients.update(c.id, { active: !c.active }, token);
       await load();
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     }
   }
 
@@ -162,7 +163,7 @@ export default function ClientsPage() {
 
   async function handleDelete(c: any) {
     setDeleteError('');
-    if (!confirm(`¿Eliminar el cliente "${c.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar el cliente "${c.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
     const token = getToken()!;
     try {
       await api.clients.remove(c.id, token);

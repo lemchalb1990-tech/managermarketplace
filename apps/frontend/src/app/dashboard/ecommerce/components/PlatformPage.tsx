@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 
 export interface PlatformField {
   key: string;
@@ -122,7 +123,7 @@ export default function PlatformPage({ config }: Props) {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`¿Desconectar "${name}"?`)) return;
+    if (!(await confirmDialog(`¿Desconectar "${name}"?`, { danger: true }))) return;
     const token = getToken()!;
     await api.connections.remove(id, token);
     await loadConnections(activeCompanyId || undefined);
@@ -141,7 +142,7 @@ export default function PlatformPage({ config }: Props) {
       }
       setEditing({ id: c.id, name: c.name, fields });
     } catch (err: any) {
-      alert(err.message || 'No se pudo cargar la conexión.');
+      await alertDialog(err.message || 'No se pudo cargar la conexión.');
     } finally {
       setEditLoading(false);
     }
@@ -174,7 +175,7 @@ export default function PlatformPage({ config }: Props) {
   async function handleTest(id: string) {
     const token = getToken()!;
     const result = await api.connections.test(id, token).catch((e) => ({ success: false, message: e.message }));
-    alert(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
+    await alertDialog(result.success ? `✓ ${result.message || 'Conexión exitosa'}` : `✗ ${result.message || 'Error de conexión'}`);
   }
 
   const showContent = !isSuperAdmin || selectedCompanyId;

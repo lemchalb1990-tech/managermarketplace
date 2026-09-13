@@ -7,6 +7,7 @@ import { api, openDocumentUrl } from '@/lib/api';
 import InvoiceDocument from '../components/InvoiceDocument';
 import { useBillingCompany } from '../BillingCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog } from '../../ConfirmDialog';
 
 const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
 
@@ -92,14 +93,14 @@ export default function InvoicesPage() {
   }, [companyId]);
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular este documento?')) return;
+    if (!(await confirmDialog('¿Anular este documento?', { danger: true }))) return;
     const token = getToken()!;
     await api.billing.invoices.cancel(id, token).catch(() => {});
     load(page);
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar definitivamente este documento? Nunca se emitió (sin folio), así que se borra por completo y no queda registro. Esta acción no se puede deshacer.')) return;
+    if (!(await confirmDialog('¿Eliminar definitivamente este documento? Nunca se emitió (sin folio), así que se borra por completo y no queda registro. Esta acción no se puede deshacer.', { danger: true }))) return;
     setActionError('');
     try {
       const token = getToken()!;
@@ -112,7 +113,7 @@ export default function InvoicesPage() {
   }
 
   async function handleIssueDraft(id: string) {
-    if (!confirm('¿Emitir este borrador? Se emitirá el documento real ante el proveedor y no se puede deshacer.')) return;
+    if (!(await confirmDialog('¿Emitir este borrador? Se emitirá el documento real ante el proveedor y no se puede deshacer.'))) return;
     setActionError('');
     setIssuingId(id);
     try {
@@ -155,7 +156,7 @@ export default function InvoicesPage() {
 
   async function handleUnpay(id: string) {
     setActionError('');
-    if (!confirm('¿Revertir el pago de este documento? Volverá a contar como deuda del cliente.')) return;
+    if (!(await confirmDialog('¿Revertir el pago de este documento? Volverá a contar como deuda del cliente.', { danger: true }))) return;
     const token = getToken()!;
     try {
       await api.billing.invoices.unpay(id, token);

@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { calcProfit, calcVeredicto, effectiveMyPrice, formatCLP } from '@/lib/profitability-calc';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMADO: 'Confirmado',
@@ -247,13 +248,13 @@ export default function RentabilidadPage() {
   }
 
   async function handleDelete(item: any) {
-    if (!confirm(`¿Eliminar "${item.name}" del comparador? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar "${item.name}" del comparador? Esta acción no se puede deshacer.`, { danger: true }))) return;
     const token = getToken()!;
     try {
       await api.profitability.remove(item.id, token);
       setItems((prev) => prev.filter((it) => it.id !== item.id));
     } catch (err: any) {
-      alert(err.message || 'Error al eliminar');
+      await alertDialog(err.message || 'Error al eliminar');
     }
   }
 

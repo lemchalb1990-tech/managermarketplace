@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const ALL_COMPANY_MODULES = [
   { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
@@ -62,7 +63,7 @@ export default function CompaniesPage() {
   useEffect(() => { load(); }, []);
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`¿Eliminar la empresa "${name}"?`)) return;
+    if (!(await confirmDialog(`¿Eliminar la empresa "${name}"?`, { danger: true }))) return;
     setDeleteError('');
     try {
       const token = getToken()!;
@@ -74,16 +75,17 @@ export default function CompaniesPage() {
   }
 
   async function handleDeleteAllListings(id: string, name: string) {
-    if (!confirm(
+    if (!(await confirmDialog(
       `¿Eliminar TODAS las publicaciones de "${name}"?\n\n` +
       `Esto solo borra el vínculo interno con los marketplaces: las publicaciones seguirán vivas en Mercado Libre (u otra plataforma), pero el sistema dejará de rastrearlas para todos los productos de esta empresa.`,
-    )) return;
+      { danger: true },
+    ))) return;
     setListingsLoadingId(id);
     setDeleteError('');
     try {
       const token = getToken()!;
       const res = await api.companies.deleteAllListings(id, token);
-      alert(`${res.deleted} publicación(es) eliminada(s) del sistema.`);
+      await alertDialog(`${res.deleted} publicación(es) eliminada(s) del sistema.`);
     } catch (err: any) {
       setDeleteError(err.message || 'Error al eliminar las publicaciones de la empresa.');
     } finally {
@@ -155,7 +157,7 @@ export default function CompaniesPage() {
           msg += `\n\n${skipped.length} producto(s) no se migraron (sin bodega asignada):\n` +
             skipped.map((s: any) => `- ${s.name}`).join('\n');
         }
-        alert(msg);
+        await alertDialog(msg);
       }
       setEditing(null);
       await load();

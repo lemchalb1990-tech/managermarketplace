@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
+import { confirmDialog } from '../../ConfirmDialog';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -74,7 +75,7 @@ export default function MlDevolucionesPage() {
   }
 
   async function undo(id: string) {
-    if (!confirm('¿Deshacer la recepción? Se revertirá el stock repuesto.')) return;
+    if (!(await confirmDialog('¿Deshacer la recepción? Se revertirá el stock repuesto.', { danger: true }))) return;
     try { await api.returns.undo(id, getToken()!); await load(); }
     catch (err: any) { setFlash({ msg: err.message, ok: false }); setTimeout(() => setFlash(null), 3000); }
   }

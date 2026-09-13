@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog } from '../../ConfirmDialog';
 
 const money = (n: any) => `$${Number(n || 0).toLocaleString('es-CL')}`;
 
@@ -34,7 +35,7 @@ export default function RemuneracionPage() {
 
   async function createBatch(row: any) {
     if (row.stopIds.length === 0) return;
-    if (!confirm(`Generar lote de pago para ${row.name}: ${row.pendingPackages} paquete(s) · ${money(row.pendingAmount)}?`)) return;
+    if (!(await confirmDialog(`Generar lote de pago para ${row.name}: ${row.pendingPackages} paquete(s) · ${money(row.pendingAmount)}?`))) return;
     setBusy(row.driverId);
     try {
       await api.drivers.createPaymentBatch({ driverId: row.driverId, stopIds: row.stopIds }, getToken()!);

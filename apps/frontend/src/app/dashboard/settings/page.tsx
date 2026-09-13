@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
 import { invalidateNotificationSoundsCache } from '@/lib/notificationSounds';
+import { confirmDialog } from '../ConfirmDialog';
 
 const NOTIF_SOUND_KEYS = ['NOTIF_SOUND_SALE', 'NOTIF_SOUND_QUESTION', 'NOTIF_SOUND_CLAIM'];
 
@@ -71,7 +72,7 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteSound(id: string) {
-    if (!confirm('¿Eliminar este sonido? Los tipos de evento que lo tengan elegido volverán al beep por defecto.')) return;
+    if (!(await confirmDialog('¿Eliminar este sonido? Los tipos de evento que lo tengan elegido volverán al beep por defecto.', { danger: true }))) return;
     const token = getToken()!;
     await api.notificationSounds.remove(id, token).catch(() => {});
     invalidateNotificationSoundsCache();

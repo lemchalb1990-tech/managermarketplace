@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -74,7 +75,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
   async function act(fn: () => Promise<any>) {
     setActing(true);
     try { await fn(); await load(); }
-    catch (e: any) { alert(e.message || 'Error'); }
+    catch (e: any) { await alertDialog(e.message || 'Error'); }
     finally { setActing(false); }
   }
 
@@ -107,9 +108,9 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
         setStopLat(data[0].lat);
         setStopLng(data[0].lon);
       } else {
-        alert('No se encontró la dirección. Ingresa coordenadas manualmente.');
+        await alertDialog('No se encontró la dirección. Ingresa coordenadas manualmente.');
       }
-    } catch { alert('Error al geocodificar'); }
+    } catch { await alertDialog('Error al geocodificar'); }
     finally { setGeocoding(false); }
   }
 
@@ -133,7 +134,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
   }
 
   async function handleRemoveStop(stopId: string) {
-    if (!confirm('¿Eliminar esta parada?')) return;
+    if (!(await confirmDialog('¿Eliminar esta parada?', { danger: true }))) return;
     await act(() => api.dispatch.removeStop(id, stopId, token));
   }
 
@@ -204,7 +205,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
           )}
           {canCancel && (
             <button
-              onClick={() => { if (confirm('¿Cancelar esta ruta?')) act(() => api.dispatch.cancelRoute(id, token)); }}
+              onClick={async () => { if (await confirmDialog('¿Cancelar esta ruta?', { danger: true })) act(() => api.dispatch.cancelRoute(id, token)); }}
               disabled={acting}
               className="text-red-500 hover:text-red-700 text-sm px-3 py-2 rounded-xl border border-red-200 hover:border-red-300 transition"
             >

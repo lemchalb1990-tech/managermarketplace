@@ -6,6 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog } from '../../ConfirmDialog';
 
 interface LineItem {
   productId?: string;
@@ -210,7 +211,7 @@ export default function WorkOrdersPage() {
   }
 
   async function handleReject(id: string) {
-    if (!confirm('¿Marcar esta orden de trabajo como rechazada por el cliente?')) return;
+    if (!(await confirmDialog('¿Marcar esta orden de trabajo como rechazada por el cliente?', { danger: true }))) return;
     try {
       await api.pos.workOrders.reject(id, token);
       await loadWorkOrders(page);
@@ -221,7 +222,7 @@ export default function WorkOrdersPage() {
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('¿Anular esta orden de trabajo?')) return;
+    if (!(await confirmDialog('¿Anular esta orden de trabajo?', { danger: true }))) return;
     try {
       await api.pos.workOrders.cancel(id, token);
       await loadWorkOrders(page);

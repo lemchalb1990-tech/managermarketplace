@@ -6,6 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -109,14 +110,14 @@ export default function OrdersPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.')) return;
+    if (!(await confirmDialog('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.', { danger: true }))) return;
     setDeletingId(id);
     try {
       const token = getToken()!;
       await api.orders.remove(id, token, companyId);
       await load(page, statusFilter);
     } catch (err: any) {
-      alert(err.message || 'No se pudo eliminar la orden.');
+      await alertDialog(err.message || 'No se pudo eliminar la orden.');
     } finally {
       setDeletingId('');
     }

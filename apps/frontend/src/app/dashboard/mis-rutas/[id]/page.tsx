@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { alertDialog } from '../../ConfirmDialog';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -76,7 +77,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
     try {
       await api.dispatch.startRoute(id, token);
       await load();
-    } catch (e: any) { alert(e.message || 'Error'); }
+    } catch (e: any) { await alertDialog(e.message || 'Error'); }
     finally { setStarting(false); }
   }
 
@@ -94,7 +95,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
       setGeoCoords(null);
       setGeoStatus('idle');
       await load();
-    } catch (e: any) { alert(e.message || 'Error al marcar como entregado'); }
+    } catch (e: any) { await alertDialog(e.message || 'Error al marcar como entregado'); }
     finally { setDelivering(null); }
   }
 

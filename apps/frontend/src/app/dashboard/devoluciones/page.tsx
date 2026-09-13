@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
+import { confirmDialog } from '../ConfirmDialog';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -83,7 +84,7 @@ export default function DevolucionesPage() {
   }
 
   async function undo(id: string) {
-    if (!confirm('¿Deshacer la recepción? Se revertirá el stock repuesto.')) return;
+    if (!(await confirmDialog('¿Deshacer la recepción? Se revertirá el stock repuesto.', { danger: true }))) return;
     try { await api.returns.undo(id, getToken()!); await load(); }
     catch (err: any) { setFlash({ msg: err.message, ok: false }); setTimeout(() => setFlash(null), 3000); }
   }

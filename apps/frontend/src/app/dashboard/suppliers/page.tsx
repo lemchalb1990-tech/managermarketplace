@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
 const emptyForm = { name: '', taxId: '', email: '', phone: '', address: '' };
 
@@ -117,13 +118,13 @@ export default function SuppliersPage() {
       await api.suppliers.update(s.id, { active: !s.active }, token);
       await load();
     } catch (err: any) {
-      alert(err.message);
+      await alertDialog(err.message);
     }
   }
 
   async function handleDelete(s: any) {
     setDeleteError('');
-    if (!confirm(`¿Eliminar el proveedor "${s.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar el proveedor "${s.name}"? Esta acción no se puede deshacer.`, { danger: true }))) return;
     const token = getToken()!;
     try {
       await api.suppliers.remove(s.id, token);

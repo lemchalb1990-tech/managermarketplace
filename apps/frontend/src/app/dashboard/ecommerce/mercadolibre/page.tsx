@@ -10,6 +10,7 @@ import { SalesImportModal } from './components/SalesImportModal';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { confirmDialog } from '../../ConfirmDialog';
 
 export default function MercadoLibrePage() {
   const { selectedCompanyId } = useAdminCompany();
@@ -139,7 +140,7 @@ export default function MercadoLibrePage() {
 
   async function handleDelete(id: string, name: string, authorized: boolean) {
     const question = authorized ? `¿Desconectar la tienda "${name}"?` : `¿Eliminar las credenciales de "${name}"?`;
-    if (!confirm(question)) return;
+    if (!(await confirmDialog(question, { danger: true }))) return;
     const token = getToken()!;
     await api.marketplace.deleteConnection(id, token);
     await loadConnections(activeCompanyId || undefined);
