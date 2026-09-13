@@ -45,6 +45,7 @@ export function SalesImportModal({
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [createDispatchOrder, setCreateDispatchOrder] = useState(false);
 
   function toggleExpanded(externalId: string) {
     setExpanded((prev) => {
@@ -94,7 +95,7 @@ export function SalesImportModal({
     setError('');
     try {
       const token = getToken()!;
-      const res = await api.marketplace.confirmSalesImport(connectionId, Array.from(selected), token);
+      const res = await api.marketplace.confirmSalesImport(connectionId, Array.from(selected), token, createDispatchOrder);
       setResult(res);
     } catch (err: any) {
       setError(err.message || 'Error al importar las ventas.');
@@ -291,21 +292,32 @@ export function SalesImportModal({
               </button>
             </>
           ) : (
-            <>
-              <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
-              <div className="flex gap-2">
-                <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={importing || selected.size === 0}
-                  className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
-                >
-                  {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
-                </button>
+            <div className="w-full space-y-2">
+              <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={createDispatchOrder}
+                  onChange={(e) => setCreateDispatchOrder(e.target.checked)}
+                  className="mt-0.5 rounded" />
+                <span>
+                  Crear también la Orden de despacho (aparece en Órdenes/bodega y admite imprimir su etiqueta ML).
+                  Nunca descuenta stock — úsalo para recuperar una venta reciente que el webhook no alcanzó a procesar, no para reimportar historial ya despachado.
+                </span>
+              </label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
+                <div className="flex gap-2">
+                  <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={importing || selected.size === 0}
+                    className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
+                  >
+                    {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
+                  </button>
+                </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>

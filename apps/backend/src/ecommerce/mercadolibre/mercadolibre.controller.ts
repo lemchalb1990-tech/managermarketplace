@@ -36,6 +36,11 @@ class UpdateMlConnectionDto {
 class ConfirmImportDto {
   @IsArray() @IsString({ each: true }) externalIds: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) unlinkIds?: string[];
+  // Solo lo usa confirmSalesImport: si viene en true, además de registrar la venta crea
+  // la Orden de despacho real (aparece en bodega, admite etiqueta de ML) — pensado para
+  // recuperar una venta real que el webhook no alcanzó a procesar en su momento, no para
+  // reimportar historial ya despachado. Nunca descuenta stock, sin importar este valor.
+  @IsOptional() createDispatchOrder?: boolean;
 }
 
 class SaleTermDto {
@@ -288,7 +293,7 @@ export class MercadolibreController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
-    return this.service.confirmSalesImport(id, dto.externalIds, user);
+    return this.service.confirmSalesImport(id, dto.externalIds, user, dto.createDispatchOrder);
   }
 
   // ─── Webhook ───────────────────────────────────────────────────────────────

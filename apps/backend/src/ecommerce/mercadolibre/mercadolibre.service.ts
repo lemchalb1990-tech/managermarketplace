@@ -1552,7 +1552,13 @@ export class MercadolibreService {
     return { connectionName: conn.name, total, truncated, alreadyImportedCount, orders: orderResults };
   }
 
-  async confirmSalesImport(connectionId: string, externalOrderIds: string[], user: any) {
+  // createDispatchOrder: además de registrar la venta, corre el mismo processOrder() que
+  // usan el webhook y el cron (crea la Orden de despacho en Pendiente, consolida packs)
+  // pero SIN descontar stock ni pausar publicaciones — pensado para recuperar una venta
+  // real que quedó sin Orden porque el webhook falló en su momento, no para reimportar
+  // historial ya despachado. El stock nunca se toca acá: si la orden es reciente y de
+  // verdad hace falta descontarlo, el barrido/webhook en vivo se encarga por su cuenta.
+  async confirmSalesImport(connectionId: string, externalOrderIds: string[], user: any, createDispatchOrder?: boolean) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
@@ -1569,6 +1575,16 @@ export class MercadolibreService {
       const orderRes = await fetch(`${ML_API}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!orderRes.ok) { errors.push(`Orden ${orderId}: no se pudo obtener de Mercado Libre`); continue; }
       const order = await orderRes.json() as any;
+
+      if (createDispatchOrder) {
+        // skipStockEffects: esta orden ya pasó (o el webhook la trató como perdida) — nunca
+        // se descuenta stock acá para no restar dos veces algo que ya se despachó o que un
+        // proceso en vivo terminará de resolver por su cuenta.
+        const result = await this.processOrder(orderId, order, token, conn.companyId, conn.id, { skipStockEffects: true });
+        if (result === 'imported' || result === 'merged') imported++;
+        else { skipped++; errors.push(`Orden ${orderId}: sin productos vinculados en el catálogo`); }
+        continue;
+      }
 
       const resolvedItems: Array<{ productId: string; quantity: number; unitPrice: number }> = [];
       let allResolved = true;
@@ -1686,6 +1702,7 @@ export class MercadolibreService {
     token: string,
     companyIdHint?: string,
     connectionId?: string,
+    opts?: { skipStockEffects?: boolean },
   ): Promise<'imported' | 'skipped' | 'merged'> {
     const orderTotal = Number(order.total_amount || 0);
     const packId = order.pack_id != null ? String(order.pack_id) : null;
@@ -1768,9 +1785,11 @@ export class MercadolibreService {
               },
             });
           }
-          for (let i = 0; i < resolvedItems.length; i++) {
-            const { listing, quantity } = resolvedItems[i];
-            await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, newSaleItems[i].id);
+          if (!opts?.skipStockEffects) {
+            for (let i = 0; i < resolvedItems.length; i++) {
+              const { listing, quantity } = resolvedItems[i];
+              await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, newSaleItems[i].id);
+            }
           }
         });
       } else {
@@ -1839,9 +1858,11 @@ export class MercadolibreService {
             },
           });
 
-          for (let i = 0; i < resolvedItems.length; i++) {
-            const { listing, quantity } = resolvedItems[i];
-            await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, sale.items[i].id);
+          if (!opts?.skipStockEffects) {
+            for (let i = 0; i < resolvedItems.length; i++) {
+              const { listing, quantity } = resolvedItems[i];
+              await this.applyItemStockEffects(tx, companyId as string, orderId, listing, quantity, sale.items[i].id);
+            }
           }
         });
       }
@@ -1855,12 +1876,14 @@ export class MercadolibreService {
       throw err;
     }
 
-    // Sincronizar otras plataformas tras la venta de ML
-    for (const { listing, quantity } of resolvedItems) {
-      const newStock = Math.max(0, listing.product.stock - quantity);
-      this.sync.syncProduct(listing.productId, newStock).catch((e) =>
-        this.logger.error(`Sync otras plataformas tras venta ML: ${e.message}`),
-      );
+    // Sincronizar otras plataformas tras la venta de ML (no aplica si no se tocó stock).
+    if (!opts?.skipStockEffects) {
+      for (const { listing, quantity } of resolvedItems) {
+        const newStock = Math.max(0, listing.product.stock - quantity);
+        this.sync.syncProduct(listing.productId, newStock).catch((e) =>
+          this.logger.error(`Sync otras plataformas tras venta ML: ${e.message}`),
+        );
+      }
     }
 
     return existingPackSale ? 'merged' : 'imported';

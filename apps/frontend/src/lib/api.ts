@@ -406,10 +406,10 @@ export const api = {
         }>;
       }>(`/ecommerce/ml/connections/${connectionId}/sales-import/preview?${q}`, {}, token);
     },
-    confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>
+    confirmSalesImport: (connectionId: string, externalIds: string[], token: string, createDispatchOrder?: boolean) =>
       apiFetch<{ imported: number; skipped: number; errors: string[] }>(
         `/ecommerce/ml/connections/${connectionId}/sales-import/confirm`,
-        { method: 'POST', body: JSON.stringify({ externalIds }) },
+        { method: 'POST', body: JSON.stringify({ externalIds, createDispatchOrder }) },
         token,
       ),
     questions: (token: string, status?: string, companyId?: string) => {
