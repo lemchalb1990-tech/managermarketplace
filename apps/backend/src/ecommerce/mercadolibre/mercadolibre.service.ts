@@ -1702,6 +1702,10 @@ export class MercadolibreService {
 
         await tx.order.create({
           data: {
+            // A diferencia de POS (nace directo en Preparando), una venta de ML sí tiene
+            // una espera real antes de empezar a prepararla: falta imprimir la etiqueta de
+            // Mercado Envíos, que es lo que finalmente la deja Lista para el transportista.
+            status: OrderStatus.PENDING,
             fulfillmentType: FulfillmentType.DELIVERY,
             customerName: shippingInfo.address?.receiverName || order.buyer?.nickname || null,
             customerPhone: shippingInfo.address?.receiverPhone || null,
@@ -1796,6 +1800,75 @@ export class MercadolibreService {
     }
 
     return 'imported';
+  }
+
+  // ─── Etiqueta de envío (Mercado Envíos 2) ──────────────────────────────────────
+
+  // Trae el PDF de la etiqueta de despacho desde Mercado Libre para una Orden interna.
+  // Solo funciona para envíos Mercado Envíos (me2) que ya están "listos para imprimir" —
+  // ver https://developers.mercadolibre.com.ar/es_ar/mercadoenvios-modo-2#Imprimir-etiquetas-de-envío.
+  // Al lograrlo, marca la Orden como Lista (READY): recién ahí el bulto ya tiene la
+  // etiqueta pegada y puede pasar el transportista a retirarlo.
+  async printShippingLabel(orderId: string, user: any): Promise<Buffer> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { sale: true },
+    });
+    if (!order) throw new NotFoundException('Orden no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) throw new ForbiddenException();
+    if (order.sale?.channel !== SaleChannel.MERCADO_LIBRE || !order.sale.externalId) {
+      throw new BadRequestException('Esta orden no corresponde a una venta de Mercado Libre.');
+    }
+    if (!order.sale.connectionId) {
+      throw new BadRequestException('La venta no tiene una conexión de Mercado Libre asociada.');
+    }
+
+    const token = await this.getValidToken(order.sale.connectionId);
+
+    const orderRes = await fetch(`${ML_API}/orders/${order.sale.externalId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!orderRes.ok) throw new BadRequestException('No se pudo consultar la orden en Mercado Libre.');
+    const mlOrder = await orderRes.json();
+    const shippingId = mlOrder.shipping?.id;
+    if (!shippingId) throw new BadRequestException('Esta orden no tiene un envío de Mercado Libre asociado.');
+
+    const shipRes = await fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!shipRes.ok) throw new BadRequestException('No se pudo consultar el envío en Mercado Libre.');
+    const shipment = await shipRes.json();
+
+    if (shipment.mode !== 'me2') {
+      throw new BadRequestException('Este envío no es Mercado Envíos — no tiene etiqueta para imprimir desde acá.');
+    }
+    if (shipment.logistic_type === 'fulfillment') {
+      throw new BadRequestException('Los envíos Full los despacha Mercado Libre desde su propia bodega: no hay etiqueta de venta que imprimir.');
+    }
+    const printable = shipment.status === 'ready_to_ship' && ['ready_to_print', 'printed'].includes(shipment.substatus);
+    if (!printable) {
+      throw new BadRequestException(
+        `El envío todavía no está listo para imprimir en Mercado Libre (estado: ${shipment.status}/${shipment.substatus || 'sin subestado'}).`,
+      );
+    }
+
+    const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${shippingId}&response_type=pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!labelRes.ok) {
+      const text = await labelRes.text().catch(() => '');
+      throw new BadRequestException(`Mercado Libre no entregó la etiqueta (HTTP ${labelRes.status}). ${text.slice(0, 200)}`);
+    }
+    const buffer = Buffer.from(await labelRes.arrayBuffer());
+
+    const finalOrReady: OrderStatus[] = [OrderStatus.READY, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+    if (!finalOrReady.includes(order.status)) {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.READY,
+          trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
+        },
+      });
+    }
+
+    return buffer;
   }
 
   // ─── Estado de la Orden interna reflejando Mercado Libre ──────────────────────

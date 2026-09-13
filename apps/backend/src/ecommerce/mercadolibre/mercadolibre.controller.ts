@@ -125,6 +125,22 @@ export class MercadolibreController {
     return res.status(ok ? 200 : 400).send(this.renderCallbackPage(ok, detail));
   }
 
+  // ─── Etiqueta de envío ───────────────────────────────────────────────────────
+
+  @Get('orders/:orderId/label')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  async printShippingLabel(
+    @Param('orderId') orderId: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.printShippingLabel(orderId, user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="etiqueta-envio.pdf"');
+    res.send(buffer);
+  }
+
   private renderCallbackPage(ok: boolean, detail: string): string {
     const panelUrl = `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre${ok ? '' : '?error=1'}`;
     const title = ok ? 'Cuenta conectada' : 'No se pudo conectar';

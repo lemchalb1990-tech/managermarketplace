@@ -83,6 +83,22 @@ export async function openDocumentUrl(url: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
+// Igual que apiDownload pero abre el archivo en una pestaña nueva (para imprimir o
+// previsualizar) en vez de forzar la descarga — pensado para PDFs como la etiqueta de envío.
+export async function apiOpenPdf(path: string, token: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Error desconocido' }));
+    throw new Error(err.message || `Error ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
   const res = await fetch(`${API_URL}/api${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -334,6 +350,8 @@ export const api = {
         `/ecommerce/ml/connections/${id}/refresh`, { method: 'POST' }, token),
     debugOrder: (connectionId: string, orderId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/debug-order/${orderId}`, {}, token),
+    printLabel: (orderId: string, token: string) =>
+      apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label`, token),
     publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[]) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',

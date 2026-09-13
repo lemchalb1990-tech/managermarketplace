@@ -49,6 +49,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [shipError, setShipError] = useState('');
 
   const [deleting, setDeleting] = useState(false);
+  const [labelLoading, setLabelLoading] = useState(false);
+  const [labelError, setLabelError] = useState('');
 
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
 
@@ -105,6 +107,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       setStatusError(err.message || 'Error al cambiar estado');
     } finally {
       setStatusLoading(false);
+    }
+  }
+
+  async function handlePrintLabel() {
+    setLabelError('');
+    setLabelLoading(true);
+    try {
+      const token = getToken()!;
+      await api.marketplace.printLabel(id, token);
+      await load();
+    } catch (err: any) {
+      setLabelError(err.message || 'No se pudo obtener la etiqueta de Mercado Libre.');
+    } finally {
+      setLabelLoading(false);
     }
   }
 
@@ -269,6 +285,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div className="flex flex-col items-end gap-2">
+            {isAdmin && order.sale?.channel === 'MERCADO_LIBRE' && order.prepStage === 'PACKED' && order.status !== 'READY' && !isDone && (
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={handlePrintLabel}
+                  disabled={labelLoading}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+                >
+                  {labelLoading ? 'Obteniendo etiqueta...' : 'Imprimir etiqueta de envío'} →
+                </button>
+                {labelError && <p className="text-xs text-red-600 max-w-xs text-right">{labelError}</p>}
+              </div>
+            )}
             {action && isAdmin && (
               <div className="flex flex-col items-end gap-1">
                 <button
