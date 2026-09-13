@@ -132,6 +132,7 @@ export default function MlDevolucionesPage() {
               }>
               <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
                 {r.sale?.externalId ? `Orden ${r.sale.externalId}` : 'Sin venta vinculada'}
+                {r.order?.customerName ? ` · Comprador: ${r.order.customerName}` : ''}
                 {r.reason ? ` · ${r.reason}` : ''}
               </p>
               <ul className="space-y-1.5 mb-3">

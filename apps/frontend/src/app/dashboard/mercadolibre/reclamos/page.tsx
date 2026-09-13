@@ -157,6 +157,7 @@ export default function MlReclamosPage() {
                   ? `Compra: ${new Date(c.sale.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}`
                   : 'Compra: sin venta vinculada'}
                 {fmtMoney(c.sale?.total) ? ` · ${fmtMoney(c.sale.total)}` : ''}
+                {c.sale?.customerName ? ` · Comprador: ${c.sale.customerName}` : ''}
               </p>
               <p className="text-xs text-[var(--text-muted)] mb-3">
                 {c.stage ? `Etapa: ${c.stage} · ` : ''}{c.reason || 'Sin motivo detallado'}

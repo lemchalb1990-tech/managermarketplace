@@ -2073,7 +2073,7 @@ export class MercadolibreService {
         include: {
           sale: {
             select: {
-              id: true, externalId: true, total: true, createdAt: true,
+              id: true, externalId: true, total: true, createdAt: true, customerName: true,
               items: {
                 take: 1,
                 select: {
