@@ -1581,8 +1581,20 @@ export class MercadolibreService {
         // se descuenta stock acá para no restar dos veces algo que ya se despachó o que un
         // proceso en vivo terminará de resolver por su cuenta.
         const result = await this.processOrder(orderId, order, token, conn.companyId, conn.id, { skipStockEffects: true });
-        if (result === 'imported' || result === 'merged') imported++;
-        else { skipped++; errors.push(`Orden ${orderId}: sin productos vinculados en el catálogo`); }
+        if (result === 'imported' || result === 'merged') {
+          imported++;
+          // La orden nace en "Pendiente" por defecto, pero si es una recuperación de algo
+          // que ya pasó hace días, puede que en ML ya esté cancelada, despachada o incluso
+          // entregada — se refleja ese estado real de una vez, con la misma lógica que usa
+          // el webhook/barrido, en vez de dejarla mostrando "Pendiente" para siempre.
+          try {
+            await this.syncInternalOrderFromMl(order, token);
+          } catch (err: any) {
+            this.logger.warn(`No se pudo sincronizar el estado real de la orden ${orderId} tras importarla: ${err?.message || err}`);
+          }
+        } else {
+          skipped++; errors.push(`Orden ${orderId}: sin productos vinculados en el catálogo`);
+        }
         continue;
       }
 
