@@ -503,6 +503,24 @@ export class MercadolibreService {
     return null;
   }
 
+  // El listado multi-get de /items no trae la descripción (vive en un endpoint aparte);
+  // se usa al importar publicaciones para poblar la Descripción detallada del producto
+  // nuevo con lo que ya existe en Mercado Libre.
+  private async fetchMlDescription(itemId: string, token: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${ML_API}/items/${itemId}/description`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as any;
+      const text = (data.plain_text || data.text || '').trim();
+      return text || null;
+    } catch (err: any) {
+      this.logger.warn(`ML fetchDescription [${itemId}] error: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   // Texto que ve el comprador cuando escribió la descripción con el editor enriquecido
   // (mlDescription en HTML) pero la categoría actual ya no admite HTML — sin esto, las
   // etiquetas quedarían visibles como texto literal en la publicación.
@@ -1137,6 +1155,13 @@ export class MercadolibreService {
           if ((product as any).packageWidth == null && packageDims.packageWidth !== undefined) fillData.packageWidth = packageDims.packageWidth;
           if ((product as any).packageLength == null && packageDims.packageLength !== undefined) fillData.packageLength = packageDims.packageLength;
           if ((product as any).packageWeight == null && packageDims.packageWeight !== undefined) fillData.packageWeight = packageDims.packageWeight;
+          if (!product.description || !(product as any).mlDescription) {
+            const mlDesc = await this.fetchMlDescription(item.id, token);
+            if (mlDesc) {
+              if (!product.description) fillData.description = mlDesc;
+              if (!(product as any).mlDescription) fillData.mlDescription = mlDesc;
+            }
+          }
           if (Object.keys(fillData).length) {
             await this.prisma.product.update({ where: { id: product.id }, data: fillData });
           }
@@ -1154,6 +1179,7 @@ export class MercadolibreService {
           linkedProductIds.add(product.id);
           linked++;
         } else {
+          const mlDesc = await this.fetchMlDescription(item.id, token);
           const newProduct = await this.prisma.product.create({
             data: {
               sku,
@@ -1164,6 +1190,8 @@ export class MercadolibreService {
               mlCategoryId: item.category_id,
               mlFamilyName: item.family_name || null,
               mlAttributes: additionalAttrs.length ? additionalAttrs : undefined,
+              description: mlDesc || undefined,
+              mlDescription: mlDesc || undefined,
               ...packageDims,
               companyId: conn.companyId,
             },
