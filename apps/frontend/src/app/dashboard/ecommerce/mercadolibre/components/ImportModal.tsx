@@ -345,6 +345,7 @@ export function ImportModal({
           )}
         </div>
 
+        {!loading && (
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between shrink-0">
           {result ? (
             <>
@@ -362,7 +363,7 @@ export function ImportModal({
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={importing || loading || selected.size === 0}
+                  disabled={importing || selected.size === 0}
                   className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
                 >
                   {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
@@ -371,6 +372,7 @@ export function ImportModal({
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );
