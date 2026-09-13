@@ -4,8 +4,11 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { useAdminCompany } from '../../AdminCompanyContext';
 
 export default function PackingPage() {
+  const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scan, setScan] = useState('');
@@ -16,7 +19,7 @@ export default function PackingPage() {
     const token = getToken();
     if (!token) return;
     try {
-      setOrders(await api.warehouse.packingList(token));
+      setOrders(await api.warehouse.packingList(token, { companyId }));
     } finally {
       setLoading(false);
     }

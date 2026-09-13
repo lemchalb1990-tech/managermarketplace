@@ -46,8 +46,11 @@ export class WarehouseService {
   ) {}
 
   /** where base con aislamiento por empresa (+ bodega opcional). */
-  private baseWhere(user: any, warehouseId?: string) {
+  private baseWhere(user: any, warehouseId?: string, companyId?: string) {
     const where: any = companyWhere(user);
+    // companyWhere() no filtra nada para Super Admin (ve todas las empresas) — sin esto,
+    // el tablero/picking/packing mezclaban pedidos de todas las empresas a la vez.
+    if (user.role === Role.SUPER_ADMIN && companyId) where.companyId = companyId;
     if (warehouseId) where.warehouseId = warehouseId;
     return where;
   }
@@ -61,8 +64,8 @@ export class WarehouseService {
   }
 
   // ── Tablero ────────────────────────────────────────────────────────────────
-  async board(user: any, warehouseId?: string) {
-    const base = this.baseWhere(user, warehouseId);
+  async board(user: any, warehouseId?: string, companyId?: string) {
+    const base = this.baseWhere(user, warehouseId, companyId);
     const inPrep = {
       ...base,
       status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
@@ -98,7 +101,7 @@ export class WarehouseService {
       this.prisma.order.count({
         where: { ...base, packedAt: { gte: startOfDay } },
       }),
-      this.listCollaborators(user),
+      this.listCollaborators(user, companyId),
       this.prisma.order.findMany({
         where: { ...base, packedAt: { gte: startOfDay } },
         select: { packedAt: true, packedById: true },
@@ -172,7 +175,7 @@ export class WarehouseService {
     };
   }
 
-  private async listCollaborators(user: any) {
+  private async listCollaborators(user: any, companyId?: string) {
     const where: any = {
       active: true,
       role: {
@@ -185,6 +188,7 @@ export class WarehouseService {
       },
     };
     if (user.role !== Role.SUPER_ADMIN) where.companyId = user.companyId;
+    else if (companyId) where.companyId = companyId;
     return this.prisma.user.findMany({
       where,
       select: { id: true, name: true, role: true },
@@ -194,7 +198,7 @@ export class WarehouseService {
 
   // ── Asignación ─────────────────────────────────────────────────────────────
   async assign(user: any, dto: AssignDto) {
-    const base = this.baseWhere(user, dto.warehouseId);
+    const base = this.baseWhere(user, dto.warehouseId, dto.companyId);
 
     // Validar que los colaboradores pertenecen a la misma empresa.
     const collabs = await this.prisma.user.findMany({
@@ -203,7 +207,7 @@ export class WarehouseService {
         active: true,
         ...(user.role !== Role.SUPER_ADMIN
           ? { companyId: user.companyId }
-          : {}),
+          : dto.companyId ? { companyId: dto.companyId } : {}),
       },
       select: { id: true, companyId: true },
     });
@@ -254,7 +258,7 @@ export class WarehouseService {
   }
 
   async resetAssignments(user: any, dto: ResetAssignmentsDto) {
-    const base = this.baseWhere(user, dto.warehouseId);
+    const base = this.baseWhere(user, dto.warehouseId, dto.companyId);
     // Solo revierte lo que aún no entró a picking real (sin ítems marcados).
     const res = await this.prisma.order.updateMany({
       where: {
@@ -274,7 +278,7 @@ export class WarehouseService {
 
   // ── Picking ────────────────────────────────────────────────────────────────
   private pickingWhere(user: any, opts: FlowListDto) {
-    const base = this.baseWhere(user, opts.warehouseId);
+    const base = this.baseWhere(user, opts.warehouseId, opts.companyId);
     const where: any = {
       ...base,
       status: OrderStatus.PREPARING,
@@ -450,7 +454,7 @@ export class WarehouseService {
 
   // ── Packing ────────────────────────────────────────────────────────────────
   private packingWhere(user: any, opts: FlowListDto) {
-    const base = this.baseWhere(user, opts.warehouseId);
+    const base = this.baseWhere(user, opts.warehouseId, opts.companyId);
     return {
       ...base,
       status: OrderStatus.PREPARING,

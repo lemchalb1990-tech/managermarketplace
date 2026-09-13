@@ -95,8 +95,11 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto, user: any) {
-    if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
-    await this.validateWarehouseId(dto.warehouseId, user.companyId);
+    const companyId = user.role === Role.SUPER_ADMIN ? dto.companyId : user.companyId;
+    if (!companyId) throw new BadRequestException(
+      user.role === Role.SUPER_ADMIN ? 'companyId requerido para Super Admin' : 'Sin empresa asignada',
+    );
+    await this.validateWarehouseId(dto.warehouseId, companyId);
 
     let itemChecksData: { productId: string | null; productName: string; productSku: string; expectedQty: number }[] = [];
     let autoCustomerName: string | undefined;
@@ -114,7 +117,7 @@ export class OrdersService {
         include: { items: { include: { product: true } }, order: true },
       });
       if (!sale) throw new NotFoundException('Venta no encontrada');
-      if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
+      if (sale.companyId !== companyId) throw new ForbiddenException();
       if (sale.order) throw new ConflictException('Esta venta ya tiene una orden asociada');
 
       // Auto-populate customer fields from sale
@@ -143,7 +146,7 @@ export class OrdersService {
       }));
     } else if (dto.items?.length) {
       const productIds = dto.items.map((i) => i.productId);
-      const products = await this.prisma.product.findMany({ where: { id: { in: productIds }, companyId: user.companyId } });
+      const products = await this.prisma.product.findMany({ where: { id: { in: productIds }, companyId } });
       itemChecksData = dto.items.map((i) => {
         const p = products.find((pr) => pr.id === i.productId);
         if (!p) throw new BadRequestException(`Producto ${i.productId} no encontrado`);
@@ -162,7 +165,7 @@ export class OrdersService {
         commune: dto.commune ?? autoCommune,
         city: dto.city ?? autoCity,
         region: dto.region,
-        companyId: user.companyId,
+        companyId,
         saleId: dto.saleId,
         warehouseId: dto.warehouseId ?? autoWarehouseId,
         createdById: user.id,
@@ -273,5 +276,32 @@ export class OrdersService {
     const photo = await this.prisma.shipmentPhoto.findUnique({ where: { id: photoId } });
     if (!photo || photo.orderId !== orderId) throw new NotFoundException('Foto no encontrada');
     return this.prisma.shipmentPhoto.delete({ where: { id: photoId } });
+  }
+
+  // Solo Super Admin (ver OrdersController) — sigue respetando el mismo criterio de
+  // empresa que el resto del módulo: guard() ya deja pasar a Super Admin sobre
+  // cualquier empresa, pero acá igual validamos que la orden exista y pertenezca a la
+  // empresa indicada cuando se pasa companyId (evita borrar por id "a ciegas" de otra
+  // empresa distinta a la que se está mirando en el panel).
+  async remove(id: string, user: any, companyId?: string) {
+    const order = await this.prisma.order.findUnique({ where: { id }, select: { id: true, companyId: true } });
+    if (!order) throw new NotFoundException('Orden no encontrada');
+    this.guard(order, user);
+    if (companyId && order.companyId !== companyId) throw new ForbiddenException();
+
+    try {
+      // itemChecks y photos tienen onDelete: Cascade en el schema; se elimina primero
+      // el RouteStop (si la orden estaba en una ruta de despacho) porque esa relación
+      // no cascadea — sin esto, Postgres rechazaría el delete por la FK.
+      await this.prisma.$transaction([
+        this.prisma.routeStop.deleteMany({ where: { orderId: id } }),
+        this.prisma.order.delete({ where: { id } }),
+      ]);
+    } catch {
+      throw new BadRequestException(
+        'No se puede eliminar: esta orden tiene una devolución asociada. Desvincúlala primero.',
+      );
+    }
+    return { deleted: true };
   }
 }

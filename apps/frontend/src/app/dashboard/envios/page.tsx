@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const SCOPES = [
   { key: 'today', label: 'Por despachar hoy' },
@@ -17,6 +18,8 @@ const money = (n: any) => (n == null ? '' : `$${Number(n).toLocaleString('es-CL'
 const shortId = (id: string) => id.slice(-8).toUpperCase();
 
 export default function EnviosPage() {
+  const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
   const [scope, setScope] = useState('today');
   const [q, setQ] = useState('');
   const [data, setData] = useState<any>(null);
@@ -33,7 +36,7 @@ export default function EnviosPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const d = await api.shipping.board(token, { scope, q: q.trim() || undefined });
+      const d = await api.shipping.board(token, { scope, q: q.trim() || undefined, companyId });
       setData(d);
       setUpdatedAt(new Date());
       setSel(new Set());

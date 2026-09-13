@@ -24,12 +24,21 @@ export class AssignDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  // Solo la usa Super Admin para acotar a una empresa (ver baseWhere en el service).
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class ResetAssignmentsDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class ScanDto {
@@ -64,6 +73,10 @@ export class BoardQueryDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class FlowListDto {
@@ -75,4 +88,9 @@ export class FlowListDto {
   @IsOptional()
   @IsString()
   mine?: string;
+
+  // Solo la usa Super Admin para acotar a una empresa (ver baseWhere en el service).
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }

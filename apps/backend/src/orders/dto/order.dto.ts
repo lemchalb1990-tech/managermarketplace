@@ -15,6 +15,12 @@ export class CreateOrderDto {
   @IsEnum(FulfillmentType)
   fulfillmentType: FulfillmentType;
 
+  // Solo la usa SUPER_ADMIN (sin companyId propio) para indicar a qué empresa
+  // pertenece la orden; para el resto de los roles se ignora y se usa user.companyId.
+  @IsOptional()
+  @IsString()
+  companyId?: string;
+
   @IsOptional()
   @IsString()
   saleId?: string;

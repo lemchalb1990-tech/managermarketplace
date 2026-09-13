@@ -18,6 +18,11 @@ export class BoardDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  // Solo la usa Super Admin para acotar a una empresa (ver baseWhere en el service).
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class DispatchDto {

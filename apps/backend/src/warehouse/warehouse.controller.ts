@@ -31,7 +31,7 @@ export class WarehouseController {
   @Get('board')
   @RequirePermissions('warehouse.board')
   board(@CurrentUser() user: any, @Query() q: BoardQueryDto) {
-    return this.service.board(user, q.warehouseId);
+    return this.service.board(user, q.warehouseId, q.companyId);
   }
 
   @Post('assign')

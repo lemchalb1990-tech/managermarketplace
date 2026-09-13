@@ -4,10 +4,13 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
+import { useAdminCompany } from '../../AdminCompanyContext';
 
 const MANAGER = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'];
 
 export default function PickingPage() {
+  const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scan, setScan] = useState('');
@@ -20,7 +23,7 @@ export default function PickingPage() {
     const token = getToken();
     if (!token) return;
     try {
-      const list = await api.warehouse.pickingList(token, { mine: isManager ? mine : true });
+      const list = await api.warehouse.pickingList(token, { mine: isManager ? mine : true, companyId });
       setOrders(list);
     } finally {
       setLoading(false);

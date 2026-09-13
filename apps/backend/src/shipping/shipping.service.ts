@@ -47,16 +47,20 @@ export class ShippingService {
     private settings: SettingsService,
   ) {}
 
-  private baseWhere(user: any, warehouseId?: string) {
+  private baseWhere(user: any, warehouseId?: string, companyId?: string) {
     const where: any = companyWhere(user);
+    // companyWhere() no filtra nada para Super Admin — sin esto, el tablero de
+    // despacho mezclaba órdenes de todas las empresas a la vez.
+    if (user.role === Role.SUPER_ADMIN && companyId) where.companyId = companyId;
     if (warehouseId) where.warehouseId = warehouseId;
     return where;
   }
 
-  private async companyCutoffs(user: any): Promise<Record<string, string>> {
-    if (user.role === Role.SUPER_ADMIN) return resolveCutoffs(null);
+  private async companyCutoffs(user: any, companyId?: string): Promise<Record<string, string>> {
+    const effectiveCompanyId = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+    if (!effectiveCompanyId) return resolveCutoffs(null);
     const company = await this.prisma.company.findUnique({
-      where: { id: user.companyId },
+      where: { id: effectiveCompanyId },
       select: { dispatchCutoffs: true },
     });
     return resolveCutoffs(company?.dispatchCutoffs);
@@ -91,8 +95,8 @@ export class ShippingService {
 
   async board(user: any, dto: BoardDto) {
     const scope = dto.scope || 'today';
-    const base = this.baseWhere(user, dto.warehouseId);
-    const cutoffs = await this.companyCutoffs(user);
+    const base = this.baseWhere(user, dto.warehouseId, dto.companyId);
+    const cutoffs = await this.companyCutoffs(user, dto.companyId);
     const tz = await this.settings.getTimezone();
 
     const endOfToday = endOfDayInTz(tz);

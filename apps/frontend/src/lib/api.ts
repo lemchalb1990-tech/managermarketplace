@@ -180,11 +180,12 @@ export const api = {
       apiFetch<any>(`/returns/${id}/undo`, { method: 'POST' }, token),
   },
   shipping: {
-    board: (token: string, params?: { scope?: string; warehouseId?: string; q?: string }) => {
+    board: (token: string, params?: { scope?: string; warehouseId?: string; q?: string; companyId?: string }) => {
       const p = new URLSearchParams();
       if (params?.scope) p.set('scope', params.scope);
       if (params?.warehouseId) p.set('warehouseId', params.warehouseId);
       if (params?.q) p.set('q', params.q);
+      if (params?.companyId) p.set('companyId', params.companyId);
       return apiFetch<any>(`/shipping/board?${p}`, {}, token);
     },
     dispatch: (data: { orderIds: string[]; courier?: string; trackingCode?: string }, token: string) =>
@@ -202,16 +203,21 @@ export const api = {
     },
   },
   warehouse: {
-    board: (token: string, warehouseId?: string) =>
-      apiFetch<any>(`/warehouse/board${warehouseId ? `?warehouseId=${warehouseId}` : ''}`, {}, token),
-    assign: (data: { userIds: string[]; orderIds?: string[]; warehouseId?: string }, token: string) =>
+    board: (token: string, warehouseId?: string, companyId?: string) => {
+      const q = new URLSearchParams();
+      if (warehouseId) q.set('warehouseId', warehouseId);
+      if (companyId) q.set('companyId', companyId);
+      return apiFetch<any>(`/warehouse/board?${q}`, {}, token);
+    },
+    assign: (data: { userIds: string[]; orderIds?: string[]; warehouseId?: string; companyId?: string }, token: string) =>
       apiFetch<{ assigned: number }>('/warehouse/assign', { method: 'POST', body: JSON.stringify(data) }, token),
-    resetAssign: (data: { warehouseId?: string }, token: string) =>
+    resetAssign: (data: { warehouseId?: string; companyId?: string }, token: string) =>
       apiFetch<{ reverted: number }>('/warehouse/assign/reset', { method: 'POST', body: JSON.stringify(data) }, token),
-    pickingList: (token: string, params?: { warehouseId?: string; mine?: boolean }) => {
+    pickingList: (token: string, params?: { warehouseId?: string; mine?: boolean; companyId?: string }) => {
       const q = new URLSearchParams();
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
       if (params?.mine) q.set('mine', 'true');
+      if (params?.companyId) q.set('companyId', params.companyId);
       return apiFetch<any[]>(`/warehouse/picking?${q}`, {}, token);
     },
     pickingScan: (data: { code: string; warehouseId?: string }, token: string) =>
@@ -222,9 +228,10 @@ export const api = {
       apiFetch<any>(`/warehouse/picking/${orderId}/item/${itemId}/out-of-stock`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     completePicking: (orderId: string, token: string) =>
       apiFetch<any>(`/warehouse/picking/${orderId}/complete`, { method: 'POST' }, token),
-    packingList: (token: string, params?: { warehouseId?: string }) => {
+    packingList: (token: string, params?: { warehouseId?: string; companyId?: string }) => {
       const q = new URLSearchParams();
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
+      if (params?.companyId) q.set('companyId', params.companyId);
       return apiFetch<any[]>(`/warehouse/packing?${q}`, {}, token);
     },
     packingScan: (data: { code: string; warehouseId?: string }, token: string) =>
@@ -557,6 +564,8 @@ export const api = {
       apiFetch<any>('/orders', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    remove: (id: string, token: string, companyId?: string) =>
+      apiFetch<{ deleted: boolean }>(`/orders/${id}${companyId ? `?companyId=${companyId}` : ''}`, { method: 'DELETE' }, token),
     updateStatus: (id: string, status: string, token: string) =>
       apiFetch<any>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token),
     checkItem: (orderId: string, itemId: string, data: { checkedQty: number; notes?: string }, token: string) =>

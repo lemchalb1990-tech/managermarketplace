@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -51,6 +52,7 @@ const emptyCreate = {
 
 export default function OrdersPage() {
   const tz = useDashboardTimezone();
+  const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
   const [orders, setOrders] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -58,6 +60,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -67,13 +70,17 @@ export default function OrdersPage() {
   const [createError, setCreateError] = useState('');
 
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
+  // CompanyGate ya obliga a Super Admin a elegir empresa (y remonta esta página al
+  // cambiarla); acá solo hace falta propagar esa empresa a cada llamada — sin esto,
+  // Super Admin veía órdenes de TODAS las empresas mezcladas.
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
 
   async function load(p = 1, status = statusFilter) {
     const token = getToken();
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.orders.list(token, { status: status || undefined, page: p });
+      const res = await api.orders.list(token, { status: status || undefined, page: p, companyId });
       setOrders(res.orders);
       setTotal(res.total);
       setPage(res.page);
@@ -92,13 +99,28 @@ export default function OrdersPage() {
     if (!token) return;
     load(1, '');
     Promise.all([
-      api.warehouses.list(token).catch(() => []),
-      api.pos.listSales({}, token).catch(() => ({ sales: [] })),
+      api.warehouses.list(token, companyId).catch(() => []),
+      api.pos.listSales({ companyId }, token).catch(() => ({ sales: [] })),
     ]).then(([whs, sales]) => {
       setWarehouses(whs);
       setRecentSales(sales.sales || []);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.')) return;
+    setDeletingId(id);
+    try {
+      const token = getToken()!;
+      await api.orders.remove(id, token, companyId);
+      await load(page, statusFilter);
+    } catch (err: any) {
+      alert(err.message || 'No se pudo eliminar la orden.');
+    } finally {
+      setDeletingId('');
+    }
+  }
 
   function changeTab(key: string) {
     setStatusFilter(key);
@@ -113,6 +135,7 @@ export default function OrdersPage() {
       const token = getToken()!;
       await api.orders.create({
         fulfillmentType: createForm.fulfillmentType,
+        companyId,
         saleId: createForm.saleId || undefined,
         warehouseId: createForm.warehouseId || undefined,
         customerName: createForm.customerName || undefined,
@@ -340,10 +363,21 @@ export default function OrdersPage() {
                     {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                   </td>
                   <td className="px-4 py-3">
-                    <Link href={`/dashboard/orders/${o.id}`}
-                      className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                      Ver →
-                    </Link>
+                    <div className="flex items-center gap-3 justify-end">
+                      <Link href={`/dashboard/orders/${o.id}`}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                        Ver →
+                      </Link>
+                      {currentUser?.role === 'SUPER_ADMIN' && (
+                        <button
+                          onClick={() => handleDelete(o.id)}
+                          disabled={deletingId === o.id}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
+                        >
+                          {deletingId === o.id ? 'Eliminando...' : 'Eliminar'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

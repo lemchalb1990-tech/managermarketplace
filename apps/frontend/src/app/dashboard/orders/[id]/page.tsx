@@ -47,6 +47,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [shipLoading, setShipLoading] = useState(false);
   const [shipError, setShipError] = useState('');
 
+  const [deleting, setDeleting] = useState(false);
+
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
 
   async function load() {
@@ -170,6 +172,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     await load();
   }
 
+  async function handleDeleteOrder() {
+    if (!confirm('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.')) return;
+    setDeleting(true);
+    try {
+      const token = getToken()!;
+      await api.orders.remove(id, token);
+      router.push('/dashboard/orders');
+    } catch (err: any) {
+      alert(err.message || 'No se pudo eliminar la orden.');
+      setDeleting(false);
+    }
+  }
+
   async function handleShipSave(e: React.FormEvent) {
     e.preventDefault();
     setShipLoading(true);
@@ -281,6 +296,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </button>
             )}
             {statusError && <p className="text-xs text-red-600 max-w-xs text-right">{statusError}</p>}
+            {currentUser?.role === 'SUPER_ADMIN' && (
+              <button
+                onClick={handleDeleteOrder}
+                disabled={deleting}
+                className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar orden'}
+              </button>
+            )}
           </div>
         </div>
       </div>

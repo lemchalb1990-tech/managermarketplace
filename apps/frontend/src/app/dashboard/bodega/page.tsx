@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, BrandButton } from '@/components/ui';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const roleShort: Record<string, string> = {
   COMPANY_ADMIN: 'Admin', CATALOG_MANAGER: 'Catálogo', VENDEDOR: 'Vendedor', SUPER_ADMIN: 'Super',
 };
 
 export default function BodegaBoardPage() {
+  const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
   const [board, setBoard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -21,7 +24,7 @@ export default function BodegaBoardPage() {
     const token = getToken();
     if (!token) return;
     try {
-      const b = await api.warehouse.board(token);
+      const b = await api.warehouse.board(token, undefined, companyId);
       setBoard(b);
       setUpdatedAt(new Date());
     } catch (err: any) {
@@ -49,7 +52,7 @@ export default function BodegaBoardPage() {
     if (selected.size === 0) { setError('Marca al menos un colaborador en turno'); return; }
     setBusy(true); setError('');
     try {
-      const res = await api.warehouse.assign({ userIds: [...selected] }, getToken()!);
+      const res = await api.warehouse.assign({ userIds: [...selected], companyId }, getToken()!);
       await load();
       setError(res.assigned === 0 ? 'No había pedidos sin asignar' : '');
     } catch (err: any) {
@@ -60,7 +63,7 @@ export default function BodegaBoardPage() {
   async function undo() {
     setBusy(true); setError('');
     try {
-      await api.warehouse.resetAssign({}, getToken()!);
+      await api.warehouse.resetAssign({ companyId }, getToken()!);
       await load();
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }

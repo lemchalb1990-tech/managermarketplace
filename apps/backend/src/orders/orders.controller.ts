@@ -104,4 +104,10 @@ export class OrdersController {
   ) {
     return this.service.removePhoto(id, photoId, user);
   }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  remove(@Param('id') id: string, @CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.remove(id, user, companyId);
+  }
 }
