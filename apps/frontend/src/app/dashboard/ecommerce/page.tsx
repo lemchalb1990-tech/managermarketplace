@@ -6,6 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
 import { invalidatePlatformLogosCache } from '@/lib/platformLogos';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 const DEFAULT_PLATFORMS = [
   {
@@ -88,6 +89,7 @@ function hasModule(user: any, moduleKey: string): boolean {
 const emptyEdit = { displayName: '', description: '', logoUrl: '' };
 
 export default function EcommercePage() {
+  const { selectedCompanyId } = useAdminCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customSettings, setCustomSettings] = useState<Record<string, any>>({});
   const [activeMarketplaces, setActiveMarketplaces] = useState<Set<string>>(new Set());
@@ -112,9 +114,15 @@ export default function EcommercePage() {
       })
       .catch(() => {});
 
+    // Sin esto, Super Admin veía como "activas" las conexiones de OTRAS empresas: las
+    // llamadas no llevaban companyId y el backend no filtra nada por defecto para ese rol.
+    const isSuper = u.role === 'SUPER_ADMIN';
+    if (isSuper && !selectedCompanyId) { setActiveMarketplaces(new Set()); return; }
+    const companyId = isSuper ? selectedCompanyId : undefined;
+
     Promise.all([
-      api.connections.list(token, {}).catch(() => [] as any[]),
-      api.marketplace.connections(token).catch(() => [] as any[]),
+      api.connections.list(token, { companyId }).catch(() => [] as any[]),
+      api.marketplace.connections(token, companyId).catch(() => [] as any[]),
     ]).then(([nonMl, ml]) => {
       const active = new Set<string>();
       (nonMl as any[])
@@ -123,7 +131,7 @@ export default function EcommercePage() {
       if ((ml as any[]).some((c: any) => c.active && c.authorized)) active.add('MERCADO_LIBRE');
       setActiveMarketplaces(active);
     });
-  }, []);
+  }, [selectedCompanyId]);
 
   function openEdit(id: string) {
     const c = customSettings[id];
