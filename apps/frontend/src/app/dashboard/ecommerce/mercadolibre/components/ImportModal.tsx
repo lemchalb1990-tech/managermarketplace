@@ -171,12 +171,15 @@ export function ImportModal({
             <h3 className="font-semibold text-gray-900">Importar publicaciones de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">Revisa lo que se traerá antes de confirmar.</p>
           </div>
-          <button onClick={onClose} disabled={importing} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
+          <button onClick={onClose} disabled={importing || loading} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {loading && (
-            <div className="p-12 text-center text-gray-400 text-sm">Buscando publicaciones en Mercado Libre...</div>
+            <div className="p-16 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
+              <div className="w-8 h-8 border-4 border-gray-200 border-t-yellow-500 rounded-full animate-spin" />
+              <p>Buscando publicaciones en Mercado Libre...</p>
+            </div>
           )}
 
           {!loading && error && (
