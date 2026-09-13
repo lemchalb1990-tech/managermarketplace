@@ -412,7 +412,6 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
-                    {o.customerPhone && <p className="text-xs text-gray-400">{o.customerPhone}</p>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
