@@ -582,6 +582,12 @@ model Listing {
   errorMsg    String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  // Fase 4 (publicación por canal, ver auditoría): cuando varios Product-variante de un
+  // mismo Producto Maestro se publican como UNA sola publicación de Mercado Libre con
+  // variaciones nativas, externalId es el mismo ítem de ML para todos y variationId
+  // distingue cuál variación (color/talla) le corresponde a cada uno. Null = publicación
+  // simple, sin variaciones (el caso de hoy).
+  variationId String?
 
   productId    String
   product      Product               @relation(fields: [productId], references: [id])
