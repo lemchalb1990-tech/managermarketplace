@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -13,16 +13,24 @@ const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> 
   CANCELLED:   { label: 'Cancelada',   color: 'bg-gray-100 text-gray-500',     dot: 'bg-gray-400' },
 };
 
-function groupRoutes(routes: any[]) {
-  const today = new Date().toISOString().split('T')[0];
+// route.date llega como fecha/hora ISO completa (p.ej. "2026-09-12T00:00:00.000Z"), no
+// como "YYYY-MM-DD" — comparar el string completo contra "today" (YYYY-MM-DD) hace que
+// las rutas de HOY caigan siempre en "upcoming" (el string completo es "mayor" que el
+// bare date). Por eso se normaliza a los primeros 10 caracteres antes de comparar.
+function routeDateKey(r: any): string {
+  return String(r.date).slice(0, 10);
+}
+
+function groupRoutes(routes: any[], today: string) {
   const active = routes.filter(r => r.status === 'IN_PROGRESS');
-  const todayPending = routes.filter(r => r.date === today && r.status === 'PENDING');
-  const upcoming = routes.filter(r => r.date > today && r.status === 'PENDING');
+  const todayPending = routes.filter(r => routeDateKey(r) === today && r.status === 'PENDING');
+  const upcoming = routes.filter(r => routeDateKey(r) > today && r.status === 'PENDING');
   const done = routes.filter(r => r.status === 'COMPLETED' || r.status === 'CANCELLED');
   return { active, todayPending, upcoming, done };
 }
 
 export default function MisRutasPage() {
+  const tz = useDashboardTimezone();
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +51,7 @@ export default function MisRutasPage() {
     );
   }
 
-  const { active, todayPending, upcoming, done } = groupRoutes(routes);
+  const { active, todayPending, upcoming, done } = groupRoutes(routes, dateKeyInTz(tz));
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
@@ -110,7 +118,7 @@ function RouteCard({ route, highlight, muted }: { route: any; highlight?: boolea
   const stops = route._count?.stops ?? route.stops?.length ?? 0;
   const delivered = route.stops?.filter((s: any) => s.deliveredAt).length ?? 0;
   const progress = stops > 0 ? Math.round((delivered / stops) * 100) : 0;
-  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+  const dateStr = new Date(String(route.date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-CL', {
     weekday: 'short', day: 'numeric', month: 'short', timeZone: tz,
   });
 

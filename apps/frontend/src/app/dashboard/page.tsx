@@ -80,7 +80,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateKeyInTz(tz);
 
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
@@ -114,7 +114,7 @@ export default function DashboardPage() {
         .slice(0, 6);
       setCriticalProducts(critical);
     }).finally(() => setLoading(false));
-  }, [user, isSuperAdmin, selectedCompanyId]);
+  }, [user, isSuperAdmin, selectedCompanyId, tz]);
 
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
 

@@ -117,7 +117,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
   const isActive = route.status === 'IN_PROGRESS';
   const isPending = route.status === 'PENDING';
   const isCompleted = route.status === 'COMPLETED';
-  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+  const dateStr = new Date(String(route.date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', timeZone: tz,
   });
 

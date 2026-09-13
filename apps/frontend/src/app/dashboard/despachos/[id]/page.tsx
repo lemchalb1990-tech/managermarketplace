@@ -151,7 +151,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
   const canEdit = route.status === 'PENDING' || route.status === 'IN_PROGRESS';
   const canStart = route.status === 'PENDING';
   const canCancel = route.status !== 'COMPLETED' && route.status !== 'CANCELLED';
-  const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+  const dateStr = new Date(String(route.date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
 

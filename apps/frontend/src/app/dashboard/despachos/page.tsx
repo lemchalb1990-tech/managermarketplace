@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -83,7 +83,7 @@ export default function DespachosPage() {
     } finally { setCreating(false); }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = dateKeyInTz(tz);
 
   return (
     <div>
@@ -133,7 +133,7 @@ export default function DespachosPage() {
             const delivered = route.stops?.filter((s: any) => s.deliveredAt).length ?? 0;
             const total = route._count?.stops ?? 0;
             const progress = total > 0 ? Math.round((delivered / total) * 100) : 0;
-            const dateStr = new Date(route.date + 'T12:00:00Z').toLocaleDateString('es-CL', {
+            const dateStr = new Date(String(route.date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-CL', {
               weekday: 'long', day: 'numeric', month: 'long', timeZone: tz,
             });
             return (
