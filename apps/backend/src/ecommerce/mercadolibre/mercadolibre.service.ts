@@ -1906,9 +1906,10 @@ export class MercadolibreService {
   // Trae el PDF de la etiqueta de despacho desde Mercado Libre para una Orden interna.
   // Solo funciona para envíos Mercado Envíos (me2) que ya están "listos para imprimir" —
   // ver https://developers.mercadolibre.com.ar/es_ar/mercadoenvios-modo-2#Imprimir-etiquetas-de-envío.
-  // Al lograrlo, marca la Orden como Lista (READY): recién ahí el bulto ya tiene la
-  // etiqueta pegada y puede pasar el transportista a retirarlo.
-  async printShippingLabel(orderId: string, user: any): Promise<Buffer> {
+  // Reimprimible las veces que haga falta (ML lo permite mientras el envío siga
+  // "ready_to_print" o ya "printed"): no vuelve a tocar el estado si la orden ya avanzó
+  // más allá de Pendiente.
+  private async resolvePrintableShipment(orderId: string, user: any): Promise<{ order: any; shippingId: string; token: string; shipment: any }> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { sale: true },
@@ -1947,6 +1948,26 @@ export class MercadolibreService {
       );
     }
 
+    return { order, shippingId: String(shippingId), token, shipment };
+  }
+
+  // Al imprimir por primera vez (orden en Pendiente) pasa a Preparando — es la señal de
+  // que el vendedor ya puede empezar a alistar el pedido. Reimprimir después no repite
+  // este avance, solo entrega el PDF de nuevo.
+  private async advanceAfterLabelPrint(order: any, shipment: any): Promise<void> {
+    if (order.status !== OrderStatus.PENDING) return;
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: OrderStatus.PREPARING,
+        trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
+      },
+    });
+  }
+
+  async printShippingLabel(orderId: string, user: any): Promise<Buffer> {
+    const { order, shippingId, token, shipment } = await this.resolvePrintableShipment(orderId, user);
+
     const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${shippingId}&response_type=pdf`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1956,18 +1977,73 @@ export class MercadolibreService {
     }
     const buffer = Buffer.from(await labelRes.arrayBuffer());
 
-    const finalOrReady: OrderStatus[] = [OrderStatus.READY, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.CANCELLED];
-    if (!finalOrReady.includes(order.status)) {
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.READY,
-          trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
-        },
-      });
-    }
+    await this.advanceAfterLabelPrint(order, shipment);
 
     return buffer;
+  }
+
+  // Impresión masiva desde la lista de Órdenes: agrupa por conexión (Mercado Libre exige
+  // un token por cuenta) y pide un solo PDF combinado por grupo — así seleccionar 20
+  // pedidos de una misma tienda imprime UN PDF con las 20 etiquetas, no 20 aparte.
+  async printShippingLabelsBulk(
+    orderIds: string[],
+    user: any,
+  ): Promise<{ pdfs: { connectionName: string; buffer: Buffer }[]; printed: string[]; errors: { orderId: string; message: string }[] }> {
+    if (orderIds.length > 50) throw new BadRequestException('Máximo 50 órdenes por impresión masiva.');
+
+    const errors: { orderId: string; message: string }[] = [];
+    const resolved: { orderId: string; order: any; shippingId: string; token: string; shipment: any }[] = [];
+
+    for (const orderId of orderIds) {
+      try {
+        const r = await this.resolvePrintableShipment(orderId, user);
+        resolved.push({ orderId, ...r });
+      } catch (err: any) {
+        errors.push({ orderId, message: err?.message || 'Error inesperado' });
+      }
+    }
+
+    if (!resolved.length) {
+      throw new BadRequestException(
+        `Ninguna de las órdenes seleccionadas tiene una etiqueta lista para imprimir: ${errors.map((e) => e.message).join('; ')}`,
+      );
+    }
+
+    const byConnection = new Map<string, typeof resolved>();
+    for (const r of resolved) {
+      const key = r.order.sale.connectionId as string;
+      const list = byConnection.get(key) || [];
+      list.push(r);
+      byConnection.set(key, list);
+    }
+
+    const printed: string[] = [];
+    const pdfs: { connectionName: string; buffer: Buffer }[] = [];
+
+    for (const [connectionId, items] of byConnection) {
+      const ids = items.map((i) => i.shippingId).join(',');
+      const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${ids}&response_type=pdf`, {
+        headers: { Authorization: `Bearer ${items[0].token}` },
+      });
+      if (!labelRes.ok) {
+        const text = await labelRes.text().catch(() => '');
+        for (const i of items) errors.push({ orderId: i.orderId, message: `Mercado Libre no entregó la etiqueta (HTTP ${labelRes.status}). ${text.slice(0, 150)}` });
+        continue;
+      }
+      const buffer = Buffer.from(await labelRes.arrayBuffer());
+      const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId }, select: { name: true } });
+      pdfs.push({ connectionName: conn?.name || 'Mercado Libre', buffer });
+      for (const i of items) {
+        await this.advanceAfterLabelPrint(i.order, i.shipment);
+        printed.push(i.orderId);
+      }
+    }
+
+    if (!pdfs.length) {
+      throw new BadRequestException(`No se pudo generar ninguna etiqueta: ${errors.map((e) => `${e.orderId}: ${e.message}`).join('; ')}`);
+    }
+
+    return { pdfs, printed, errors };
   }
 
   // ─── Estado de la Orden interna reflejando Mercado Libre ──────────────────────

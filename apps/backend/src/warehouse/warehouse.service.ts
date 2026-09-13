@@ -495,10 +495,12 @@ export class WarehouseService {
         `El pedido está en etapa ${order.prepStage}`,
       );
     }
-    // Un pedido de Mercado Libre recién empacado todavía no está "Listo" de verdad: falta
-    // pegarle la etiqueta de envío al bulto. Se queda en Preparando con prepStage PACKED
-    // hasta que se imprima la etiqueta (ver MercadolibreService.printShippingLabel), que
-    // es la que finalmente lo pasa a Listo. Los demás canales siguen igual que antes.
+    // Un pedido de Mercado Libre no tiene un "Listo" propio: la etiqueta ya se imprimió
+    // antes de empezar a prepararlo (eso fue lo que lo pasó de Pendiente a Preparando —
+    // ver MercadolibreService.printShippingLabel) y de acá en más el estado lo maneja ML
+    // según lo que indique el webhook (en camino al escanearlo, entregado al entregarlo).
+    // Empacar solo registra la etapa interna; el status se queda en Preparando. Los demás
+    // canales siguen igual que antes.
     const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
     await this.prisma.order.update({
       where: { id: orderId },
@@ -514,7 +516,7 @@ export class WarehouseService {
       kind: 'packed',
       order: fresh,
       message: isMlOrder
-        ? 'Pedido empacado — falta imprimir la etiqueta de envío de Mercado Libre'
+        ? 'Pedido empacado — el estado en camino/entregado lo actualiza Mercado Libre'
         : 'Pedido empacado y marcado como Listo',
     };
   }

@@ -19,6 +19,10 @@ class SaveCredentialsDto {
   @IsOptional() @IsString() companyId?: string;
 }
 
+class PrintLabelsBulkDto {
+  @IsArray() @IsString({ each: true }) orderIds: string[];
+}
+
 class CreateMlConnectionDto {
   @IsString() name: string;
   @IsString() mlClientId: string;
@@ -144,6 +148,21 @@ export class MercadolibreController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="etiqueta-envio.pdf"');
     res.send(buffer);
+  }
+
+  // Impresión masiva desde la lista de Órdenes. Devuelve JSON (no un solo binario) porque
+  // puede haber más de un PDF cuando las órdenes seleccionadas son de distintas conexiones
+  // de Mercado Libre — el frontend abre uno por conexión.
+  @Post('orders/print-labels-bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  async printShippingLabelsBulk(@Body() dto: PrintLabelsBulkDto, @CurrentUser() user: any) {
+    const { pdfs, printed, errors } = await this.service.printShippingLabelsBulk(dto.orderIds, user);
+    return {
+      pdfs: pdfs.map((p) => ({ connectionName: p.connectionName, base64: p.buffer.toString('base64') })),
+      printed,
+      errors,
+    };
   }
 
   private renderCallbackPage(ok: boolean, detail: string): string {

@@ -99,6 +99,18 @@ export async function apiOpenPdf(path: string, token: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+// Abre un PDF que ya viene en base64 (respuesta de impresión masiva de etiquetas) en una
+// pestaña nueva, igual que apiOpenPdf pero sin tener que volver a pedirlo al backend.
+export function openBase64Pdf(base64: string): void {
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
   const res = await fetch(`${API_URL}/api${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -352,6 +364,12 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/debug-order/${orderId}`, {}, token),
     printLabel: (orderId: string, token: string) =>
       apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label`, token),
+    printLabelsBulk: (orderIds: string[], token: string) =>
+      apiFetch<{
+        pdfs: { connectionName: string; base64: string }[];
+        printed: string[];
+        errors: { orderId: string; message: string }[];
+      }>('/ecommerce/ml/orders/print-labels-bulk', { method: 'POST', body: JSON.stringify({ orderIds }) }, token),
     publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[]) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',

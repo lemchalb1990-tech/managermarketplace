@@ -246,7 +246,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     },
     IN_TRANSIT: { label: 'Confirmar entrega', next: 'DELIVERED' },
   };
-  const action = nextAction[order.status];
+  const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
+  // Para una orden de ML, Pendiente se resuelve imprimiendo la etiqueta (ver más abajo),
+  // no con el botón genérico de "próxima acción" — evita mostrar dos caminos a la vez.
+  const action = isMlOrder && order.status === 'PENDING' ? undefined : nextAction[order.status];
   const isDone = order.status === 'DELIVERED' || order.status === 'CANCELLED';
 
   return (
@@ -285,7 +288,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            {isAdmin && order.sale?.channel === 'MERCADO_LIBRE' && order.prepStage === 'PACKED' && order.status !== 'READY' && !isDone && (
+            {isAdmin && isMlOrder && order.status === 'PENDING' && (
               <div className="flex flex-col items-end gap-1">
                 <button
                   onClick={handlePrintLabel}
@@ -296,6 +299,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </button>
                 {labelError && <p className="text-xs text-red-600 max-w-xs text-right">{labelError}</p>}
               </div>
+            )}
+            {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && (
+              <button
+                onClick={handlePrintLabel}
+                disabled={labelLoading}
+                className="text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
+              >
+                {labelLoading ? 'Obteniendo etiqueta...' : 'Reimprimir etiqueta de envío'}
+              </button>
+            )}
+            {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && labelError && (
+              <p className="text-xs text-red-600 max-w-xs text-right">{labelError}</p>
             )}
             {action && isAdmin && (
               <div className="flex flex-col items-end gap-1">

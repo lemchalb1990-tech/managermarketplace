@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, openBase64Pdf } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
@@ -73,6 +73,10 @@ export default function OrdersPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPrinting, setBulkPrinting] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
   // CompanyGate ya obliga a Super Admin a elegir empresa (y remonta esta página al
   // cambiarla); acá solo hace falta propagar esa empresa a cada llamada — sin esto,
@@ -131,6 +135,42 @@ export default function OrdersPage() {
   function changeTab(key: string) {
     setStatusFilter(key);
     load(1, key);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const mlOrdersOnPage = orders.filter((o) => o.sale?.channel === 'MERCADO_LIBRE');
+
+  function toggleSelectAll() {
+    const allIds = mlOrdersOnPage.map((o) => o.id);
+    const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+    setSelectedIds(allSelected ? new Set() : new Set(allIds));
+  }
+
+  async function handleBulkPrint() {
+    if (selectedIds.size === 0) return;
+    setBulkPrinting(true);
+    setBulkError('');
+    try {
+      const token = getToken()!;
+      const res = await api.marketplace.printLabelsBulk(Array.from(selectedIds), token);
+      res.pdfs.forEach((p) => openBase64Pdf(p.base64));
+      const parts = [`${res.printed.length} etiqueta(s) impresa(s)`];
+      if (res.errors.length) parts.push(`${res.errors.length} con error: ${res.errors.map((e) => e.message).join('; ')}`);
+      setBulkError(res.errors.length ? parts.join(' — ') : '');
+      setSelectedIds(new Set());
+      await load(page, statusFilter);
+    } catch (err: any) {
+      setBulkError(err.message || 'No se pudieron imprimir las etiquetas.');
+    } finally {
+      setBulkPrinting(false);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -312,10 +352,31 @@ export default function OrdersPage() {
         <span className="ml-auto text-xs text-gray-400 self-center">{total} órdenes</span>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+          <span className="text-xs text-amber-800">{selectedIds.size} orden(es) de Mercado Libre seleccionada(s)</span>
+          <button onClick={handleBulkPrint} disabled={bulkPrinting}
+            className="ml-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+            {bulkPrinting ? 'Imprimiendo...' : `Imprimir etiquetas (${selectedIds.size})`}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-amber-700 hover:text-amber-900 underline">
+            Quitar selección
+          </button>
+        </div>
+      )}
+      {bulkError && (
+        <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{bulkError}</div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th className="px-4 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox"
+                  checked={mlOrdersOnPage.length > 0 && mlOrdersOnPage.every((o) => selectedIds.has(o.id))}
+                  onChange={toggleSelectAll} disabled={mlOrdersOnPage.length === 0} />
+              </th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium"># Orden</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Cliente</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
@@ -328,10 +389,10 @@ export default function OrdersPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
                   <p className="text-sm mb-1">Sin órdenes</p>
                   {isAdmin && <p className="text-xs">Crea la primera orden con el botón "+ Nueva orden"</p>}
                 </td>
@@ -341,6 +402,11 @@ export default function OrdersPage() {
               return (
                 <tr key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
                   className="hover:bg-gray-50 cursor-pointer">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    {o.sale?.channel === 'MERCADO_LIBRE' && (
+                      <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs font-bold text-gray-700">
                     #{shortId(o.id)}
                   </td>
