@@ -464,9 +464,14 @@ export class MercadolibreService {
     }
   }
 
-  private async upsertMlDescription(itemId: string, token: string, plainText: string): Promise<string | null> {
+  private async upsertMlDescription(
+    itemId: string,
+    token: string,
+    content: { plainText: string } | { html: string },
+  ): Promise<string | null> {
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const payload = JSON.stringify({ plain_text: plainText });
+    const body = 'html' in content ? { html: content.html } : { plain_text: content.plainText };
+    const payload = JSON.stringify(body);
     this.logger.log(`ML upsertDescription [${itemId}]: ${payload.substring(0, 200)}`);
 
     for (const method of ['PUT', 'POST'] as const) {
@@ -479,8 +484,9 @@ export class MercadolibreService {
       if (res.ok) {
         try {
           const data = JSON.parse(text);
-          // ML puede responder 200 pero no guardar nada; verificar que plain_text no sea vacío
-          if (data.plain_text && data.plain_text.trim()) return null;
+          // ML puede responder 200 pero no guardar nada; verificar que el campo enviado no
+          // haya vuelto vacío.
+          if ((data.plain_text && data.plain_text.trim()) || (data.html && data.html.trim())) return null;
           if (method === 'PUT') continue; // reintentar con POST
         } catch { return null; }
       }
@@ -495,6 +501,32 @@ export class MercadolibreService {
       }
     }
     return null;
+  }
+
+  // Texto que ve el comprador cuando escribió la descripción con el editor enriquecido
+  // (mlDescription en HTML) pero la categoría actual ya no admite HTML — sin esto, las
+  // etiquetas quedarían visibles como texto literal en la publicación.
+  private stripHtmlTags(html: string): string {
+    return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Arma el contenido a enviar a /items/{id}/description: prioriza mlDescription (la
+  // descripción escrita específicamente para Mercado Libre) sobre la descripción corta
+  // interna y, en último caso, el nombre del producto — antes mlDescription se guardaba
+  // pero nunca se usaba acá. Se manda como HTML solo si la categoría lo admite; si no,
+  // se limpian las etiquetas y se manda como texto plano.
+  private async resolveMlDescriptionContent(
+    product: { description?: string | null; mlDescription?: string | null; name: string },
+    mlCategoryId?: string | null,
+  ): Promise<{ plainText: string } | { html: string }> {
+    const raw = (product.mlDescription || product.description || product.name || '').trim();
+    const safe = raw.length >= 10 ? raw : `${product.name}. ${product.name}. ${product.name}`;
+
+    if (product.mlDescription && mlCategoryId) {
+      const { supportsHtml } = await this.getCategoryAttributes(mlCategoryId).catch(() => ({ supportsHtml: false, attributes: [] }));
+      if (supportsHtml) return { html: safe };
+    }
+    return { plainText: this.stripHtmlTags(safe) };
   }
 
   // ─── Publicaciones ───────────────────────────────────────────────────────────
@@ -573,7 +605,9 @@ export class MercadolibreService {
       buying_mode: 'buy_it_now',
       listing_type_id: 'gold_special',
       condition: 'new',
-      description: { plain_text: product.description || product.name },
+      // Semilla inicial nada más — el envío real y definitivo de la descripción (con
+      // soporte HTML si la categoría lo permite) ocurre después vía upsertMlDescription.
+      description: { plain_text: this.stripHtmlTags((product.mlDescription || product.description || product.name || '').trim()) || product.name },
       pictures: primaryImage ? [{ source: toAbsolute(primaryImage.url) }] : [],
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
@@ -638,13 +672,9 @@ export class MercadolibreService {
 
     // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
-    const rawPlainPublish = (product.description || product.name || '').trim();
-    const safePlainPublish = rawPlainPublish.length >= 10
-      ? rawPlainPublish
-      : `${product.name}. ${product.name}. ${product.name}`;
-
     if (mlData.id) {
-      const reason = await this.upsertMlDescription(mlData.id, token, safePlainPublish);
+      const descriptionContent = await this.resolveMlDescriptionContent(product, categoryId);
+      const reason = await this.upsertMlDescription(mlData.id, token, descriptionContent);
       if (reason) {
         descriptionWarning = `Publicación creada, pero la descripción fue rechazada por ML (${reason}).`;
       }
@@ -703,14 +733,11 @@ export class MercadolibreService {
       throw new BadRequestException(err.message || 'Error al sincronizar en Mercado Libre');
     }
 
-    // Sincronizar descripción siempre con plain_text
-    const rawPlain = (product.description || product.name || '').trim();
-    const safePlain = rawPlain.length >= 10
-      ? rawPlain
-      : `${product.name}. ${product.name}. ${product.name}`;
-
-    this.logger.log(`ML sync description [${listing.externalId}]: "${safePlain.substring(0, 80)}"`);
-    const descErr = await this.upsertMlDescription(listing.externalId, token, safePlain);
+    // Sincronizar descripción (prioriza la descripción para Mercado Libre, ver
+    // resolveMlDescriptionContent)
+    const descriptionContent = await this.resolveMlDescriptionContent(product, product.mlCategoryId);
+    this.logger.log(`ML sync description [${listing.externalId}]: ${JSON.stringify(descriptionContent).substring(0, 120)}`);
+    const descErr = await this.upsertMlDescription(listing.externalId, token, descriptionContent);
     if (descErr) warnings.push(`Descripción no sincronizada: ${descErr}`);
 
     return { warnings };
