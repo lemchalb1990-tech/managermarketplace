@@ -1152,29 +1152,10 @@ export default function CatalogPage() {
     }
   }
 
-  const [pullPicker, setPullPicker] = useState<{ open: boolean; options: Array<{ connectionId: string; connectionName: string }> }>({ open: false, options: [] });
+  const [pullPicker, setPullPicker] = useState<{ open: boolean; options: Array<{ productId: string; connectionId: string; connectionName: string }> }>({ open: false, options: [] });
   const [pullLoading, setPullLoading] = useState(false);
 
-  function openPullFromMlFlow() {
-    const options = connections
-      .map((conn: any) => {
-        const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
-        return listing?.externalId ? { connectionId: conn.id, connectionName: conn.name } : null;
-      })
-      .filter(Boolean) as Array<{ connectionId: string; connectionName: string }>;
-
-    if (options.length === 0) {
-      alertDialog('Este producto no tiene publicaciones en Mercado Libre para sincronizar.');
-      return;
-    }
-    if (options.length === 1) {
-      handlePullFromMl(options[0].connectionId);
-      return;
-    }
-    setPullPicker({ open: true, options });
-  }
-
-  async function handlePullFromMl(connectionId: string) {
+  async function handlePullFromMl(productId: string, connectionId: string) {
     setPullPicker({ open: false, options: [] });
     if (!(await confirmDialog(
       'Esto reemplazará en la ficha del producto el nombre, descripción, precio de referencia, categoría, atributos, fotos y stock con los datos actuales de la publicación en Mercado Libre. ¿Continuar?',
@@ -1182,13 +1163,78 @@ export default function CatalogPage() {
     setPullLoading(true);
     try {
       const token = getToken()!;
-      await api.marketplace.pullFromMl(selected.id, connectionId, token);
-      await refreshSelected(selected.id);
+      await api.marketplace.pullFromMl(productId, connectionId, token);
+      if (selected?.id === productId) await refreshSelected(productId);
+      else await loadProducts(page);
       await alertDialog('Ficha del producto actualizada desde Mercado Libre.');
     } catch (err: any) {
       await alertDialog(err.message);
     } finally {
       setPullLoading(false);
+    }
+  }
+
+  async function handleBulkPullFromMl() {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+
+    if (ids.length === 1) {
+      const product = products.find((p: any) => p.id === ids[0]);
+      const options = (product?.listings || [])
+        .filter((l: any) => l.externalId && (l.status === 'ACTIVE' || l.status === 'PAUSED'))
+        .map((l: any) => ({ productId: ids[0], connectionId: l.connectionId, connectionName: l.connection?.name || 'Mercado Libre' }));
+      if (options.length === 0) {
+        await alertDialog('Este producto no tiene publicaciones en Mercado Libre para sincronizar.');
+        return;
+      }
+      if (options.length > 1) {
+        setPullPicker({ open: true, options });
+        return;
+      }
+      await handlePullFromMl(ids[0], options[0].connectionId);
+      return;
+    }
+
+    if (!(await confirmDialog(
+      `Esto reemplazará nombre, descripción, precio de referencia, categoría, atributos, fotos y stock de ${ids.length} producto(s) con los datos de su publicación en Mercado Libre. Los productos con más de una publicación activa se omitirán (sincronízalos individualmente desde su ficha). ¿Continuar?`,
+    ))) return;
+
+    setBulkLoading(true);
+    setBulkError('');
+    setBulkFailed([]);
+    const token = getToken()!;
+    const failed: { id: string; name: string; reason: string }[] = [];
+    let succeeded = 0;
+
+    for (const id of ids) {
+      const product = products.find((p: any) => p.id === id);
+      if (!product) continue;
+      const activeListings = (product.listings || []).filter((l: any) => l.externalId && (l.status === 'ACTIVE' || l.status === 'PAUSED'));
+      if (activeListings.length === 0) {
+        failed.push({ id, name: product.name, reason: 'Sin publicación activa en Mercado Libre' });
+        continue;
+      }
+      if (activeListings.length > 1) {
+        failed.push({ id, name: product.name, reason: 'Tiene más de una publicación activa; sincronízalo individualmente desde su ficha' });
+        continue;
+      }
+      try {
+        await api.marketplace.pullFromMl(id, activeListings[0].connectionId, token);
+        succeeded++;
+      } catch (err: any) {
+        failed.push({ id, name: product.name, reason: err.message || 'Error desconocido' });
+      }
+    }
+
+    await loadProducts(page);
+    setSelectedIds(new Set());
+    setBulkLoading(false);
+    if (failed.length) {
+      setBulkError(`${succeeded} producto(s) sincronizado(s), ${failed.length} con problemas:`);
+      setBulkFailed(failed);
+    } else {
+      setListNoticeIsWarning(false);
+      setListNotice(`${succeeded} producto(s) sincronizado(s) desde Mercado Libre.`);
     }
   }
 
@@ -1335,7 +1381,7 @@ export default function CatalogPage() {
                 {pullPicker.options.map((opt) => (
                   <button
                     key={opt.connectionId}
-                    onClick={() => handlePullFromMl(opt.connectionId)}
+                    onClick={() => handlePullFromMl(opt.productId, opt.connectionId)}
                     className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 hover:border-blue-300 hover:bg-blue-50"
                   >
                     {opt.connectionName}
@@ -1552,6 +1598,13 @@ export default function CatalogPage() {
               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
               className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
               Eliminar publicaciones
+            </button>
+          )}
+          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
+            <button onClick={handleBulkPullFromMl} disabled={bulkLoading || pullLoading}
+              title="Trae nombre, descripción, precio, categoría, fotos y stock desde la publicación en Mercado Libre hacia la ficha del producto"
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+              {pullLoading || bulkLoading ? 'Sincronizando...' : 'Resincronizar con Mercado Libre'}
             </button>
           )}
           {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && selectedIds.size >= 2 && (
@@ -2237,21 +2290,12 @@ export default function CatalogPage() {
                       </div>
                     </div>
                   )}
-                  {(selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 || isAdmin) && (
-                    <div className="flex justify-end gap-2 flex-wrap">
-                      {isAdmin && (
-                        <button onClick={openPullFromMlFlow} disabled={pullLoading}
-                          className="px-3 py-1.5 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-50"
-                          title="Trae nombre, descripción, precio, categoría, fotos y stock desde la publicación en Mercado Libre hacia la ficha del producto">
-                          {pullLoading ? 'Trayendo datos...' : 'Sincronizar con Mercado Libre'}
-                        </button>
-                      )}
-                      {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
-                        <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
-                          className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
-                          {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
-                        </button>
-                      )}
+                  {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
+                    <div className="flex justify-end">
+                      <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
+                        className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                        {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
+                      </button>
                     </div>
                   )}
                   {connections.length === 0 ? (
