@@ -31,20 +31,22 @@ export function CompanyGate({ children }: { children: ReactNode }) {
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
   const hasInlineBanner = INLINE_BANNER_PREFIXES.some((p) => pathname?.startsWith(p));
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
-
-  if (!isSuperAdmin || isExempt) {
-    return <>{children}</>;
-  }
-
   const mustChoose = ready && !selectedCompanyId;
   const showModal = mustChoose || pickerOpen;
 
   // Sincroniza el borrador con la empresa activa cada vez que el modal se abre — sin
   // importar si lo disparó este banner o el título de otra página (p.ej. Catálogo).
+  // Tiene que llamarse SIEMPRE, antes del return condicional de abajo — un hook detrás de
+  // un early return rompe las Rules of Hooks (React error #310) en cuanto isSuperAdmin
+  // cambia entre renders.
   useEffect(() => {
     if (showModal) setDraftCompanyId(selectedCompanyId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal]);
+
+  if (!isSuperAdmin || isExempt) {
+    return <>{children}</>;
+  }
 
   function commit(id: string) {
     selectCompany(id);
