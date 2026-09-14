@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, SectionCard } from '@/components/ui';
 import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
@@ -194,10 +194,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Gráfico de ventas 7 días */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-gray-800">Ventas últimos 7 días</h2>
-            <div className="flex items-center gap-3 text-xs text-gray-400">
+        <SectionCard
+          className="lg:col-span-3"
+          title="Ventas últimos 7 días"
+          actions={
+            <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> POS
               </span>
@@ -205,54 +206,62 @@ export default function DashboardPage() {
                 <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 inline-block" /> E-commerce
               </span>
             </div>
-          </div>
-
+          }
+        >
           {weeklyData.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-12">Sin datos de ventas</p>
+            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
-            <div className="flex items-end gap-2" style={{ height: '144px' }}>
+            <div className="flex items-end gap-2">
               {weeklyData.map((day) => {
                 const totalH = maxWeekly > 0 ? Math.max((day.total / maxWeekly) * 128, day.total > 0 ? 4 : 0) : 0;
                 const posH = day.total > 0 ? (day.posTotal / day.total) * totalH : 0;
                 const ecomH = totalH - posH;
+                const isToday = day.date === todayStr;
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
-                    <div className="w-full flex flex-col justify-end" style={{ height: '128px' }}>
-                      <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${totalH}px` }}>
-                        <div style={{ height: `${posH}px` }} className="bg-blue-500 shrink-0" />
-                        <div style={{ height: `${ecomH}px` }} className="bg-indigo-400 shrink-0" />
-                      </div>
+                    <div className="w-full h-32 flex flex-col justify-end">
+                      {totalH > 0 ? (
+                        <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${totalH}px` }}>
+                          <div style={{ height: `${posH}px` }} className="bg-blue-500 shrink-0" />
+                          <div style={{ height: `${ecomH}px` }} className="bg-indigo-400 shrink-0" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
+                      )}
                     </div>
                     <div className="text-center">
-                      {day.count > 0 && (
-                        <p className="text-xs font-semibold text-gray-600">
+                      {day.count > 0 ? (
+                        <p className="text-xs font-semibold text-[var(--text-2)]">
                           ${day.total >= 1000 ? `${(day.total / 1000).toFixed(0)}k` : day.total}
                         </p>
+                      ) : (
+                        <p className="text-xs text-[var(--text-muted)]">—</p>
                       )}
-                      <p className="text-xs text-gray-400 leading-tight capitalize">{day.label}</p>
+                      <p className={`text-xs leading-tight capitalize ${isToday ? 'text-blue-600 font-semibold' : 'text-[var(--text-muted)]'}`}>
+                        {day.label}
+                      </p>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Órdenes urgentes */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Órdenes urgentes</h2>
+        <SectionCard
+          className="lg:col-span-2"
+          title="Órdenes urgentes"
+          actions={
             <Link href="/dashboard/orders" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
             </Link>
-          </div>
-
+          }
+        >
           {urgentOrders.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-gray-400 text-center py-4">Sin órdenes activas</p>
-            </div>
+            <p className="text-sm text-[var(--text-muted)] text-center py-10">Sin órdenes activas</p>
           ) : (
-            <div className="flex-1 space-y-2">
+            <div className="space-y-2">
               {urgentOrders.map((order: any) => {
                 const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.PENDING;
                 const shortId = order.sale && order.sale.channel !== 'POS' && order.sale.externalId
@@ -290,21 +299,22 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </SectionCard>
       </div>
 
       {/* Fila inferior — últimas ventas + stock crítico */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Últimas ventas */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Últimas ventas</h2>
+        <SectionCard
+          className="lg:col-span-3"
+          title="Últimas ventas"
+          actions={
             <Link href="/dashboard/sales" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
             </Link>
-          </div>
-
+          }
+        >
           {recentSales.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">Sin ventas recientes</p>
           ) : (
@@ -345,17 +355,18 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Stock crítico */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Stock crítico</h2>
+        <SectionCard
+          className="lg:col-span-2"
+          title="Stock crítico"
+          actions={
             <Link href="/dashboard/catalog" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver catálogo →
             </Link>
-          </div>
-
+          }
+        >
           {criticalProducts.length === 0 ? (
             <div className="flex items-center justify-center py-6">
               <div className="text-center">
@@ -390,7 +401,7 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </SectionCard>
       </div>
     </div>
   );
