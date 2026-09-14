@@ -511,9 +511,19 @@ export class MercadolibreService {
       const res = await fetch(`${ML_API}/items/${itemId}/description`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // Antes esto quedaba en silencio (solo se logueaba una excepción de red) — sin
+        // registrar el HTTP real no había forma de distinguir "ML no tiene descripción" de
+        // "el token no tiene permiso" o un error transitorio de la API.
+        const body = await res.text().catch(() => '');
+        this.logger.warn(`ML fetchDescription [${itemId}] HTTP ${res.status}: ${body.substring(0, 200)}`);
+        return null;
+      }
       const data = await res.json() as any;
       const text = (data.plain_text || data.text || '').trim();
+      if (!text) {
+        this.logger.warn(`ML fetchDescription [${itemId}] sin plain_text/text en la respuesta: ${JSON.stringify(data).substring(0, 200)}`);
+      }
       return text || null;
     } catch (err: any) {
       this.logger.warn(`ML fetchDescription [${itemId}] error: ${err?.message || err}`);
@@ -814,7 +824,10 @@ export class MercadolibreService {
         data: {
           name: item.title || product.name,
           description: mlDesc || product.description,
-          mlDescription: mlDesc || null,
+          // Antes se ponía en null si fetchMlDescription fallaba (timeout, permiso, ML sin
+          // devolver plain_text/text) — cada resincronización fallida borraba silenciosamente
+          // la descripción ya guardada en vez de dejarla intacta.
+          mlDescription: mlDesc || (product as any).mlDescription || null,
           mlPrice: item.price != null ? item.price : product.mlPrice,
           stock: newStock,
           mlCategoryId: item.category_id || null,
