@@ -274,7 +274,7 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        <SectionCard className="md:col-span-2" title="Ventas por tienda y canal">
+        <SectionCard className="md:col-span-2" title="Ventas por tienda">
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas esta semana</p>
           ) : (
