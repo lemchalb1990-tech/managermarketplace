@@ -16,11 +16,6 @@ const EXEMPT_PREFIXES = [
   '/dashboard/settings',
 ];
 
-// Páginas que ya muestran su propio "Gestionando <empresa>" integrado en el título (para
-// ganar espacio vertical) — acá no se duplica el banner, pero el modal de selección sigue
-// siendo el mismo (se abre vía openPicker() del contexto).
-const INLINE_BANNER_PREFIXES = ['/dashboard/catalog'];
-
 // Bloquea el contenido de la página (no el sidebar/header, que siguen visibles) hasta que
 // el Super Admin elija una empresa. El resto de los usuarios pasa directo.
 export function CompanyGate({ children }: { children: ReactNode }) {
@@ -29,7 +24,6 @@ export function CompanyGate({ children }: { children: ReactNode }) {
   const [draftCompanyId, setDraftCompanyId] = useState('');
 
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
-  const hasInlineBanner = INLINE_BANNER_PREFIXES.some((p) => pathname?.startsWith(p));
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
   const mustChoose = ready && !selectedCompanyId;
   const showModal = mustChoose || pickerOpen;
@@ -55,16 +49,17 @@ export function CompanyGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {selectedCompanyId && !hasInlineBanner && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 mb-6">
-          <p className="text-sm text-blue-900">
-            Gestionando <strong>{selectedCompany?.name ?? 'la empresa seleccionada'}</strong>
-          </p>
+      {selectedCompanyId && (
+        // Chip compacto (no un banner de fila completa) para no restar espacio vertical —
+        // mismo estilo en todas las vistas gestionadas por empresa.
+        <div className="flex justify-end mb-3">
           <button
             onClick={openPicker}
-            className="text-xs font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2"
+            title="Cambiar empresa"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
           >
-            Cambiar empresa
+            Gestionando <strong className="truncate">{selectedCompany?.name ?? 'empresa'}</strong>
+            <span className="text-blue-500">▾</span>
           </button>
         </div>
       )}
