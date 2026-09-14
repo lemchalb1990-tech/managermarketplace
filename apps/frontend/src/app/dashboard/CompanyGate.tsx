@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment, ReactNode } from 'react';
+import { useState, useEffect, Fragment, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAdminCompany } from './AdminCompanyContext';
 
@@ -16,15 +16,20 @@ const EXEMPT_PREFIXES = [
   '/dashboard/settings',
 ];
 
+// Páginas que ya muestran su propio "Gestionando <empresa>" integrado en el título (para
+// ganar espacio vertical) — acá no se duplica el banner, pero el modal de selección sigue
+// siendo el mismo (se abre vía openPicker() del contexto).
+const INLINE_BANNER_PREFIXES = ['/dashboard/catalog'];
+
 // Bloquea el contenido de la página (no el sidebar/header, que siguen visibles) hasta que
 // el Super Admin elija una empresa. El resto de los usuarios pasa directo.
 export function CompanyGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { isSuperAdmin, ready, selectedCompanyId, companies, selectCompany } = useAdminCompany();
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const { isSuperAdmin, ready, selectedCompanyId, companies, selectCompany, pickerOpen, openPicker, closePicker } = useAdminCompany();
   const [draftCompanyId, setDraftCompanyId] = useState('');
 
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
+  const hasInlineBanner = INLINE_BANNER_PREFIXES.some((p) => pathname?.startsWith(p));
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   if (!isSuperAdmin || isExempt) {
@@ -34,19 +39,21 @@ export function CompanyGate({ children }: { children: ReactNode }) {
   const mustChoose = ready && !selectedCompanyId;
   const showModal = mustChoose || pickerOpen;
 
-  function openPicker() {
-    setDraftCompanyId(selectedCompanyId);
-    setPickerOpen(true);
-  }
+  // Sincroniza el borrador con la empresa activa cada vez que el modal se abre — sin
+  // importar si lo disparó este banner o el título de otra página (p.ej. Catálogo).
+  useEffect(() => {
+    if (showModal) setDraftCompanyId(selectedCompanyId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal]);
 
   function commit(id: string) {
     selectCompany(id);
-    setPickerOpen(false);
+    closePicker();
   }
 
   return (
     <>
-      {selectedCompanyId && (
+      {selectedCompanyId && !hasInlineBanner && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 mb-6">
           <p className="text-sm text-blue-900">
             Gestionando <strong>{selectedCompany?.name ?? 'la empresa seleccionada'}</strong>
@@ -71,7 +78,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-bold text-gray-900">Selecciona una empresa</h2>
               {!mustChoose && (
-                <button onClick={() => setPickerOpen(false)}
+                <button onClick={closePicker}
                   className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
               )}
             </div>
@@ -93,7 +100,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               {!mustChoose && (
-                <button onClick={() => setPickerOpen(false)}
+                <button onClick={closePicker}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
                   Cancelar
                 </button>

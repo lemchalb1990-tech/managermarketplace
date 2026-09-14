@@ -467,7 +467,7 @@ const listingChipDefaultColor = 'bg-red-100 text-red-700';
 
 export default function CatalogPage() {
   const searchParams = useSearchParams();
-  const { selectedCompanyId } = useAdminCompany();
+  const { selectedCompanyId, companies, openPicker } = useAdminCompany();
   const tz = useDashboardTimezone();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -1332,8 +1332,20 @@ export default function CatalogPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
+      <div className="flex items-center justify-between mb-6 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 shrink-0">Catálogo de productos</h1>
+          {isSuperAdmin && selectedCompanyId && (
+            <button
+              onClick={openPicker}
+              title="Cambiar empresa"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 truncate"
+            >
+              Gestionando <strong className="truncate">{companies.find((c: any) => c.id === selectedCompanyId)?.name ?? 'empresa'}</strong>
+              <span className="text-blue-500">▾</span>
+            </button>
+          )}
+        </div>
         {(!isSuperAdmin || selectedCompanyId) && (
           <div className="flex gap-2">
             <button onClick={openImportModal}
@@ -1673,7 +1685,7 @@ export default function CatalogPage() {
               </th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('price')}>
-                Precio Venta - Tienda Física{sortIndicator('price')}
+                Tienda{sortIndicator('price')}
               </th>
               {activeConnections.length > 0 && (
                 <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
@@ -1692,16 +1704,15 @@ export default function CatalogPage() {
               {activeConnections.length > 0 && (
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones</th>
               )}
-              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {!loading && products.map((p) => {
               const img = primaryImage(p);
               return (
-                <tr key={p.id} className="hover:bg-gray-50">
+                <tr key={p.id} onClick={() => openModal(p)} className="hover:bg-gray-50 cursor-pointer">
                   {isAdmin && (
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.has(p.id)}
                         onChange={() => toggleSelect(p.id)} />
                     </td>
@@ -1765,26 +1776,14 @@ export default function CatalogPage() {
                       </div>
                     </td>
                   )}
-                  <td className="px-4 py-3 text-right space-x-3">
-                    {p.listings?.some((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED') && (
-                      <button onClick={() => handleSyncAll(p.id)} disabled={syncAllLoading === p.id}
-                        className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
-                        {syncAllLoading === p.id ? 'Sincronizando...' : 'Resincronizar'}
-                      </button>
-                    )}
-                    <button onClick={() => openModal(p)}
-                      className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                      Gestionar
-                    </button>
-                  </td>
                 </tr>
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={(isAdmin ? 9 : 8) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={(isAdmin ? 9 : 8) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
             )}
           </tbody>
         </table>
@@ -2296,14 +2295,20 @@ export default function CatalogPage() {
                       </div>
                     </div>
                   )}
-                  {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
-                    <div className="flex justify-end">
-                      <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
-                        className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
-                        {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const activeCount = selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length || 0;
+                    if (activeCount === 0) return null;
+                    return (
+                      <div className="flex justify-end">
+                        <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
+                          className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                          {syncAllLoading === selected.id
+                            ? 'Sincronizando...'
+                            : activeCount > 1 ? 'Sincronizar todas las publicaciones' : 'Resincronizar'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   {connections.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                       <p className="text-sm mb-1">No hay cuentas de Mercado Libre conectadas.</p>

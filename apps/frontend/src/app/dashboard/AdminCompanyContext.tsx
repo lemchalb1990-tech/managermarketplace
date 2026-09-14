@@ -18,6 +18,11 @@ interface AdminCompanyCtx {
   selectedCompanyId: string;
   companies: any[];
   selectCompany: (id: string) => void;
+  // Selector de empresa: el modal en sí lo renderiza <CompanyGate>, pero cualquier página
+  // (p.ej. el título del Catálogo) puede pedir que se abra sin duplicar su lógica.
+  pickerOpen: boolean;
+  openPicker: () => void;
+  closePicker: () => void;
 }
 
 const Ctx = createContext<AdminCompanyCtx | null>(null);
@@ -37,6 +42,7 @@ export function AdminCompanyProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
@@ -74,6 +80,9 @@ export function AdminCompanyProvider({ children }: { children: ReactNode }) {
     selectedCompanyId,
     companies,
     selectCompany,
+    pickerOpen,
+    openPicker: () => setPickerOpen(true),
+    closePicker: () => setPickerOpen(false),
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
