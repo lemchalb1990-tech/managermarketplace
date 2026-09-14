@@ -382,6 +382,17 @@ export class MercadolibreController {
     return this.service.syncStock(productId, connectionId, user);
   }
 
+  @Post('products/:productId/pull/:connectionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  pullProductFromMl(
+    @Param('productId') productId: string,
+    @Param('connectionId') connectionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.pullProductFromMl(productId, connectionId, user);
+  }
+
   @Post('products/:productId/sync-all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)

@@ -1152,6 +1152,46 @@ export default function CatalogPage() {
     }
   }
 
+  const [pullPicker, setPullPicker] = useState<{ open: boolean; options: Array<{ connectionId: string; connectionName: string }> }>({ open: false, options: [] });
+  const [pullLoading, setPullLoading] = useState(false);
+
+  function openPullFromMlFlow() {
+    const options = connections
+      .map((conn: any) => {
+        const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
+        return listing?.externalId ? { connectionId: conn.id, connectionName: conn.name } : null;
+      })
+      .filter(Boolean) as Array<{ connectionId: string; connectionName: string }>;
+
+    if (options.length === 0) {
+      alertDialog('Este producto no tiene publicaciones en Mercado Libre para sincronizar.');
+      return;
+    }
+    if (options.length === 1) {
+      handlePullFromMl(options[0].connectionId);
+      return;
+    }
+    setPullPicker({ open: true, options });
+  }
+
+  async function handlePullFromMl(connectionId: string) {
+    setPullPicker({ open: false, options: [] });
+    if (!(await confirmDialog(
+      'Esto reemplazará en la ficha del producto el nombre, descripción, precio de referencia, categoría, atributos, fotos y stock con los datos actuales de la publicación en Mercado Libre. ¿Continuar?',
+    ))) return;
+    setPullLoading(true);
+    try {
+      const token = getToken()!;
+      await api.marketplace.pullFromMl(selected.id, connectionId, token);
+      await refreshSelected(selected.id);
+      await alertDialog('Ficha del producto actualizada desde Mercado Libre.');
+    } catch (err: any) {
+      await alertDialog(err.message);
+    } finally {
+      setPullLoading(false);
+    }
+  }
+
   const [syncAllLoading, setSyncAllLoading] = useState<string | null>(null);
 
   async function handleSyncAll(productId: string) {
@@ -1272,6 +1312,36 @@ export default function CatalogPage() {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pullPicker.open && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">¿Desde qué publicación?</h2>
+              <button onClick={() => setPullPicker({ open: false, options: [] })}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-500 mb-3">
+                Este producto tiene más de una publicación en Mercado Libre. Elige de cuál tienda se copiarán los datos hacia la ficha.
+              </p>
+              <div className="space-y-2">
+                {pullPicker.options.map((opt) => (
+                  <button
+                    key={opt.connectionId}
+                    onClick={() => handlePullFromMl(opt.connectionId)}
+                    className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    {opt.connectionName}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -2167,12 +2237,21 @@ export default function CatalogPage() {
                       </div>
                     </div>
                   )}
-                  {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
-                    <div className="flex justify-end">
-                      <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
-                        className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
-                        {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
-                      </button>
+                  {(selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 || isAdmin) && (
+                    <div className="flex justify-end gap-2 flex-wrap">
+                      {isAdmin && (
+                        <button onClick={openPullFromMlFlow} disabled={pullLoading}
+                          className="px-3 py-1.5 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-50"
+                          title="Trae nombre, descripción, precio, categoría, fotos y stock desde la publicación en Mercado Libre hacia la ficha del producto">
+                          {pullLoading ? 'Trayendo datos...' : 'Sincronizar con Mercado Libre'}
+                        </button>
+                      )}
+                      {selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length > 1 && (
+                        <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
+                          className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                          {syncAllLoading === selected.id ? 'Sincronizando todas...' : 'Sincronizar todas las publicaciones'}
+                        </button>
+                      )}
                     </div>
                   )}
                   {connections.length === 0 ? (
@@ -2237,7 +2316,8 @@ export default function CatalogPage() {
                           </button>
                           {listing && (
                             <button onClick={() => handleSync(conn.id)} disabled={syncBusy}
-                              className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                              className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+                              title="Envía el precio, descripción y stock del producto hacia la publicación en Mercado Libre">
                               {syncBusy ? 'Sincronizando...' : 'Sincronizar'}
                             </button>
                           )}

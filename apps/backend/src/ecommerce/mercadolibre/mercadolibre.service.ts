@@ -788,6 +788,73 @@ export class MercadolibreService {
     return { ...updated, warnings };
   }
 
+  // Dirección inversa de syncStock: trae los datos actuales de la publicación desde ML y
+  // los copia hacia la ficha del producto (nombre, descripción, precio de referencia,
+  // categoría/atributos, fotos y stock), en vez de empujar los datos locales hacia ML.
+  async pullProductFromMl(productId: string, connectionId: string, user: any) {
+    const product = await this.catalog.findOne(productId, user);
+    await this.getConnectionForUser(connectionId, user);
+    const listing = await this.prisma.listing.findUnique({
+      where: { productId_connectionId: { productId, connectionId } },
+    });
+    if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
+
+    const token = await this.getValidToken(connectionId);
+    const [item] = await this.fetchMlItems([listing.externalId], token);
+    if (!item) throw new BadRequestException('No se pudo obtener la publicación desde Mercado Libre');
+
+    const mlDesc = await this.fetchMlDescription(listing.externalId, token);
+    const additionalAttrs = this.extractAdditionalAttributes(item.attributes);
+    const newStock = typeof item.available_quantity === 'number' ? item.available_quantity : product.stock;
+    const stockDelta = newStock - product.stock;
+
+    await this.prisma.$transaction([
+      this.prisma.product.update({
+        where: { id: productId },
+        data: {
+          name: item.title || product.name,
+          description: mlDesc || product.description,
+          mlDescription: mlDesc || null,
+          mlPrice: item.price != null ? item.price : product.mlPrice,
+          stock: newStock,
+          mlCategoryId: item.category_id || null,
+          mlFamilyName: item.family_name || null,
+          mlAttributes: additionalAttrs.length ? additionalAttrs : undefined,
+        },
+      }),
+      ...(stockDelta !== 0 ? [this.prisma.stockMovement.create({
+        data: {
+          type: MovementType.ADJUSTMENT,
+          quantity: stockDelta,
+          reason: `Sincronizado desde Mercado Libre (${listing.externalId})`,
+          productId,
+          userId: user.id,
+        },
+      })] : []),
+    ]);
+
+    const pictures: Array<{ secure_url?: string; url?: string }> = Array.isArray(item.pictures) && item.pictures.length
+      ? item.pictures
+      : (item.secure_thumbnail || item.thumbnail ? [{ url: item.secure_thumbnail || item.thumbnail }] : []);
+
+    if (pictures.length) {
+      await this.prisma.productImage.deleteMany({ where: { productId } });
+      for (let i = 0; i < pictures.length; i++) {
+        const url = pictures[i].secure_url || pictures[i].url;
+        if (!url) continue;
+        await this.prisma.productImage.create({
+          data: { productId, filename: `${listing.externalId}-${i}.jpg`, url, isPrimary: i === 0, order: i },
+        });
+      }
+    }
+
+    await this.prisma.listing.update({ where: { id: listing.id }, data: { syncedAt: new Date() } });
+
+    if (stockDelta !== 0) this.sync.syncProduct(productId, newStock).catch(() => {});
+
+    return this.catalog.findOne(productId, user);
+  }
+
   async syncAllListings(productId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
     const listings = await this.prisma.listing.findMany({

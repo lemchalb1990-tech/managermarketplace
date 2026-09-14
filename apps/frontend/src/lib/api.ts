@@ -382,6 +382,8 @@ export const api = {
         `/ecommerce/ml/connections/${connectionId}/categories/${categoryId}/sale-terms`, {}, token),
     sync: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
+    pullFromMl: (productId: string, connectionId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/pull/${connectionId}`, { method: 'POST' }, token),
     syncAll: (productId: string, token: string) =>
       apiFetch<{
         syncedCount: number; failedCount: number;
