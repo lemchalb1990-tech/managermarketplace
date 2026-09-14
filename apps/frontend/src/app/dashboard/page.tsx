@@ -121,6 +121,11 @@ export default function DashboardPage() {
   useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
 
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
+  const weekTotal = weeklyData.reduce((s, d) => s + (d.total || 0), 0);
+  const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
+  const weekPos = weeklyData.reduce((s, d) => s + (d.posTotal || 0), 0);
+  const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
+  const posPct = weekTotal > 0 ? Math.round((weekPos / weekTotal) * 100) : 0;
 
   const now = new Date();
   const todayStr = dateKeyInTz(tz, now);
@@ -193,9 +198,9 @@ export default function DashboardPage() {
       {/* Fila central — gráfico + órdenes urgentes */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-        {/* Gráfico de ventas 7 días */}
+        {/* Gráfico de ventas 7 días + ticket promedio */}
+        <div className="lg:col-span-3 flex flex-col gap-4">
         <SectionCard
-          className="lg:col-span-3"
           title="Ventas últimos 7 días"
           actions={
             <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
@@ -248,6 +253,16 @@ export default function DashboardPage() {
             </div>
           )}
         </SectionCard>
+
+        <KpiCard
+          title="Ticket promedio (7 días)"
+          value={`$${Math.round(avgTicket).toLocaleString('es-CL')}`}
+          sub={`${weekCount} transacción(es) · POS ${posPct}% · E-commerce ${100 - posPct}%`}
+          colorClass="bg-purple-50 text-purple-500"
+          icon="🎫"
+          href="/dashboard/sales"
+        />
+        </div>
 
         {/* Órdenes urgentes */}
         <SectionCard
