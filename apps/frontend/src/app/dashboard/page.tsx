@@ -255,7 +255,9 @@ export default function DashboardPage() {
             <div className="flex-1 space-y-2">
               {urgentOrders.map((order: any) => {
                 const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.PENDING;
-                const shortId = order.id.slice(-6).toUpperCase();
+                const shortId = order.sale && order.sale.channel !== 'POS' && order.sale.externalId
+                  ? order.sale.externalId
+                  : order.id.slice(-6).toUpperCase();
                 return (
                   <Link
                     key={order.id}

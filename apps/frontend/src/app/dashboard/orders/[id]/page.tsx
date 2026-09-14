@@ -242,7 +242,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const allChecked = totalItems > 0 && checkedCount === totalItems;
   const hasPhotos = order.photos.length > 0;
   const isDelivery = order.fulfillmentType === 'DELIVERY';
-  const shortId = order.id.slice(-6).toUpperCase();
+  const shortId = order.sale && order.sale.channel !== 'POS' && order.sale.externalId
+    ? order.sale.externalId
+    : order.id.slice(-6).toUpperCase();
 
   const nextAction: Record<string, { label: string; next: string; disabled?: boolean; reason?: string }> = {
     PENDING: { label: 'Comenzar preparación', next: 'PREPARING' },
