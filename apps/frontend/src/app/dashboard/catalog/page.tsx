@@ -542,10 +542,16 @@ export default function CatalogPage() {
   const [stockMovements, setStockMovements] = useState<any[]>([]);
   const [stockMovLoading, setStockMovLoading] = useState(false);
 
-  async function loadProducts(p = 1, sortOverride?: { sortBy: string; sortDir: 'asc' | 'desc' }) {
+  // isSuperAdminOverride: en la carga inicial (ver load()), currentUser todavía no se ha
+  // actualizado en el estado del componente cuando se dispara este primer fetch —el closure
+  // de isSuperAdmin de ese render sigue en false aunque el usuario sea Super Admin— así que
+  // load() pasa el rol recién obtenido de /me directamente para no perder el filtro de
+  // companyId y terminar trayendo el catálogo de TODAS las empresas sin filtrar.
+  async function loadProducts(p = 1, sortOverride?: { sortBy: string; sortDir: 'asc' | 'desc' }, isSuperAdminOverride?: boolean) {
     const token = getToken();
     if (!token) return;
-    if (isSuperAdmin && !selectedCompanyId) {
+    const superAdmin = isSuperAdminOverride ?? isSuperAdmin;
+    if (superAdmin && !selectedCompanyId) {
       setProducts([]);
       setTotal(0);
       setPages(1);
@@ -562,7 +568,7 @@ export default function CatalogPage() {
         active: activeFilter || undefined,
         listingStatus: listingStatusFilter || undefined,
         stockFilter: stockFilter || undefined,
-        companyId: isSuperAdmin ? selectedCompanyId : undefined,
+        companyId: superAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
         sortDir: sortOverride?.sortDir ?? sortDir,
       }, token);
@@ -602,7 +608,7 @@ export default function CatalogPage() {
     setGenericConnections(generic);
     setWarehouses(whs);
     setCategories(cats);
-    await loadProducts(1);
+    await loadProducts(1, undefined, me?.role === 'SUPER_ADMIN');
   }
 
   // La empresa activa (para Super Admin) ya está fijada antes de que esta página se
