@@ -126,6 +126,7 @@ export default function DashboardPage() {
   const weekPos = weeklyData.reduce((s, d) => s + (d.posTotal || 0), 0);
   const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
   const posPct = weekTotal > 0 ? Math.round((weekPos / weekTotal) * 100) : 0;
+  const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
 
   const now = new Date();
   const todayStr = dateKeyInTz(tz, now);
@@ -198,8 +199,34 @@ export default function DashboardPage() {
       {/* Fila central — gráfico + órdenes urgentes */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-        {/* Gráfico de ventas 7 días + ticket promedio */}
+        {/* Resumen semanal + gráfico de ventas 7 días */}
         <div className="lg:col-span-3 flex flex-col gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KpiCard
+            title="Ticket promedio (7 días)"
+            value={`$${Math.round(avgTicket).toLocaleString('es-CL')}`}
+            sub={`${weekCount} transacción(es) · POS ${posPct}%`}
+            colorClass="bg-purple-50 text-purple-500"
+            icon="🎫"
+            href="/dashboard/sales"
+          />
+          <KpiCard
+            title="Total semana"
+            value={`$${Math.round(weekTotal).toLocaleString('es-CL')}`}
+            sub="suma de los últimos 7 días"
+            colorClass="bg-teal-50 text-teal-500"
+            icon="📈"
+            href="/dashboard/sales"
+          />
+          <KpiCard
+            title="Mejor día"
+            value={bestDay?.total ? `$${Math.round(bestDay.total).toLocaleString('es-CL')}` : '—'}
+            sub={bestDay?.label ? `${bestDay.label} · ${bestDay.count} venta(s)` : 'sin ventas esta semana'}
+            colorClass="bg-orange-50 text-orange-500"
+            icon="🏆"
+            href="/dashboard/sales"
+          />
+        </div>
         <SectionCard
           title="Ventas últimos 7 días"
           actions={
@@ -253,15 +280,6 @@ export default function DashboardPage() {
             </div>
           )}
         </SectionCard>
-
-        <KpiCard
-          title="Ticket promedio (7 días)"
-          value={`$${Math.round(avgTicket).toLocaleString('es-CL')}`}
-          sub={`${weekCount} transacción(es) · POS ${posPct}% · E-commerce ${100 - posPct}%`}
-          colorClass="bg-purple-50 text-purple-500"
-          icon="🎫"
-          href="/dashboard/sales"
-        />
         </div>
 
         {/* Órdenes urgentes */}
