@@ -12,9 +12,14 @@ import { emitActivity } from '@/lib/activityBus';
 const POLL_MS = 25000;
 const TOAST_DISMISS_MS = 10000;
 const HISTORY_LIMIT = 30;
-const SINCE_KEY = 'mp_notif_since';
-const HISTORY_KEY = 'mp_notif_history';
 const MUTED_KEY = 'mp_notif_muted';
+
+// El historial de notificaciones (campanita) y el "desde cuándo" del polling viven SOLO en
+// memoria (estado de React), nunca en localStorage: son datos sensibles de una empresa/
+// usuario puntual y un navegador puede compartirse entre distintas cuentas o el Super Admin
+// puede cambiar de empresa sin recargar la página — persistirlos ahí terminaba filtrando
+// notificaciones de una empresa/usuario a la sesión de otro. Arrancan vacíos en cada carga
+// del panel y también al cambiar de empresa (ver el useEffect sobre companyId).
 
 // Los navegadores bloquean/suspenden el audio si no arranca dentro de una interacción
 // real del usuario (clic, tecla) — un beep disparado desde el polling (un timer) nunca
@@ -108,26 +113,6 @@ const TYPE_STYLE: Record<NotifEvent['type'], { icon: string; accent: string }> =
   claim: { icon: '⚠️', accent: 'var(--warn)' },
 };
 
-// El historial y el "desde cuándo" se guardan por empresa (companyId llega undefined para
-// usuarios de una sola empresa, así que su clave queda igual que antes) — si no, un Super
-// Admin que cambia de empresa arrastraba en la campanita las notificaciones de la empresa
-// anterior, mezclando ventas/preguntas/reclamos entre empresas distintas.
-function scopedKey(base: string, companyId?: string) {
-  return companyId ? `${base}:${companyId}` : base;
-}
-
-function loadHistory(companyId?: string): NotifEvent[] {
-  try {
-    return JSON.parse(localStorage.getItem(scopedKey(HISTORY_KEY, companyId)) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(companyId: string | undefined, history: NotifEvent[]) {
-  try { localStorage.setItem(scopedKey(HISTORY_KEY, companyId), JSON.stringify(history.slice(0, HISTORY_LIMIT))); } catch {}
-}
-
 interface NotificationsCtx {
   history: NotifEvent[];
   unreadCount: number;
@@ -161,17 +146,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [muted, setMuted] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const shouldPoll = !isSuperAdmin || !!selectedCompanyId;
+  // "Desde cuándo" del polling, solo en memoria (ver nota sobre localStorage más arriba).
+  const sinceRef = useRef('');
 
   useEffect(() => {
     try { setMuted(localStorage.getItem(MUTED_KEY) === '1'); } catch {}
   }, []);
 
-  // Recarga el historial escopado a la empresa activa cada vez que companyId cambia
-  // (incluida la carga inicial) y descarta los avisos emergentes pendientes de la empresa
-  // anterior — así la campanita nunca mezcla notificaciones de dos empresas distintas.
+  // Vacía el historial y los avisos emergentes cada vez que companyId cambia (incluida la
+  // carga inicial del panel) y reinicia el punto de partida del polling — así la campanita
+  // nunca mezcla notificaciones de una empresa/sesión con las de otra.
   useEffect(() => {
-    setHistory(loadHistory(companyId));
+    setHistory([]);
     setToasts([]);
+    sinceRef.current = '';
   }, [companyId]);
 
   // Desbloquea el audio con la primera interacción real del usuario en la sesión (clic,
@@ -208,20 +196,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     async function poll() {
       const token = getToken();
       if (!token) return;
-      let since = '';
-      try { since = localStorage.getItem(scopedKey(SINCE_KEY, companyId)) || ''; } catch {}
-      // Primera vez que se corre en este navegador (o primera vez viendo esta empresa):
-      // arranca desde ahora, no desde el historial completo (si no, avisaría de todo lo
-      // que ya existía).
-      if (!since) {
-        since = new Date().toISOString();
-        try { localStorage.setItem(scopedKey(SINCE_KEY, companyId), since); } catch {}
+      // Primer poll de la sesión (o recién cambiada la empresa): arranca desde ahora, no
+      // desde el historial completo (si no, avisaría de todo lo que ya existía).
+      if (!sinceRef.current) {
+        sinceRef.current = new Date().toISOString();
         return;
       }
       try {
-        const res = await api.marketplace.notifications(token, since, companyId);
+        const res = await api.marketplace.notifications(token, sinceRef.current, companyId);
         if (cancelled) return;
-        try { localStorage.setItem(scopedKey(SINCE_KEY, companyId), res.serverTime); } catch {}
+        sinceRef.current = res.serverTime;
         if (res.events.length) {
           const fresh: NotifEvent[] = res.events.map((e) => ({
             key: `${e.type}-${e.id}`, type: e.type, title: e.title, href: e.href,
@@ -230,9 +214,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           }));
           setHistory((prev) => {
             const seen = new Set(prev.map((p) => p.key));
-            const merged = [...fresh.filter((f) => !seen.has(f.key)), ...prev].slice(0, HISTORY_LIMIT);
-            saveHistory(companyId, merged);
-            return merged;
+            return [...fresh.filter((f) => !seen.has(f.key)), ...prev].slice(0, HISTORY_LIMIT);
           });
           setToasts((prev) => [...fresh, ...prev]);
           playNotificationSound(fresh[0].type);
@@ -260,22 +242,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [toasts.length]);
 
   const markAllRead = useCallback(() => {
-    setHistory((prev) => {
-      const updated = prev.map((e) => ({ ...e, read: true }));
-      saveHistory(companyId, updated);
-      return updated;
-    });
-  }, [companyId]);
+    setHistory((prev) => prev.map((e) => ({ ...e, read: true })));
+  }, []);
 
   const go = useCallback((e: NotifEvent) => {
-    setHistory((prev) => {
-      const updated = prev.map((h) => (h.key === e.key ? { ...h, read: true } : h));
-      saveHistory(companyId, updated);
-      return updated;
-    });
+    setHistory((prev) => prev.map((h) => (h.key === e.key ? { ...h, read: true } : h)));
     dismissToast(e.key);
     router.push(e.href);
-  }, [router, companyId]);
+  }, [router]);
 
   const unreadCount = history.filter((h) => !h.read).length;
 
