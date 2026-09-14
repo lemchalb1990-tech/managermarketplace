@@ -275,6 +275,12 @@ export default function DashboardPage() {
                       {order.customerName && (
                         <p className="text-xs text-gray-500 truncate mt-0.5">{order.customerName}</p>
                       )}
+                      {order.sale && (
+                        <p className="text-xs text-gray-400 truncate">
+                          {CHANNEL_LABEL[order.sale.channel] || order.sale.channel}
+                          {order.sale.connection?.name && ` · ${order.sale.connection.name}`}
+                        </p>
+                      )}
                     </div>
                     <span className="text-gray-300 text-sm shrink-0">›</span>
                   </Link>
