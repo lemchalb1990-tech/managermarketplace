@@ -338,22 +338,22 @@ export default function DashboardPage() {
                     className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-gray-600">#{shortId}</span>
-                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${badge.color}`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-xs font-semibold ${badge.color}`}>
                           {badge.label}
                         </span>
-                        <span className={`text-xs ${order.fulfillmentType === 'DELIVERY' ? 'text-blue-500' : 'text-gray-400'}`}>
+                        <span className="shrink-0 font-mono text-xs font-bold text-gray-600">#{shortId}</span>
+                        {order.customerName && (
+                          <span className="text-xs text-gray-600 truncate">{order.customerName}</span>
+                        )}
+                        <span className={`shrink-0 text-xs ${order.fulfillmentType === 'DELIVERY' ? 'text-blue-500' : 'text-gray-400'}`}>
                           {order.fulfillmentType === 'DELIVERY' ? '🚚' : '🏬'}
                         </span>
                       </div>
-                      {order.customerName && (
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{order.customerName}</p>
-                      )}
                       {order.sale && (
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-xs text-gray-400 truncate mt-0.5">
                           {CHANNEL_LABEL[order.sale.channel] || order.sale.channel}
-                          {order.sale.connection?.name && ` · ${order.sale.connection.name}`}
+                          {order.sale.connection?.name && ` - ${order.sale.connection.name}`}
                         </p>
                       )}
                     </div>
