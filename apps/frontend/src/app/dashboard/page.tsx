@@ -60,6 +60,7 @@ export default function DashboardPage() {
 
   const [summary, setSummary] = useState<any>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [recentSales, setRecentSales] = useState<any[]>([]);
@@ -85,7 +86,7 @@ export default function DashboardPage() {
 
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
-      api.pos.weeklySales(token, { companyId }).catch(() => []),
+      api.pos.weeklySales(token, { companyId }).catch(() => ({ days: [], byStore: [] })),
       api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
@@ -93,7 +94,8 @@ export default function DashboardPage() {
       api.catalog.list(token, companyId).catch(() => []),
     ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
-      setWeeklyData(weekly as any[]);
+      setWeeklyData((weekly as any)?.days || []);
+      setStoreBreakdown((weekly as any)?.byStore || []);
 
       const pendingR = pending as any;
       const preparingR = preparing as any;
@@ -125,6 +127,16 @@ export default function DashboardPage() {
   const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
   const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
   const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
+
+  const DONUT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'];
+  const totalStoreSales = storeBreakdown.reduce((s, x) => s + x.count, 0);
+  let donutCumulative = 0;
+  const donutSegments = storeBreakdown.map((s, i) => {
+    const pct = totalStoreSales > 0 ? (s.count / totalStoreSales) * 100 : 0;
+    const segment = { ...s, pct, color: DONUT_COLORS[i % DONUT_COLORS.length], offset: 25 - donutCumulative };
+    donutCumulative += pct;
+    return segment;
+  });
 
   const now = new Date();
   const todayStr = dateKeyInTz(tz, now);
@@ -197,9 +209,10 @@ export default function DashboardPage() {
       {/* Fila central — gráfico + órdenes urgentes */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-        {/* Resumen semanal + gráfico de ventas 7 días */}
-        <div className="lg:col-span-3">
+        {/* Resumen semanal + gráfico de ventas 7 días + ventas por tienda/canal */}
+        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-5 gap-4">
         <SectionCard
+          className="md:col-span-3"
           title="Ventas últimos 7 días"
           actions={
             <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
@@ -257,6 +270,43 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard className="md:col-span-2" title="Ventas por tienda y canal">
+          {storeBreakdown.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas esta semana</p>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative w-32 h-32 shrink-0">
+                <svg viewBox="0 0 36 36" className="w-full h-full">
+                  <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--border)" strokeWidth="3.5" />
+                  {donutSegments.map((s, i) => (
+                    <circle
+                      key={i}
+                      cx="18" cy="18" r="15.915" fill="none"
+                      stroke={s.color} strokeWidth="3.5"
+                      strokeDasharray={`${s.pct} ${100 - s.pct}`}
+                      strokeDashoffset={s.offset}
+                    />
+                  ))}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold text-[var(--text)]">{totalStoreSales}</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">ventas</span>
+                </div>
+              </div>
+              <div className="w-full space-y-1.5">
+                {donutSegments.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
+                    <span className="flex-1 truncate text-[var(--text-2)]">{s.label}</span>
+                    <span className="font-semibold text-[var(--text)]">{s.count}</span>
+                    <span className="text-[var(--text-muted)] w-9 text-right">{Math.round(s.pct)}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </SectionCard>

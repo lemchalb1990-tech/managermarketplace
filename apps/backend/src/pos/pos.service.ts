@@ -186,8 +186,22 @@ export class PosService {
 
     const sales = await this.prisma.sale.findMany({
       where,
-      select: { total: true, channel: true, createdAt: true },
+      select: { total: true, channel: true, createdAt: true, connection: { select: { name: true } } },
     });
+
+    const channelLabel: Record<string, string> = {
+      POS: 'Punto de Venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
+      WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
+      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+    };
+    const byStore: Record<string, { label: string; channel: string; count: number; total: number }> = {};
+    for (const s of sales) {
+      const label = s.connection?.name || channelLabel[s.channel] || s.channel;
+      const key = `${s.channel}:${label}`;
+      if (!byStore[key]) byStore[key] = { label, channel: s.channel, count: 0, total: 0 };
+      byStore[key].count++;
+      byStore[key].total += Number(s.total);
+    }
 
     const result = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -213,7 +227,10 @@ export class PosService {
       });
     }
 
-    return result;
+    return {
+      days: result,
+      byStore: Object.values(byStore).sort((a, b) => b.count - a.count),
+    };
   }
 
   async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string; search?: string }) {

@@ -721,7 +721,7 @@ export const api = {
       const q = new URLSearchParams();
       if (params?.companyId) q.set('companyId', params.companyId);
       if (params?.days) q.set('days', String(params.days));
-      return apiFetch<any[]>(`/pos/sales/weekly?${q}`, {}, token);
+      return apiFetch<{ days: any[]; byStore: any[] }>(`/pos/sales/weekly?${q}`, {}, token);
     },
     stockMovements: (productId: string, token: string) =>
       apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),
