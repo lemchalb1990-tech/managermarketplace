@@ -200,10 +200,10 @@ export default function DashboardPage() {
           actions={
             <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> POS
+                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--brand)] inline-block" /> POS
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 inline-block" /> E-commerce
+                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--info)] inline-block" /> E-commerce
               </span>
             </div>
           }
@@ -222,8 +222,8 @@ export default function DashboardPage() {
                     <div className="w-full h-32 flex flex-col justify-end">
                       {totalH > 0 ? (
                         <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${totalH}px` }}>
-                          <div style={{ height: `${posH}px` }} className="bg-blue-500 shrink-0" />
-                          <div style={{ height: `${ecomH}px` }} className="bg-indigo-400 shrink-0" />
+                          <div style={{ height: `${posH}px` }} className="bg-[var(--brand)] shrink-0" />
+                          <div style={{ height: `${ecomH}px` }} className="bg-[var(--info)] shrink-0" />
                         </div>
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
@@ -237,7 +237,8 @@ export default function DashboardPage() {
                       ) : (
                         <p className="text-xs text-[var(--text-muted)]">—</p>
                       )}
-                      <p className={`text-xs leading-tight capitalize ${isToday ? 'text-blue-600 font-semibold' : 'text-[var(--text-muted)]'}`}>
+                      <p className={`text-xs leading-tight capitalize ${isToday ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
+                        style={isToday ? { color: 'var(--info)' } : undefined}>
                         {day.label}
                       </p>
                     </div>
