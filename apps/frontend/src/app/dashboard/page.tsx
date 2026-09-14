@@ -123,9 +123,7 @@ export default function DashboardPage() {
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
   const weekTotal = weeklyData.reduce((s, d) => s + (d.total || 0), 0);
   const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
-  const weekPos = weeklyData.reduce((s, d) => s + (d.posTotal || 0), 0);
   const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
-  const posPct = weekTotal > 0 ? Math.round((weekPos / weekTotal) * 100) : 0;
   const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
 
   const now = new Date();
@@ -200,41 +198,21 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Resumen semanal + gráfico de ventas 7 días */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KpiCard
-            title="Ticket promedio (7 días)"
-            value={`$${Math.round(avgTicket).toLocaleString('es-CL')}`}
-            sub={`${weekCount} transacción(es) · POS ${posPct}%`}
-            colorClass="bg-purple-50 text-purple-500"
-            icon="🎫"
-            href="/dashboard/sales"
-          />
-          <KpiCard
-            title="Total semana"
-            value={`$${Math.round(weekTotal).toLocaleString('es-CL')}`}
-            sub="suma de los últimos 7 días"
-            colorClass="bg-teal-50 text-teal-500"
-            icon="📈"
-            href="/dashboard/sales"
-          />
-          <KpiCard
-            title="Mejor día"
-            value={bestDay?.total ? `$${Math.round(bestDay.total).toLocaleString('es-CL')}` : '—'}
-            sub={bestDay?.label ? `${bestDay.label} · ${bestDay.count} venta(s)` : 'sin ventas esta semana'}
-            colorClass="bg-orange-50 text-orange-500"
-            icon="🏆"
-            href="/dashboard/sales"
-          />
-        </div>
+        <div className="lg:col-span-3">
         <SectionCard
           title="Ventas últimos 7 días"
           actions={
-            <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-              <span className="flex items-center gap-1">
+            <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
+              <span>
+                Ticket prom. <span className="font-semibold text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</span>
+              </span>
+              <span>
+                Total <span className="font-semibold text-[var(--text-2)]">${Math.round(weekTotal).toLocaleString('es-CL')}</span>
+              </span>
+              <span className="hidden sm:flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[var(--brand)] inline-block" /> POS
               </span>
-              <span className="flex items-center gap-1">
+              <span className="hidden sm:flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[var(--info)] inline-block" /> E-commerce
               </span>
             </div>
@@ -249,9 +227,11 @@ export default function DashboardPage() {
                 const posH = day.total > 0 ? (day.posTotal / day.total) * totalH : 0;
                 const ecomH = totalH - posH;
                 const isToday = day.date === todayStr;
+                const isBest = bestDay && day.date === bestDay.date && day.total > 0;
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
-                    <div className="w-full h-32 flex flex-col justify-end">
+                    <div className="w-full h-32 flex flex-col justify-end relative">
+                      {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor día">🏆</span>}
                       {totalH > 0 ? (
                         <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${totalH}px` }}>
                           <div style={{ height: `${posH}px` }} className="bg-[var(--brand)] shrink-0" />
