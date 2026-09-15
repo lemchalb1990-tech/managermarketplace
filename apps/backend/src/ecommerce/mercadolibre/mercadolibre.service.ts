@@ -1931,6 +1931,9 @@ export class MercadolibreService {
               companyId: companyId as string,
               connectionId: resolvedItems[0].listing.connectionId,
               customerName: order.buyer?.nickname || null,
+              // Sin esto, Prisma usa @default(now()) — la venta queda con la fecha en que se
+              // corrió el webhook/importación en vez de la fecha real de la compra en ML.
+              createdAt: new Date(order.date_created),
               items: {
                 create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
                   productId: listing.productId,
