@@ -105,15 +105,13 @@ export default function DashboardPage() {
 
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
-      api.pos.weeklySales(token, { companyId }).catch(() => ({ days: [], byStore: [] })),
       api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
       api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
       api.catalog.list(token, companyId).catch(() => []),
-    ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
+    ]).then(([sum, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
-      setStoreBreakdown((weekly as any)?.byStore || []);
 
       const pendingR = pending as any;
       const preparingR = preparing as any;
@@ -139,15 +137,6 @@ export default function DashboardPage() {
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
-
-  // Arranca las barras/dona en 0 y las anima a su valor real una vez cargan los datos —
-  // igual que la animación de entrada de los gráficos en el dashboard de referencia.
-  const [chartsReady, setChartsReady] = useState(false);
-  useEffect(() => {
-    if (loading) { setChartsReady(false); return; }
-    const raf = requestAnimationFrame(() => setChartsReady(true));
-    return () => cancelAnimationFrame(raf);
-  }, [loading]);
 
   // Widget "Reportes de ventas" (calcado del de coremarkets.cl): tabs de período + filtro
   // de canal, con su propia carga independiente del resto del dashboard.
@@ -190,6 +179,44 @@ export default function DashboardPage() {
     const raf = requestAnimationFrame(() => setReportChartReady(true));
     return () => cancelAnimationFrame(raf);
   }, [reportLoading]);
+
+  // "Ventas por tienda": mismos tabs de período que "Historial de Ventas", pero con "Hoy"
+  // en vez de "7 días" — igual que "Participación de cada canal" en la referencia.
+  const STORE_PERIODS = [
+    { key: '12m', label: '12 meses', days: 365 },
+    { key: '6m', label: '6 meses', days: 182 },
+    { key: '30d', label: '30 días', days: 30 },
+    { key: 'hoy', label: 'Hoy', days: 1 },
+  ] as const;
+  type StorePeriod = typeof STORE_PERIODS[number]['key'];
+
+  const [storePeriod, setStorePeriod] = useState<StorePeriod>('12m');
+  const [storeLoading, setStoreLoading] = useState(true);
+
+  const loadStoreBreakdown = useCallback(() => {
+    const token = getToken();
+    if (!token || !user) return;
+    if (isSuperAdmin && !selectedCompanyId) return;
+
+    setStoreLoading(true);
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    const days = STORE_PERIODS.find((p) => p.key === storePeriod)?.days ?? 365;
+
+    api.pos.weeklySales(token, { companyId, days })
+      .then((r) => setStoreBreakdown(r.byStore || []))
+      .catch(() => setStoreBreakdown([]))
+      .finally(() => setStoreLoading(false));
+  }, [user, isSuperAdmin, selectedCompanyId, storePeriod]);
+
+  useEffect(() => { loadStoreBreakdown(); }, [loadStoreBreakdown]);
+  useEffect(() => onActivity(['sale'], loadStoreBreakdown), [loadStoreBreakdown]);
+
+  const [storeChartReady, setStoreChartReady] = useState(false);
+  useEffect(() => {
+    if (storeLoading) { setStoreChartReady(false); return; }
+    const raf = requestAnimationFrame(() => setStoreChartReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [storeLoading]);
 
   const reportMax = Math.max(...reportData.map((d) => d.total), 1);
   const reportTotal = reportData.reduce((s, d) => s + (d.total || 0), 0);
@@ -352,9 +379,28 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        <SectionCard title="Ventas por tienda">
+        <SectionCard
+          title="Ventas por tienda"
+          actions={
+            <div className="flex items-center gap-1 bg-[var(--surface-soft)] rounded-lg p-1">
+              {STORE_PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setStorePeriod(p.key)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    storePeriod === p.key
+                      ? 'bg-[var(--brand)] text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          }
+        >
           {storeBreakdown.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas esta semana</p>
+            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
           ) : (
             <div className="flex flex-col items-center gap-4">
               <div className="relative w-32 h-32 shrink-0">
@@ -365,7 +411,7 @@ export default function DashboardPage() {
                       key={i}
                       cx="18" cy="18" r="15.915" fill="none"
                       stroke={s.color} strokeWidth="3.5"
-                      strokeDasharray={chartsReady ? `${s.pct} ${100 - s.pct}` : '0 100'}
+                      strokeDasharray={storeChartReady ? `${s.pct} ${100 - s.pct}` : '0 100'}
                       strokeDashoffset={s.offset}
                       style={{ transitionProperty: 'stroke-dasharray', transitionDuration: '900ms', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)', transitionDelay: `${i * 60}ms` }}
                     />
