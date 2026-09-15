@@ -166,6 +166,17 @@ function suggestMapping(columns: string[]): Record<string, string | null> {
 
 const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000;
 
+// Filas ya descargadas del proveedor API para un supplier + cuánto falta por traer.
+// browseCatalog solo pide la página 1 al inicio (rápido) y va sumando páginas del
+// proveedor bajo demanda ("Cargar más del proveedor"), en vez de esperar el catálogo
+// completo antes de mostrar algo.
+interface ApiCatalogCacheEntry {
+  rows: CatalogRow[];
+  hasMore: boolean;
+  nextProviderPage: number | null;
+  fetchedAt: number;
+}
+
 @Injectable()
 export class DropshippingService {
   private readonly logger = new Logger(DropshippingService.name);
@@ -175,7 +186,7 @@ export class DropshippingService {
   // Cache en memoria del último catálogo consultado a cada proveedor API, para poder
   // paginar/buscar sin volver a pegarle al proveedor en cada tecleo. Se pierde si el
   // proceso se reinicia (no es crítico: el usuario solo tiene que "Actualizar" de nuevo).
-  private readonly catalogCache = new Map<string, { rows: CatalogRow[]; fetchedAt: number }>();
+  private readonly catalogCache = new Map<string, ApiCatalogCacheEntry>();
 
   constructor(
     private prisma: PrismaService,
@@ -405,13 +416,44 @@ export class DropshippingService {
       data: { apiToken: fetchResult.tokenCache.token, apiTokenExpiresAt: fetchResult.tokenCache.expiresAt },
     });
 
-    this.catalogCache.set(ds.id, { rows: fetchResult.rows, fetchedAt: Date.now() });
+    this.catalogCache.set(ds.id, { rows: fetchResult.rows, hasMore: false, nextProviderPage: null, fetchedAt: Date.now() });
     return fetchResult.rows;
   }
 
+  // Trae UNA página del proveedor (rápido) y persiste el token. Usado por browseCatalog
+  // para responder enseguida en vez de esperar el catálogo completo.
+  private async fetchProviderPage(ds: DropshipSupplierRef, page: number) {
+    const provider = this.apiProviders.get(ds.connectorType);
+    if (!provider) throw new BadRequestException('Conector no soportado');
+
+    const credentials = (ds.credentials as Record<string, string>) || {};
+    if (!Object.keys(credentials).length) {
+      throw new BadRequestException('Configura las credenciales del proveedor antes de continuar');
+    }
+
+    const cachedToken = ds.apiToken && ds.apiTokenExpiresAt
+      ? { token: ds.apiToken, expiresAt: ds.apiTokenExpiresAt }
+      : null;
+
+    let result;
+    try {
+      result = await provider.fetchPage(credentials, cachedToken, page);
+    } catch (err: any) {
+      throw new BadRequestException(`No se pudo conectar con el proveedor: ${err?.message || err}`);
+    }
+
+    await this.prisma.dropshipSupplier.update({
+      where: { id: ds.id },
+      data: { apiToken: result.tokenCache.token, apiTokenExpiresAt: result.tokenCache.expiresAt },
+    });
+
+    return result;
+  }
+
   // Consulta (paginada, con búsqueda) el catálogo de un proveedor API para que el usuario
-  // elija qué productos traer — no crea ni modifica nada todavía.
-  async browseCatalog(id: string, user: any, opts: { q?: string; page?: number; pageSize?: number; refresh?: boolean }) {
+  // elija qué productos traer — no crea ni modifica nada todavía. Solo pide la primera
+  // página del proveedor de entrada (rápido); "Cargar más" trae páginas adicionales.
+  async browseCatalog(id: string, user: any, opts: { q?: string; page?: number; pageSize?: number; refresh?: boolean; loadMore?: boolean }) {
     const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
     if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
     if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
@@ -420,9 +462,21 @@ export class DropshippingService {
     }
 
     let cached = this.catalogCache.get(id);
-    if (opts.refresh || !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS) {
-      const rows = await this.fetchProviderCatalog(ds);
-      cached = { rows, fetchedAt: Date.now() };
+    const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS;
+
+    if (opts.refresh || stale) {
+      const first = await this.fetchProviderPage(ds, 1);
+      cached = { rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now() };
+      this.catalogCache.set(id, cached);
+    } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
+      const next = await this.fetchProviderPage(ds, cached!.nextProviderPage);
+      cached = {
+        rows: [...cached!.rows, ...next.rows],
+        hasMore: next.hasMore,
+        nextProviderPage: next.nextPage,
+        fetchedAt: cached!.fetchedAt,
+      };
+      this.catalogCache.set(id, cached);
     }
 
     const linked = await this.prisma.dropshipProduct.findMany({
@@ -431,7 +485,7 @@ export class DropshippingService {
     });
     const linkedSkus = new Set(linked.map((p) => p.supplierSku).filter(Boolean) as string[]);
 
-    let rows = cached.rows;
+    let rows = cached!.rows;
     const q = (opts.q || '').trim().toLowerCase();
     if (q) {
       rows = rows.filter((r) =>
@@ -452,7 +506,10 @@ export class DropshippingService {
       total,
       page,
       pages: Math.max(1, Math.ceil(total / pageSize)),
-      fetchedAt: new Date(cached.fetchedAt).toISOString(),
+      fetchedAt: new Date(cached!.fetchedAt).toISOString(),
+      // Hay más productos en el proveedor que todavía no se han traído al buscador
+      // (el catálogo completo no cabe/no conviene descargarlo entero de una).
+      providerHasMore: cached!.hasMore,
     };
   }
 

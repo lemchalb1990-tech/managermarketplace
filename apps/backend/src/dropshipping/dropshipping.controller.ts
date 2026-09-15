@@ -65,6 +65,7 @@ export class DropshippingController {
       page: query.page ? Number(query.page) : undefined,
       pageSize: query.pageSize ? Number(query.pageSize) : undefined,
       refresh: query.refresh === '1' || query.refresh === 'true',
+      loadMore: query.loadMore === '1' || query.loadMore === 'true',
     });
   }
 

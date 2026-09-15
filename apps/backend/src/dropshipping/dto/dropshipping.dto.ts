@@ -61,6 +61,7 @@ export class BrowseDropshipCatalogDto {
   @IsOptional() @IsString() page?: string;
   @IsOptional() @IsString() pageSize?: string;
   @IsOptional() @IsString() refresh?: string;
+  @IsOptional() @IsString() loadMore?: string;
 }
 
 export class ImportDropshipCatalogDto {

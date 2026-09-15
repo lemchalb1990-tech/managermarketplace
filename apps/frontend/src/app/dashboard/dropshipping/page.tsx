@@ -95,6 +95,8 @@ export default function DropshippingPage() {
   const [catalogError, setCatalogError] = useState('');
   const [catalogSelected, setCatalogSelected] = useState<Set<string>>(new Set());
   const [catalogImporting, setCatalogImporting] = useState(false);
+  const [catalogProviderHasMore, setCatalogProviderHasMore] = useState(false);
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const companyId = isSuperAdmin ? selectedCompanyId : undefined;
@@ -224,10 +226,29 @@ export default function DropshippingPage() {
       setCatalogPage(res.page);
       setCatalogPages(res.pages);
       setCatalogTotal(res.total);
+      setCatalogProviderHasMore(res.providerHasMore);
     } catch (err: any) {
-      setCatalogError(err.message || 'No se pudo consultar el catálogo del proveedor.');
+      setCatalogError(err.message || 'No se pudo consultar el catálogo del proveedor. Si sigue fallando, puede ser que el proveedor no responda (red/URL).');
     } finally {
       setCatalogLoading(false);
+    }
+  }
+
+  async function loadMoreFromProvider() {
+    if (!catalogSupplier) return;
+    setCatalogLoadingMore(true);
+    setCatalogError('');
+    try {
+      const res = await api.dropshipping.suppliers.browseCatalog(catalogSupplier.id, { q: catalogQuery || undefined, page: 1, pageSize: 50, loadMore: true }, token());
+      setCatalogRows(res.rows);
+      setCatalogPage(res.page);
+      setCatalogPages(res.pages);
+      setCatalogTotal(res.total);
+      setCatalogProviderHasMore(res.providerHasMore);
+    } catch (err: any) {
+      setCatalogError(err.message || 'No se pudo traer más productos del proveedor.');
+    } finally {
+      setCatalogLoadingMore(false);
     }
   }
 
@@ -916,6 +937,18 @@ export default function DropshippingPage() {
                     )}
                   </tbody>
                 </table>
+              )}
+              {!catalogLoading && catalogProviderHasMore && (
+                <div className="px-4 py-3 text-center border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-2">
+                    El proveedor tiene más productos que todavía no se han traído al buscador
+                    {catalogQuery ? ' — si no encuentras lo que buscas, prueba cargar más' : ''}.
+                  </p>
+                  <button disabled={catalogLoadingMore} onClick={loadMoreFromProvider}
+                    className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs disabled:opacity-50">
+                    {catalogLoadingMore ? 'Cargando...' : 'Cargar más del proveedor'}
+                  </button>
+                </div>
               )}
             </div>
 

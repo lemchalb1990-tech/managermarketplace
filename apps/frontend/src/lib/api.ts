@@ -842,13 +842,14 @@ export const api = {
         ),
       testConnection: (data: { connectorType: 'FEED' | 'NORIEGA_API'; credentials: Record<string, string> }, token: string) =>
         apiFetch<{ success: boolean; message?: string }>('/dropshipping/suppliers/test-connection', { method: 'POST', body: JSON.stringify(data) }, token),
-      browseCatalog: (id: string, params: { q?: string; page?: number; pageSize?: number; refresh?: boolean }, token: string) => {
+      browseCatalog: (id: string, params: { q?: string; page?: number; pageSize?: number; refresh?: boolean; loadMore?: boolean }, token: string) => {
         const q = new URLSearchParams();
         if (params.q) q.set('q', params.q);
         if (params.page) q.set('page', String(params.page));
         if (params.pageSize) q.set('pageSize', String(params.pageSize));
         if (params.refresh) q.set('refresh', '1');
-        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string }>(
+        if (params.loadMore) q.set('loadMore', '1');
+        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string; providerHasMore: boolean }>(
           `/dropshipping/suppliers/${id}/catalog?${q}`, {}, token,
         );
       },

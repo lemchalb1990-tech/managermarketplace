@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DropshipCatalogFetchResult, DropshipCatalogProvider, DropshipCatalogRow, DropshipTokenCache } from './provider.interface';
+import {
+  DropshipCatalogFetchResult, DropshipCatalogPage, DropshipCatalogProvider,
+  DropshipCatalogRow, DropshipTokenCache,
+} from './provider.interface';
 
 // Ver "API de Productos Noriega — Guía de Inicio Rápido" (proveedor externo).
 const DEFAULT_BASE_URL = 'http://190.208.53.9:3004';
@@ -8,6 +11,11 @@ const DEFAULT_BASE_URL = 'http://190.208.53.9:3004';
 const REQUEST_DELAY_MS = 650;
 // Refresca el token un poco antes de que venza (venceEn: "8h") en vez de esperar el 401.
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+// Si el proveedor no responde en este tiempo (red caída, servidor colgado) cortamos con
+// un error claro en vez de dejar la request pegada indefinidamente.
+const REQUEST_TIMEOUT_MS = 20_000;
+// Corta un loop infinito si el proveedor nunca manda hayMas:false (o siguientePagina no avanza).
+const MAX_PAGES_SAFETY = 50;
 
 interface NoriegaLoginResponse {
   ok: boolean;
@@ -28,6 +36,21 @@ function sleep(ms: number) {
 
 function baseUrl(credentials: Record<string, string>): string {
   return (credentials.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`El proveedor no respondió en ${Math.round(timeoutMs / 1000)}s (¿URL/red caída?)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function mapRow(rec: Record<string, any>): DropshipCatalogRow {
@@ -56,7 +79,7 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
     if (!rut || !usuario || !password) {
       throw new Error('Faltan credenciales (rut, usuario, password) para el proveedor');
     }
-    const res = await fetch(`${baseUrl(credentials)}/api/auth/login`, {
+    const res = await fetchWithTimeout(`${baseUrl(credentials)}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rut, usuario, password }),
@@ -81,43 +104,62 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
     }
   }
 
-  async fetchCatalog(
+  // Trae UNA sola página del proveedor (hasta 5.000 productos). Se usa para el buscador
+  // "Agregar productos": muestra resultados enseguida en vez de esperar el catálogo entero.
+  async fetchPage(
     credentials: Record<string, string>,
     tokenCache: DropshipTokenCache | null,
-  ): Promise<DropshipCatalogFetchResult> {
+    page: number,
+  ): Promise<DropshipCatalogPage> {
     let cache = tokenCache && tokenCache.expiresAt.getTime() - Date.now() > TOKEN_REFRESH_MARGIN_MS
       ? tokenCache
       : await this.login(credentials);
 
+    const url = `${baseUrl(credentials)}/api/productos?pagina=${page}`;
+    let res = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${cache.token}` } });
+    if (res.status === 401) {
+      cache = await this.login(credentials);
+      res = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${cache.token}` } });
+    }
+    if (!res.ok) throw new Error(`El proveedor respondió ${res.status} en la página ${page}`);
+
+    const data = (await res.json()) as NoriegaProductsResponse;
+    const rows = (data.datos || []).map(mapRow).filter((r) => r.sku);
+    return {
+      rows,
+      hasMore: !!data.hayMas,
+      nextPage: data.hayMas ? (data.siguientePagina ?? page + 1) : null,
+      tokenCache: cache,
+    };
+  }
+
+  // Trae el catálogo completo (todas las páginas). Se usa solo para el sync de
+  // actualización de precio/stock de productos ya vinculados.
+  async fetchCatalog(
+    credentials: Record<string, string>,
+    tokenCache: DropshipTokenCache | null,
+  ): Promise<DropshipCatalogFetchResult> {
+    let cache = tokenCache;
     const rows: DropshipCatalogRow[] = [];
     let pagina = 1;
-    let reloginAttempted = false;
+    let pageCount = 0;
 
     while (true) {
-      const res = await fetch(`${baseUrl(credentials)}/api/productos?pagina=${pagina}`, {
-        headers: { Authorization: `Bearer ${cache.token}` },
-      });
-
-      if (res.status === 401 && !reloginAttempted) {
-        // El token cacheado venció antes de lo esperado: reloguea una vez y reintenta la página.
-        reloginAttempted = true;
-        cache = await this.login(credentials);
-        continue;
-      }
-      if (!res.ok) {
-        throw new Error(`El proveedor respondió ${res.status} en la página ${pagina}`);
+      pageCount++;
+      if (pageCount > MAX_PAGES_SAFETY) {
+        throw new Error(`Se alcanzaron ${MAX_PAGES_SAFETY} páginas sin terminar; el proveedor podría no estar indicando el fin del catálogo correctamente`);
       }
 
-      const data = (await res.json()) as NoriegaProductsResponse;
-      rows.push(...(data.datos || []).map(mapRow).filter((r) => r.sku));
+      const result = await this.fetchPage(credentials, cache, pagina);
+      cache = result.tokenCache;
+      rows.push(...result.rows);
 
-      if (!data.hayMas) break;
-      pagina = data.siguientePagina ?? pagina + 1;
-      reloginAttempted = false;
+      if (!result.hasMore || result.nextPage == null) break;
+      pagina = result.nextPage;
       await sleep(REQUEST_DELAY_MS);
     }
 
     this.logger.log(`Catálogo Noriega descargado: ${rows.length} productos`);
-    return { rows, tokenCache: cache };
+    return { rows, tokenCache: cache! };
   }
 }
