@@ -607,7 +607,12 @@ export default function DropshippingPage() {
                       <td className="px-4 py-3 font-medium text-gray-900">
                         <span className="text-gray-400 font-mono text-xs mr-1">{dp.product?.sku}</span>{dp.product?.name}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{dp.dropshipSupplier?.supplier?.name}</td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {dp.dropshipSupplier?.supplier?.name}
+                        {dp.supplierSku && (
+                          <div className="text-xs text-gray-400 font-mono">SKU prov.: {dp.supplierSku}</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right text-gray-700">{fmt(sale)}</td>
                       <td className="px-4 py-3 text-right text-gray-700">{fmt(cost)}</td>
                       <td className={`px-4 py-3 text-right font-medium ${sale - cost >= 0 ? 'text-green-600' : 'text-red-600'}`}>
