@@ -77,8 +77,9 @@ export class PosController {
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
     @Query('days') days?: string,
+    @Query('channel') channel?: string,
   ) {
-    return this.service.getWeeklySales(user, companyId, Number(days) || 7);
+    return this.service.getWeeklySales(user, companyId, Number(days) || 7, channel);
   }
 
   @Get('sales/monthly')
@@ -86,8 +87,10 @@ export class PosController {
   getMonthlySales(
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
+    @Query('months') months?: string,
+    @Query('channel') channel?: string,
   ) {
-    return this.service.getMonthlySales(user, companyId);
+    return this.service.getMonthlySales(user, companyId, Number(months) || 12, channel);
   }
 
   @Get('sales/:id')

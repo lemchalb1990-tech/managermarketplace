@@ -8,6 +8,10 @@ import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 
+function isValidSaleChannel(v?: string): v is SaleChannel {
+  return !!v && Object.values(SaleChannel).includes(v as SaleChannel);
+}
+
 @Injectable()
 export class PosService {
   private readonly logger = new Logger(PosService.name);
@@ -173,7 +177,7 @@ export class PosService {
     return result;
   }
 
-  async getWeeklySales(user: any, companyId?: string, days = 7) {
+  async getWeeklySales(user: any, companyId?: string, days = 7, channel?: string) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     const tz = await this.settings.getTimezone();
     const todayKey = dateKeyStringInTz(new Date(), tz);
@@ -183,6 +187,7 @@ export class PosService {
 
     const where: any = { createdAt: { gte: from, lt: to } };
     if (cid) where.companyId = cid;
+    if (isValidSaleChannel(channel)) where.channel = channel;
 
     const sales = await this.prisma.sale.findMany({
       where,
@@ -233,17 +238,25 @@ export class PosService {
     };
   }
 
-  // Ventas mes a mes del año en curso (enero → mes actual) para el gráfico de columnas del
-  // dashboard — mismo patrón que getWeeklySales pero agrupando por mes en vez de por día.
-  async getMonthlySales(user: any, companyId?: string) {
+  // Ventas mes a mes en una ventana móvil de `months` meses terminando en el mes actual
+  // (ej. months=12 y estamos en 2026-09 -> desde 2025-10) — mismo patrón que getWeeklySales
+  // pero agrupando por mes en vez de por día.
+  async getMonthlySales(user: any, companyId?: string, months = 12, channel?: string) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     const tz = await this.settings.getTimezone();
     const now = new Date();
-    const [year, currentMonth] = dateKeyStringInTz(now, tz).split('-').map(Number);
+    const [currentYear, currentMonth] = dateKeyStringInTz(now, tz).split('-').map(Number);
 
-    const from = startOfDayInTz(tz, `${year}-01-01`);
+    // Índice absoluto de mes (año*12 + mes-1) para poder recorrer la ventana sin preocuparse
+    // por el cruce de año.
+    const currentMonthIdx = currentYear * 12 + (currentMonth - 1);
+    const startMonthIdx = currentMonthIdx - (months - 1);
+    const monthKey = (idx: number) => `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`;
+
+    const from = startOfDayInTz(tz, `${monthKey(startMonthIdx)}-01`);
     const where: any = { createdAt: { gte: from, lte: now } };
     if (cid) where.companyId = cid;
+    if (isValidSaleChannel(channel)) where.channel = channel;
 
     const sales = await this.prisma.sale.findMany({
       where,
@@ -251,16 +264,16 @@ export class PosService {
     });
 
     const result = [];
-    for (let m = 1; m <= currentMonth; m++) {
-      const monthStart = startOfDayInTz(tz, `${year}-${String(m).padStart(2, '0')}-01`);
-      const nextMonth = m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2, '0')}-01`;
-      const monthEnd = startOfDayInTz(tz, nextMonth);
+    for (let i = 0; i < months; i++) {
+      const idx = startMonthIdx + i;
+      const monthStart = startOfDayInTz(tz, `${monthKey(idx)}-01`);
+      const monthEnd = startOfDayInTz(tz, `${monthKey(idx + 1)}-01`);
 
       const monthSales = sales.filter((s) => s.createdAt >= monthStart && s.createdAt < monthEnd);
       const total = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
 
       result.push({
-        month: `${year}-${String(m).padStart(2, '0')}`,
+        month: monthKey(idx),
         label: monthStart.toLocaleDateString('es-CL', { month: 'short', timeZone: tz }),
         total,
         count: monthSales.length,
@@ -268,10 +281,9 @@ export class PosService {
     }
 
     return {
-      year,
       months: result,
-      yearTotal: result.reduce((s, r) => s + r.total, 0),
-      yearCount: result.reduce((s, r) => s + r.count, 0),
+      total: result.reduce((s, r) => s + r.total, 0),
+      count: result.reduce((s, r) => s + r.count, 0),
     };
   }
 

@@ -719,16 +719,19 @@ export const api = {
       if (params.date) q.set('date', params.date);
       return apiFetch<any>(`/pos/sales/summary?${q}`, {}, token);
     },
-    weeklySales: (token: string, params?: { companyId?: string; days?: number }) => {
+    weeklySales: (token: string, params?: { companyId?: string; days?: number; channel?: string }) => {
       const q = new URLSearchParams();
       if (params?.companyId) q.set('companyId', params.companyId);
       if (params?.days) q.set('days', String(params.days));
+      if (params?.channel) q.set('channel', params.channel);
       return apiFetch<{ days: any[]; byStore: any[] }>(`/pos/sales/weekly?${q}`, {}, token);
     },
-    monthlySales: (token: string, params?: { companyId?: string }) => {
+    monthlySales: (token: string, params?: { companyId?: string; months?: number; channel?: string }) => {
       const q = new URLSearchParams();
       if (params?.companyId) q.set('companyId', params.companyId);
-      return apiFetch<{ year: number; months: any[]; yearTotal: number; yearCount: number }>(`/pos/sales/monthly?${q}`, {}, token);
+      if (params?.months) q.set('months', String(params.months));
+      if (params?.channel) q.set('channel', params.channel);
+      return apiFetch<{ months: any[]; total: number; count: number }>(`/pos/sales/monthly?${q}`, {}, token);
     },
     stockMovements: (productId: string, token: string) =>
       apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),

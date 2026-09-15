@@ -67,7 +67,6 @@ export default function DashboardPage() {
   const tz = useDashboardTimezone();
 
   const [summary, setSummary] = useState<any>(null);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
@@ -96,17 +95,15 @@ export default function DashboardPage() {
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
       api.pos.weeklySales(token, { companyId }).catch(() => ({ days: [], byStore: [] })),
-      api.pos.monthlySales(token, { companyId }).catch(() => ({ year: new Date().getFullYear(), months: [], yearTotal: 0, yearCount: 0 })),
       api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
       api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
       api.catalog.list(token, companyId).catch(() => []),
-    ]).then(([sum, weekly, monthly, pending, preparing, ready, sales, products]) => {
+    ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
       setWeeklyData((weekly as any)?.days || []);
       setStoreBreakdown((weekly as any)?.byStore || []);
-      setMonthlyData((monthly as any)?.months || []);
 
       const pendingR = pending as any;
       const preparingR = preparing as any;
@@ -142,15 +139,57 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(raf);
   }, [loading]);
 
+  // Widget "Reportes de ventas" (calcado del de coremarkets.cl): tabs de período + filtro
+  // de canal, con su propia carga independiente del resto del dashboard.
+  const REPORT_PERIODS = [
+    { key: '12m', label: '12 meses' },
+    { key: '6m', label: '6 meses' },
+    { key: '30d', label: '30 días' },
+    { key: '7d', label: '7 días' },
+  ] as const;
+  type ReportPeriod = typeof REPORT_PERIODS[number]['key'];
+
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>('12m');
+  const [reportChannel, setReportChannel] = useState('');
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [reportLoading, setReportLoading] = useState(true);
+  const isDailyReport = reportPeriod === '30d' || reportPeriod === '7d';
+
+  const loadReport = useCallback(() => {
+    const token = getToken();
+    if (!token || !user) return;
+    if (isSuperAdmin && !selectedCompanyId) return;
+
+    setReportLoading(true);
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    const channel = reportChannel || undefined;
+
+    const req = isDailyReport
+      ? api.pos.weeklySales(token, { companyId, days: reportPeriod === '30d' ? 30 : 7, channel }).then((r) => r.days)
+      : api.pos.monthlySales(token, { companyId, months: reportPeriod === '12m' ? 12 : 6, channel }).then((r) => r.months);
+
+    req.then((rows) => setReportData(rows || [])).catch(() => setReportData([])).finally(() => setReportLoading(false));
+  }, [user, isSuperAdmin, selectedCompanyId, reportPeriod, reportChannel, isDailyReport]);
+
+  useEffect(() => { loadReport(); }, [loadReport]);
+  useEffect(() => onActivity(['sale'], loadReport), [loadReport]);
+
+  const [reportChartReady, setReportChartReady] = useState(false);
+  useEffect(() => {
+    if (reportLoading) { setReportChartReady(false); return; }
+    const raf = requestAnimationFrame(() => setReportChartReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [reportLoading]);
+
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
   const weekTotal = weeklyData.reduce((s, d) => s + (d.total || 0), 0);
   const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
   const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
   const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
 
-  const maxMonthly = Math.max(...monthlyData.map((d) => d.total), 1);
-  const yearTotal = monthlyData.reduce((s, d) => s + (d.total || 0), 0);
-  const bestMonth = monthlyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
+  const reportMax = Math.max(...reportData.map((d) => d.total), 1);
+  const reportTotal = reportData.reduce((s, d) => s + (d.total || 0), 0);
+  const reportAvg = reportData.length > 0 ? reportTotal / reportData.length : 0;
 
   const DONUT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'];
   const totalStoreSales = storeBreakdown.reduce((s, x) => s + x.count, 0);
@@ -167,7 +206,6 @@ export default function DashboardPage() {
   const dateLabel = now.toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
-  const currentYear = now.toLocaleDateString('es-CL', { year: 'numeric', timeZone: tz });
 
   if (loading) {
     return (
@@ -235,41 +273,71 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <SectionCard
-          title="Ventas totales por mes"
+          title="Reportes de ventas"
           actions={
-            <span className="text-xs text-[var(--text-muted)]">
-              Total {currentYear} <span className="font-semibold text-[var(--text-2)]">${Math.round(yearTotal).toLocaleString('es-CL')}</span>
-            </span>
+            <div className="flex items-center gap-1 bg-[var(--surface-soft)] rounded-lg p-1">
+              {REPORT_PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setReportPeriod(p.key)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    reportPeriod === p.key
+                      ? 'bg-[var(--brand)] text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           }
         >
-          {monthlyData.length === 0 ? (
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">{isDailyReport ? 'Promedio por día' : 'Promedio por mes'}</p>
+              <p className="text-2xl font-bold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
+            </div>
+            <div>
+              <label className="block text-[11px] text-[var(--text-muted)] mb-1">Canal de venta</label>
+              <select
+                value={reportChannel}
+                onChange={(e) => setReportChannel(e.target.value)}
+                className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--surface)] text-[var(--text)]"
+              >
+                <option value="">Todos</option>
+                {Object.entries(CHANNEL_LABEL).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {reportData.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
             <div className="flex items-end gap-1.5">
-              {monthlyData.map((m, i) => {
-                const h = maxMonthly > 0 ? Math.max((m.total / maxMonthly) * 128, m.total > 0 ? 4 : 0) : 0;
-                const isCurrent = i === monthlyData.length - 1;
-                const isBest = bestMonth && m.month === bestMonth.month && m.total > 0;
+              {reportData.map((d, i) => {
+                const h = reportMax > 0 ? Math.max((d.total / reportMax) * 128, d.total > 0 ? 4 : 0) : 0;
+                const isCurrent = i === reportData.length - 1;
                 return (
-                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div key={d.month || d.date || i} className="flex-1 flex flex-col items-center gap-1.5">
                     <div className="w-full h-32 flex flex-col justify-end relative">
-                      {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor mes">🏆</span>}
                       {h > 0 ? (
                         <div className="w-full rounded-t-md bg-[var(--brand)] ease-out"
-                          style={{ height: chartsReady ? `${h}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
+                          style={{ height: reportChartReady ? `${h}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
                       )}
                     </div>
                     <div className="text-center">
-                      {m.count > 0 ? (
-                        <p className="text-xs font-semibold text-[var(--text-2)]">{fmtCompactCLP(m.total)}</p>
+                      {d.count > 0 ? (
+                        <p className="text-xs font-semibold text-[var(--text-2)]">{fmtCompactCLP(d.total)}</p>
                       ) : (
                         <p className="text-xs text-[var(--text-muted)]">—</p>
                       )}
                       <p className={`text-xs leading-tight capitalize ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
                         style={isCurrent ? { color: 'var(--info)' } : undefined}>
-                        {m.label}
+                        {d.label}
                       </p>
                     </div>
                   </div>
