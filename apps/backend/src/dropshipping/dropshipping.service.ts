@@ -382,9 +382,15 @@ export class DropshippingService {
     const rows = await this.fetchProviderCatalog(ds);
     if (!rows.length) throw new BadRequestException('El proveedor no devolvió productos');
 
-    const result = await this.applyCatalogRows(ds, rows, { createNew: false });
-    await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
-    return result;
+    try {
+      const result = await this.applyCatalogRows(ds, rows, { createNew: false });
+      await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
+      return result;
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error(`syncFromApiProvider falló para el proveedor ${ds.id}: ${err?.stack || err}`);
+      throw new BadRequestException(err?.message || 'No se pudo sincronizar con el proveedor');
+    }
   }
 
   // Descarga el catálogo completo del proveedor API (login + token cacheado + paginación)
@@ -411,13 +417,23 @@ export class DropshippingService {
     }
 
     // Cachea el token nuevo/reutilizado ya mismo, para no perderlo si algo falla después.
-    await this.prisma.dropshipSupplier.update({
-      where: { id: ds.id },
-      data: { apiToken: fetchResult.tokenCache.token, apiTokenExpiresAt: fetchResult.tokenCache.expiresAt },
-    });
+    // Es solo una optimización (evita reloguear la próxima vez): si falla, no debe tumbar
+    // la respuesta que el usuario sí está esperando.
+    await this.cacheProviderToken(ds.id, fetchResult.tokenCache);
 
     this.catalogCache.set(ds.id, { rows: fetchResult.rows, hasMore: false, nextProviderPage: null, fetchedAt: Date.now() });
     return fetchResult.rows;
+  }
+
+  private async cacheProviderToken(supplierId: string, tokenCache: { token: string; expiresAt: Date }) {
+    try {
+      await this.prisma.dropshipSupplier.update({
+        where: { id: supplierId },
+        data: { apiToken: tokenCache.token, apiTokenExpiresAt: tokenCache.expiresAt },
+      });
+    } catch (err: any) {
+      this.logger.warn(`No se pudo cachear el token del proveedor para ${supplierId}: ${err?.message || err}`);
+    }
   }
 
   // Trae UNA página del proveedor (rápido) y persiste el token. Usado por browseCatalog
@@ -442,10 +458,7 @@ export class DropshippingService {
       throw new BadRequestException(`No se pudo conectar con el proveedor: ${err?.message || err}`);
     }
 
-    await this.prisma.dropshipSupplier.update({
-      where: { id: ds.id },
-      data: { apiToken: result.tokenCache.token, apiTokenExpiresAt: result.tokenCache.expiresAt },
-    });
+    await this.cacheProviderToken(ds.id, result.tokenCache);
 
     return result;
   }
@@ -461,56 +474,64 @@ export class DropshippingService {
       throw new BadRequestException('Este proveedor usa un feed URL; no tiene catálogo consultable por API');
     }
 
-    let cached = this.catalogCache.get(id);
-    const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS;
+    try {
+      let cached = this.catalogCache.get(id);
+      const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS;
 
-    if (opts.refresh || stale) {
-      const first = await this.fetchProviderPage(ds, 1);
-      cached = { rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now() };
-      this.catalogCache.set(id, cached);
-    } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
-      const next = await this.fetchProviderPage(ds, cached!.nextProviderPage);
-      cached = {
-        rows: [...cached!.rows, ...next.rows],
-        hasMore: next.hasMore,
-        nextProviderPage: next.nextPage,
-        fetchedAt: cached!.fetchedAt,
+      if (opts.refresh || stale) {
+        const first = await this.fetchProviderPage(ds, 1);
+        cached = { rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now() };
+        this.catalogCache.set(id, cached);
+      } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
+        const next = await this.fetchProviderPage(ds, cached!.nextProviderPage);
+        cached = {
+          rows: [...cached!.rows, ...next.rows],
+          hasMore: next.hasMore,
+          nextProviderPage: next.nextPage,
+          fetchedAt: cached!.fetchedAt,
+        };
+        this.catalogCache.set(id, cached);
+      }
+
+      const linked = await this.prisma.dropshipProduct.findMany({
+        where: { dropshipSupplierId: id },
+        select: { supplierSku: true },
+      });
+      const linkedSkus = new Set(linked.map((p) => p.supplierSku).filter(Boolean) as string[]);
+
+      let rows = cached!.rows;
+      const q = (opts.q || '').trim().toLowerCase();
+      if (q) {
+        rows = rows.filter((r) =>
+          r.sku.toLowerCase().includes(q) ||
+          r.name?.toLowerCase().includes(q) ||
+          r.description?.toLowerCase().includes(q));
+      }
+
+      const total = rows.length;
+      const pageSize = Math.min(Math.max(1, opts.pageSize ?? 50), 200);
+      const page = Math.max(1, opts.page ?? 1);
+      const pageRows = rows
+        .slice((page - 1) * pageSize, page * pageSize)
+        .map((r) => ({ ...r, alreadyLinked: linkedSkus.has(r.sku) }));
+
+      return {
+        rows: pageRows,
+        total,
+        page,
+        pages: Math.max(1, Math.ceil(total / pageSize)),
+        fetchedAt: new Date(cached!.fetchedAt).toISOString(),
+        // Hay más productos en el proveedor que todavía no se han traído al buscador
+        // (el catálogo completo no cabe/no conviene descargarlo entero de una).
+        providerHasMore: cached!.hasMore,
       };
-      this.catalogCache.set(id, cached);
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      // Cualquier otra falla (Prisma, bug, etc.) queda en el log del servidor con su
+      // stack completo, y al usuario le llega un mensaje accionable en vez de un 500 mudo.
+      this.logger.error(`browseCatalog falló para el proveedor ${id}: ${err?.stack || err}`);
+      throw new BadRequestException(err?.message || 'No se pudo consultar el catálogo del proveedor');
     }
-
-    const linked = await this.prisma.dropshipProduct.findMany({
-      where: { dropshipSupplierId: id },
-      select: { supplierSku: true },
-    });
-    const linkedSkus = new Set(linked.map((p) => p.supplierSku).filter(Boolean) as string[]);
-
-    let rows = cached!.rows;
-    const q = (opts.q || '').trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((r) =>
-        r.sku.toLowerCase().includes(q) ||
-        r.name?.toLowerCase().includes(q) ||
-        r.description?.toLowerCase().includes(q));
-    }
-
-    const total = rows.length;
-    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 50), 200);
-    const page = Math.max(1, opts.page ?? 1);
-    const pageRows = rows
-      .slice((page - 1) * pageSize, page * pageSize)
-      .map((r) => ({ ...r, alreadyLinked: linkedSkus.has(r.sku) }));
-
-    return {
-      rows: pageRows,
-      total,
-      page,
-      pages: Math.max(1, Math.ceil(total / pageSize)),
-      fetchedAt: new Date(cached!.fetchedAt).toISOString(),
-      // Hay más productos en el proveedor que todavía no se han traído al buscador
-      // (el catálogo completo no cabe/no conviene descargarlo entero de una).
-      providerHasMore: cached!.hasMore,
-    };
   }
 
   // Importa solo los SKU que el usuario seleccionó tras consultar el catálogo (browseCatalog).
@@ -530,9 +551,15 @@ export class DropshippingService {
     const rows = cached.rows.filter((r) => wanted.has(r.sku));
     if (!rows.length) throw new BadRequestException('Esos productos ya no están en el último catálogo consultado; actualiza la búsqueda');
 
-    const result = await this.applyCatalogRows(ds, rows, { createNew: true });
-    await this.prisma.dropshipSupplier.update({ where: { id }, data: { lastSyncedAt: new Date() } });
-    return result;
+    try {
+      const result = await this.applyCatalogRows(ds, rows, { createNew: true });
+      await this.prisma.dropshipSupplier.update({ where: { id }, data: { lastSyncedAt: new Date() } });
+      return result;
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error(`importSelected falló para el proveedor ${id}: ${err?.stack || err}`);
+      throw new BadRequestException(err?.message || 'No se pudieron importar los productos seleccionados');
+    }
   }
 
   // Crea/actualiza DropshipProduct y Product a partir de filas ya normalizadas, sin

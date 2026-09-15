@@ -89,9 +89,13 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       throw new Error(data?.message || `No se pudo autenticar con el proveedor (${res.status})`);
     }
     const login = data as NoriegaLoginResponse;
+    // Si el proveedor no manda venceEnSegundos con el nombre/forma esperada, cae a 8h
+    // (documentado) en vez de construir una fecha inválida que después Prisma rechaza.
+    const seconds = Number(login.venceEnSegundos);
+    const ttlSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 8 * 60 * 60;
     return {
       token: login.token,
-      expiresAt: new Date(Date.now() + login.venceEnSegundos * 1000),
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000),
     };
   }
 
