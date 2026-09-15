@@ -42,6 +42,7 @@ export function SalesImportModal({
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -91,12 +92,27 @@ export function SalesImportModal({
 
   async function handleConfirm() {
     if (selected.size === 0) return;
+    const ids = Array.from(selected);
     setImporting(true);
     setError('');
+    setImportProgress({ done: 0, total: ids.length });
+    // Se importa una orden a la vez (en vez de mandar todo el lote en una sola llamada) para
+    // poder mostrar el % de avance real — el modal queda bloqueado mientras esto corre.
+    const combined = { imported: 0, skipped: 0, errors: [] as string[] };
     try {
       const token = getToken()!;
-      const res = await api.marketplace.confirmSalesImport(connectionId, Array.from(selected), token, createDispatchOrder);
-      setResult(res);
+      for (const id of ids) {
+        try {
+          const res = await api.marketplace.confirmSalesImport(connectionId, [id], token, createDispatchOrder);
+          combined.imported += res.imported;
+          combined.skipped += res.skipped;
+          combined.errors.push(...res.errors);
+        } catch (err: any) {
+          combined.errors.push(err.message || `Orden ${id}: error al importar.`);
+        }
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      setResult(combined);
     } catch (err: any) {
       setError(err.message || 'Error al importar las ventas.');
     } finally {
@@ -119,8 +135,30 @@ export function SalesImportModal({
               Trae ventas ya realizadas en Mercado Libre como historial. No descuenta stock ni genera movimientos de inventario.
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          {!importing && (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          )}
         </div>
+
+        {importing && (
+          <div className="px-6 py-3 border-b border-gray-100 shrink-0 space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-yellow-500 rounded-full animate-spin" />
+                Importando {importProgress.done} de {importProgress.total}...
+              </span>
+              <span className="font-semibold text-gray-700">
+                {importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-yellow-400 transition-all duration-200"
+                style={{ width: `${importProgress.total > 0 ? (importProgress.done / importProgress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3 shrink-0">
           <div>
@@ -296,7 +334,7 @@ export function SalesImportModal({
           ) : (
             <div className="w-full space-y-2">
               <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
-                <input type="checkbox" checked={createDispatchOrder}
+                <input type="checkbox" checked={createDispatchOrder} disabled={importing}
                   onChange={(e) => setCreateDispatchOrder(e.target.checked)}
                   className="mt-0.5 rounded" />
                 <span>
@@ -307,15 +345,17 @@ export function SalesImportModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
                 <div className="flex gap-2">
-                  <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                    Cancelar
-                  </button>
+                  {!importing && (
+                    <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                      Cancelar
+                    </button>
+                  )}
                   <button
                     onClick={handleConfirm}
                     disabled={importing || selected.size === 0}
                     className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
                   >
-                    {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
+                    {importing ? `Importando... ${Math.round((importProgress.done / Math.max(importProgress.total, 1)) * 100)}%` : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
                   </button>
                 </div>
               </div>
