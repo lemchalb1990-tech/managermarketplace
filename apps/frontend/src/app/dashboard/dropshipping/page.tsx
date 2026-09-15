@@ -913,6 +913,7 @@ export default function DropshippingPage() {
                   <thead className="bg-gray-50 border-b border-gray-200 text-left text-gray-600 sticky top-0">
                     <tr>
                       <th className="px-4 py-2 w-8"></th>
+                      <th className="px-4 py-2 w-14"></th>
                       <th className="px-4 py-2 font-medium">SKU</th>
                       <th className="px-4 py-2 font-medium">Producto</th>
                       <th className="px-4 py-2 font-medium text-right">Precio prov.</th>
@@ -927,10 +928,17 @@ export default function DropshippingPage() {
                             checked={catalogSelected.has(r.sku)}
                             onChange={() => toggleCatalogRow(r.sku)} />
                         </td>
+                        <td className="px-4 py-2">
+                          {r.imageUrl ? (
+                            <img src={r.imageUrl} alt="" className="w-10 h-10 object-contain rounded border border-gray-200 bg-white" />
+                          ) : (
+                            <div className="w-10 h-10 rounded border border-gray-100 bg-gray-50" />
+                          )}
+                        </td>
                         <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.sku}</td>
                         <td className="px-4 py-2 text-gray-800">
                           {r.name || '—'}
-                          {r.description && <div className="text-xs text-gray-400">{r.description}</div>}
+                          {r.description && <div className="text-xs text-gray-400 whitespace-pre-line">{r.description}</div>}
                           {r.alreadyLinked && <div className="text-xs text-green-600">Ya vinculado</div>}
                         </td>
                         <td className="px-4 py-2 text-right text-gray-700">{r.cost != null ? fmt(r.cost) : '—'}</td>
@@ -938,7 +946,7 @@ export default function DropshippingPage() {
                       </tr>
                     ))}
                     {catalogRows.length === 0 && (
-                      <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">Sin resultados</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">Sin resultados</td></tr>
                     )}
                   </tbody>
                 </table>
