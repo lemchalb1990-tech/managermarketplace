@@ -197,7 +197,7 @@ export class PosService {
     const channelLabel: Record<string, string> = {
       POS: 'Punto de Venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
       WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
-      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
     };
     const byStore: Record<string, { label: string; channel: string; count: number; total: number }> = {};
     for (const s of sales) {
@@ -431,7 +431,7 @@ export class PosService {
     const CHANNEL_LABEL: Record<string, string> = {
       POS: 'Punto de Venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
       WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
-      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+      PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
     };
 
     const FULFILLMENT_LABEL: Record<string, string> = { PICKUP: 'Retiro en tienda', DELIVERY: 'Entrega a domicilio' };

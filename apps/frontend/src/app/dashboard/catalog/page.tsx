@@ -2245,7 +2245,7 @@ export default function CatalogPage() {
                         const channelLabel: Record<string, string> = {
                           POS: 'POS',
                           MERCADO_LIBRE: 'Mercado Libre',
-                          MANUAL: 'Manual',
+                          MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
                         };
                         const saleChannel = mov.saleItem?.sale?.channel;
                         return (

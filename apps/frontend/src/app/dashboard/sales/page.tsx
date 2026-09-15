@@ -13,7 +13,7 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
   MERCADO_LIBRE: 'Mercado Libre',
-  MANUAL: 'Manual',
+  MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
 
 const CHANNEL_COLORS: Record<string, string> = {

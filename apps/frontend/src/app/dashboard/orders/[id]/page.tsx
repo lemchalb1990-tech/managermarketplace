@@ -19,7 +19,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; border: stri
 const CHANNEL_LABEL: Record<string, string> = {
   POS: 'POS', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
   WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
-  PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+  PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {

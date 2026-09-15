@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string }> = {
 const CHANNEL_LABEL: Record<string, string> = {
   POS: 'POS', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify',
   WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
-  PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
+  PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
 
 // Sombra más marcada que la de `.ui-card` para que los recuadros del dashboard
@@ -353,7 +353,11 @@ export default function DashboardPage() {
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
             <div className="flex items-end gap-1.5">
+              {/* Con muchas columnas (30 días) no entra un valor permanente por barra sin
+                  truncarse a algo ilegible — ahí el valor solo aparece al pasar el mouse,
+                  con su propio fondo, para poder mostrarse completo sin chocar con los vecinos. */}
               {reportData.map((d, i) => {
+                const isDense = reportData.length > 12;
                 // Escala a 108px (no a los 128px del alto real del cuadro) para dejar
                 // siempre ~20px libres arriba de la barra más alta y que el valor
                 // flotante nunca se salga del recuadro de la columna.
@@ -365,10 +369,15 @@ export default function DashboardPage() {
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {h > 0 && (
                         <span
-                          className="absolute inset-x-0 text-center text-[10px] font-semibold text-[var(--text-2)] truncate px-0.5 transition-colors group-hover:text-[var(--text)]"
+                          className={isDense
+                            ? 'absolute left-1/2 -translate-x-1/2 z-20 whitespace-nowrap rounded-md border border-[var(--border-soft)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text)] shadow-sm opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100'
+                            : 'absolute inset-x-0 text-center text-[10px] font-semibold text-[var(--text-2)] truncate px-0.5 transition-colors group-hover:text-[var(--text)]'
+                          }
                           style={{
                             bottom: reportChartReady ? `${h + 4}px` : '4px',
-                            transitionProperty: 'bottom, color', transitionDuration: '700ms', transitionDelay: `${i * 25}ms`,
+                            transitionProperty: isDense ? 'opacity' : 'bottom, color',
+                            transitionDuration: isDense ? '150ms' : '700ms',
+                            transitionDelay: isDense ? '0ms' : `${i * 25}ms`,
                           }}
                         >
                           {fmtCompactCLP(d.total)}
