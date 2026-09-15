@@ -12,11 +12,10 @@ export default function ShopifyPage() {
       color: '#96BF48',
       logo: Logos.shopify,
       supportsPublish: true,
-      helpText: 'Crea una app en el Dev Dashboard de Shopify (Settings → Apps → Develop apps) para obtener el Client ID y Client Secret.',
+      helpText: 'Crea una app personalizada en tu tienda Shopify (Configuración → Apps y canales de venta → Desarrollar apps), configura los permisos del Admin API que necesites (lectura/escritura de productos e inventario) e instálala. El Client ID y Client Secret de esa pantalla NO sirven para conectar acá — lo que necesitas es el "Admin API access token" (empieza con shpat_), que se muestra una sola vez en la pestaña "Credenciales de API" al instalar la app.',
       fields: [
         { key: 'shopDomain', label: 'Dominio de la tienda', placeholder: 'mitienda.myshopify.com', hint: 'Solo el dominio, sin https://' },
-        { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID', hint: 'Lo entrega la app al crearla en el Dev Dashboard' },
-        { key: 'accessToken', label: 'Client Secret', type: 'password', placeholder: 'Tu Client Secret' },
+        { key: 'accessToken', label: 'Admin API Access Token', type: 'password', placeholder: 'shpat_...', hint: 'Pestaña "Credenciales de API" de tu app personalizada, no el Client ID/Secret' },
       ],
     }} />
   );
