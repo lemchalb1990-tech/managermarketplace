@@ -77,7 +77,7 @@ function KpiCard({
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { selectedCompanyId, companies } = useAdminCompany();
+  const { selectedCompanyId, companies, openPicker } = useAdminCompany();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -267,6 +267,17 @@ export default function DashboardPage() {
         ]}
         updatedAt={new Date()}
         actions={<span className="text-sm text-[var(--text-muted)] capitalize hidden sm:block">{dateLabel}</span>}
+        metaBelow
+        titleActions={isSuperAdmin && selectedCompanyId ? (
+          <button
+            onClick={openPicker}
+            title="Cambiar empresa"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
+          >
+            Gestionando <strong className="truncate">{companies.find((c: any) => c.id === selectedCompanyId)?.name ?? 'empresa'}</strong>
+            <span className="text-blue-500">▾</span>
+          </button>
+        ) : undefined}
       />
 
       {/* KPI cards */}

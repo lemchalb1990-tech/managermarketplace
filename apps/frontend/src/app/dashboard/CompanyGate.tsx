@@ -24,6 +24,9 @@ export function CompanyGate({ children }: { children: ReactNode }) {
   const [draftCompanyId, setDraftCompanyId] = useState('');
 
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
+  // El home del dashboard dibuja su propio selector de empresa junto al título
+  // (para no gastar una fila entera arriba solo para el chip) — acá no se duplica.
+  const rendersOwnChip = pathname === '/dashboard';
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
   const mustChoose = ready && !selectedCompanyId;
   const showModal = mustChoose || pickerOpen;
@@ -49,7 +52,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {selectedCompanyId && (
+      {selectedCompanyId && !rendersOwnChip && (
         // Chip compacto (no un banner de fila completa) para no restar espacio vertical —
         // mismo estilo en todas las vistas gestionadas por empresa.
         <div className="flex justify-end mb-3">

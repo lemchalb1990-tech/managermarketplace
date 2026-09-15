@@ -32,22 +32,43 @@ export function PageHeader({
   crumbs,
   actions,
   updatedAt,
+  titleActions,
+  metaBelow = false,
 }: {
   title: string;
   crumbs?: Crumb[];
   actions?: ReactNode;
   updatedAt?: Date | string | null;
+  /** Contenido a la derecha del título (ej. el selector de empresa). */
+  titleActions?: ReactNode;
+  /** Si es true, `updatedAt`/`actions` bajan a la fila del breadcrumb en vez de
+   * ir junto al título — para páginas con poco margen vertical arriba. */
+  metaBelow?: boolean;
 }) {
+  const meta = (updatedAt || actions) ? (
+    <div className="flex items-center gap-3">
+      {updatedAt && <LastUpdated at={updatedAt} />}
+      {actions}
+    </div>
+  ) : null;
+
+  const hasCrumbRow = (crumbs && crumbs.length > 0) || (metaBelow && meta);
+
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-      <div>
+    <div className="mb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="ui-page-title">{title}</h1>
-        {crumbs && crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
+        <div className="flex items-center gap-3">
+          {!metaBelow && meta}
+          {titleActions}
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        {updatedAt && <LastUpdated at={updatedAt} />}
-        {actions}
-      </div>
+      {hasCrumbRow && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>{crumbs && crumbs.length > 0 && <Breadcrumbs items={crumbs} />}</div>
+          {metaBelow && meta}
+        </div>
+      )}
     </div>
   );
 }
