@@ -12,6 +12,7 @@ const EXEMPT_PREFIXES = [
   '/dashboard/users',
   '/dashboard/access-profiles',
   '/dashboard/connections',
+  '/dashboard/mercadolibre/registros-sin-conexion',
   '/dashboard/emails',
   '/dashboard/settings',
 ];

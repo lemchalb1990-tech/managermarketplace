@@ -45,6 +45,12 @@ export class PosController {
     return this.service.bulkDeleteSales(dto.ids, user);
   }
 
+  @Get('sales/orphaned')
+  @Roles(Role.SUPER_ADMIN)
+  listOrphanedSales(@Query('page') page?: string) {
+    return this.service.listOrphanedSales(page);
+  }
+
   @Get('sales/export')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   async exportSales(

@@ -12,6 +12,13 @@ function isValidSaleChannel(v?: string): v is SaleChannel {
   return !!v && Object.values(SaleChannel).includes(v as SaleChannel);
 }
 
+// Canales que nunca tienen (ni tuvieron) una MarketplaceConnection propia — su venta
+// siempre nace sin connectionId, así que un connectionId null ahí es normal, no huérfano.
+// Cualquier otro canal (MERCADO_LIBRE, SHOPIFY, WALMART, etc.) siempre se crea CON
+// connectionId; si aparece en null es porque la conexión que la originó fue desconectada
+// (ON DELETE SET NULL) — esa venta queda "huérfana" y no debe mezclarse en ningún canal.
+const CONNECTIONLESS_CHANNELS: SaleChannel[] = [SaleChannel.POS, SaleChannel.MANUAL, SaleChannel.ORDER_REQUEST];
+
 @Injectable()
 export class PosService {
   private readonly logger = new Logger(PosService.name);
@@ -201,6 +208,12 @@ export class PosService {
     };
     const byStore: Record<string, { label: string; channel: string; count: number; total: number }> = {};
     for (const s of sales) {
+      // Venta de un canal con conexión (ML, Shopify, etc.) cuya cuenta ya se desconectó:
+      // se sigue contando en el total del período, pero no en el desglose por canal/tienda
+      // — no hay ninguna conexión activa a la que atribuirla. Un Super Admin puede revisar
+      // y limpiar estos registros desde Mercado Libre → Registros sin conexión.
+      if (!s.connection && !CONNECTIONLESS_CHANNELS.includes(s.channel)) continue;
+
       const label = s.connection?.name || channelLabel[s.channel] || s.channel;
       const key = `${s.channel}:${label}`;
       if (!byStore[key]) byStore[key] = { label, channel: s.channel, count: 0, total: 0 };
@@ -404,6 +417,31 @@ export class PosService {
       }
     }
     return { deleted, failed };
+  }
+
+  // Ventas de un canal con conexión (ML, Shopify, etc.) cuya cuenta ya se desconectó — quedan
+  // sin connectionId (ON DELETE SET NULL) y por eso no se pueden atribuir a ninguna empresa
+  // "conectada" hoy. Solo Super Admin las ve, para poder revisarlas/limpiarlas caso a caso.
+  async listOrphanedSales(page?: string) {
+    const where = { connectionId: null, channel: { notIn: CONNECTIONLESS_CHANNELS } };
+    const p = Math.max(1, parseInt(page || '1'));
+    const take = 30;
+    const skip = (p - 1) * take;
+
+    const [sales, total] = await Promise.all([
+      this.prisma.sale.findMany({
+        where,
+        select: {
+          id: true, channel: true, externalId: true, total: true, createdAt: true,
+          company: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.sale.count({ where }),
+    ]);
+    return { sales, total, page: p, pages: Math.ceil(total / take) };
   }
 
   async exportSalesCsv(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string }): Promise<string> {
