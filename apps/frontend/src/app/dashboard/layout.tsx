@@ -39,6 +39,7 @@ const navGroups: NavGroup[] = [
     key: 'canales',
     label: 'Sincronizaciones',
     items: [
+      { href: '/dashboard/mis-conexiones', label: 'Mis conexiones', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/ecommerce', label: 'E-commerce', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/billing', label: 'Facturación', perm: 'billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
       { href: '/dashboard/dropshipping', label: 'Dropshipping', perm: 'dropshipping', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dropshipping' },
