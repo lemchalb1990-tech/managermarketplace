@@ -261,6 +261,7 @@ export default function DashboardPage() {
         updatedAt={new Date()}
         actions={<span className="text-sm text-[var(--text-muted)] capitalize hidden sm:block">{dateLabel}</span>}
         metaBelow
+        tight
         titleActions={isSuperAdmin && selectedCompanyId ? (
           <button
             onClick={openPicker}

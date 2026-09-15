@@ -34,6 +34,7 @@ export function PageHeader({
   updatedAt,
   titleActions,
   metaBelow = false,
+  tight = false,
 }: {
   title: string;
   crumbs?: Crumb[];
@@ -44,6 +45,8 @@ export function PageHeader({
   /** Si es true, `updatedAt`/`actions` bajan a la fila del breadcrumb en vez de
    * ir junto al título — para páginas con poco margen vertical arriba. */
   metaBelow?: boolean;
+  /** Si es true, el margen inferior baja a la mitad (mb-2.5 en vez de mb-5). */
+  tight?: boolean;
 }) {
   const meta = (updatedAt || actions) ? (
     <div className="flex items-center gap-3">
@@ -55,7 +58,7 @@ export function PageHeader({
   const hasCrumbRow = (crumbs && crumbs.length > 0) || (metaBelow && meta);
 
   return (
-    <div className="mb-5">
+    <div className={tight ? 'mb-2.5' : 'mb-5'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="ui-page-title">{title}</h1>
         <div className="flex items-center gap-3">
