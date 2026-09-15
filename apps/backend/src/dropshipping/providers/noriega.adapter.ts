@@ -64,6 +64,7 @@ function mapRow(rec: Record<string, any>): DropshipCatalogRow {
     sku,
     name: [rec.nombre_producto, rec.marca_producto].filter(Boolean).join(' ').trim() || undefined,
     description: compat || undefined,
+    imageUrl: rec.foto ? String(rec.foto).trim() : undefined,
     stock: rec.stock != null ? Math.max(0, Math.round(Number(rec.stock))) : undefined,
     cost: cost != null ? Number(cost) : undefined,
     price: rec.precio != null ? Number(rec.precio) : undefined,
