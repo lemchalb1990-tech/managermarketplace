@@ -23,6 +23,18 @@ function primaryImageUrl(product: any): string | undefined {
   return img ? imgUrl(img.url) : undefined;
 }
 
+// Botón de fila calcado del "Top 10 productos más vendidos" de la referencia: neutro en
+// reposo, se pone verde cuando se pasa el mouse por toda la fila (no solo por el botón).
+function RowOpenIcon() {
+  return (
+    <span className="w-7 h-7 rounded-lg bg-[var(--surface-soft)] border border-[var(--border)] text-[var(--text-muted)] flex items-center justify-center shrink-0 transition-colors group-hover:bg-emerald-500 group-hover:border-emerald-500 group-hover:text-white">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 17 17 7M9 7h8v8" />
+      </svg>
+    </span>
+  );
+}
+
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
   PREPARING:  { label: 'Preparando', color: 'bg-blue-100 text-blue-700' },
@@ -393,7 +405,7 @@ export default function DashboardPage() {
           {urgentOrders.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-10">Sin órdenes activas</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-[var(--border-soft)]">
               {urgentOrders.map((order: any) => {
                 const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.PENDING;
                 const shortId = order.sale && order.sale.channel !== 'POS' && order.sale.externalId
@@ -403,7 +415,7 @@ export default function DashboardPage() {
                   <Link
                     key={order.id}
                     href={`/dashboard/orders/${order.id}`}
-                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors"
+                    className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -425,7 +437,7 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                    <span className="text-gray-300 text-sm shrink-0">›</span>
+                    <RowOpenIcon />
                   </Link>
                 );
               })}
@@ -444,8 +456,8 @@ export default function DashboardPage() {
           {recentSales.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">Sin ventas recientes</p>
           ) : (
-            <div className="space-y-0">
-              {recentSales.map((sale: any, i: number) => {
+            <div className="divide-y divide-[var(--border-soft)]">
+              {recentSales.map((sale: any) => {
                 const firstItem = sale.items?.[0];
                 const photoUrl = primaryImageUrl(firstItem?.product);
                 const extraItems = (sale.items?.length || 0) - 1;
@@ -453,9 +465,10 @@ export default function DashboardPage() {
                   ? `${firstItem.product.name}${extraItems > 0 ? ` +${extraItems} más` : ''}`
                   : (CHANNEL_LABEL[sale.channel] ?? sale.channel);
                 return (
-                <div
+                <Link
                   key={sale.id}
-                  className={`flex items-center gap-3 py-2.5 ${i < recentSales.length - 1 ? 'border-b border-gray-50' : ''}`}
+                  href="/dashboard/sales"
+                  className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                 >
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 overflow-hidden">
                     {photoUrl ? (
@@ -476,7 +489,8 @@ export default function DashboardPage() {
                   <span className="text-sm font-bold text-gray-900 shrink-0">
                     ${Number(sale.total).toLocaleString('es-CL')}
                   </span>
-                </div>
+                  <RowOpenIcon />
+                </Link>
                 );
               })}
             </div>
@@ -499,11 +513,15 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-[var(--border-soft)]">
               {criticalProducts.map((p: any) => {
                 const photoUrl = primaryImageUrl(p);
                 return (
-                <div key={p.id} className="flex items-center gap-3">
+                <Link
+                  key={p.id}
+                  href="/dashboard/catalog?stock=critical"
+                  className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                >
                   <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
                     {photoUrl ? (
                       <img src={photoUrl} alt={p.name} className="w-full h-full object-cover" />
@@ -520,7 +538,8 @@ export default function DashboardPage() {
                   }`}>
                     {p.stock === 0 ? 'Sin stock' : `${p.stock} ud.`}
                   </span>
-                </div>
+                  <RowOpenIcon />
+                </Link>
                 );
               })}
             </div>
