@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession } from '@/lib/auth';
@@ -70,6 +70,7 @@ const navGroups: NavGroup[] = [
     label: 'Operación',
     items: [
       { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
       { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
       { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null },
       { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null },
@@ -157,10 +158,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try { return localStorage.getItem(OPEN_KEY) || null; } catch { return null; }
   });
   const [collapsed, setCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1'); } catch { /* ignore */ }
   }, []);
+
+  // Cierra el menú de perfil al hacer clic fuera de él o al navegar a otra página.
+  useEffect(() => {
+    if (!profileOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [profileOpen]);
+
+  useEffect(() => {
+    setProfileOpen(false);
+  }, [pathname]);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -267,7 +286,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div key={g.key} className="border-b border-[var(--border-soft)]">
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[0.8125rem] font-semibold transition-colors ${
+                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-sm font-semibold transition-colors ${
                     active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
                   }`}
                 >
@@ -289,15 +308,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   open || hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
                 }`}
               >
+                <GroupIcon k={g.key} />
+                <span className={`flex-1 text-sm ${open ? 'font-bold' : 'font-semibold'}`}>
+                  {g.label}
+                </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                   strokeLinecap="round" strokeLinejoin="round"
                   className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}>
                   <path d="M9 6l6 6-6 6" />
                 </svg>
-                <GroupIcon k={g.key} />
-                <span className={open ? 'font-bold uppercase tracking-wide text-[0.75rem]' : 'font-semibold text-[0.8125rem]'}>
-                  {g.label}
-                </span>
               </button>
               {open && <div className="pb-1.5 space-y-0.5">{links}</div>}
             </div>
@@ -370,6 +389,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
               <span className="font-bold tracking-tight flex-1">Marketplace</span>
               <NotificationBell />
+
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => setProfileOpen((o) => !o)}
+                  className="flex items-center gap-2 px-2 py-1 rounded-[10px] hover:bg-white/10 transition-colors"
+                  aria-label="Perfil de usuario"
+                >
+                  <span className="w-[34px] h-[34px] rounded-full bg-white/25 text-white text-xs font-bold grid place-items-center shrink-0">
+                    {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
+                  </span>
+                  <span className="text-sm font-medium hidden sm:inline max-w-[140px] truncate">{user.name}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    className={`shrink-0 transition-transform ${profileOpen ? 'rotate-180' : ''}`}>
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-[220px] bg-white rounded-[10px] border border-gray-200 shadow-lg z-50 text-left overflow-hidden">
+                    <div className="px-4 py-3.5">
+                      <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</p>
+                      <p className="text-[11px] font-semibold mt-1 text-[#8a6d31]">{roleLabel}</p>
+                    </div>
+                    <div className="border-t border-gray-100" />
+                    <button
+                      onClick={logout}
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-medium text-red-600 hover:bg-gray-50"
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                )}
+              </div>
             </header>
             <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">
               <CompanyGate>{children}</CompanyGate>
