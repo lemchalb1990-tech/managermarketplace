@@ -268,9 +268,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-[15px] transition-colors ${
                   active
-                    ? 'bg-[var(--brand-light)] text-[var(--brand-ink)] font-semibold'
+                    ? 'bg-[#f5dfa8] text-[var(--brand-ink)] font-semibold'
                     : 'text-[var(--text-2)] font-medium hover:bg-[var(--surface-soft)]'
                 }`}
               >
@@ -287,13 +287,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div key={g.key} className="border-b border-[var(--border-soft)]">
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-sm font-semibold transition-colors ${
+                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[15px] font-semibold transition-colors ${
                     active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
                   }`}
                 >
                   <span className="w-3.5" />
                   <GroupIcon k="inicio" />
-                  <span>{item.label}</span>
+                  <span className="ml-1.5">{item.label}</span>
                 </Link>
               </div>
             );
@@ -310,7 +310,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }`}
               >
                 <GroupIcon k={g.key} />
-                <span className={`flex-1 text-sm ${open ? 'font-bold' : 'font-semibold'}`}>
+                <span className={`flex-1 text-[15px] ${open ? 'font-bold' : 'font-semibold'}`}>
                   {g.label}
                 </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
