@@ -143,21 +143,26 @@ export default function DashboardPage() {
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
 
-  // Widget "Reportes de ventas" (calcado del de coremarkets.cl): tabs de período + filtro
-  // de canal, con su propia carga independiente del resto del dashboard.
-  const REPORT_PERIODS = [
+  // Filtro de período compartido por "Historial de Ventas" y "Ventas por Canal - Tienda"
+  // (antes cada tarjeta tenía sus propios tabs) — vive junto a la fecha, arriba a la
+  // derecha, y ambas tarjetas reaccionan al mismo valor.
+  const DASHBOARD_PERIODS = [
     { key: '12m', label: '12 meses' },
     { key: '6m', label: '6 meses' },
     { key: '15d', label: '15 días' },
     { key: '7d', label: '7 días' },
+    { key: 'hoy', label: 'Hoy' },
   ] as const;
-  type ReportPeriod = typeof REPORT_PERIODS[number]['key'];
+  type DashboardPeriod = typeof DASHBOARD_PERIODS[number]['key'];
 
-  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>('12m');
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('12m');
+  const isDailyPeriod = dashboardPeriod !== '12m' && dashboardPeriod !== '6m';
+  const periodDays = dashboardPeriod === '15d' ? 15 : dashboardPeriod === '7d' ? 7 : dashboardPeriod === 'hoy' ? 1
+    : dashboardPeriod === '12m' ? 365 : 182;
+
   const [reportChannel, setReportChannel] = useState('');
   const [reportData, setReportData] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(true);
-  const isDailyReport = reportPeriod === '15d' || reportPeriod === '7d';
 
   const loadReport = useCallback(() => {
     const token = getToken();
@@ -168,12 +173,12 @@ export default function DashboardPage() {
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     const channel = reportChannel || undefined;
 
-    const req = isDailyReport
-      ? api.pos.weeklySales(token, { companyId, days: reportPeriod === '15d' ? 15 : 7, channel }).then((r) => r.days)
-      : api.pos.monthlySales(token, { companyId, months: reportPeriod === '12m' ? 12 : 6, channel }).then((r) => r.months);
+    const req = isDailyPeriod
+      ? api.pos.weeklySales(token, { companyId, days: periodDays, channel }).then((r) => r.days)
+      : api.pos.monthlySales(token, { companyId, months: dashboardPeriod === '12m' ? 12 : 6, channel }).then((r) => r.months);
 
     req.then((rows) => setReportData(rows || [])).catch(() => setReportData([])).finally(() => setReportLoading(false));
-  }, [user, isSuperAdmin, selectedCompanyId, reportPeriod, reportChannel, isDailyReport]);
+  }, [user, isSuperAdmin, selectedCompanyId, dashboardPeriod, isDailyPeriod, periodDays, reportChannel]);
 
   useEffect(() => { loadReport(); }, [loadReport]);
   useEffect(() => onActivity(['sale'], loadReport), [loadReport]);
@@ -185,17 +190,6 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(raf);
   }, [reportLoading]);
 
-  // "Ventas por tienda": mismos tabs de período que "Historial de Ventas", pero con "Hoy"
-  // en vez de "7 días" — igual que "Participación de cada canal" en la referencia.
-  const STORE_PERIODS = [
-    { key: '12m', label: '12 meses', days: 365 },
-    { key: '6m', label: '6 meses', days: 182 },
-    { key: '30d', label: '30 días', days: 30 },
-    { key: 'hoy', label: 'Hoy', days: 1 },
-  ] as const;
-  type StorePeriod = typeof STORE_PERIODS[number]['key'];
-
-  const [storePeriod, setStorePeriod] = useState<StorePeriod>('12m');
   const [storeLoading, setStoreLoading] = useState(true);
 
   const loadStoreBreakdown = useCallback(() => {
@@ -205,13 +199,12 @@ export default function DashboardPage() {
 
     setStoreLoading(true);
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
-    const days = STORE_PERIODS.find((p) => p.key === storePeriod)?.days ?? 365;
 
-    api.pos.weeklySales(token, { companyId, days })
+    api.pos.weeklySales(token, { companyId, days: periodDays })
       .then((r) => setStoreBreakdown(r.byStore || []))
       .catch(() => setStoreBreakdown([]))
       .finally(() => setStoreLoading(false));
-  }, [user, isSuperAdmin, selectedCompanyId, storePeriod]);
+  }, [user, isSuperAdmin, selectedCompanyId, periodDays]);
 
   useEffect(() => { loadStoreBreakdown(); }, [loadStoreBreakdown]);
   useEffect(() => onActivity(['sale'], loadStoreBreakdown), [loadStoreBreakdown]);
@@ -280,6 +273,26 @@ export default function DashboardPage() {
         ) : undefined}
       />
 
+      {/* Filtro de período de "Historial de Ventas" y "Ventas por Canal - Tienda" — un
+          solo selector arriba a la derecha en vez de un tab por tarjeta. */}
+      <div className="flex justify-end -mt-3">
+        <div className="flex items-center gap-1 bg-white rounded-full p-1 border border-[var(--border)]">
+          {DASHBOARD_PERIODS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setDashboardPeriod(p.key)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                dashboardPeriod === p.key
+                  ? 'bg-[var(--brand)] text-[var(--text)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
@@ -322,27 +335,10 @@ export default function DashboardPage() {
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
           style={CARD_SHADOW}
-          actions={
-            <div className="flex items-center gap-1 bg-white rounded-full p-1">
-              {REPORT_PERIODS.map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => setReportPeriod(p.key)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                    reportPeriod === p.key
-                      ? 'bg-[var(--brand)] text-[var(--text)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          }
         >
           <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
             <div>
-              <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyReport ? 'Promedio por día' : 'Promedio por mes'}</p>
+              <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
               <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
             </div>
             <div>
@@ -415,23 +411,6 @@ export default function DashboardPage() {
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Ventas por Canal - Tienda</span>}
           style={CARD_SHADOW}
-          actions={
-            <div className="flex items-center gap-1 bg-white rounded-full p-1">
-              {STORE_PERIODS.map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => setStorePeriod(p.key)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                    storePeriod === p.key
-                      ? 'bg-[var(--brand)] text-[var(--text)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          }
         >
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
