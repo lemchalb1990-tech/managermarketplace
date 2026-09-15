@@ -842,6 +842,20 @@ export const api = {
         ),
       testConnection: (data: { connectorType: 'FEED' | 'NORIEGA_API'; credentials: Record<string, string> }, token: string) =>
         apiFetch<{ success: boolean; message?: string }>('/dropshipping/suppliers/test-connection', { method: 'POST', body: JSON.stringify(data) }, token),
+      browseCatalog: (id: string, params: { q?: string; page?: number; pageSize?: number; refresh?: boolean }, token: string) => {
+        const q = new URLSearchParams();
+        if (params.q) q.set('q', params.q);
+        if (params.page) q.set('page', String(params.page));
+        if (params.pageSize) q.set('pageSize', String(params.pageSize));
+        if (params.refresh) q.set('refresh', '1');
+        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string }>(
+          `/dropshipping/suppliers/${id}/catalog?${q}`, {}, token,
+        );
+      },
+      importCatalog: (id: string, skus: string[], token: string) =>
+        apiFetch<{ created: number; updated: number; skipped: string[] }>(
+          `/dropshipping/suppliers/${id}/catalog/import`, { method: 'POST', body: JSON.stringify({ skus }) }, token,
+        ),
     },
     products: {
       list: (token: string, companyId?: string) => {

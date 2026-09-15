@@ -85,6 +85,17 @@ export default function DropshippingPage() {
   const [credentialsError, setCredentialsError] = useState('');
   const [credentialsNotice, setCredentialsNotice] = useState('');
 
+  const [catalogSupplier, setCatalogSupplier] = useState<any>(null);
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const [catalogRows, setCatalogRows] = useState<any[]>([]);
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogPages, setCatalogPages] = useState(1);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogSelected, setCatalogSelected] = useState<Set<string>>(new Set());
+  const [catalogImporting, setCatalogImporting] = useState(false);
+
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const companyId = isSuperAdmin ? selectedCompanyId : undefined;
   const blocked = isSuperAdmin && !selectedCompanyId;
@@ -201,6 +212,55 @@ export default function DropshippingPage() {
       setCredentialsError(err.message || 'No se pudieron guardar las credenciales');
     } finally {
       setCredentialsSaving(false);
+    }
+  }
+
+  async function loadCatalogPage(supplierId: string, page: number, q: string, refresh = false) {
+    setCatalogLoading(true);
+    setCatalogError('');
+    try {
+      const res = await api.dropshipping.suppliers.browseCatalog(supplierId, { q: q || undefined, page, pageSize: 50, refresh }, token());
+      setCatalogRows(res.rows);
+      setCatalogPage(res.page);
+      setCatalogPages(res.pages);
+      setCatalogTotal(res.total);
+    } catch (err: any) {
+      setCatalogError(err.message || 'No se pudo consultar el catálogo del proveedor.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  function openCatalogBrowse(s: any) {
+    setCatalogSupplier(s);
+    setCatalogQuery('');
+    setCatalogSelected(new Set());
+    setCatalogError('');
+    loadCatalogPage(s.id, 1, '');
+  }
+
+  function toggleCatalogRow(sku: string) {
+    setCatalogSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(sku)) next.delete(sku); else next.add(sku);
+      return next;
+    });
+  }
+
+  async function importCatalogSelection() {
+    if (!catalogSupplier || catalogSelected.size === 0) return;
+    setCatalogImporting(true);
+    setCatalogError('');
+    try {
+      const res = await api.dropshipping.suppliers.importCatalog(catalogSupplier.id, Array.from(catalogSelected), token());
+      setNotice(`Importados: ${res.created} nuevos, ${res.updated} actualizados${res.skipped.length ? `, ${res.skipped.length} omitidos` : ''}`);
+      setCatalogSelected(new Set());
+      await loadCatalogPage(catalogSupplier.id, catalogPage, catalogQuery);
+      await load();
+    } catch (err: any) {
+      setCatalogError(err.message || 'No se pudo importar la selección.');
+    } finally {
+      setCatalogImporting(false);
     }
   }
 
@@ -401,9 +461,14 @@ export default function DropshippingPage() {
                           </span>
                           <button disabled={busy || !s.hasCredentials}
                             onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
-                              setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
+                              setNotice(`Actualizado: ${r.updated} producto(s) ya vinculado(s)${r.skipped.length ? `, ${r.skipped.length} sin traer aún` : ''}`)))}
+                            title="Actualiza precio/stock de los productos ya vinculados. Para sumar productos nuevos usa 'Agregar productos'."
                             className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
                             Sincronizar
+                          </button>
+                          <button disabled={busy || !s.hasCredentials} onClick={() => openCatalogBrowse(s)}
+                            className="text-xs text-purple-600 hover:text-purple-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                            Agregar productos
                           </button>
                           <button disabled={busy} onClick={() => openCredentials(s)}
                             className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
@@ -774,6 +839,102 @@ export default function DropshippingPage() {
                   {credentialsSaving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {catalogSupplier && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-semibold text-gray-900">Agregar productos — {catalogSupplier.supplier?.name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Busca en el catálogo del proveedor y elige solo los productos que quieres vender.</p>
+              </div>
+              <button onClick={() => setCatalogSupplier(null)} disabled={catalogImporting}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-gray-100 flex items-center gap-2 shrink-0">
+              <input value={catalogQuery} placeholder="Buscar por SKU, nombre, marca o modelo..."
+                onChange={(e) => setCatalogQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') loadCatalogPage(catalogSupplier.id, 1, catalogQuery); }}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <button disabled={catalogLoading} onClick={() => loadCatalogPage(catalogSupplier.id, 1, catalogQuery)}
+                className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm disabled:opacity-50 whitespace-nowrap">
+                Buscar
+              </button>
+              <button disabled={catalogLoading} onClick={() => loadCatalogPage(catalogSupplier.id, 1, catalogQuery, true)}
+                title="Vuelve a descargar el catálogo del proveedor (puede tardar)"
+                className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm disabled:opacity-50 whitespace-nowrap">
+                Actualizar
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {catalogError && (
+                <div className="m-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{catalogError}</div>
+              )}
+              {catalogLoading && (
+                <div className="p-10 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
+                  <div className="w-8 h-8 border-4 border-gray-200 border-t-teal-500 rounded-full animate-spin" />
+                  <p>Consultando el catálogo del proveedor...</p>
+                </div>
+              )}
+              {!catalogLoading && !catalogError && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-left text-gray-600 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 w-8"></th>
+                      <th className="px-4 py-2 font-medium">SKU</th>
+                      <th className="px-4 py-2 font-medium">Producto</th>
+                      <th className="px-4 py-2 font-medium text-right">Precio prov.</th>
+                      <th className="px-4 py-2 font-medium text-right">Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {catalogRows.map((r) => (
+                      <tr key={r.sku} className={`hover:bg-gray-50 ${r.alreadyLinked ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-2">
+                          <input type="checkbox" disabled={r.alreadyLinked}
+                            checked={catalogSelected.has(r.sku)}
+                            onChange={() => toggleCatalogRow(r.sku)} />
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.sku}</td>
+                        <td className="px-4 py-2 text-gray-800">
+                          {r.name || '—'}
+                          {r.description && <div className="text-xs text-gray-400">{r.description}</div>}
+                          {r.alreadyLinked && <div className="text-xs text-green-600">Ya vinculado</div>}
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-700">{r.cost != null ? fmt(r.cost) : '—'}</td>
+                        <td className="px-4 py-2 text-right text-gray-700">{r.stock ?? '—'}</td>
+                      </tr>
+                    ))}
+                    {catalogRows.length === 0 && (
+                      <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">Sin resultados</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0">
+              <div className="text-xs text-gray-500">
+                {catalogTotal} producto(s) · página {catalogPage} de {catalogPages} · {catalogSelected.size} seleccionado(s)
+                <div className="flex gap-2 mt-1">
+                  <button disabled={catalogLoading || catalogPage <= 1}
+                    onClick={() => loadCatalogPage(catalogSupplier.id, catalogPage - 1, catalogQuery)}
+                    className="text-teal-600 hover:text-teal-700 disabled:opacity-30 disabled:hover:text-teal-600">← Anterior</button>
+                  <button disabled={catalogLoading || catalogPage >= catalogPages}
+                    onClick={() => loadCatalogPage(catalogSupplier.id, catalogPage + 1, catalogQuery)}
+                    className="text-teal-600 hover:text-teal-700 disabled:opacity-30 disabled:hover:text-teal-600">Siguiente →</button>
+                </div>
+              </div>
+              <button onClick={importCatalogSelection} disabled={catalogImporting || catalogSelected.size === 0}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 whitespace-nowrap">
+                {catalogImporting ? 'Agregando...' : `Agregar ${catalogSelected.size || ''} producto(s)`}
+              </button>
             </div>
           </div>
         </div>

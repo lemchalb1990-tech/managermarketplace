@@ -7,6 +7,7 @@ import {
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
   GenerateDropshipOrdersDto, DropshipReportQueryDto, SyncDropshipCatalogDto,
   PreviewDropshipFeedDto, TestDropshipConnectionDto,
+  BrowseDropshipCatalogDto, ImportDropshipCatalogDto,
 } from './dto/dropshipping.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -54,6 +55,22 @@ export class DropshippingController {
   @Post('suppliers/:id/sync-catalog')
   syncCatalog(@Param('id') id: string, @Body() dto: SyncDropshipCatalogDto, @CurrentUser() user: any) {
     return this.service.syncCatalog(id, user, dto.catalogUrl);
+  }
+
+  // Conectores API: consultar el catálogo del proveedor para elegir qué productos traer.
+  @Get('suppliers/:id/catalog')
+  browseCatalog(@Param('id') id: string, @Query() query: BrowseDropshipCatalogDto, @CurrentUser() user: any) {
+    return this.service.browseCatalog(id, user, {
+      q: query.q,
+      page: query.page ? Number(query.page) : undefined,
+      pageSize: query.pageSize ? Number(query.pageSize) : undefined,
+      refresh: query.refresh === '1' || query.refresh === 'true',
+    });
+  }
+
+  @Post('suppliers/:id/catalog/import')
+  importCatalog(@Param('id') id: string, @Body() dto: ImportDropshipCatalogDto, @CurrentUser() user: any) {
+    return this.service.importSelected(id, user, dto.skus);
   }
 
   // ─── Productos ─────────────────────────────────────────────────────────

@@ -25,6 +25,16 @@ interface CatalogRow {
   price?: number;
 }
 
+// Subconjunto de DropshipSupplier que necesitan los conectores API (login/token/credenciales).
+interface DropshipSupplierRef {
+  id: string;
+  companyId: string;
+  connectorType: DropshipConnectorType;
+  credentials: unknown;
+  apiToken: string | null;
+  apiTokenExpiresAt: Date | null;
+}
+
 // Alias de columnas aceptados en el feed del proveedor (JSON keys o cabeceras CSV).
 const FIELD_ALIASES: Record<keyof CatalogRow, string[]> = {
   sku: ['sku', 'codigo', 'código', 'code', 'id'],
@@ -154,12 +164,18 @@ function suggestMapping(columns: string[]): Record<string, string | null> {
   return result;
 }
 
+const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class DropshippingService {
   private readonly logger = new Logger(DropshippingService.name);
   // Conectores con API autenticada (login + token). FEED no pasa por acá: se maneja
   // directo con fetch() en syncCatalog, como siempre.
   private readonly apiProviders: Map<DropshipConnectorType, DropshipCatalogProvider>;
+  // Cache en memoria del último catálogo consultado a cada proveedor API, para poder
+  // paginar/buscar sin volver a pegarle al proveedor en cada tecleo. Se pierde si el
+  // proceso se reinicia (no es crítico: el usuario solo tiene que "Actualizar" de nuevo).
+  private readonly catalogCache = new Map<string, { rows: CatalogRow[]; fetchedAt: number }>();
 
   constructor(
     private prisma: PrismaService,
@@ -346,18 +362,30 @@ export class DropshippingService {
     return result;
   }
 
-  // Sincroniza el catálogo de un conector con API autenticada (login + token + paginación),
-  // reutilizando el mismo upsert de productos que usa el flujo de feed.
-  private async syncFromApiProvider(ds: {
-    id: string; companyId: string; connectorType: DropshipConnectorType;
-    credentials: unknown; apiToken: string | null; apiTokenExpiresAt: Date | null;
-  }) {
+  // "Sincronizar" para un conector API: SOLO actualiza precio/stock/nombre de los
+  // productos que el usuario ya eligió traer (DropshipProduct existente). No crea productos
+  // nuevos — el catálogo de un proveedor como Noriega tiene 18.000+ SKU y no todos aplican
+  // al negocio; para sumar productos nuevos el usuario los elige explícitamente con
+  // browseCatalog()/importSelected() (ver "Buscar y agregar productos" en la UI).
+  private async syncFromApiProvider(ds: DropshipSupplierRef) {
+    const rows = await this.fetchProviderCatalog(ds);
+    if (!rows.length) throw new BadRequestException('El proveedor no devolvió productos');
+
+    const result = await this.applyCatalogRows(ds, rows, { createNew: false });
+    await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
+    return result;
+  }
+
+  // Descarga el catálogo completo del proveedor API (login + token cacheado + paginación)
+  // y deja el token nuevo/reutilizado guardado. Usado tanto por el sync de actualización
+  // como por la búsqueda para elegir productos nuevos.
+  private async fetchProviderCatalog(ds: DropshipSupplierRef): Promise<CatalogRow[]> {
     const provider = this.apiProviders.get(ds.connectorType);
     if (!provider) throw new BadRequestException('Conector no soportado');
 
     const credentials = (ds.credentials as Record<string, string>) || {};
     if (!Object.keys(credentials).length) {
-      throw new BadRequestException('Configura las credenciales del proveedor antes de sincronizar');
+      throw new BadRequestException('Configura las credenciales del proveedor antes de continuar');
     }
 
     const cachedToken = ds.apiToken && ds.apiTokenExpiresAt
@@ -368,28 +396,95 @@ export class DropshippingService {
     try {
       fetchResult = await provider.fetchCatalog(credentials, cachedToken);
     } catch (err: any) {
-      throw new BadRequestException(`No se pudo sincronizar con el proveedor: ${err?.message || err}`);
+      throw new BadRequestException(`No se pudo conectar con el proveedor: ${err?.message || err}`);
     }
 
-    // Cachea el token nuevo/reutilizado antes de aplicar las filas, para no perderlo si
-    // el upsert falla a mitad de camino.
+    // Cachea el token nuevo/reutilizado ya mismo, para no perderlo si algo falla después.
     await this.prisma.dropshipSupplier.update({
       where: { id: ds.id },
       data: { apiToken: fetchResult.tokenCache.token, apiTokenExpiresAt: fetchResult.tokenCache.expiresAt },
     });
 
-    if (!fetchResult.rows.length) {
-      throw new BadRequestException('El proveedor no devolvió productos');
+    this.catalogCache.set(ds.id, { rows: fetchResult.rows, fetchedAt: Date.now() });
+    return fetchResult.rows;
+  }
+
+  // Consulta (paginada, con búsqueda) el catálogo de un proveedor API para que el usuario
+  // elija qué productos traer — no crea ni modifica nada todavía.
+  async browseCatalog(id: string, user: any, opts: { q?: string; page?: number; pageSize?: number; refresh?: boolean }) {
+    const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
+    if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
+    if (ds.connectorType === DropshipConnectorType.FEED) {
+      throw new BadRequestException('Este proveedor usa un feed URL; no tiene catálogo consultable por API');
     }
 
-    const result = await this.applyCatalogRows(ds, fetchResult.rows);
-    await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
+    let cached = this.catalogCache.get(id);
+    if (opts.refresh || !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS) {
+      const rows = await this.fetchProviderCatalog(ds);
+      cached = { rows, fetchedAt: Date.now() };
+    }
+
+    const linked = await this.prisma.dropshipProduct.findMany({
+      where: { dropshipSupplierId: id },
+      select: { supplierSku: true },
+    });
+    const linkedSkus = new Set(linked.map((p) => p.supplierSku).filter(Boolean) as string[]);
+
+    let rows = cached.rows;
+    const q = (opts.q || '').trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((r) =>
+        r.sku.toLowerCase().includes(q) ||
+        r.name?.toLowerCase().includes(q) ||
+        r.description?.toLowerCase().includes(q));
+    }
+
+    const total = rows.length;
+    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 50), 200);
+    const page = Math.max(1, opts.page ?? 1);
+    const pageRows = rows
+      .slice((page - 1) * pageSize, page * pageSize)
+      .map((r) => ({ ...r, alreadyLinked: linkedSkus.has(r.sku) }));
+
+    return {
+      rows: pageRows,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / pageSize)),
+      fetchedAt: new Date(cached.fetchedAt).toISOString(),
+    };
+  }
+
+  // Importa solo los SKU que el usuario seleccionó tras consultar el catálogo (browseCatalog).
+  async importSelected(id: string, user: any, skus: string[]) {
+    const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
+    if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
+    if (ds.connectorType === DropshipConnectorType.FEED) {
+      throw new BadRequestException('Este proveedor usa un feed URL; usa "Sincronizar" en vez de esto');
+    }
+    if (!skus?.length) throw new BadRequestException('Selecciona al menos un producto');
+
+    const cached = this.catalogCache.get(id);
+    if (!cached) throw new BadRequestException('Primero consulta el catálogo del proveedor');
+
+    const wanted = new Set(skus);
+    const rows = cached.rows.filter((r) => wanted.has(r.sku));
+    if (!rows.length) throw new BadRequestException('Esos productos ya no están en el último catálogo consultado; actualiza la búsqueda');
+
+    const result = await this.applyCatalogRows(ds, rows, { createNew: true });
+    await this.prisma.dropshipSupplier.update({ where: { id }, data: { lastSyncedAt: new Date() } });
     return result;
   }
 
   // Crea/actualiza DropshipProduct y Product a partir de filas ya normalizadas, sin
   // importar si vinieron de un feed CSV/JSON o de una API autenticada.
-  private async applyCatalogRows(ds: { id: string; companyId: string }, rows: CatalogRow[]) {
+  // createNew=false (usado por el sync de "actualización" de un conector API) solo
+  // refresca los productos ya vinculados; nunca crea ni auto-vincula uno nuevo — eso
+  // requiere que el usuario lo elija explícitamente vía importSelected().
+  private async applyCatalogRows(ds: { id: string; companyId: string }, rows: CatalogRow[], opts: { createNew?: boolean } = {}) {
+    const createNew = opts.createNew ?? true;
     let created = 0;
     let updated = 0;
     const skipped: string[] = [];
@@ -403,6 +498,8 @@ export class DropshippingService {
       });
 
       const cost = row.cost ?? existingDp?.supplierCost ?? undefined;
+
+      if (!existingDp && !createNew) { skipped.push(`${row.sku} (no importado — usa "Buscar y agregar productos")`); continue; }
 
       if (existingDp) {
         await this.prisma.$transaction([

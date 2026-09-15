@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsInt, IsEnum, Min, MaxLength, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsInt, IsEnum, Min, MaxLength, IsObject, IsArray, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DropshipOrderStatus, DropshipConnectorType } from '@prisma/client';
 
@@ -54,6 +54,17 @@ export class PreviewDropshipFeedDto {
 export class TestDropshipConnectionDto {
   @IsEnum(DropshipConnectorType) connectorType: DropshipConnectorType;
   @IsObject() credentials: Record<string, string>;
+}
+
+export class BrowseDropshipCatalogDto {
+  @IsOptional() @IsString() @MaxLength(200) q?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() pageSize?: string;
+  @IsOptional() @IsString() refresh?: string;
+}
+
+export class ImportDropshipCatalogDto {
+  @IsArray() @ArrayMinSize(1) @IsString({ each: true }) skus: string[];
 }
 
 // ─── Productos dropship ─────────────────────────────────────────────────────
