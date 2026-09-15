@@ -47,7 +47,7 @@ export default function SalesPage() {
   const [summary, setSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
-  const [channel, setChannel] = useState('');
+  const [channel, setChannel] = useState(() => searchParams.get('channel') || '');
   const [from, setFrom] = useState(() => searchParams.get('from') || '');
   const [to, setTo] = useState(() => searchParams.get('to') || '');
   const [search, setSearch] = useState('');

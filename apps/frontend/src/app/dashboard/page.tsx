@@ -304,17 +304,18 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <SectionCard
-          title="Historial de Ventas"
+          title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
           className="lg:col-span-2"
+          style={{ background: 'var(--info-bg)' }}
           actions={
-            <div className="flex items-center gap-1 bg-[var(--surface-soft)] rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-white rounded-full p-1">
               {REPORT_PERIODS.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => setReportPeriod(p.key)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
                     reportPeriod === p.key
-                      ? 'bg-[var(--brand)] text-white'
+                      ? 'bg-[var(--brand)] text-[var(--text)]'
                       : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`}
                 >
@@ -326,15 +327,15 @@ export default function DashboardPage() {
         >
           <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
             <div>
-              <p className="text-xs text-[var(--text-muted)]">{isDailyReport ? 'Promedio por día' : 'Promedio por mes'}</p>
-              <p className="text-2xl font-bold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
+              <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyReport ? 'Promedio por día' : 'Promedio por mes'}</p>
+              <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
             </div>
             <div>
               <label className="block text-[11px] text-[var(--text-muted)] mb-1">Canal de venta</label>
               <select
                 value={reportChannel}
                 onChange={(e) => setReportChannel(e.target.value)}
-                className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--surface)] text-[var(--text)]"
+                className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm bg-white text-[var(--text)]"
               >
                 <option value="">Todos</option>
                 {Object.entries(CHANNEL_LABEL).map(([key, label]) => (
@@ -355,7 +356,7 @@ export default function DashboardPage() {
                   <div key={d.month || d.date || i} className="flex-1 flex flex-col items-center gap-1.5">
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {h > 0 ? (
-                        <div className="w-full rounded-t-md bg-[var(--brand)] ease-out"
+                        <div className="w-full rounded-t-md bg-[#b8ccfa] ease-out"
                           style={{ height: reportChartReady ? `${h}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
@@ -380,16 +381,17 @@ export default function DashboardPage() {
         </SectionCard>
 
         <SectionCard
-          title="Ventas por tienda"
+          title={<span className="font-bold text-sm text-[var(--text)]">Ventas por Canal - Tienda</span>}
+          style={{ background: 'var(--info-bg)' }}
           actions={
-            <div className="flex items-center gap-1 bg-[var(--surface-soft)] rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-white rounded-full p-1">
               {STORE_PERIODS.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => setStorePeriod(p.key)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
                     storePeriod === p.key
-                      ? 'bg-[var(--brand)] text-white'
+                      ? 'bg-[var(--brand)] text-[var(--text)]'
                       : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`}
                 >
@@ -422,15 +424,36 @@ export default function DashboardPage() {
                   <span className="text-[10px] text-[var(--text-muted)]">ventas</span>
                 </div>
               </div>
-              <div className="w-full space-y-1.5">
-                {donutSegments.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-                    <span className="flex-1 truncate text-[var(--text-2)]">{s.label}</span>
-                    <span className="font-semibold text-[var(--text)]">{s.count}</span>
-                    <span className="text-[var(--text-muted)] w-9 text-right">{Math.round(s.pct)}%</span>
-                  </div>
-                ))}
+
+              <div className="w-full">
+                <div className="grid grid-cols-[1fr_auto_auto_auto_28px] gap-2 px-2.5 pb-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+                  <span>Canal</span>
+                  <span className="text-right">Órdenes</span>
+                  <span className="text-right">Ticket prom</span>
+                  <span className="text-right">Ventas totales</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-[var(--border-soft)]">
+                  {donutSegments.map((s, i) => {
+                    const avgTicket = s.count > 0 ? s.total / s.count : 0;
+                    return (
+                      <Link
+                        key={i}
+                        href={`/dashboard/sales?channel=${s.channel}`}
+                        className="group relative grid grid-cols-[1fr_auto_auto_auto_28px] items-center gap-2 px-2.5 py-2 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
+                          <span className="truncate text-xs text-[var(--text-2)]">{s.label}</span>
+                        </span>
+                        <span className="text-right text-xs font-semibold text-[var(--text)]">{s.count}</span>
+                        <span className="text-right text-xs text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</span>
+                        <span className="text-right text-xs font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</span>
+                        <RowOpenIcon />
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

@@ -3,7 +3,7 @@
   server como en client components. Los estilos viven en globals.css (clases .ui-*).
 */
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 export type Crumb = { label: string; href?: string };
 
@@ -71,15 +71,17 @@ export function SectionCard({
   title,
   actions,
   className = '',
+  style,
   children,
 }: {
   title?: ReactNode;
   actions?: ReactNode;
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
-    <div className={`ui-card ${className}`}>
+    <div className={`ui-card ${className}`} style={style}>
       {(title || actions) && (
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-soft)]">
           {title && <h2 className="font-semibold text-[var(--text)] text-sm">{title}</h2>}
