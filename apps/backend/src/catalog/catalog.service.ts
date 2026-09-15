@@ -320,16 +320,25 @@ export class CatalogService {
     let deleted = 0;
     const failed: BulkDeleteFailure[] = [];
     for (const p of owned) {
-      const [listingCount, saleItemCount, stockMovementCount] = await Promise.all([
+      const [listingCount, saleItemCount, stockMovementCount, dropshipOrderItemCount] = await Promise.all([
         this.prisma.listing.count({ where: { productId: p.id } }),
         this.prisma.saleItem.count({ where: { productId: p.id } }),
         this.prisma.stockMovement.count({ where: { productId: p.id } }),
+        this.prisma.dropshipOrderItem.count({ where: { productId: p.id } }),
       ]);
       if (listingCount > 0) {
         failed.push({
           id: p.id,
           name: p.name,
           reason: 'Tiene una publicación en Mercado Libre (u otra plataforma). Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.',
+        });
+        continue;
+      }
+      if (dropshipOrderItemCount > 0) {
+        failed.push({
+          id: p.id,
+          name: p.name,
+          reason: 'Tiene pedidos a un proveedor dropship registrados. Desactívalo en vez de eliminarlo para conservar ese historial.',
         });
         continue;
       }
@@ -348,7 +357,13 @@ export class CatalogService {
         continue;
       }
       try {
-        await this.prisma.product.delete({ where: { id: p.id } });
+        // DropshipProduct es solo el vínculo actual con el proveedor (sin historial de
+        // pedidos, ya descartado arriba), así que se borra junto con el producto sin pedir
+        // confirmación aparte.
+        await this.prisma.$transaction([
+          this.prisma.dropshipProduct.deleteMany({ where: { productId: p.id } }),
+          this.prisma.product.delete({ where: { id: p.id } }),
+        ]);
         deleted++;
       } catch {
         failed.push({ id: p.id, name: p.name, reason: 'No se pudo eliminar por registros asociados.' });
@@ -569,9 +584,10 @@ export class CatalogService {
   async forceDeleteProduct(id: string, user: any) {
     const product = await this.findOne(id, user);
 
-    const [listingCount, saleItemCount] = await Promise.all([
+    const [listingCount, saleItemCount, dropshipOrderItemCount] = await Promise.all([
       this.prisma.listing.count({ where: { productId: id } }),
       this.prisma.saleItem.count({ where: { productId: id } }),
+      this.prisma.dropshipOrderItem.count({ where: { productId: id } }),
     ]);
     if (listingCount > 0) {
       throw new BadRequestException(
@@ -581,6 +597,9 @@ export class CatalogService {
     if (saleItemCount > 0) {
       throw new BadRequestException('Tiene ventas registradas. Desactívalo en vez de eliminarlo para conservar el historial.');
     }
+    if (dropshipOrderItemCount > 0) {
+      throw new BadRequestException('Tiene pedidos a un proveedor dropship registrados. Desactívalo en vez de eliminarlo para conservar ese historial.');
+    }
 
     await this.prisma.$transaction([
       this.prisma.stockMovement.deleteMany({ where: { productId: id } }),
@@ -589,6 +608,7 @@ export class CatalogService {
       this.prisma.stockTransfer.deleteMany({ where: { productId: id } }),
       this.prisma.orderRequestItem.deleteMany({ where: { productId: id } }),
       this.prisma.orderItemCheck.updateMany({ where: { productId: id }, data: { productId: null } }),
+      this.prisma.dropshipProduct.deleteMany({ where: { productId: id } }),
       this.prisma.product.delete({ where: { id: product.id } }),
     ]);
     return { deleted: true };
