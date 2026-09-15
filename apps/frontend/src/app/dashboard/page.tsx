@@ -67,6 +67,7 @@ export default function DashboardPage() {
   const tz = useDashboardTimezone();
 
   const [summary, setSummary] = useState<any>(null);
+  const [monthSales, setMonthSales] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
@@ -91,19 +92,28 @@ export default function DashboardPage() {
     setLoading(true);
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     const today = dateKeyInTz(tz);
+    // Reutiliza el mismo endpoint de "últimos N días" pidiendo los días transcurridos del
+    // mes actual (1 al día de hoy) — evita sumar un endpoint nuevo solo para el total mensual.
+    const dayOfMonth = Number(today.slice(8, 10)) || 1;
 
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
       api.pos.weeklySales(token, { companyId }).catch(() => ({ days: [], byStore: [] })),
+      api.pos.weeklySales(token, { companyId, days: dayOfMonth }).catch(() => ({ days: [], byStore: [] })),
       api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
       api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
       api.catalog.list(token, companyId).catch(() => []),
-    ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
+    ]).then(([sum, weekly, monthly, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
       setWeeklyData((weekly as any)?.days || []);
       setStoreBreakdown((weekly as any)?.byStore || []);
+      const monthDays = (monthly as any)?.days || [];
+      setMonthSales({
+        total: monthDays.reduce((s: number, d: any) => s + (d.total || 0), 0),
+        count: monthDays.reduce((s: number, d: any) => s + (d.count || 0), 0),
+      });
 
       const pendingR = pending as any;
       const preparingR = preparing as any;
@@ -151,6 +161,8 @@ export default function DashboardPage() {
   const dateLabel = now.toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
+  const monthLabel = now.toLocaleDateString('es-CL', { month: 'long', timeZone: tz });
+  const monthAvgTicket = monthSales.count > 0 ? monthSales.total / monthSales.count : 0;
 
   if (loading) {
     return (
@@ -214,13 +226,22 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Fila central — gráfico + órdenes urgentes */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* Fila de ventas — total del mes + 7 días + por tienda, en 3 columnas iguales */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Resumen semanal + gráfico de ventas 7 días + ventas por tienda/canal */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-5 gap-4">
+        <SectionCard title="Ventas totales por mes" actions={<span className="text-xs text-[var(--text-muted)] capitalize">{monthLabel}</span>}>
+          <div className="flex flex-col items-center justify-center py-6 gap-1">
+            <p className="text-3xl font-bold text-[var(--text)]">${Math.round(monthSales.total).toLocaleString('es-CL')}</p>
+            <p className="text-sm text-[var(--text-muted)]">{monthSales.count} venta{monthSales.count === 1 ? '' : 's'} este mes</p>
+            {monthSales.count > 0 && (
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Ticket prom. <span className="font-semibold text-[var(--text-2)]">${Math.round(monthAvgTicket).toLocaleString('es-CL')}</span>
+              </p>
+            )}
+          </div>
+        </SectionCard>
+
         <SectionCard
-          className="md:col-span-3"
           title="Ventas últimos 7 días"
           actions={
             <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
@@ -282,7 +303,7 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        <SectionCard className="md:col-span-2" title="Ventas por tienda">
+        <SectionCard title="Ventas por tienda">
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas esta semana</p>
           ) : (
@@ -318,11 +339,12 @@ export default function DashboardPage() {
             </div>
           )}
         </SectionCard>
-        </div>
+      </div>
 
-        {/* Órdenes urgentes */}
+      {/* Fila operativa — órdenes urgentes + últimas ventas + stock crítico, en 3 columnas iguales */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
         <SectionCard
-          className="lg:col-span-2"
           title="Órdenes urgentes"
           actions={
             <Link href="/dashboard/orders" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
@@ -372,14 +394,8 @@ export default function DashboardPage() {
             </div>
           )}
         </SectionCard>
-      </div>
 
-      {/* Fila inferior — últimas ventas + stock crítico */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Últimas ventas */}
         <SectionCard
-          className="lg:col-span-3"
           title="Últimas ventas"
           actions={
             <Link href="/dashboard/sales" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
@@ -429,9 +445,7 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        {/* Stock crítico */}
         <SectionCard
-          className="lg:col-span-2"
           title="Stock crítico"
           actions={
             <Link href="/dashboard/catalog" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
