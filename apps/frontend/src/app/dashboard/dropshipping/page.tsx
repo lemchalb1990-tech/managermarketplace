@@ -43,8 +43,10 @@ const MAPPING_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: 'cost', label: 'Costo / Precio proveedor' },
   { key: 'price', label: 'Precio de venta sugerido' },
 ];
-const emptySupplierForm = { supplierId: '', name: '', taxId: '', email: '', phone: '', address: '', leadTimeDays: '', autoCreateOrders: true, notes: '' };
+const emptySupplierForm = { supplierId: '', name: '', taxId: '', email: '', phone: '', address: '', leadTimeDays: '', autoCreateOrders: true, notes: '', connectorType: 'FEED' as 'FEED' | 'NORIEGA_API' };
 const emptyProductForm = { productId: '', dropshipSupplierId: '', supplierCost: '', supplierSku: '', leadTimeDays: '' };
+const emptyCredentialsForm = { rut: '', usuario: '', password: '' };
+const CONNECTOR_LABELS: Record<string, string> = { FEED: 'Feed URL', NORIEGA_API: 'API Noriega' };
 
 export default function DropshippingPage() {
   const { selectedCompanyId } = useAdminCompany();
@@ -75,6 +77,13 @@ export default function DropshippingPage() {
   const [mappingError, setMappingError] = useState('');
   const [feedColumns, setFeedColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+
+  const [credentialsSupplier, setCredentialsSupplier] = useState<any>(null);
+  const [credentialsForm, setCredentialsForm] = useState(emptyCredentialsForm);
+  const [credentialsSaving, setCredentialsSaving] = useState(false);
+  const [credentialsTesting, setCredentialsTesting] = useState(false);
+  const [credentialsError, setCredentialsError] = useState('');
+  const [credentialsNotice, setCredentialsNotice] = useState('');
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const companyId = isSuperAdmin ? selectedCompanyId : undefined;
@@ -144,10 +153,55 @@ export default function DropshippingPage() {
       autoCreateOrders: supplierForm.autoCreateOrders,
       leadTimeDays: supplierForm.leadTimeDays ? Number(supplierForm.leadTimeDays) : undefined,
       notes: supplierForm.notes.trim() || undefined,
+      connectorType: supplierForm.connectorType,
       companyId,
     }, token()), 'Proveedor dropship agregado');
     setShowSupplierForm(false);
     setSupplierForm(emptySupplierForm);
+  }
+
+  function openCredentials(s: any) {
+    setCredentialsSupplier(s);
+    setCredentialsForm(emptyCredentialsForm);
+    setCredentialsError('');
+    setCredentialsNotice('');
+  }
+
+  async function testCredentials() {
+    setCredentialsTesting(true);
+    setCredentialsError('');
+    setCredentialsNotice('');
+    try {
+      const res = await api.dropshipping.suppliers.testConnection(
+        { connectorType: 'NORIEGA_API', credentials: credentialsForm }, token(),
+      );
+      if (res.success) setCredentialsNotice('Conexión exitosa');
+      else setCredentialsError(res.message || 'No se pudo conectar');
+    } catch (err: any) {
+      setCredentialsError(err.message || 'No se pudo conectar');
+    } finally {
+      setCredentialsTesting(false);
+    }
+  }
+
+  async function saveCredentials() {
+    if (!credentialsSupplier) return;
+    if (!credentialsForm.rut.trim() || !credentialsForm.usuario.trim() || !credentialsForm.password.trim()) {
+      setCredentialsError('Completa RUT, usuario y contraseña.');
+      return;
+    }
+    setCredentialsSaving(true);
+    setCredentialsError('');
+    try {
+      await api.dropshipping.suppliers.update(credentialsSupplier.id, { credentials: credentialsForm }, token());
+      setCredentialsSupplier(null);
+      setNotice('Credenciales guardadas');
+      await load();
+    } catch (err: any) {
+      setCredentialsError(err.message || 'No se pudieron guardar las credenciales');
+    } finally {
+      setCredentialsSaving(false);
+    }
   }
 
   async function openMapping(s: any) {
@@ -285,11 +339,25 @@ export default function DropshippingPage() {
               <input type="number" min="0" placeholder="Días de despacho (lead time)" value={supplierForm.leadTimeDays}
                 onChange={(e) => setSupplierForm((f) => ({ ...f, leadTimeDays: e.target.value }))}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cómo trae el catálogo</label>
+                <select value={supplierForm.connectorType}
+                  onChange={(e) => setSupplierForm((f) => ({ ...f, connectorType: e.target.value as 'FEED' | 'NORIEGA_API' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  <option value="FEED">Feed URL (CSV/JSON público)</option>
+                  <option value="NORIEGA_API">API Noriega (login + token)</option>
+                </select>
+              </div>
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input type="checkbox" checked={supplierForm.autoCreateOrders}
                   onChange={(e) => setSupplierForm((f) => ({ ...f, autoCreateOrders: e.target.checked }))} />
                 Generar y enviar pedidos automáticamente
               </label>
+              {supplierForm.connectorType === 'NORIEGA_API' && (
+                <p className="sm:col-span-2 text-xs text-gray-400 -mt-1">
+                  Después de crear el proveedor, carga las credenciales (RUT, usuario, contraseña) con el botón "Credenciales" en la tabla.
+                </p>
+              )}
               <div className="sm:col-span-2 flex gap-2">
                 <button type="submit" disabled={busy}
                   className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">Guardar</button>
@@ -326,29 +394,50 @@ export default function DropshippingPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <input defaultValue={s.catalogUrl || ''} placeholder="URL feed CSV/JSON"
-                          onBlur={(e) => {
-                            if (e.target.value !== (s.catalogUrl || '')) {
-                              run(() => api.dropshipping.suppliers.update(s.id, { catalogUrl: e.target.value || null }, token()));
-                            }
-                          }}
-                          className="w-44 px-2 py-1 border border-gray-200 rounded text-xs" />
-                        <button disabled={busy}
-                          onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
-                            setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
-                          className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                          Sincronizar
-                        </button>
-                        <button disabled={busy || !s.catalogUrl} onClick={() => openMapping(s)}
-                          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                          Mapear campos
-                        </button>
-                      </div>
+                      {(s.connectorType ?? 'FEED') === 'NORIEGA_API' ? (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-600 whitespace-nowrap">
+                            {CONNECTOR_LABELS.NORIEGA_API}
+                          </span>
+                          <button disabled={busy || !s.hasCredentials}
+                            onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
+                              setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
+                            className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                            Sincronizar
+                          </button>
+                          <button disabled={busy} onClick={() => openCredentials(s)}
+                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                            Credenciales
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input defaultValue={s.catalogUrl || ''} placeholder="URL feed CSV/JSON"
+                            onBlur={(e) => {
+                              if (e.target.value !== (s.catalogUrl || '')) {
+                                run(() => api.dropshipping.suppliers.update(s.id, { catalogUrl: e.target.value || null }, token()));
+                              }
+                            }}
+                            className="w-44 px-2 py-1 border border-gray-200 rounded text-xs" />
+                          <button disabled={busy}
+                            onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
+                              setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
+                            className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                            Sincronizar
+                          </button>
+                          <button disabled={busy || !s.catalogUrl} onClick={() => openMapping(s)}
+                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
+                            Mapear campos
+                          </button>
+                        </div>
+                      )}
+                      {!s.hasCredentials && (s.connectorType ?? 'FEED') === 'NORIEGA_API' && (
+                        <p className="text-[11px] text-amber-600 mt-0.5">Falta configurar credenciales</p>
+                      )}
                       {s.lastSyncedAt && (
                         <p className="text-[11px] text-gray-400 mt-0.5">Última: {new Date(s.lastSyncedAt).toLocaleString('es-CL', { timeZone: tz })}</p>
                       )}
-                      {s.catalogUrl && (
+                      {s.catalogUrl && (s.connectorType ?? 'FEED') === 'FEED' && (
                         <p className="text-[11px] text-gray-400 mt-0.5">
                           {s.fieldMapping ? 'Mapeo manual configurado' : 'Detección automática de columnas'}
                         </p>
@@ -632,6 +721,59 @@ export default function DropshippingPage() {
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
                 {mappingSaving ? 'Guardando...' : 'Guardar mapeo'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {credentialsSupplier && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">Credenciales — {credentialsSupplier.supplier?.name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Acceso a la API de Noriega. Se guardan en el servidor, no se muestran de vuelta.</p>
+              </div>
+              <button onClick={() => setCredentialsSupplier(null)} disabled={credentialsSaving}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-3">
+              {credentialsError && (
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{credentialsError}</div>
+              )}
+              {credentialsNotice && (
+                <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{credentialsNotice}</div>
+              )}
+              <input placeholder="RUT (ej. 78363206)" value={credentialsForm.rut}
+                onChange={(e) => setCredentialsForm((f) => ({ ...f, rut: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <input placeholder="Usuario" value={credentialsForm.usuario}
+                onChange={(e) => setCredentialsForm((f) => ({ ...f, usuario: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <input type="password" placeholder="Contraseña" value={credentialsForm.password}
+                onChange={(e) => setCredentialsForm((f) => ({ ...f, password: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              {credentialsSupplier.hasCredentials && (
+                <p className="text-[11px] text-gray-400">Ya hay credenciales guardadas. Déjalas en blanco si solo quieres probar la conexión actual; escribe nuevas para reemplazarlas.</p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-between gap-2">
+              <button onClick={testCredentials} disabled={credentialsTesting || credentialsSaving}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm disabled:opacity-50">
+                {credentialsTesting ? 'Probando...' : 'Probar conexión'}
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setCredentialsSupplier(null)} disabled={credentialsSaving}
+                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={saveCredentials} disabled={credentialsSaving || credentialsTesting}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                  {credentialsSaving ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -823,9 +823,14 @@ export const api = {
       create: (data: {
         supplierId?: string; name?: string; taxId?: string; email?: string; phone?: string; address?: string;
         autoCreateOrders?: boolean; leadTimeDays?: number; notes?: string; companyId?: string;
+        connectorType?: 'FEED' | 'NORIEGA_API'; credentials?: Record<string, string>;
       }, token: string) =>
         apiFetch<any>('/dropshipping/suppliers', { method: 'POST', body: JSON.stringify(data) }, token),
-      update: (id: string, data: { active?: boolean; autoCreateOrders?: boolean; leadTimeDays?: number | null; notes?: string; catalogUrl?: string | null; fieldMapping?: Record<string, string | null> | null }, token: string) =>
+      update: (id: string, data: {
+        active?: boolean; autoCreateOrders?: boolean; leadTimeDays?: number | null; notes?: string;
+        catalogUrl?: string | null; fieldMapping?: Record<string, string | null> | null;
+        connectorType?: 'FEED' | 'NORIEGA_API'; credentials?: Record<string, string> | null;
+      }, token: string) =>
         apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       remove: (id: string, token: string) =>
         apiFetch<any>(`/dropshipping/suppliers/${id}`, { method: 'DELETE' }, token),
@@ -835,6 +840,8 @@ export const api = {
         apiFetch<{ columns: string[]; sample: Record<string, any>[]; suggestedMapping: Record<string, string | null> }>(
           '/dropshipping/suppliers/preview-feed', { method: 'POST', body: JSON.stringify({ catalogUrl }) }, token,
         ),
+      testConnection: (data: { connectorType: 'FEED' | 'NORIEGA_API'; credentials: Record<string, string> }, token: string) =>
+        apiFetch<{ success: boolean; message?: string }>('/dropshipping/suppliers/test-connection', { method: 'POST', body: JSON.stringify(data) }, token),
     },
     products: {
       list: (token: string, companyId?: string) => {

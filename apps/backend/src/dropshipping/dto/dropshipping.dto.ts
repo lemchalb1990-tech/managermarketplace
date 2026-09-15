@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsNumber, IsBoolean, IsInt, IsEnum, Min, MaxLength, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DropshipOrderStatus } from '@prisma/client';
+import { DropshipOrderStatus, DropshipConnectorType } from '@prisma/client';
 
 // ─── Proveedores dropship ───────────────────────────────────────────────────
 
@@ -18,6 +18,11 @@ export class CreateDropshipSupplierDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) leadTimeDays?: number;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
 
+  // Conector para traer el catálogo. FEED (por defecto) = URL pública CSV/JSON.
+  // Otros conectores (ej. NORIEGA_API) requieren `credentials`.
+  @IsOptional() @IsEnum(DropshipConnectorType) connectorType?: DropshipConnectorType;
+  @IsOptional() @IsObject() credentials?: Record<string, string>;
+
   @IsOptional() @IsString() companyId?: string;
 }
 
@@ -30,15 +35,25 @@ export class UpdateDropshipSupplierDto {
   // { sku, name, description, imageUrl, stock, cost, price } -> nombre de la columna real
   // del feed del proveedor. null limpia el mapeo (vuelve a la detección automática).
   @IsOptional() @IsObject() fieldMapping?: Record<string, string | null> | null;
+
+  @IsOptional() @IsEnum(DropshipConnectorType) connectorType?: DropshipConnectorType;
+  // null limpia las credenciales guardadas.
+  @IsOptional() @IsObject() credentials?: Record<string, string> | null;
 }
 
 export class SyncDropshipCatalogDto {
-  // Si no se envía, se usa el catalogUrl guardado en el proveedor.
+  // Si no se envía, se usa el catalogUrl guardado en el proveedor. Solo aplica a
+  // proveedores con connectorType FEED.
   @IsOptional() @IsString() @MaxLength(1000) catalogUrl?: string;
 }
 
 export class PreviewDropshipFeedDto {
   @IsString() @MaxLength(1000) catalogUrl: string;
+}
+
+export class TestDropshipConnectionDto {
+  @IsEnum(DropshipConnectorType) connectorType: DropshipConnectorType;
+  @IsObject() credentials: Record<string, string>;
 }
 
 // ─── Productos dropship ─────────────────────────────────────────────────────

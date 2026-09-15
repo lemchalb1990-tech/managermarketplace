@@ -1530,19 +1530,32 @@ enum DropshipOrderStatus {
   CANCELLED
 }
 
+enum DropshipConnectorType {
+  FEED // URL de catálogo (CSV/JSON) sin autenticación, como hasta ahora
+  NORIEGA_API // API REST autenticada (login + token) del proveedor Noriega
+}
+
 model DropshipSupplier {
-  id               String   @id @default(cuid())
-  active           Boolean  @default(true)
+  id               String                @id @default(cuid())
+  active           Boolean               @default(true)
   // Automatización: generar el pedido al proveedor apenas entra la venta.
-  autoCreateOrders Boolean  @default(true)
+  autoCreateOrders Boolean               @default(true)
   leadTimeDays     Int? // días estimados de despacho del proveedor
   notes            String?
-  // Feed del catálogo del proveedor (CSV o JSON) para sincronizar productos.
+  connectorType    DropshipConnectorType @default(FEED)
+  // Feed del catálogo del proveedor (CSV o JSON) para sincronizar productos. Solo aplica
+  // a connectorType FEED.
   catalogUrl       String?
   // Asociación manual { sku, name, description, imageUrl, stock, cost, price } -> nombre
   // real de la columna/campo que entrega el feed de este proveedor. Si es null, se usa
-  // la detección automática por alias (rowFromRecord) como antes.
+  // la detección automática por alias (rowFromRecord) como antes. Solo aplica a FEED.
   fieldMapping     Json?
+  // Credenciales del conector autenticado (ej. Noriega: { rut, usuario, password }).
+  // Solo aplica a conectores distintos de FEED.
+  credentials      Json?
+  // Cache del token de sesión del conector autenticado, para no reloguear en cada request.
+  apiToken          String?
+  apiTokenExpiresAt DateTime?
   lastSyncedAt     DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

@@ -2,7 +2,7 @@ import {
   Injectable, Logger, NotFoundException, ForbiddenException,
   BadRequestException, ConflictException,
 } from '@nestjs/common';
-import { DropshipOrderStatus, Prisma, Role } from '@prisma/client';
+import { DropshipConnectorType, DropshipOrderStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import {
@@ -10,6 +10,8 @@ import {
   CreateDropshipProductDto, UpdateDropshipProductDto,
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
 } from './dto/dropshipping.dto';
+import { NoriegaAdapter } from './providers/noriega.adapter';
+import { DropshipCatalogProvider } from './providers/provider.interface';
 
 const PAGE_SIZE = 20;
 
@@ -155,11 +157,23 @@ function suggestMapping(columns: string[]): Record<string, string | null> {
 @Injectable()
 export class DropshippingService {
   private readonly logger = new Logger(DropshippingService.name);
+  // Conectores con API autenticada (login + token). FEED no pasa por acá: se maneja
+  // directo con fetch() en syncCatalog, como siempre.
+  private readonly apiProviders: Map<DropshipConnectorType, DropshipCatalogProvider>;
 
   constructor(
     private prisma: PrismaService,
     private email: EmailService,
-  ) {}
+    private noriega: NoriegaAdapter,
+  ) {
+    this.apiProviders = new Map([[DropshipConnectorType.NORIEGA_API, this.noriega]]);
+  }
+
+  // Nunca exponer credenciales/token del proveedor al frontend.
+  private sanitizeSupplier<T extends { credentials?: unknown; apiToken?: string | null }>(s: T) {
+    const { credentials, apiToken, ...rest } = s as any;
+    return { ...rest, hasCredentials: credentials != null };
+  }
 
   private resolveCompanyId(user: any, companyId?: string): string {
     if (user.role === Role.SUPER_ADMIN) {
@@ -179,7 +193,7 @@ export class DropshippingService {
   // ─── Proveedores dropship ─────────────────────────────────────────────────
 
   async listSuppliers(user: any, companyId?: string) {
-    return this.prisma.dropshipSupplier.findMany({
+    const suppliers = await this.prisma.dropshipSupplier.findMany({
       where: this.scopeWhere(user, companyId),
       include: {
         supplier: true,
@@ -187,6 +201,14 @@ export class DropshippingService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return suppliers.map((s) => this.sanitizeSupplier(s));
+  }
+
+  // Verifica credenciales contra el proveedor sin guardar nada (botón "Probar conexión").
+  async testConnection(connectorType: DropshipConnectorType, credentials: Record<string, string>) {
+    const provider = this.apiProviders.get(connectorType);
+    if (!provider) return { success: true };
+    return provider.testConnection(credentials);
   }
 
   async createSupplier(dto: CreateDropshipSupplierDto, user: any) {
@@ -215,23 +237,26 @@ export class DropshippingService {
       supplierId = created.id;
     }
 
-    return this.prisma.dropshipSupplier.create({
+    const created = await this.prisma.dropshipSupplier.create({
       data: {
         companyId,
         supplierId,
         autoCreateOrders: dto.autoCreateOrders ?? true,
         leadTimeDays: dto.leadTimeDays ?? null,
         notes: dto.notes,
+        connectorType: dto.connectorType ?? DropshipConnectorType.FEED,
+        credentials: dto.credentials ?? undefined,
       },
       include: { supplier: true, _count: { select: { products: true, orders: true } } },
     });
+    return this.sanitizeSupplier(created);
   }
 
   async updateSupplier(id: string, dto: UpdateDropshipSupplierDto, user: any) {
     const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
     if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
     if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
-    return this.prisma.dropshipSupplier.update({
+    const updated = await this.prisma.dropshipSupplier.update({
       where: { id },
       data: {
         active: dto.active,
@@ -240,9 +265,13 @@ export class DropshippingService {
         notes: dto.notes,
         catalogUrl: dto.catalogUrl === '' ? null : dto.catalogUrl,
         ...(dto.fieldMapping !== undefined ? { fieldMapping: dto.fieldMapping as any } : {}),
+        ...(dto.connectorType !== undefined ? { connectorType: dto.connectorType } : {}),
+        // Cambiar credenciales invalida el token cacheado.
+        ...(dto.credentials !== undefined ? { credentials: dto.credentials as any, apiToken: null, apiTokenExpiresAt: null } : {}),
       },
       include: { supplier: true, _count: { select: { products: true, orders: true } } },
     });
+    return this.sanitizeSupplier(updated);
   }
 
   // Trae una muestra del feed del proveedor (sin guardar nada) para que el admin vea
@@ -286,6 +315,10 @@ export class DropshippingService {
     if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
     if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
 
+    if (ds.connectorType !== DropshipConnectorType.FEED) {
+      return this.syncFromApiProvider(ds);
+    }
+
     const url = (catalogUrl || ds.catalogUrl || '').trim();
     if (!/^https?:\/\//i.test(url)) {
       throw new BadRequestException('Configura una URL de catálogo válida (http/https) para el proveedor');
@@ -303,9 +336,64 @@ export class DropshippingService {
     const rows = parseCatalogFeed(text, ds.fieldMapping as Record<string, string | null> | null);
     if (!rows.length) throw new BadRequestException('El catálogo no tiene filas legibles (se espera JSON o CSV con columna sku)');
 
+    const result = await this.applyCatalogRows(ds, rows);
+
+    await this.prisma.dropshipSupplier.update({
+      where: { id },
+      data: { lastSyncedAt: new Date(), catalogUrl: catalogUrl?.trim() || ds.catalogUrl },
+    });
+
+    return result;
+  }
+
+  // Sincroniza el catálogo de un conector con API autenticada (login + token + paginación),
+  // reutilizando el mismo upsert de productos que usa el flujo de feed.
+  private async syncFromApiProvider(ds: {
+    id: string; companyId: string; connectorType: DropshipConnectorType;
+    credentials: unknown; apiToken: string | null; apiTokenExpiresAt: Date | null;
+  }) {
+    const provider = this.apiProviders.get(ds.connectorType);
+    if (!provider) throw new BadRequestException('Conector no soportado');
+
+    const credentials = (ds.credentials as Record<string, string>) || {};
+    if (!Object.keys(credentials).length) {
+      throw new BadRequestException('Configura las credenciales del proveedor antes de sincronizar');
+    }
+
+    const cachedToken = ds.apiToken && ds.apiTokenExpiresAt
+      ? { token: ds.apiToken, expiresAt: ds.apiTokenExpiresAt }
+      : null;
+
+    let fetchResult;
+    try {
+      fetchResult = await provider.fetchCatalog(credentials, cachedToken);
+    } catch (err: any) {
+      throw new BadRequestException(`No se pudo sincronizar con el proveedor: ${err?.message || err}`);
+    }
+
+    // Cachea el token nuevo/reutilizado antes de aplicar las filas, para no perderlo si
+    // el upsert falla a mitad de camino.
+    await this.prisma.dropshipSupplier.update({
+      where: { id: ds.id },
+      data: { apiToken: fetchResult.tokenCache.token, apiTokenExpiresAt: fetchResult.tokenCache.expiresAt },
+    });
+
+    if (!fetchResult.rows.length) {
+      throw new BadRequestException('El proveedor no devolvió productos');
+    }
+
+    const result = await this.applyCatalogRows(ds, fetchResult.rows);
+    await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
+    return result;
+  }
+
+  // Crea/actualiza DropshipProduct y Product a partir de filas ya normalizadas, sin
+  // importar si vinieron de un feed CSV/JSON o de una API autenticada.
+  private async applyCatalogRows(ds: { id: string; companyId: string }, rows: CatalogRow[]) {
     let created = 0;
     let updated = 0;
     const skipped: string[] = [];
+    const id = ds.id;
 
     for (const row of rows) {
       if (!row.sku) { skipped.push('(fila sin SKU)'); continue; }
@@ -407,11 +495,6 @@ export class DropshippingService {
       });
       created++;
     }
-
-    await this.prisma.dropshipSupplier.update({
-      where: { id },
-      data: { lastSyncedAt: new Date(), catalogUrl: catalogUrl?.trim() || ds.catalogUrl },
-    });
 
     return { created, updated, skipped };
   }

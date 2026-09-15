@@ -4,11 +4,12 @@ import { EmailModule } from '../email/email.module';
 import { DropshippingService } from './dropshipping.service';
 import { DropshippingController } from './dropshipping.controller';
 import { DropshippingCronService } from './dropshipping-cron.service';
+import { NoriegaAdapter } from './providers/noriega.adapter';
 
 @Module({
   imports: [PrismaModule, EmailModule],
   controllers: [DropshippingController],
-  providers: [DropshippingService, DropshippingCronService],
+  providers: [DropshippingService, DropshippingCronService, NoriegaAdapter],
   exports: [DropshippingService],
 })
 export class DropshippingModule {}

@@ -6,7 +6,7 @@ import {
   CreateDropshipProductDto, UpdateDropshipProductDto,
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
   GenerateDropshipOrdersDto, DropshipReportQueryDto, SyncDropshipCatalogDto,
-  PreviewDropshipFeedDto,
+  PreviewDropshipFeedDto, TestDropshipConnectionDto,
 } from './dto/dropshipping.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -34,6 +34,11 @@ export class DropshippingController {
   @Post('suppliers/preview-feed')
   previewFeed(@Body() dto: PreviewDropshipFeedDto) {
     return this.service.previewFeed(dto.catalogUrl);
+  }
+
+  @Post('suppliers/test-connection')
+  testConnection(@Body() dto: TestDropshipConnectionDto) {
+    return this.service.testConnection(dto.connectorType, dto.credentials);
   }
 
   @Patch('suppliers/:id')
