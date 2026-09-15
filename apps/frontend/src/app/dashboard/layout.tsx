@@ -324,16 +324,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })}
       </nav>
 
-      <div className="px-4 py-3 border-t border-[var(--border-soft)] shrink-0">
-        <p className="text-xs text-[var(--text-muted)] truncate mb-0.5">{user.email}</p>
-        <p className="text-xs font-medium text-[var(--text-2)] mb-2">{roleLabel}</p>
-        <button
-          onClick={logout}
-          className="w-full text-xs text-[var(--danger)] hover:underline text-left"
-        >
-          Cerrar sesión
-        </button>
-      </div>
     </>
   );
 
