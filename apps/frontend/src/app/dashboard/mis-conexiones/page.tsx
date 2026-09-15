@@ -35,6 +35,15 @@ const BILLING_COLOR: Record<string, string> = {
   DEFONTANA: 'bg-teal-500', NUBOX: 'bg-indigo-500', SIIGO: 'bg-rose-500',
 };
 
+// Conectores de proveedor dropship (connectorType del backend). El feed genérico no tiene
+// marca propia; NORIEGA_API es el conector de Noriega Vanzulli, el proveedor ya integrado.
+const DROPSHIP_LABEL: Record<string, string> = {
+  NORIEGA_API: 'Noriega Vanzulli', FEED: 'Proveedor (feed)',
+};
+const DROPSHIP_COLOR: Record<string, string> = {
+  NORIEGA_API: 'bg-emerald-600', FEED: 'bg-gray-400',
+};
+
 const CATEGORIES = [
   {
     title: 'Marketplaces',
@@ -51,11 +60,21 @@ const CATEGORIES = [
     codes: ['OPENFACTURA', 'FACTO', 'BSALE', 'DEFONTANA', 'NUBOX', 'SIIGO'],
     addHref: '/dashboard/billing',
   },
+  {
+    title: 'Dropshipping',
+    codes: ['FEED', 'NORIEGA_API'],
+    addHref: '/dashboard/dropshipping',
+  },
+  {
+    title: 'Encomiendas',
+    codes: ['STARKEN', 'CHILEXPRESS', 'BLUE_EXPRESS'],
+    addHref: '/dashboard/encomiendas',
+  },
 ] as const;
 
 type Row = {
   id: string;
-  kind: 'ml' | 'ecommerce' | 'billing';
+  kind: 'ml' | 'ecommerce' | 'billing' | 'dropship';
   code: string;
   key: string;
   platformLabel: string;
@@ -86,10 +105,11 @@ export default function MisConexionesPage() {
     setError('');
     try {
       const token = getToken()!;
-      const [ml, other, billing] = await Promise.all([
+      const [ml, other, billing, dropship] = await Promise.all([
         api.marketplace.connections(token, companyId).catch(() => []),
         api.connections.list(token, { companyId }).catch(() => []),
         api.billing.connections.list(token, { companyId }).catch(() => []),
+        api.dropshipping.suppliers.list(token, companyId).catch(() => []),
       ]);
 
       const mlRows: Row[] = (ml as any[]).map((c) => ({
@@ -113,7 +133,14 @@ export default function MisConexionesPage() {
         settingsHref: `/dashboard/billing/${BILLING_KEY[c.provider] || c.provider.toLowerCase()}`,
       }));
 
-      setRows([...mlRows, ...otherRows, ...billingRows].sort(
+      const dropshipRows: Row[] = (dropship as any[]).map((s) => ({
+        id: s.id, kind: 'dropship', code: s.connectorType, key: `dropship-${s.connectorType}`,
+        platformLabel: DROPSHIP_LABEL[s.connectorType] || s.connectorType, name: s.supplier?.name || DROPSHIP_LABEL[s.connectorType],
+        active: s.active, authorized: true, createdAt: s.createdAt,
+        settingsHref: '/dashboard/dropshipping',
+      }));
+
+      setRows([...mlRows, ...otherRows, ...billingRows, ...dropshipRows].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       ));
     } catch (err: any) {
@@ -132,6 +159,7 @@ export default function MisConexionesPage() {
       const token = getToken()!;
       if (row.kind === 'ml') await api.marketplace.deleteConnection(row.id, token);
       else if (row.kind === 'billing') await api.billing.connections.remove(row.id, token);
+      else if (row.kind === 'dropship') await api.dropshipping.suppliers.remove(row.id, token);
       else await api.connections.remove(row.id, token);
       await load();
     } catch (err: any) {
@@ -170,9 +198,20 @@ export default function MisConexionesPage() {
     );
   }
 
+  function DropshipBadge({ code }: { code: string }) {
+    return (
+      <div className={`w-full h-full rounded-lg flex items-center justify-center text-white text-[10px] font-bold ${DROPSHIP_COLOR[code] || 'bg-gray-400'}`}>
+        {(DROPSHIP_LABEL[code] || code).slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+
   function PlatformIcon({ row }: { row: Row }) {
     if (row.kind === 'billing') {
       return <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0"><BillingBadge code={row.code} /></div>;
+    }
+    if (row.kind === 'dropship') {
+      return <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0"><DropshipBadge code={row.code} /></div>;
     }
     return (
       <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
@@ -283,7 +322,7 @@ export default function MisConexionesPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center gap-3 justify-end">
-                        {r.kind !== 'ml' && (
+                        {r.kind !== 'ml' && r.kind !== 'dropship' && (
                           <button onClick={() => handleTest(r)} disabled={busyId === r.id}
                             className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
                             Probar
