@@ -134,7 +134,7 @@ export default function MisConexionesPage() {
       }));
 
       const dropshipRows: Row[] = (dropship as any[]).map((s) => ({
-        id: s.id, kind: 'dropship', code: s.connectorType, key: `dropship-${s.connectorType}`,
+        id: s.id, kind: 'dropship', code: s.connectorType, key: `dropship-${s.connectorType.toLowerCase()}`,
         platformLabel: DROPSHIP_LABEL[s.connectorType] || s.connectorType, name: s.supplier?.name || DROPSHIP_LABEL[s.connectorType],
         active: s.active, authorized: true, createdAt: s.createdAt,
         settingsHref: '/dashboard/dropshipping',
@@ -211,7 +211,11 @@ export default function MisConexionesPage() {
       return <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0"><BillingBadge code={row.code} /></div>;
     }
     if (row.kind === 'dropship') {
-      return <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0"><DropshipBadge code={row.code} /></div>;
+      return (
+        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+          {resolvePlatformLogo(logoMap, row.key, <DropshipBadge code={row.code} />, row.platformLabel)}
+        </div>
+      );
     }
     return (
       <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
