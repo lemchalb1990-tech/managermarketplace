@@ -502,6 +502,14 @@ export default function CatalogPage() {
   const [activeFilter, setActiveFilter] = useState('');
   const [listingStatusFilter, setListingStatusFilter] = useState('');
   const [stockFilter, setStockFilter] = useState(() => searchParams.get('stock') === 'critical' ? 'critical' : '');
+  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    try { return (localStorage.getItem('mp_catalog_view') as 'list' | 'grid' | 'compact') || 'list'; } catch { return 'list'; }
+  });
+  function changeViewMode(v: 'list' | 'grid' | 'compact') {
+    setViewMode(v);
+    try { localStorage.setItem('mp_catalog_view', v); } catch { /* ignore */ }
+  }
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1467,6 +1475,27 @@ export default function CatalogPage() {
         </div>
       ) : (
       <>
+      <div className="flex items-center gap-3 mb-3">
+        <span className="text-sm font-semibold text-gray-700">Productos</span>
+        <span className="text-xs text-gray-400">{total}</span>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-auto sm:ml-0">
+          {([
+            { key: 'list', label: 'Lista' },
+            { key: 'grid', label: 'Cuadrícula' },
+            { key: 'compact', label: 'Compacta' },
+          ] as const).map((v) => (
+            <button
+              key={v.key}
+              onClick={() => changeViewMode(v.key)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                viewMode === v.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
           <label className="text-xs text-gray-500 block mb-1">Buscar por nombre o SKU</label>
@@ -1648,7 +1677,54 @@ export default function CatalogPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      <div className={`bg-white rounded-xl border border-gray-200 ${viewMode === 'grid' ? 'p-4' : 'overflow-x-auto'}`}>
+        {viewMode === 'grid' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {!loading && products.map((p) => {
+            const img = primaryImage(p);
+            return (
+              <div key={p.id} onClick={() => openModal(p)}
+                className="relative bg-white border border-gray-200 rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all">
+                {isAdmin && (
+                  <input type="checkbox" checked={selectedIds.has(p.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelect(p.id)}
+                    className="absolute top-2 left-2 z-10" />
+                )}
+                <div className="w-full aspect-square rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden mb-2">
+                  {img ? (
+                    <img src={imgUrl(img.url)} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-gray-300 text-xs">Sin imagen</span>
+                  )}
+                </div>
+                <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>
+                <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span>
+                  <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>
+                </div>
+                {(p.type === 'SERVICIO' || !p.active) && (
+                  <div className="flex gap-1 mt-1.5">
+                    {p.type === 'SERVICIO' && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">Servicio</span>
+                    )}
+                    {!p.active && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">Inactivo</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {!loading && products.length === 0 && (
+            <div className="col-span-full py-10 text-center text-gray-400 text-sm">Sin productos que coincidan con los filtros.</div>
+          )}
+          {loading && (
+            <div className="col-span-full py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          )}
+        </div>
+        ) : (
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
@@ -1698,26 +1774,29 @@ export default function CatalogPage() {
           <tbody className="divide-y divide-gray-100">
             {!loading && products.map((p) => {
               const img = primaryImage(p);
+              const compact = viewMode === 'compact';
+              const cellPad = compact ? 'px-4 py-1' : 'px-4 py-3';
+              const imgSize = compact ? 'w-6 h-6' : 'w-10 h-10';
               return (
                 <tr key={p.id} onClick={() => openModal(p)} className="hover:bg-gray-50 cursor-pointer">
                   {isAdmin && (
-                    <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <td className={compact ? 'px-4 py-1' : 'px-4 py-2'} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.has(p.id)}
                         onChange={() => toggleSelect(p.id)} />
                     </td>
                   )}
-                  <td className="px-4 py-2">
+                  <td className={compact ? 'px-4 py-1' : 'px-4 py-2'}>
                     {img ? (
                       <img src={imgUrl(img.url)} alt={p.name}
-                        className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                        className={`${imgSize} rounded-lg object-cover border border-gray-100`} />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs">
+                      <div className={`${imgSize} rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs`}>
                         —
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-gray-400 text-xs">{p.sku}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">
+                  <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>
+                  <td className={`${cellPad} font-medium text-gray-900`}>
                     {p.name}
                     {p.type === 'SERVICIO' && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
@@ -1730,27 +1809,27 @@ export default function CatalogPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td className={`${cellPad} text-gray-500`}>
                     {p.cost != null ? fmtCLP(Number(p.cost)) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{fmtCLP(Number(p.price))}</td>
+                  <td className={`${cellPad} text-gray-700`}>{fmtCLP(Number(p.price))}</td>
                   {activeConnections.length > 0 && (
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className={`${cellPad} text-gray-700`}>
                       {p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : <span className="text-gray-300">—</span>}
                     </td>
                   )}
-                  <td className="px-4 py-3">
+                  <td className={cellPad}>
                     <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
                       {p.stock}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={cellPad}>
                     {p.warehouse
                       ? <span className="text-xs text-gray-600 font-medium">{p.warehouse.name}</span>
                       : <span className="text-gray-300 text-xs">—</span>}
                   </td>
                   {activeConnections.length > 0 && (
-                    <td className="px-4 py-3">
+                    <td className={cellPad}>
                       <div className="flex flex-wrap gap-1">
                         {p.listings?.length > 0
                           ? p.listings.map((l: any) => (
@@ -1776,6 +1855,7 @@ export default function CatalogPage() {
             )}
           </tbody>
         </table>
+        )}
         {pages > 1 && (
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
             <button
