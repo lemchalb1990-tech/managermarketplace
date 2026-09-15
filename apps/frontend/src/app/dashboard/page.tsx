@@ -60,7 +60,7 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className="ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]"
+    <div className="group relative ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]"
       style={CARD_SHADOW}>
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
@@ -68,8 +68,12 @@ function KpiCard({
       <div className="min-w-0">
         <p className="text-xs text-[var(--text-muted)] font-medium mb-0.5">{title}</p>
         <p className="text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
-        {sub && <p className="text-xs text-[var(--text-muted)] mt-0.5">{sub}</p>}
       </div>
+      {sub && (
+        <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+          {sub}
+        </div>
+      )}
     </div>
   );
   return href ? <Link href={href} className="block">{content}</Link> : content;
