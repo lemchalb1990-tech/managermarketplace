@@ -305,12 +305,11 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Fila de ventas — historial (2/3) + por tienda (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Fila de ventas — historial y ventas por canal a mitades iguales */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
-          className="lg:col-span-2"
           style={CARD_SHADOW}
           actions={
             <div className="flex items-center gap-1 bg-white rounded-full p-1">
@@ -417,7 +416,7 @@ export default function DashboardPage() {
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
           ) : (
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
               <div className="relative w-32 h-32 shrink-0">
                 <svg viewBox="0 0 36 36" className="w-full h-full">
                   <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--border)" strokeWidth="3.5" />
@@ -438,7 +437,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="w-full">
+              <div className="w-full flex-1 min-w-0">
                 <div className="grid grid-cols-[1fr_auto_auto_auto_28px] gap-2 px-2.5 pb-1.5 text-[11px] font-medium text-[var(--text-muted)]">
                   <span>Canal</span>
                   <span className="text-right">Órdenes</span>
