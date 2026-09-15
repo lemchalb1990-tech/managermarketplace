@@ -67,7 +67,6 @@ export default function DashboardPage() {
   const tz = useDashboardTimezone();
 
   const [summary, setSummary] = useState<any>(null);
-  const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
@@ -102,7 +101,6 @@ export default function DashboardPage() {
       api.catalog.list(token, companyId).catch(() => []),
     ]).then(([sum, weekly, pending, preparing, ready, sales, products]) => {
       setSummary(sum);
-      setWeeklyData((weekly as any)?.days || []);
       setStoreBreakdown((weekly as any)?.byStore || []);
 
       const pendingR = pending as any;
@@ -180,12 +178,6 @@ export default function DashboardPage() {
     const raf = requestAnimationFrame(() => setReportChartReady(true));
     return () => cancelAnimationFrame(raf);
   }, [reportLoading]);
-
-  const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
-  const weekTotal = weeklyData.reduce((s, d) => s + (d.total || 0), 0);
-  const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
-  const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
-  const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
 
   const reportMax = Math.max(...reportData.map((d) => d.total), 1);
   const reportTotal = reportData.reduce((s, d) => s + (d.total || 0), 0);
@@ -269,11 +261,12 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Fila de ventas — total del mes + 7 días + por tienda, en 3 columnas iguales */}
+      {/* Fila de ventas — historial (2/3) + por tienda (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <SectionCard
-          title="Reportes de ventas"
+          title="Historial de Ventas"
+          className="lg:col-span-2"
           actions={
             <div className="flex items-center gap-1 bg-[var(--surface-soft)] rounded-lg p-1">
               {REPORT_PERIODS.map((p) => (
@@ -338,69 +331,6 @@ export default function DashboardPage() {
                       <p className={`text-xs leading-tight capitalize ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
                         style={isCurrent ? { color: 'var(--info)' } : undefined}>
                         {d.label}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Ventas últimos 7 días"
-          actions={
-            <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
-              <span>
-                Ticket prom. <span className="font-semibold text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</span>
-              </span>
-              <span>
-                Total <span className="font-semibold text-[var(--text-2)]">${Math.round(weekTotal).toLocaleString('es-CL')}</span>
-              </span>
-              <span className="hidden sm:flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--brand)] inline-block" /> POS
-              </span>
-              <span className="hidden sm:flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--info)] inline-block" /> E-commerce
-              </span>
-            </div>
-          }
-        >
-          {weeklyData.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
-          ) : (
-            <div className="flex items-end gap-2">
-              {weeklyData.map((day, i) => {
-                const totalH = maxWeekly > 0 ? Math.max((day.total / maxWeekly) * 128, day.total > 0 ? 4 : 0) : 0;
-                const posH = day.total > 0 ? (day.posTotal / day.total) * totalH : 0;
-                const ecomH = totalH - posH;
-                const isToday = day.date === todayStr;
-                const isBest = bestDay && day.date === bestDay.date && day.total > 0;
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
-                    <div className="w-full h-32 flex flex-col justify-end relative">
-                      {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor día">🏆</span>}
-                      {totalH > 0 ? (
-                        <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden ease-out"
-                          style={{ height: chartsReady ? `${totalH}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }}>
-                          <div style={{ height: `${posH}px` }} className="bg-[var(--brand)] shrink-0" />
-                          <div style={{ height: `${ecomH}px` }} className="bg-[var(--info)] shrink-0" />
-                        </div>
-                      ) : (
-                        <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      {day.count > 0 ? (
-                        <p className="text-xs font-semibold text-[var(--text-2)]">
-                          {day.total >= 1000 ? fmtCompactCLP(day.total) : `$${day.total}`}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-[var(--text-muted)]">—</p>
-                      )}
-                      <p className={`text-xs leading-tight capitalize ${isToday ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
-                        style={isToday ? { color: 'var(--info)' } : undefined}>
-                        {day.label}
                       </p>
                     </div>
                   </div>
