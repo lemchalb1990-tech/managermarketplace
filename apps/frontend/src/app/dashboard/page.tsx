@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
@@ -50,13 +50,18 @@ const CHANNEL_LABEL: Record<string, string> = {
   PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual',
 };
 
+// Sombra más marcada que la de `.ui-card` para que los recuadros del dashboard
+// se vean "levantados" (efecto 3D), sin tocar el shadow por defecto del resto del panel.
+const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)' };
+
 function KpiCard({
   title, value, sub, colorClass, icon, href,
 }: {
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className="ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]">
+    <div className="ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]"
+      style={CARD_SHADOW}>
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
       </div>
@@ -306,7 +311,7 @@ export default function DashboardPage() {
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
           className="lg:col-span-2"
-          style={{ background: 'var(--info-bg)' }}
+          style={CARD_SHADOW}
           actions={
             <div className="flex items-center gap-1 bg-white rounded-full p-1">
               {REPORT_PERIODS.map((p) => (
@@ -382,7 +387,7 @@ export default function DashboardPage() {
 
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Ventas por Canal - Tienda</span>}
-          style={{ background: 'var(--info-bg)' }}
+          style={CARD_SHADOW}
           actions={
             <div className="flex items-center gap-1 bg-white rounded-full p-1">
               {STORE_PERIODS.map((p) => (
@@ -465,6 +470,7 @@ export default function DashboardPage() {
 
         <SectionCard
           title="Órdenes urgentes"
+          style={CARD_SHADOW}
           actions={
             <Link href="/dashboard/orders" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
@@ -516,6 +522,7 @@ export default function DashboardPage() {
 
         <SectionCard
           title="Últimas ventas"
+          style={CARD_SHADOW}
           actions={
             <Link href="/dashboard/sales" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
@@ -568,6 +575,7 @@ export default function DashboardPage() {
 
         <SectionCard
           title="Stock crítico"
+          style={CARD_SHADOW}
           actions={
             <Link href="/dashboard/catalog" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver catálogo →
