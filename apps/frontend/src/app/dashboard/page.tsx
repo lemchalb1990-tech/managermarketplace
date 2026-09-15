@@ -326,27 +326,30 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
 
         <SectionCard
-          title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
+          title={
+            <div className="flex items-center gap-2.5">
+              <span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>
+              <span className="text-[var(--border)]">|</span>
+              <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                Canal de Venta:
+                <select
+                  value={reportChannel}
+                  onChange={(e) => setReportChannel(e.target.value)}
+                  className="px-2 py-1 border border-[var(--border)] rounded-md text-xs bg-white text-[var(--text)]"
+                >
+                  <option value="">Todos</option>
+                  {Object.entries(CHANNEL_LABEL).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          }
           style={CARD_SHADOW}
         >
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-            <div>
-              <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
-              <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
-            </div>
-            <div>
-              <label className="block text-[11px] text-[var(--text-muted)] mb-1">Canal de venta</label>
-              <select
-                value={reportChannel}
-                onChange={(e) => setReportChannel(e.target.value)}
-                className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm bg-white text-[var(--text)]"
-              >
-                <option value="">Todos</option>
-                {Object.entries(CHANNEL_LABEL).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-            </div>
+          <div className="mb-3">
+            <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
+            <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
           </div>
 
           {reportData.length === 0 ? (
