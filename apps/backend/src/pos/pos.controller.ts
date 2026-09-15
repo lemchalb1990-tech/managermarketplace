@@ -81,6 +81,15 @@ export class PosController {
     return this.service.getWeeklySales(user, companyId, Number(days) || 7);
   }
 
+  @Get('sales/monthly')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getMonthlySales(
+    @CurrentUser() user: any,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.service.getMonthlySales(user, companyId);
+  }
+
   @Get('sales/:id')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getSale(@Param('id') id: string, @CurrentUser() user: any) {

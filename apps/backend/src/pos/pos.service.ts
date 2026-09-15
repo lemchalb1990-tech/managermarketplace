@@ -233,6 +233,48 @@ export class PosService {
     };
   }
 
+  // Ventas mes a mes del año en curso (enero → mes actual) para el gráfico de columnas del
+  // dashboard — mismo patrón que getWeeklySales pero agrupando por mes en vez de por día.
+  async getMonthlySales(user: any, companyId?: string) {
+    const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+    const tz = await this.settings.getTimezone();
+    const now = new Date();
+    const [year, currentMonth] = dateKeyStringInTz(now, tz).split('-').map(Number);
+
+    const from = startOfDayInTz(tz, `${year}-01-01`);
+    const where: any = { createdAt: { gte: from, lte: now } };
+    if (cid) where.companyId = cid;
+
+    const sales = await this.prisma.sale.findMany({
+      where,
+      select: { total: true, createdAt: true },
+    });
+
+    const result = [];
+    for (let m = 1; m <= currentMonth; m++) {
+      const monthStart = startOfDayInTz(tz, `${year}-${String(m).padStart(2, '0')}-01`);
+      const nextMonth = m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2, '0')}-01`;
+      const monthEnd = startOfDayInTz(tz, nextMonth);
+
+      const monthSales = sales.filter((s) => s.createdAt >= monthStart && s.createdAt < monthEnd);
+      const total = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
+
+      result.push({
+        month: `${year}-${String(m).padStart(2, '0')}`,
+        label: monthStart.toLocaleDateString('es-CL', { month: 'short', timeZone: tz }),
+        total,
+        count: monthSales.length,
+      });
+    }
+
+    return {
+      year,
+      months: result,
+      yearTotal: result.reduce((s, r) => s + r.total, 0),
+      yearCount: result.reduce((s, r) => s + r.count, 0),
+    };
+  }
+
   async listSales(user: any, query: { companyId?: string; channel?: SaleChannel; from?: string; to?: string; page?: string; search?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN
       ? query.companyId

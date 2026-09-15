@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const tz = useDashboardTimezone();
 
   const [summary, setSummary] = useState<any>(null);
-  const [monthSales, setMonthSales] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
@@ -92,14 +92,11 @@ export default function DashboardPage() {
     setLoading(true);
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     const today = dateKeyInTz(tz);
-    // Reutiliza el mismo endpoint de "últimos N días" pidiendo los días transcurridos del
-    // mes actual (1 al día de hoy) — evita sumar un endpoint nuevo solo para el total mensual.
-    const dayOfMonth = Number(today.slice(8, 10)) || 1;
 
     Promise.all([
       api.pos.summary({ companyId, date: today }, token).catch(() => null),
       api.pos.weeklySales(token, { companyId }).catch(() => ({ days: [], byStore: [] })),
-      api.pos.weeklySales(token, { companyId, days: dayOfMonth }).catch(() => ({ days: [], byStore: [] })),
+      api.pos.monthlySales(token, { companyId }).catch(() => ({ year: new Date().getFullYear(), months: [], yearTotal: 0, yearCount: 0 })),
       api.orders.list(token, { companyId, status: 'PENDING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
@@ -109,11 +106,7 @@ export default function DashboardPage() {
       setSummary(sum);
       setWeeklyData((weekly as any)?.days || []);
       setStoreBreakdown((weekly as any)?.byStore || []);
-      const monthDays = (monthly as any)?.days || [];
-      setMonthSales({
-        total: monthDays.reduce((s: number, d: any) => s + (d.total || 0), 0),
-        count: monthDays.reduce((s: number, d: any) => s + (d.count || 0), 0),
-      });
+      setMonthlyData((monthly as any)?.months || []);
 
       const pendingR = pending as any;
       const preparingR = preparing as any;
@@ -146,6 +139,10 @@ export default function DashboardPage() {
   const avgTicket = weekCount > 0 ? weekTotal / weekCount : 0;
   const bestDay = weeklyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
 
+  const maxMonthly = Math.max(...monthlyData.map((d) => d.total), 1);
+  const yearTotal = monthlyData.reduce((s, d) => s + (d.total || 0), 0);
+  const bestMonth = monthlyData.reduce((best: any, d: any) => (d.total > (best?.total ?? -1) ? d : best), null as any);
+
   const DONUT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'];
   const totalStoreSales = storeBreakdown.reduce((s, x) => s + x.count, 0);
   let donutCumulative = 0;
@@ -161,8 +158,7 @@ export default function DashboardPage() {
   const dateLabel = now.toLocaleDateString('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz,
   });
-  const monthLabel = now.toLocaleDateString('es-CL', { month: 'long', timeZone: tz });
-  const monthAvgTicket = monthSales.count > 0 ? monthSales.total / monthSales.count : 0;
+  const currentYear = now.toLocaleDateString('es-CL', { year: 'numeric', timeZone: tz });
 
   if (loading) {
     return (
@@ -229,16 +225,48 @@ export default function DashboardPage() {
       {/* Fila de ventas — total del mes + 7 días + por tienda, en 3 columnas iguales */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        <SectionCard title="Ventas totales por mes" actions={<span className="text-xs text-[var(--text-muted)] capitalize">{monthLabel}</span>}>
-          <div className="flex flex-col items-center justify-center py-6 gap-1">
-            <p className="text-3xl font-bold text-[var(--text)]">${Math.round(monthSales.total).toLocaleString('es-CL')}</p>
-            <p className="text-sm text-[var(--text-muted)]">{monthSales.count} venta{monthSales.count === 1 ? '' : 's'} este mes</p>
-            {monthSales.count > 0 && (
-              <p className="text-xs text-[var(--text-muted)] mt-1">
-                Ticket prom. <span className="font-semibold text-[var(--text-2)]">${Math.round(monthAvgTicket).toLocaleString('es-CL')}</span>
-              </p>
-            )}
-          </div>
+        <SectionCard
+          title="Ventas totales por mes"
+          actions={
+            <span className="text-xs text-[var(--text-muted)]">
+              Total {currentYear} <span className="font-semibold text-[var(--text-2)]">${Math.round(yearTotal).toLocaleString('es-CL')}</span>
+            </span>
+          }
+        >
+          {monthlyData.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
+          ) : (
+            <div className="flex items-end gap-1.5">
+              {monthlyData.map((m, i) => {
+                const h = maxMonthly > 0 ? Math.max((m.total / maxMonthly) * 128, m.total > 0 ? 4 : 0) : 0;
+                const isCurrent = i === monthlyData.length - 1;
+                const isBest = bestMonth && m.month === bestMonth.month && m.total > 0;
+                return (
+                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5">
+                    <div className="w-full h-32 flex flex-col justify-end relative">
+                      {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor mes">🏆</span>}
+                      {h > 0 ? (
+                        <div className="w-full rounded-t-md bg-[var(--brand)]" style={{ height: `${h}px` }} />
+                      ) : (
+                        <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
+                      )}
+                    </div>
+                    <div className="text-center">
+                      {m.count > 0 ? (
+                        <p className="text-xs font-semibold text-[var(--text-2)]">{fmtCompactCLP(m.total)}</p>
+                      ) : (
+                        <p className="text-xs text-[var(--text-muted)]">—</p>
+                      )}
+                      <p className={`text-xs leading-tight capitalize ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
+                        style={isCurrent ? { color: 'var(--info)' } : undefined}>
+                        {m.label}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard

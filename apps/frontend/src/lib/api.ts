@@ -725,6 +725,11 @@ export const api = {
       if (params?.days) q.set('days', String(params.days));
       return apiFetch<{ days: any[]; byStore: any[] }>(`/pos/sales/weekly?${q}`, {}, token);
     },
+    monthlySales: (token: string, params?: { companyId?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      return apiFetch<{ year: number; months: any[]; yearTotal: number; yearCount: number }>(`/pos/sales/monthly?${q}`, {}, token);
+    },
     stockMovements: (productId: string, token: string) =>
       apiFetch<any[]>(`/pos/stock/movements/${productId}`, {}, token),
     adjustStock: (data: { productId: string; quantity: number; reason?: string }, token: string) =>
