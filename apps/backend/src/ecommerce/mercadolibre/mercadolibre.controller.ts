@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Query, Body, Param,
   UseGuards, Res, Logger,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
@@ -330,9 +331,14 @@ export class MercadolibreController {
     return this.service.previewSalesImport(id, user, from, to);
   }
 
+  // El modal de importación manda una orden por request (para mostrar el % de avance real,
+  // ver SalesImportModal.tsx) — con lotes grandes eso supera fácil el límite global de
+  // ThrottlerModule (100 requests/min) y el import se corta a mitad de camino con
+  // "ThrottlerException: Too Many Requests". Este endpoint necesita su propio límite, más alto.
   @Post('connections/:id/sales-import/confirm')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
     return this.service.confirmSalesImport(id, dto.externalIds, user, dto.createDispatchOrder);
   }
