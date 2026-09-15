@@ -355,29 +355,37 @@ export default function DashboardPage() {
           ) : (
             <div className="flex items-end gap-1.5">
               {reportData.map((d, i) => {
-                const h = reportMax > 0 ? Math.max((d.total / reportMax) * 128, d.total > 0 ? 4 : 0) : 0;
+                // Escala a 108px (no a los 128px del alto real del cuadro) para dejar
+                // siempre ~20px libres arriba de la barra más alta y que el valor
+                // flotante nunca se salga del recuadro de la columna.
+                const h = reportMax > 0 ? Math.max((d.total / reportMax) * 108, d.total > 0 ? 4 : 0) : 0;
                 const isCurrent = i === reportData.length - 1;
                 return (
-                  <div key={d.month || d.date || i} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div key={d.month || d.date || i}
+                    className="group flex-1 flex flex-col items-center gap-1.5 rounded-lg px-1 pt-1 pb-1.5 transition-colors hover:bg-[var(--brand-light)]">
                     <div className="w-full h-32 flex flex-col justify-end relative">
+                      {h > 0 && (
+                        <span
+                          className="absolute inset-x-0 text-center text-[10px] font-semibold text-[var(--text-2)] truncate px-0.5 transition-colors group-hover:text-[var(--text)]"
+                          style={{
+                            bottom: reportChartReady ? `${h + 4}px` : '4px',
+                            transitionProperty: 'bottom, color', transitionDuration: '700ms', transitionDelay: `${i * 25}ms`,
+                          }}
+                        >
+                          {fmtCompactCLP(d.total)}
+                        </span>
+                      )}
                       {h > 0 ? (
-                        <div className="w-full rounded-t-md bg-[#b8ccfa] ease-out"
-                          style={{ height: reportChartReady ? `${h}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
+                        <div className="w-full rounded-t-md bg-[#b8ccfa] ease-out transition-colors group-hover:bg-[#9fb9f7]"
+                          style={{ height: reportChartReady ? `${h}px` : '0px', transitionProperty: 'height, background-color', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
                       )}
                     </div>
-                    <div className="text-center">
-                      {d.count > 0 ? (
-                        <p className="text-xs font-semibold text-[var(--text-2)]">{fmtCompactCLP(d.total)}</p>
-                      ) : (
-                        <p className="text-xs text-[var(--text-muted)]">—</p>
-                      )}
-                      <p className={`text-xs leading-tight capitalize ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
-                        style={isCurrent ? { color: 'var(--info)' } : undefined}>
-                        {d.label}
-                      </p>
-                    </div>
+                    <p className={`text-xs leading-tight capitalize transition-colors group-hover:text-[var(--text)] ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
+                      style={isCurrent ? { color: 'var(--info)' } : undefined}>
+                      {d.label}
+                    </p>
                   </div>
                 );
               })}
