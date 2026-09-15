@@ -712,17 +712,25 @@ export class DropshippingService {
     });
     if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
     if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
-    if (ds._count.orders > 0) {
+
+    const hasOrders = ds._count.orders > 0;
+    // Solo Super Admin puede forzar el borrado con pedidos ya registrados; el resto de
+    // los roles debe desactivar el proveedor para no perder ese historial por accidente.
+    if (hasOrders && user.role !== Role.SUPER_ADMIN) {
       throw new ConflictException(`Tiene ${ds._count.orders} pedido(s) registrado(s). Desactívalo en vez de eliminarlo.`);
     }
+
     await this.prisma.$transaction([
+      // DropshipOrderItem cae en cascada al borrar el DropshipOrder; el pedido en sí no
+      // tiene onDelete: Cascade hacia el proveedor, así que hay que borrarlo a mano acá.
+      ...(hasOrders ? [this.prisma.dropshipOrder.deleteMany({ where: { dropshipSupplierId: id } })] : []),
       this.prisma.product.updateMany({
         where: { id: { in: ds.products.map((p) => p.productId) } },
         data: { dropship: false },
       }),
       this.prisma.dropshipSupplier.delete({ where: { id } }),
     ]);
-    return { deleted: true };
+    return { deleted: true, ordersDeleted: hasOrders ? ds._count.orders : 0 };
   }
 
   // ─── Productos dropship ───────────────────────────────────────────────────
