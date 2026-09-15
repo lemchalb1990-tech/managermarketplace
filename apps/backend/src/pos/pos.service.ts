@@ -422,8 +422,9 @@ export class PosService {
   // Ventas de un canal con conexión (ML, Shopify, etc.) cuya cuenta ya se desconectó — quedan
   // sin connectionId (ON DELETE SET NULL) y por eso no se pueden atribuir a ninguna empresa
   // "conectada" hoy. Solo Super Admin las ve, para poder revisarlas/limpiarlas caso a caso.
-  async listOrphanedSales(page?: string) {
-    const where = { connectionId: null, channel: { notIn: CONNECTIONLESS_CHANNELS } };
+  async listOrphanedSales(page?: string, companyId?: string) {
+    const where: any = { connectionId: null, channel: { notIn: CONNECTIONLESS_CHANNELS } };
+    if (companyId) where.companyId = companyId;
     const p = Math.max(1, parseInt(page || '1'));
     const take = 30;
     const skip = (p - 1) * take;

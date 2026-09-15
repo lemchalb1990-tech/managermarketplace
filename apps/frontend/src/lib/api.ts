@@ -713,9 +713,10 @@ export const api = {
     bulkDeleteSales: (ids: string[], token: string) =>
       apiFetch<{ deleted: number; failed: { id: string; reason: string }[] }>(
         '/pos/sales/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
-    orphanedSales: (token: string, page?: number) => {
+    orphanedSales: (token: string, page?: number, companyId?: string) => {
       const q = new URLSearchParams();
       if (page) q.set('page', String(page));
+      if (companyId) q.set('companyId', companyId);
       return apiFetch<{ sales: any[]; total: number; page: number; pages: number }>(`/pos/sales/orphaned?${q}`, {}, token);
     },
     summary: (params: { companyId?: string; date?: string }, token: string) => {

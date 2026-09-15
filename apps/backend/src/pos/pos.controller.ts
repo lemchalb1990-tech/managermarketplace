@@ -47,8 +47,8 @@ export class PosController {
 
   @Get('sales/orphaned')
   @Roles(Role.SUPER_ADMIN)
-  listOrphanedSales(@Query('page') page?: string) {
-    return this.service.listOrphanedSales(page);
+  listOrphanedSales(@Query('page') page?: string, @Query('companyId') companyId?: string) {
+    return this.service.listOrphanedSales(page, companyId);
   }
 
   @Get('sales/export')
