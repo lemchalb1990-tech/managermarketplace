@@ -21,9 +21,10 @@ export class PurchasesService {
   }
 
   async findAllPaginated(user: any, query: { companyId?: string; page?: string }) {
-    const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : user.companyId;
-    const where: any = {};
-    if (companyId) where.companyId = companyId;
+    // Antes, un Super Admin sin empresa seleccionada recibía compras de TODAS las
+    // empresas mezcladas (where quedaba en {}) — mismo gate que el resto del servicio.
+    const companyId = this.resolveCompanyId(user, query.companyId);
+    const where: any = { companyId };
 
     const page = Math.max(1, parseInt(query.page || '1'));
     const take = 30;

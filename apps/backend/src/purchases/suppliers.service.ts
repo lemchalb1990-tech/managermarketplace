@@ -17,11 +17,12 @@ export class SuppliersService {
   }
 
   async findAll(user: any, companyId?: string) {
-    const where = user.role === Role.SUPER_ADMIN
-      ? (companyId ? { companyId } : {})
-      : { companyId: user.companyId };
+    // Antes, un Super Admin sin empresa seleccionada recibía proveedores de TODAS las
+    // empresas mezclados (where quedaba en {}). resolveCompanyId ya exige companyId acá
+    // igual que en create/update/remove — mismo gate, sin excepción para el listado.
+    const resolvedCompanyId = this.resolveCompanyId(user, companyId);
     return this.prisma.supplier.findMany({
-      where,
+      where: { companyId: resolvedCompanyId },
       include: {
         _count: { select: { purchases: true } },
         dropship: { select: { id: true } },
