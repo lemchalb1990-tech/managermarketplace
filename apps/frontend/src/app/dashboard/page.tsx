@@ -275,7 +275,7 @@ export default function DashboardPage() {
       />
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
         <KpiCard
           title="Ventas hoy"
           value={summary?.totalSales ?? 0}
@@ -290,6 +290,14 @@ export default function DashboardPage() {
           sub="total del día · POS y e-commerce"
           colorClass="bg-green-50 text-green-500"
           icon="💰"
+          href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
+        />
+        <KpiCard
+          title="Total neto recibido"
+          value={`$${Number(summary?.totalNetReceived ?? 0).toLocaleString('es-CL')}`}
+          sub="hoy · descontando comisiones, envío e impuestos"
+          colorClass="bg-emerald-50 text-emerald-600"
+          icon="🏦"
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard

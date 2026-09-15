@@ -544,6 +544,10 @@ export class PosService {
       date: dayKey,
       totalSales: sales.length,
       totalRevenue: sales.reduce((s, v) => s + Number(v.total), 0),
+      // Neto real recibido: total - envío - comisión - impuestos - descuento (ya viene
+      // calculado en netAmount para canales de marketplace). Las ventas POS/manuales no
+      // tienen esos descuentos, así que ahí el neto es el total completo.
+      totalNetReceived: sales.reduce((s, v) => s + (v.netAmount != null ? Number(v.netAmount) : Number(v.total)), 0),
       byChannel,
       byPayment,
     };
