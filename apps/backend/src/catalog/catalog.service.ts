@@ -619,14 +619,15 @@ export class CatalogService {
     });
   }
 
-  // Plantilla con el catálogo activo actual (SKU, nombre, precio, stock) para que el usuario
-  // edite Precio/Stock en Excel y la vuelva a subir — el nombre solo es referencia visual.
+  // Plantilla con el catálogo activo actual (SKU, nombre, precio, costo, stock) para que el
+  // usuario edite Precio/Costo/Stock en Excel y la vuelva a subir — el nombre solo es
+  // referencia visual.
   async exportBulkTemplate(user: any, companyIdParam?: string): Promise<Buffer> {
     const companyId = this.resolveCompanyId(user, companyIdParam);
     const products = await this.prisma.product.findMany({
       where: { companyId, active: true },
       orderBy: { name: 'asc' },
-      select: { sku: true, name: true, price: true, stock: true },
+      select: { sku: true, name: true, price: true, cost: true, stock: true },
     });
 
     const workbook = new ExcelJS.Workbook();
@@ -635,18 +636,21 @@ export class CatalogService {
       { header: 'SKU', key: 'sku', width: 22 },
       { header: 'Nombre', key: 'name', width: 45 },
       { header: 'Precio', key: 'price', width: 15 },
+      { header: 'Costo', key: 'cost', width: 15 },
       { header: 'Stock', key: 'stock', width: 12 },
     ];
     sheet.getRow(1).font = { bold: true };
     for (const p of products) {
-      sheet.addRow({ sku: p.sku, name: p.name, price: Number(p.price), stock: p.stock });
+      sheet.addRow({ sku: p.sku, name: p.name, price: Number(p.price), cost: p.cost != null ? Number(p.cost) : null, stock: p.stock });
     }
     return Buffer.from(await workbook.xlsx.writeBuffer());
   }
 
-  // Sube la plantilla editada y actualiza precio y/o stock solo de productos que ya existen
-  // en el catálogo (emparejados por SKU) — nunca crea productos nuevos. Reutiliza update()
-  // para que el efecto sea idéntico a editar el producto a mano (mismas reglas y permisos).
+  // Sube la plantilla editada y actualiza precio, costo y/o stock solo de productos que ya
+  // existen en el catálogo (emparejados por SKU) — nunca crea productos nuevos. Reutiliza
+  // update() para que el efecto sea idéntico a editar el producto a mano (mismas reglas y
+  // permisos, incluyendo que ignora el costo en productos con compras registradas — ver
+  // update()).
   async bulkImportStockPrice(buffer: Buffer, user: any, companyIdParam?: string): Promise<BulkImportResult> {
     const companyId = this.resolveCompanyId(user, companyIdParam);
     const workbook = new ExcelJS.Workbook();
@@ -668,18 +672,23 @@ export class CatalogService {
       const sku = rawSku != null ? String(rawSku).trim() : '';
       if (!sku) continue;
 
-      const dto: { price?: number; stock?: number } = {};
+      const dto: { price?: number; cost?: number; stock?: number } = {};
       const rawPrice = row.getCell(3).value;
       if (rawPrice !== null && rawPrice !== undefined && rawPrice !== '') {
         const n = Number(rawPrice);
         if (!Number.isNaN(n)) dto.price = n;
       }
-      const rawStock = row.getCell(4).value;
+      const rawCost = row.getCell(4).value;
+      if (rawCost !== null && rawCost !== undefined && rawCost !== '') {
+        const n = Number(rawCost);
+        if (!Number.isNaN(n)) dto.cost = n;
+      }
+      const rawStock = row.getCell(5).value;
       if (rawStock !== null && rawStock !== undefined && rawStock !== '') {
         const n = Number(rawStock);
         if (!Number.isNaN(n)) dto.stock = Math.trunc(n);
       }
-      if (dto.price === undefined && dto.stock === undefined) {
+      if (dto.price === undefined && dto.cost === undefined && dto.stock === undefined) {
         skipped++;
         continue;
       }

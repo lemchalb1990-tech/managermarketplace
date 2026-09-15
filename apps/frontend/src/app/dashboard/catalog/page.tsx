@@ -1338,7 +1338,7 @@ export default function CatalogPage() {
           <div className="flex gap-2">
             <button onClick={openImportModal}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
-              Cargar stock/precios
+              Cargar stock/precios/costos
             </button>
             <button onClick={openCreateModal}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
@@ -1411,8 +1411,9 @@ export default function CatalogPage() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <p className="text-xs text-gray-500">
-                Descarga la plantilla con tu catálogo actual, edita las columnas <b>Precio</b> y/o <b>Stock</b> y súbela de vuelta.
+                Descarga la plantilla con tu catálogo actual, edita las columnas <b>Precio</b>, <b>Costo</b> y/o <b>Stock</b> y súbela de vuelta.
                 Solo se actualizan productos que ya existen (por SKU) — esto nunca crea productos nuevos.
+                El costo no se actualiza en productos con compras registradas (se calcula automático).
               </p>
               <button type="button" onClick={handleDownloadTemplate} disabled={importTemplateLoading}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
