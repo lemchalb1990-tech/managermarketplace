@@ -133,6 +133,15 @@ export default function DashboardPage() {
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
 
+  // Arranca las barras/dona en 0 y las anima a su valor real una vez cargan los datos —
+  // igual que la animación de entrada de los gráficos en el dashboard de referencia.
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    if (loading) { setChartsReady(false); return; }
+    const raf = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [loading]);
+
   const maxWeekly = Math.max(...weeklyData.map(d => d.total), 1);
   const weekTotal = weeklyData.reduce((s, d) => s + (d.total || 0), 0);
   const weekCount = weeklyData.reduce((s, d) => s + (d.count || 0), 0);
@@ -246,7 +255,8 @@ export default function DashboardPage() {
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor mes">🏆</span>}
                       {h > 0 ? (
-                        <div className="w-full rounded-t-md bg-[var(--brand)]" style={{ height: `${h}px` }} />
+                        <div className="w-full rounded-t-md bg-[var(--brand)] ease-out"
+                          style={{ height: chartsReady ? `${h}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
                       )}
@@ -292,7 +302,7 @@ export default function DashboardPage() {
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
             <div className="flex items-end gap-2">
-              {weeklyData.map((day) => {
+              {weeklyData.map((day, i) => {
                 const totalH = maxWeekly > 0 ? Math.max((day.total / maxWeekly) * 128, day.total > 0 ? 4 : 0) : 0;
                 const posH = day.total > 0 ? (day.posTotal / day.total) * totalH : 0;
                 const ecomH = totalH - posH;
@@ -303,7 +313,8 @@ export default function DashboardPage() {
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {isBest && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs" title="Mejor día">🏆</span>}
                       {totalH > 0 ? (
-                        <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${totalH}px` }}>
+                        <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden ease-out"
+                          style={{ height: chartsReady ? `${totalH}px` : '0px', transitionProperty: 'height', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }}>
                           <div style={{ height: `${posH}px` }} className="bg-[var(--brand)] shrink-0" />
                           <div style={{ height: `${ecomH}px` }} className="bg-[var(--info)] shrink-0" />
                         </div>
@@ -344,8 +355,9 @@ export default function DashboardPage() {
                       key={i}
                       cx="18" cy="18" r="15.915" fill="none"
                       stroke={s.color} strokeWidth="3.5"
-                      strokeDasharray={`${s.pct} ${100 - s.pct}`}
+                      strokeDasharray={chartsReady ? `${s.pct} ${100 - s.pct}` : '0 100'}
                       strokeDashoffset={s.offset}
+                      style={{ transitionProperty: 'stroke-dasharray', transitionDuration: '900ms', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)', transitionDelay: `${i * 60}ms` }}
                     />
                   ))}
                 </svg>
