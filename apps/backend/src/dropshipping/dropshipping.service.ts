@@ -11,9 +11,16 @@ import {
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
 } from './dto/dropshipping.dto';
 import { NoriegaAdapter } from './providers/noriega.adapter';
-import { DropshipCatalogProvider } from './providers/provider.interface';
+import { DropshipCatalogProvider, mergeDuplicateSkuRows } from './providers/provider.interface';
 
 const PAGE_SIZE = 20;
+
+// Nombre de archivo a partir de la URL de la foto del proveedor, para el registro
+// ProductImage (filename es obligatorio aunque la imagen viva en un host externo).
+function filenameFromImageUrl(url: string): string {
+  const last = url.split('/').pop() || 'foto';
+  return last.split('?')[0] || 'foto.jpg';
+}
 
 interface CatalogRow {
   sku: string;
@@ -485,7 +492,8 @@ export class DropshippingService {
       } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
         const next = await this.fetchProviderPage(ds, cached!.nextProviderPage);
         cached = {
-          rows: [...cached!.rows, ...next.rows],
+          // Un SKU puede haber quedado partido entre esta página y la anterior.
+          rows: mergeDuplicateSkuRows([...cached!.rows, ...next.rows]),
           hasMore: next.hasMore,
           nextProviderPage: next.nextPage,
           fetchedAt: cached!.fetchedAt,
@@ -586,6 +594,9 @@ export class DropshippingService {
       if (!existingDp && !createNew) { skipped.push(`${row.sku} (no importado — usa "Buscar y agregar productos")`); continue; }
 
       if (existingDp) {
+        const existingImages = row.imageUrl
+          ? await this.prisma.productImage.count({ where: { productId: existingDp.productId } })
+          : 1;
         await this.prisma.$transaction([
           this.prisma.dropshipProduct.update({
             where: { id: existingDp.id },
@@ -605,6 +616,10 @@ export class DropshippingService {
               ...(row.stock != null ? { stock: row.stock } : {}),
             },
           }),
+          // Solo trae la foto del proveedor si el producto todavía no tiene ninguna propia.
+          ...(row.imageUrl && existingImages === 0 ? [this.prisma.productImage.create({
+            data: { productId: existingDp.productId, url: row.imageUrl, filename: filenameFromImageUrl(row.imageUrl), isPrimary: true, order: 0 },
+          })] : []),
         ]);
         updated++;
         continue;
@@ -620,6 +635,7 @@ export class DropshippingService {
         const linkedElsewhere = await this.prisma.dropshipProduct.findUnique({ where: { productId: product.id } });
         if (linkedElsewhere) { skipped.push(`${row.sku} (ya vinculado a otro proveedor)`); continue; }
         if (cost == null) { skipped.push(`${row.sku} (sin precio de proveedor)`); continue; }
+        const existingImages = await this.prisma.productImage.count({ where: { productId: product.id } });
         await this.prisma.$transaction([
           this.prisma.dropshipProduct.create({
             data: {
@@ -639,6 +655,10 @@ export class DropshippingService {
             where: { id: product.id },
             data: { dropship: true, supplierPrice: cost, ...(row.stock != null ? { stock: row.stock } : {}) },
           }),
+          // Solo trae la foto del proveedor si el producto todavía no tiene ninguna propia.
+          ...(row.imageUrl && existingImages === 0 ? [this.prisma.productImage.create({
+            data: { productId: product.id, url: row.imageUrl, filename: filenameFromImageUrl(row.imageUrl), isPrimary: true, order: 0 },
+          })] : []),
         ]);
         created++;
         continue;
@@ -673,6 +693,11 @@ export class DropshippingService {
             lastSyncedAt: new Date(),
           },
         });
+        if (row.imageUrl) {
+          await tx.productImage.create({
+            data: { productId: newProduct.id, url: row.imageUrl, filename: filenameFromImageUrl(row.imageUrl), isPrimary: true, order: 0 },
+          });
+        }
       });
       created++;
     }

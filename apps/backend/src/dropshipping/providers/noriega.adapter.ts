@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   DropshipCatalogFetchResult, DropshipCatalogPage, DropshipCatalogProvider,
-  DropshipCatalogRow, DropshipTokenCache,
+  DropshipCatalogRow, DropshipTokenCache, mergeDuplicateSkuRows,
 } from './provider.interface';
 
 // Ver "API de Productos Noriega — Guía de Inicio Rápido" (proveedor externo).
@@ -129,7 +129,9 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
     if (!res.ok) throw new Error(`El proveedor respondió ${res.status} en la página ${page}`);
 
     const data = (await res.json()) as NoriegaProductsResponse;
-    const rows = (data.datos || []).map(mapRow).filter((r) => r.sku);
+    // El mismo SKU puede repetirse varias veces en la página (una fila por modelo de
+    // vehículo compatible); se juntan antes de exponerlas al buscador/import.
+    const rows = mergeDuplicateSkuRows((data.datos || []).map(mapRow).filter((r) => r.sku));
     return {
       rows,
       hasMore: !!data.hayMas,
@@ -164,7 +166,10 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       await sleep(REQUEST_DELAY_MS);
     }
 
-    this.logger.log(`Catálogo Noriega descargado: ${rows.length} productos`);
-    return { rows, tokenCache: cache! };
+    // Un SKU puede haber quedado partido entre dos páginas del proveedor; se vuelven a
+    // juntar acá (mergeDuplicateSkuRows ya es seguro de aplicar dos veces).
+    const merged = mergeDuplicateSkuRows(rows);
+    this.logger.log(`Catálogo Noriega descargado: ${merged.length} productos (${rows.length} filas)`);
+    return { rows: merged, tokenCache: cache! };
   }
 }

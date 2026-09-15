@@ -27,6 +27,34 @@ export interface DropshipCatalogPage {
   tokenCache: DropshipTokenCache;
 }
 
+function stripBullet(line: string): string {
+  return line.replace(/^-\s*/, '').trim();
+}
+
+// Algunos proveedores (ej. Noriega) repiten el mismo SKU una vez por cada modelo de
+// vehículo al que aplica, con el resto de los datos idénticos. Junta esas filas en una
+// sola y deja las descripciones distintas como lista, en vez de perder todas menos una.
+export function mergeDuplicateSkuRows(rows: DropshipCatalogRow[]): DropshipCatalogRow[] {
+  const bySku = new Map<string, DropshipCatalogRow[]>();
+  const order: string[] = [];
+  for (const row of rows) {
+    if (!bySku.has(row.sku)) { bySku.set(row.sku, []); order.push(row.sku); }
+    bySku.get(row.sku)!.push(row);
+  }
+  return order.map((sku) => {
+    const group = bySku.get(sku)!;
+    const base = group[0];
+    if (group.length === 1) return base;
+    const lines = Array.from(new Set(
+      group.flatMap((r) => (r.description || '').split('\n').map(stripBullet).filter(Boolean)),
+    ));
+    return {
+      ...base,
+      description: lines.length > 1 ? lines.map((l) => `- ${l}`).join('\n') : (lines[0] ?? base.description),
+    };
+  });
+}
+
 // Conector para proveedores con API autenticada (login + token), a diferencia del
 // conector FEED (URL pública sin auth) que ya maneja DropshippingService directamente.
 export interface DropshipCatalogProvider {
