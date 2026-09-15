@@ -10,6 +10,14 @@ import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 
+// "1804k" (el número completo pegado a una "k" minúscula) se leía ambiguo — ¿mil ochocientos
+// cuatro, o 1804 "k" de algo? Notación compacta estándar (1,8 M / 450 k) separa el número de
+// la magnitud y usa coma decimal como el resto del panel (es-CL).
+const compactCLP = new Intl.NumberFormat('es-CL', { notation: 'compact', maximumFractionDigits: 1 });
+function fmtCompactCLP(v: number) {
+  return `$${compactCLP.format(v)}`;
+}
+
 function primaryImageUrl(product: any): string | undefined {
   const img = product?.images?.find((i: any) => i.isPrimary) || product?.images?.[0];
   return img ? imgUrl(img.url) : undefined;
@@ -257,7 +265,7 @@ export default function DashboardPage() {
                     <div className="text-center">
                       {day.count > 0 ? (
                         <p className="text-xs font-semibold text-[var(--text-2)]">
-                          ${day.total >= 1000 ? `${(day.total / 1000).toFixed(0)}k` : day.total}
+                          {day.total >= 1000 ? fmtCompactCLP(day.total) : `$${day.total}`}
                         </p>
                       ) : (
                         <p className="text-xs text-[var(--text-muted)]">—</p>
