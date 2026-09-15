@@ -198,7 +198,7 @@ export class PosService {
 
     const sales = await this.prisma.sale.findMany({
       where,
-      select: { total: true, channel: true, createdAt: true, connection: { select: { name: true } } },
+      select: { total: true, netAmount: true, channel: true, createdAt: true, connection: { select: { name: true } } },
     });
 
     const channelLabel: Record<string, string> = {
@@ -206,7 +206,7 @@ export class PosService {
       WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
       PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
     };
-    const byStore: Record<string, { label: string; channel: string; count: number; total: number }> = {};
+    const byStore: Record<string, { label: string; channel: string; count: number; total: number; netReceived: number }> = {};
     for (const s of sales) {
       // Venta de un canal con conexión (ML, Shopify, etc.) cuya cuenta ya se desconectó:
       // se sigue contando en el total del período, pero no en el desglose por canal/tienda
@@ -216,9 +216,12 @@ export class PosService {
 
       const label = s.connection?.name || channelLabel[s.channel] || s.channel;
       const key = `${s.channel}:${label}`;
-      if (!byStore[key]) byStore[key] = { label, channel: s.channel, count: 0, total: 0 };
+      if (!byStore[key]) byStore[key] = { label, channel: s.channel, count: 0, total: 0, netReceived: 0 };
       byStore[key].count++;
       byStore[key].total += Number(s.total);
+      // Ventas POS/manuales no tienen descuentos de marketplace (netAmount queda null) —
+      // ahí el neto recibido es el total completo, igual que en el KPI del dashboard.
+      byStore[key].netReceived += s.netAmount != null ? Number(s.netAmount) : Number(s.total);
     }
 
     const result = [];

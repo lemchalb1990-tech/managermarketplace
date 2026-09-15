@@ -451,7 +451,8 @@ export default function DashboardPage() {
                       <th className="text-left font-medium pb-2 pr-2">Canal</th>
                       <th className="text-right font-medium pb-2 px-2">Órdenes</th>
                       <th className="text-right font-medium pb-2 px-2">Ticket prom</th>
-                      <th className="text-right font-medium pb-2 pl-2">Ventas totales</th>
+                      <th className="text-right font-medium pb-2 px-2">Ventas totales</th>
+                      <th className="text-right font-medium pb-2 pl-2">Total neto</th>
                       <th className="w-7 pb-2" />
                     </tr>
                   </thead>
@@ -472,7 +473,8 @@ export default function DashboardPage() {
                           </td>
                           <td className="text-right px-2 font-semibold text-[var(--text)]">{s.count}</td>
                           <td className="text-right px-2 text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</td>
-                          <td className="text-right pl-2 font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</td>
+                          <td className="text-right px-2 font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</td>
+                          <td className="text-right pl-2 font-semibold text-emerald-600">${Math.round(s.netReceived ?? s.total).toLocaleString('es-CL')}</td>
                           <td className="pl-2 py-2">
                             <RowOpenIcon />
                           </td>
