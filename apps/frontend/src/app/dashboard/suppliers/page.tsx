@@ -146,8 +146,8 @@ export default function SuppliersPage() {
     <div className="max-w-4xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Proveedores</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Empresas a las que les compras mercadería.</p>
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Proveedores</h1>
+          <p className="text-gray-500 text-xs mt-0.5">Empresas a las que les compras mercadería.</p>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (!isSuperAdmin || selectedCompanyId) && (

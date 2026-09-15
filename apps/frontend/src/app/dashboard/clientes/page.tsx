@@ -185,8 +185,8 @@ export default function ClientsPage() {
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Clientes para solicitudes de pedido y facturación.</p>
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Clientes</h1>
+          <p className="text-gray-500 text-xs mt-0.5">Clientes para solicitudes de pedido y facturación.</p>
         </div>
         <div className="flex items-center gap-3">
           {canCreate && (!isSuperAdmin || selectedCompanyId) && (

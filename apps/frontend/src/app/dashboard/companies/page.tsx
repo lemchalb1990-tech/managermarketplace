@@ -175,7 +175,7 @@ export default function CompaniesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+        <h1 className="text-[1.375rem] font-bold text-gray-900">Empresas</h1>
         <button onClick={() => setShowForm(!showForm)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Nueva empresa

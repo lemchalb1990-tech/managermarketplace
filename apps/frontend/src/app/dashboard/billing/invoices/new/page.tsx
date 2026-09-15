@@ -401,7 +401,7 @@ export default function NewInvoicePage() {
         <span className="text-sm text-gray-600 font-medium">Emitir DTE</span>
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
+      <h1 className="text-[1.375rem] font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
       {draftLoadingInitial && (
         <p className="text-sm text-gray-400 mb-4">Cargando datos...</p>
       )}

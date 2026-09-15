@@ -178,7 +178,7 @@ export default function SalesPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Ventas</h1>
+        <h1 className="text-[1.375rem] font-bold text-gray-900">Ventas</h1>
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (

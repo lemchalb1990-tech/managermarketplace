@@ -1333,7 +1333,7 @@ export default function CatalogPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6 gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
+        <h1 className="text-[1.375rem] font-bold text-gray-900">Catálogo de productos</h1>
         {(!isSuperAdmin || selectedCompanyId) && (
           <div className="flex gap-2">
             <button onClick={openImportModal}

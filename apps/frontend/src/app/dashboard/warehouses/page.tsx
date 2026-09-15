@@ -137,8 +137,8 @@ export default function WarehousesPage() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bodegas</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Bodegas</h1>
+          <p className="text-gray-500 text-xs mt-0.5">
             Organiza tu inventario por ubicación física. Cada producto se asigna a una bodega al registrarlo.
           </p>
         </div>

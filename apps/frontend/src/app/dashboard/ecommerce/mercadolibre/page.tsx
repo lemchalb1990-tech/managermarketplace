@@ -258,7 +258,7 @@ export default function MercadoLibrePage() {
       </div>
       <div className="flex items-center gap-3">
         <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">{resolvePlatformLogo(logoMap, 'mercadolibre', Logos.mercadolibre, 'Mercado Libre')}</div>
-        <h1 className="text-2xl font-bold text-gray-900">Mercado Libre</h1>
+        <h1 className="text-[1.375rem] font-bold text-gray-900">Mercado Libre</h1>
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (

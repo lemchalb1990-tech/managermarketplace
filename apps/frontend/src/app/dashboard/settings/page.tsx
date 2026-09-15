@@ -162,8 +162,8 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Configuración del sistema</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">Configuración del sistema</h1>
+        <p className="text-xs text-gray-500">
           {canEdit
             ? 'Variables y URLs que controlan el comportamiento de la plataforma.'
             : 'Variables y URLs que controlan el comportamiento de la plataforma. Modo solo lectura: puedes ver y copiar los valores, pero no editarlos.'}

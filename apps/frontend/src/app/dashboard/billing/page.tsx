@@ -79,8 +79,8 @@ export default function BillingPage() {
     <div className="max-w-4xl">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Facturación Electrónica</h1>
-          <p className="text-gray-500 text-sm">
+          <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">Facturación Electrónica</h1>
+          <p className="text-gray-500 text-xs">
             Conecta con tu proveedor DTE autorizado por el SII y emite facturas, boletas y notas de crédito directamente desde la plataforma.
           </p>
         </div>

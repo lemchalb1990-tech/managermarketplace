@@ -237,9 +237,9 @@ export default function UsersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Usuarios</h1>
           {!isSuperAdmin && myCompany && (
-            <p className={`text-sm mt-0.5 ${atLimit ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+            <p className={`text-xs mt-0.5 ${atLimit ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
               {userCount} de {maxUsers} usuarios utilizados
               {atLimit && ' — límite alcanzado'}
             </p>

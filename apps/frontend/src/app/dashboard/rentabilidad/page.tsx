@@ -318,8 +318,8 @@ export default function RentabilidadPage() {
     <div className="max-w-[1400px]">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-serif">Rentabilidad por producto</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-[1.375rem] font-bold text-gray-900 font-serif">Rentabilidad por producto</h1>
+          <p className="text-gray-500 text-xs mt-0.5">
             Compara tu costo contra el precio de la competencia, con IVA y comisión reales, para decidir qué subir, publicitar o descartar.
           </p>
         </div>

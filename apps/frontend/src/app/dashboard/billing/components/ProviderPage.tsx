@@ -168,8 +168,8 @@ export default function ProviderPage({ config }: Props) {
           {resolvePlatformLogo(logoMap, logoKey, config.logo, displayName)}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
-          <p className="text-sm text-gray-500">{displayDescription}</p>
+          <h1 className="text-[1.375rem] font-bold text-gray-900">{displayName}</h1>
+          <p className="text-xs text-gray-500">{displayDescription}</p>
         </div>
       </div>
 

@@ -180,8 +180,8 @@ export default function EcommercePage() {
   return (
     <div className="max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">E-commerce</h1>
-        <p className="text-gray-500 text-sm">
+        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">E-commerce</h1>
+        <p className="text-gray-500 text-xs">
           Conecta y gestiona todos tus canales de venta online. El catálogo central sincroniza stock y precios en cada plataforma automáticamente.
         </p>
       </div>

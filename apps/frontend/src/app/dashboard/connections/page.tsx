@@ -133,8 +133,8 @@ export default function ConnectionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Conexiones</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-[1.375rem] font-bold text-gray-900">Conexiones</h1>
+        <p className="text-xs text-gray-500 mt-1">
           Todas las APIs de e-commerce y facturación conectadas, en todas las empresas.
         </p>
       </div>

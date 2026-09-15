@@ -318,8 +318,8 @@ export default function WorkOrdersPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Órdenes de trabajo</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Órdenes de trabajo</h1>
+          <p className="text-xs text-gray-500 mt-1">
             Presupuestos para imprimir y entregar al cliente. No descuentan stock ni se cobran hasta que el cliente acepta.
           </p>
         </div>

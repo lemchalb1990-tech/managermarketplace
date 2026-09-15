@@ -145,8 +145,8 @@ export default function PurchasesPage() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Compras</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Compras</h1>
+          <p className="text-gray-500 text-xs mt-0.5">
             Registra compras a proveedores por lotes; el costo de cada producto se calcula automáticamente.
           </p>
         </div>

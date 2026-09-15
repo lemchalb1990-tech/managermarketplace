@@ -215,8 +215,8 @@ export default function DropshippingPage() {
             <span className="text-gray-300">/</span>
             <span className="text-sm text-gray-600 font-medium">Dropshipping</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Dropshipping</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-[1.375rem] font-bold text-gray-900">Dropshipping</h1>
+          <p className="text-xs text-gray-500">
             Vende productos que despacha un proveedor externo directo al cliente. El stock propio nunca se toca.
           </p>
         </div>
