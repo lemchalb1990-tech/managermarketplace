@@ -143,9 +143,9 @@ export default function DashboardPage() {
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => onActivity(['sale', 'question', 'claim'], loadDashboard), [loadDashboard]);
 
-  // Filtro de período compartido por "Historial de Ventas" y "Ventas por Canal - Tienda"
-  // (antes cada tarjeta tenía sus propios tabs) — vive junto a la fecha, arriba a la
-  // derecha, y ambas tarjetas reaccionan al mismo valor.
+  // Filtro de período compartido por "Historial de Ventas" y "Ventas por Canal - Tienda":
+  // los tabs viven en el header de "Ventas por Canal - Tienda", pero ambas tarjetas
+  // reaccionan al mismo valor.
   const DASHBOARD_PERIODS = [
     { key: '12m', label: '12 meses' },
     { key: '6m', label: '6 meses' },
@@ -246,7 +246,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
 
       <PageHeader
         title={`Bienvenido, ${user?.name ?? ''}`}
@@ -273,28 +273,8 @@ export default function DashboardPage() {
         ) : undefined}
       />
 
-      {/* Filtro de período de "Historial de Ventas" y "Ventas por Canal - Tienda" — un
-          solo selector arriba a la derecha en vez de un tab por tarjeta. */}
-      <div className="flex justify-end -mt-3">
-        <div className="flex items-center gap-1 bg-white rounded-full p-1 border border-[var(--border)]">
-          {DASHBOARD_PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setDashboardPeriod(p.key)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                dashboardPeriod === p.key
-                  ? 'bg-[var(--brand)] text-[var(--text)]'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <KpiCard
           title="Ventas hoy"
           value={summary?.totalSales ?? 0}
@@ -330,7 +310,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Fila de ventas — historial y ventas por canal a mitades iguales */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
 
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Historial de Ventas</span>}
@@ -411,6 +391,23 @@ export default function DashboardPage() {
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Ventas por Canal - Tienda</span>}
           style={CARD_SHADOW}
+          actions={
+            <div className="flex items-center gap-1 bg-white rounded-full p-1">
+              {DASHBOARD_PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setDashboardPeriod(p.key)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                    dashboardPeriod === p.key
+                      ? 'bg-[var(--brand)] text-[var(--text)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          }
         >
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
@@ -482,7 +479,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Fila operativa — órdenes urgentes + últimas ventas + stock crítico, en 3 columnas iguales */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
 
         <SectionCard
           title="Órdenes urgentes"

@@ -268,10 +268,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-[15px] transition-colors ${
+                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-[17px] transition-colors ${
                   active
                     ? 'bg-[#f5dfa8] text-[var(--brand-ink)] font-semibold'
-                    : 'text-[var(--text-2)] font-medium hover:bg-[var(--surface-soft)]'
+                    : 'text-[var(--text-2)] font-medium hover:bg-[var(--brand-light)]'
                 }`}
               >
                 {item.label}
@@ -287,8 +287,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div key={g.key} className="border-b border-[var(--border-soft)]">
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[15px] font-semibold transition-colors ${
-                    active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
+                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[17px] font-semibold transition-colors ${
+                    active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--brand-light)] hover:text-[var(--text)]'
                   }`}
                 >
                   <span className="w-3.5" />
@@ -306,11 +306,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onClick={() => toggleGroup(g.key)}
                 className={`w-full flex items-center gap-2.5 px-2 py-2 my-0.5 text-left transition-colors ${
-                  open || hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:text-[var(--text)]'
+                  open || hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--brand-light)] hover:text-[var(--text)]'
                 }`}
               >
                 <GroupIcon k={g.key} />
-                <span className={`flex-1 text-[15px] ${open ? 'font-bold' : 'font-semibold'}`}>
+                <span className={`flex-1 text-[17px] ${open ? 'font-bold' : 'font-semibold'}`}>
                   {g.label}
                 </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
