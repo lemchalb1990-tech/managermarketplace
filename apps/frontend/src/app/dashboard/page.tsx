@@ -148,7 +148,7 @@ export default function DashboardPage() {
   const REPORT_PERIODS = [
     { key: '12m', label: '12 meses' },
     { key: '6m', label: '6 meses' },
-    { key: '30d', label: '30 días' },
+    { key: '15d', label: '15 días' },
     { key: '7d', label: '7 días' },
   ] as const;
   type ReportPeriod = typeof REPORT_PERIODS[number]['key'];
@@ -157,7 +157,7 @@ export default function DashboardPage() {
   const [reportChannel, setReportChannel] = useState('');
   const [reportData, setReportData] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(true);
-  const isDailyReport = reportPeriod === '30d' || reportPeriod === '7d';
+  const isDailyReport = reportPeriod === '15d' || reportPeriod === '7d';
 
   const loadReport = useCallback(() => {
     const token = getToken();
@@ -169,7 +169,7 @@ export default function DashboardPage() {
     const channel = reportChannel || undefined;
 
     const req = isDailyReport
-      ? api.pos.weeklySales(token, { companyId, days: reportPeriod === '30d' ? 30 : 7, channel }).then((r) => r.days)
+      ? api.pos.weeklySales(token, { companyId, days: reportPeriod === '15d' ? 15 : 7, channel }).then((r) => r.days)
       : api.pos.monthlySales(token, { companyId, months: reportPeriod === '12m' ? 12 : 6, channel }).then((r) => r.months);
 
     req.then((rows) => setReportData(rows || [])).catch(() => setReportData([])).finally(() => setReportLoading(false));
@@ -357,7 +357,7 @@ export default function DashboardPage() {
                   truncarse a algo ilegible — ahí el valor solo aparece al pasar el mouse,
                   con su propio fondo, para poder mostrarse completo sin chocar con los vecinos. */}
               {reportData.map((d, i) => {
-                const isDense = reportData.length > 12;
+                const isDense = reportData.length > 15;
                 // Escala a 108px (no a los 128px del alto real del cuadro) para dejar
                 // siempre ~20px libres arriba de la barra más alta y que el valor
                 // flotante nunca se salga del recuadro de la columna.
@@ -425,15 +425,15 @@ export default function DashboardPage() {
           {storeBreakdown.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
           ) : (
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="relative w-32 h-32 shrink-0">
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative w-40 h-40 shrink-0">
                 <svg viewBox="0 0 36 36" className="w-full h-full">
-                  <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--border)" strokeWidth="3.5" />
+                  <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--border)" strokeWidth="3" />
                   {donutSegments.map((s, i) => (
                     <circle
                       key={i}
                       cx="18" cy="18" r="15.915" fill="none"
-                      stroke={s.color} strokeWidth="3.5"
+                      stroke={s.color} strokeWidth="3"
                       strokeDasharray={storeChartReady ? `${s.pct} ${100 - s.pct}` : '0 100'}
                       strokeDashoffset={s.offset}
                       style={{ transitionProperty: 'stroke-dasharray', transitionDuration: '900ms', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)', transitionDelay: `${i * 60}ms` }}
@@ -441,40 +441,50 @@ export default function DashboardPage() {
                   ))}
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold text-[var(--text)]">{totalStoreSales}</span>
-                  <span className="text-[10px] text-[var(--text-muted)]">ventas</span>
+                  <span className="text-xl font-bold text-[var(--text)]">{totalStoreSales}</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">ventas</span>
                 </div>
               </div>
 
-              <div className="w-full flex-1 min-w-0">
-                <div className="grid grid-cols-[1fr_auto_auto_auto_28px] gap-2 px-2.5 pb-1.5 text-[11px] font-medium text-[var(--text-muted)]">
-                  <span>Canal</span>
-                  <span className="text-right">Órdenes</span>
-                  <span className="text-right">Ticket prom</span>
-                  <span className="text-right">Ventas totales</span>
-                  <span />
-                </div>
-                <div className="divide-y divide-[var(--border-soft)]">
-                  {donutSegments.map((s, i) => {
-                    const avgTicket = s.count > 0 ? s.total / s.count : 0;
-                    return (
-                      <Link
-                        key={i}
-                        href={`/dashboard/sales?channel=${s.channel}`}
-                        className="group relative grid grid-cols-[1fr_auto_auto_auto_28px] items-center gap-2 px-2.5 py-2 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
-                      >
-                        <span className="flex items-center gap-2 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-                          <span className="truncate text-xs text-[var(--text-2)]">{s.label}</span>
-                        </span>
-                        <span className="text-right text-xs font-semibold text-[var(--text)]">{s.count}</span>
-                        <span className="text-right text-xs text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</span>
-                        <span className="text-right text-xs font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</span>
-                        <RowOpenIcon />
-                      </Link>
-                    );
-                  })}
-                </div>
+              {/* Tabla real (no un grid por fila) para que las columnas de todas las
+                  filas — y el encabezado — queden alineadas entre sí. */}
+              <div className="w-full flex-1 min-w-0 overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="text-[11px] font-medium text-[var(--text-muted)]">
+                      <th className="text-left font-medium pb-2 pr-2">Canal</th>
+                      <th className="text-right font-medium pb-2 px-2">Órdenes</th>
+                      <th className="text-right font-medium pb-2 px-2">Ticket prom</th>
+                      <th className="text-right font-medium pb-2 pl-2">Ventas totales</th>
+                      <th className="w-7 pb-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-soft)]">
+                    {donutSegments.map((s, i) => {
+                      const avgTicket = s.count > 0 ? s.total / s.count : 0;
+                      return (
+                        <tr
+                          key={i}
+                          onClick={() => router.push(`/dashboard/sales?channel=${s.channel}`)}
+                          className="group cursor-pointer transition-colors hover:bg-[var(--surface-soft)]"
+                        >
+                          <td className="py-2 pr-2">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
+                              <span className="truncate text-[var(--text-2)]">{s.label}</span>
+                            </span>
+                          </td>
+                          <td className="text-right px-2 font-semibold text-[var(--text)]">{s.count}</td>
+                          <td className="text-right px-2 text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</td>
+                          <td className="text-right pl-2 font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</td>
+                          <td className="pl-2 py-2">
+                            <RowOpenIcon />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
