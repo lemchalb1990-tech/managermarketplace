@@ -9,13 +9,13 @@ export default function ParisPage() {
       name: 'Paris',
       description: 'Conecta tu cuenta de Paris Marketplace (Cencosud).',
       moduleKey: 'ecommerce_paris',
-      color: '#003087',
+      color: '#1571F2',
       logo: Logos.paris,
       supportsPublish: false,
       helpText:
-        'Ingresa la API Key que te entregó Paris (Cencosud). El sistema valida la conexión contra la API de Paris al guardar. La sincronización de stock y precios se habilitará en una próxima fase.',
+        'La API Key se genera en el portal de desarrolladores de Paris/Cencosud (Mi cuenta > API Key). El sistema valida la conexión contra la API de Paris al guardar. La sincronización de stock y precios se habilitará en una próxima fase.',
       fields: [
-        { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Ej: 00000000-0000-0000-0000-000000000000' },
+        { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Pega aqui la API Key', hint: 'La API Key se genera en el portal de desarrolladores de Paris/Cencosud (Mi cuenta > API Key).' },
         {
           key: 'env',
           label: 'Ambiente (déjalo vacío para producción)',

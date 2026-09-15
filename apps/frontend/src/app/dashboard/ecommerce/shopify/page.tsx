@@ -12,10 +12,11 @@ export default function ShopifyPage() {
       color: '#96BF48',
       logo: Logos.shopify,
       supportsPublish: true,
-      helpText: 'Crea una app privada en tu tienda Shopify (Settings → Apps → Develop apps) y copia el Admin API access token.',
+      helpText: 'Crea una app en el Dev Dashboard de Shopify (Settings → Apps → Develop apps) para obtener el Client ID y Client Secret.',
       fields: [
-        { key: 'shopDomain', label: 'Dominio de la tienda', placeholder: 'mi-tienda.myshopify.com', hint: 'Solo el dominio, sin https://' },
-        { key: 'accessToken', label: 'Admin API Access Token', type: 'password', placeholder: 'shpat_xxx...' },
+        { key: 'shopDomain', label: 'Dominio de la tienda', placeholder: 'mitienda.myshopify.com', hint: 'Solo el dominio, sin https://' },
+        { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID', hint: 'Lo entrega la app al crearla en el Dev Dashboard' },
+        { key: 'accessToken', label: 'Client Secret', type: 'password', placeholder: 'Tu Client Secret' },
       ],
     }} />
   );

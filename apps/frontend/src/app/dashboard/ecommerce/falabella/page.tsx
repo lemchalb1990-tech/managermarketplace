@@ -9,7 +9,7 @@ export default function FalabellaPage() {
       name: 'Falabella',
       description: 'Conecta tu cuenta de Falabella Seller para sincronizar tu inventario.',
       moduleKey: 'ecommerce_falabella',
-      color: '#009A44',
+      color: '#9AC03C',
       logo: Logos.falabella,
       supportsPublish: true,
       helpText: 'Ingresa las credenciales de acceso a Falabella Seller Center. Contacta a Falabella para obtener acceso API.',

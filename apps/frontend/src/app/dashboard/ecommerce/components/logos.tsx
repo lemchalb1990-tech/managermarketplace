@@ -14,10 +14,10 @@ export const Logos: Record<string, React.ReactNode> = {
 
   shopify: (
     <svg viewBox="0 0 64 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-      <rect width="64" height="40" rx="8" fill="#96BF48" />
-      <path d="M22 17 C22 13 26 11 32 11 C38 11 42 13 42 17 L44 31 H20 Z" fill="white" opacity="0.9" />
-      <path d="M28 17 C28 14.2 29.8 12 32 12 C34.2 12 36 14.2 36 17" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round" />
-      <text x="28.5" y="27" fontSize="13" fontWeight="900" fill="#96BF48" fontFamily="Arial,sans-serif">S</text>
+      <rect width="64" height="40" rx="8" fill="#95BF47" />
+      <path d="M23 16 C23 12.5 26 10 32 10 C38 10 41 12.5 41 16 L43.5 30 H20.5 Z" fill="white" />
+      <path d="M27.5 16 C27.5 13.2 29.2 11 32 11 C34.8 11 36.5 13.2 36.5 16" stroke="#95BF47" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M29 20 l1 6 M35 20 l-1 6" stroke="#95BF47" strokeWidth="1.4" strokeLinecap="round" opacity="0.55" />
     </svg>
   ),
 
@@ -43,32 +43,31 @@ export const Logos: Record<string, React.ReactNode> = {
 
   falabella: (
     <svg viewBox="0 0 64 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-      <rect width="64" height="40" rx="8" fill="#009A44" />
-      <text x="8" y="28" fontSize="12.5" fontWeight="900" fill="white" fontFamily="Arial,sans-serif" letterSpacing="-0.3">Falabella</text>
+      <rect width="64" height="40" rx="8" fill="#9AC03C" />
+      <text x="21" y="28" fontSize="20" fontWeight="700" fontStyle="italic" fill="white" fontFamily="Georgia,serif">f.</text>
     </svg>
   ),
 
   paris: (
     <svg viewBox="0 0 64 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-      <rect width="64" height="40" rx="8" fill="#003087" />
-      <path d="M32 6 L30 17 M32 6 L34 17 M29 17 L35 17 M27 24 L37 24" stroke="white" strokeWidth="2" strokeLinecap="round" />
-      <path d="M27 24 L24 31" stroke="white" strokeWidth="2" strokeLinecap="round" />
-      <path d="M37 24 L40 31" stroke="white" strokeWidth="2" strokeLinecap="round" />
-      <text x="13" y="38" fontSize="10" fontWeight="900" fill="white" fontFamily="Arial,sans-serif" letterSpacing="2">PARIS</text>
+      <rect width="64" height="40" rx="8" fill="#1571F2" />
+      <circle cx="32" cy="20" r="11" fill="none" stroke="white" strokeWidth="1.6" />
+      <text x="32" y="26" fontSize="16" fontWeight="700" fontStyle="italic" fill="white" fontFamily="Georgia,serif" textAnchor="middle">p</text>
     </svg>
   ),
 
   hites: (
     <svg viewBox="0 0 64 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-      <rect width="64" height="40" rx="8" fill="#E30613" />
-      <text x="8" y="28" fontSize="16" fontWeight="900" fill="white" fontFamily="Arial,sans-serif" letterSpacing="1">HITES</text>
+      <rect width="64" height="40" rx="8" fill="#E4232D" />
+      <text x="32" y="27" fontSize="18" fontWeight="900" fill="white" fontFamily="Arial,sans-serif" textAnchor="middle">H</text>
     </svg>
   ),
 
   ripley: (
     <svg viewBox="0 0 64 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-      <rect width="64" height="40" rx="8" fill="#5B2D8E" />
-      <text x="7" y="28" fontSize="14" fontWeight="900" fill="white" fontFamily="Arial,sans-serif" letterSpacing="0.5">RIPLEY</text>
+      <rect width="64" height="40" rx="8" fill="#EC008C" />
+      <text x="32" y="24" fontSize="17" fontWeight="700" fontStyle="italic" fill="white" fontFamily="Georgia,serif" textAnchor="middle">R</text>
+      <text x="32" y="32" fontSize="6" fill="white" fontFamily="Arial,sans-serif" textAnchor="middle" opacity="0.85">.com</text>
     </svg>
   ),
 
@@ -77,15 +76,14 @@ export const Logos: Record<string, React.ReactNode> = {
       <rect width="64" height="40" rx="8" fill="#0071CE" />
       <g>
         {/* spark: 6 rays at 60° */}
-        <line x1="20" y1="9" x2="20" y2="15" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <line x1="20" y1="25" x2="20" y2="31" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <line x1="10.8" y1="14.5" x2="15.8" y2="17.2" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <line x1="24.2" y1="22.8" x2="29.2" y2="25.5" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <line x1="10.8" y1="25.5" x2="15.8" y2="22.8" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <line x1="24.2" y1="17.2" x2="29.2" y2="14.5" stroke="#FFC220" strokeWidth="3.5" strokeLinecap="round" />
-        <circle cx="20" cy="20" r="4" fill="#FFC220" />
+        <line x1="32" y1="8" x2="32" y2="15" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <line x1="32" y1="25" x2="32" y2="32" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <line x1="21.9" y1="13.5" x2="27.9" y2="16.8" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <line x1="36.1" y1="23.2" x2="42.1" y2="26.5" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <line x1="21.9" y1="26.5" x2="27.9" y2="23.2" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <line x1="36.1" y1="16.8" x2="42.1" y2="13.5" stroke="#FFC220" strokeWidth="3.6" strokeLinecap="round" />
+        <circle cx="32" cy="20" r="4.2" fill="#FFC220" />
       </g>
-      <text x="34" y="24" fontSize="11" fontWeight="900" fill="white" fontFamily="Arial,sans-serif">Walmart</text>
     </svg>
   ),
 };

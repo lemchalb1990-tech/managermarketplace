@@ -14,8 +14,8 @@ export default function WalmartPage() {
       supportsPublish: true,
       helpText: 'Obtén tu Client ID y Client Secret desde el portal de vendedores de Walmart Chile.',
       fields: [
-        { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID' },
-        { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Tu Client Secret' },
+        { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID', hint: 'Pega aqui el Client ID de Walmart' },
+        { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Tu Client Secret', hint: 'Pega aqui el Client Secret de Walmart' },
       ],
     }} />
   );
