@@ -761,13 +761,38 @@ model Listing {
   // simple, sin variaciones (el caso de hoy).
   variationId String?
 
+  // Campos propios de esta publicación por canal (ej. Paris): NO se reutilizan
+  // title/description del Product al publicar, cada canal puede exigir su propio texto
+  // (largo, formato, tono). channelAttributes guarda lo específico de cada plataforma
+  // (para Paris: familyId/familyName/categoryId/categoryPath/attributes[]) sin necesidad
+  // de una tabla nueva por marketplace.
+  title             String?
+  description       String?   @db.Text
+  channelAttributes Json?
+
   productId    String
   product      Product               @relation(fields: [productId], references: [id])
   connectionId String
   connection   MarketplaceConnection @relation(fields: [connectionId], references: [id])
+  images       ListingImage[]
 
   @@unique([productId, connectionId])
   @@map("listings")
+}
+
+// Fotos propias de una publicación por canal (ej. Paris) — separadas de ProductImage
+// porque un canal puede exigir fotos distintas a las del catálogo general.
+model ListingImage {
+  id        String   @id @default(cuid())
+  url       String
+  filename  String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("listing_images")
 }
 
 model Sale {

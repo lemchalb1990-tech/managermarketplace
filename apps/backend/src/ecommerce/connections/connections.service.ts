@@ -9,6 +9,7 @@ import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
+import { getEffectivePrice } from '../../common/effective-price.util';
 
 const NON_ML_TYPES: MarketplaceType[] = [
   MarketplaceType.SHOPIFY, MarketplaceType.WOOCOMMERCE, MarketplaceType.JUMPSELLER,
@@ -181,6 +182,33 @@ export class ConnectionsService {
     });
   }
 
+  // Reenvía stock/precio actuales a una publicación YA existente en el canal — a
+  // diferencia de publishProduct, no crea nada nuevo. Sirve para cualquier plataforma no-ML
+  // que implemente syncListing (hoy Shopify/WooCommerce/JumpSeller/Paris).
+  async syncListingNow(connectionId: string, productId: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    if (!listing?.externalId) throw new BadRequestException('El producto no está publicado en esta conexión todavía');
+
+    const product = await this.catalog.findOne(productId, user);
+    const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
+    const price = await getEffectivePrice(this.prisma, productId, connectionId, Number(product.price));
+
+    try {
+      await adapter.syncListing(conn, listing.externalId, { stock: product.stock, price });
+      return this.prisma.listing.update({
+        where: { id: listing.id },
+        data: { syncedAt: new Date(), errorMsg: null, status: product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE },
+      });
+    } catch (err: any) {
+      await this.prisma.listing.update({ where: { id: listing.id }, data: { errorMsg: err.message } }).catch(() => {});
+      throw new BadRequestException(err.message);
+    }
+  }
+
   async linkProduct(connectionId: string, productId: string, dto: LinkProductDto, user: any) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
@@ -208,5 +236,89 @@ export class ConnectionsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // ─── Campos/homologación específicos de Paris ────────────────────────────────
+  // Por ahora estos métodos solo existen para PARIS; cuando se implemente el mismo
+  // patrón para otro marketplace (Falabella, Ripley...) se agregan sus propios métodos
+  // en vez de forzar un endpoint genérico que ningún otro adapter necesita todavía.
+
+  private async getOwnedConnection(connectionId: string, user: any) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+    return conn;
+  }
+
+  private assertParis(conn: any) {
+    if (conn.marketplace !== MarketplaceType.PARIS) {
+      throw new BadRequestException('Esta operación solo está disponible para conexiones de Paris');
+    }
+  }
+
+  async getParisFamilies(connectionId: string, user: any, q?: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.getFamilies(conn, q);
+  }
+
+  async getParisCategories(connectionId: string, user: any, familyId: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.getCategories(conn, familyId);
+  }
+
+  async getParisAttributes(connectionId: string, user: any, familyId: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.getAttributes(conn, familyId);
+  }
+
+  async getParisAttributeOptions(connectionId: string, user: any, attributeId: string, q?: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.getAttributeOptions(conn, attributeId, q);
+  }
+
+  async getParisStorePrices(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.getStorePrices(conn);
+  }
+
+  async upsertListingFields(connectionId: string, productId: string, dto: any, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    await this.catalog.findOne(productId, user);
+    return this.paris.upsertListingFields(productId, connectionId, dto);
+  }
+
+  async addListingImage(connectionId: string, productId: string, filename: string, url: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    await this.catalog.findOne(productId, user);
+    return this.paris.addListingImage(productId, connectionId, filename, url);
+  }
+
+  async removeListingImage(connectionId: string, productId: string, imageId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    if (!listing) throw new NotFoundException('Publicación no encontrada');
+    return this.paris.removeListingImage(listing.id, imageId);
+  }
+
+  // ─── Importar catálogo existente desde Paris ─────────────────────────────────
+
+  async previewParisImport(connectionId: string, user: any, offset?: number) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.previewImport(conn, conn.companyId, offset || 0);
+  }
+
+  async confirmParisImport(connectionId: string, user: any, externalIds: string[], unlinkIds?: string[]) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertParis(conn);
+    return this.paris.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
   }
 }

@@ -5,6 +5,7 @@ import { SyncQueueController } from './sync-queue.controller';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
 import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
+import { ParisAdapter } from '../platforms/paris.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 
 // Módulo hoja (sin depender de CatalogModule ni EcommerceModule) para poder sincronizar
@@ -13,7 +14,7 @@ import { StubAdapter } from '../platforms/stub.adapter';
 // se formaría un ciclo (EcommerceModule ya importa CatalogModule).
 @Module({
   controllers: [SyncQueueController],
-  providers: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, StubAdapter],
-  exports: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, StubAdapter],
+  providers: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, StubAdapter],
+  exports: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, StubAdapter],
 })
 export class SyncModule {}

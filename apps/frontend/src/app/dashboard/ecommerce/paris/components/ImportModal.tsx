@@ -1,0 +1,303 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getToken } from '@/lib/auth';
+import { api } from '@/lib/api';
+
+type PreviewItem = {
+  externalId: string;
+  title: string;
+  thumbnail: string | null;
+  sku: string | null;
+  skuSuspicious?: boolean;
+  matchedProductId: string | null;
+  matchedProductName: string | null;
+};
+
+const PAGE_SIZE = 20;
+
+// Trae y "unifica" el catálogo que ya existe publicado en Paris con el catálogo interno —
+// mismo patrón que el import de Mercado Libre (ver ecommerce/mercadolibre/components/ImportModal.tsx),
+// adaptado a paginación por offset (Paris no usa scroll_id) y sin precio/stock en el preview
+// (Paris no los devuelve en la búsqueda de productos).
+export function ParisImportModal({
+  connectionId,
+  connectionName,
+  onClose,
+  onImported,
+}: {
+  connectionId: string;
+  connectionName: string;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const [items, setItems] = useState<PreviewItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [unlinked, setUnlinked] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
+  const [page, setPage] = useState(0);
+
+  async function loadPreview(offset: number | undefined, append: boolean) {
+    if (append) setLoadingMore(true); else setLoading(true);
+    setError('');
+    if (!append) setPage(0);
+    try {
+      const token = getToken()!;
+      const data = await api.connections.previewImport(connectionId, offset, token);
+      setItems((prev) => append ? [...prev, ...data.items] : data.items);
+      setTotal(data.total);
+      setHasMore(data.hasMore);
+      setNextOffset(data.nextOffset);
+      setAlreadyImportedCount((prev) => (append ? prev : 0) + data.alreadyImportedCount);
+      setSelected((prev) => {
+        const next = append ? new Set(prev) : new Set<string>();
+        data.items.forEach((i) => next.add(i.externalId));
+        return next;
+      });
+      setUnlinked((prev) => {
+        const next = append ? new Set(prev) : new Set<string>();
+        data.items.forEach((i) => { if (i.matchedProductId && i.skuSuspicious) next.add(i.externalId); });
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.message || 'No se pudieron obtener los productos de Paris.');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }
+
+  useEffect(() => { loadPreview(undefined, false); }, [connectionId]);
+
+  function toggle(externalId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    const allIds = items.map((i) => i.externalId);
+    const allSelected = allIds.every((id) => selected.has(id));
+    setSelected(allSelected ? new Set() : new Set(allIds));
+  }
+
+  function toggleLink(externalId: string) {
+    setUnlinked((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
+
+  async function handleConfirm() {
+    if (selected.size === 0) return;
+    setImporting(true);
+    setError('');
+    try {
+      const token = getToken()!;
+      const unlinkIds = Array.from(selected).filter((id) => unlinked.has(id));
+      const res = await api.connections.confirmImport(connectionId, Array.from(selected), unlinkIds, token);
+      setResult(res);
+      onImported();
+    } catch (err: any) {
+      setError(err.message || 'Error al importar los productos.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const newCount = items.filter((i) => !i.matchedProductId || unlinked.has(i.externalId)).length;
+  const matchCount = items.filter((i) => i.matchedProductId && !unlinked.has(i.externalId)).length;
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pagedItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col relative">
+        {importing && (
+          <div className="absolute inset-0 bg-white/90 rounded-xl flex flex-col items-center justify-center gap-3 z-10">
+            <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+            <p className="text-sm text-gray-600 font-medium">Importando productos...</p>
+            <p className="text-xs text-gray-400">Esto puede tardar unos segundos, no cierres esta ventana.</p>
+          </div>
+        )}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="font-semibold text-gray-900">Importar catálogo de "{connectionName}"</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Trae los datos y fotos de productos ya publicados en Paris, y unifícalos con el catálogo.</p>
+          </div>
+          <button onClick={onClose} disabled={importing || loading} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading && (
+            <div className="p-16 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
+              <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+              <p>Buscando productos en Paris...</p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="m-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          )}
+
+          {!loading && !error && result && (
+            <div className="p-6 space-y-3">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+                <p className="font-semibold mb-1">Importación completada</p>
+                <p>{result.imported} producto(s) nuevo(s) creado(s), {result.linked} vinculado(s) a productos existentes, {result.skipped} omitido(s) (ya importados).</p>
+              </div>
+              {result.errors?.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 space-y-1 max-h-40 overflow-y-auto">
+                  <p className="font-semibold">{result.errors.length} producto(s) no se pudieron importar:</p>
+                  {result.errors.map((e, i) => <p key={i}>{e}</p>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading && !error && !result && (
+            <>
+              {items.length === 0 ? (
+                <div className="p-12 text-center text-gray-400 text-sm space-y-3">
+                  <p>
+                    {alreadyImportedCount > 0
+                      ? hasMore
+                        ? `Los productos revisados hasta ahora (${alreadyImportedCount}) ya estaban importados. Sigue buscando para ver el resto.`
+                        : 'Todos los productos de esta cuenta ya fueron importados.'
+                      : 'No se encontraron productos en esta cuenta de Paris.'}
+                  </p>
+                  {hasMore && (
+                    <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore}
+                      className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                      {loadingMore ? 'Buscando...' : `Seguir buscando (revisados ${alreadyImportedCount} de ${total || '?'})`}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
+                    <span>{newCount} nuevos</span>
+                    <span>{matchCount} coinciden por SKU con productos existentes</span>
+                    {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importados (no se muestran)</span>}
+                  </div>
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-sm mt-3">
+                    <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left">
+                          <input type="checkbox"
+                            checked={items.length > 0 && items.every((i) => selected.has(i.externalId))}
+                            onChange={toggleAll} />
+                        </th>
+                        <th className="px-2 py-2 text-left text-gray-600 font-medium">Producto</th>
+                        <th className="px-2 py-2 text-left text-gray-600 font-medium">SKU</th>
+                        <th className="px-2 py-2 text-left text-gray-600 font-medium">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pagedItems.map((item) => (
+                        <tr key={item.externalId} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">
+                            <input type="checkbox" checked={selected.has(item.externalId)} onChange={() => toggle(item.externalId)} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex items-center gap-2">
+                              {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
+                              <span className="text-gray-800 line-clamp-1">{item.title}</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs text-gray-500">
+                            {item.sku ? (
+                              <span className="flex items-center gap-1">
+                                {item.sku}
+                                {item.skuSuspicious && (
+                                  <span title="Este SKU se repite en varios productos distintos de este lote — parece genérico, no un identificador propio." className="text-amber-500 cursor-help">⚠</span>
+                                )}
+                              </span>
+                            ) : <span className="italic text-gray-400">se generará automáticamente</span>}
+                          </td>
+                          <td className="px-2 py-2">
+                            {item.matchedProductId && item.skuSuspicious ? (
+                              <span className="text-xs text-amber-600" title={`El SKU "${item.sku}" se repite en otros productos de este lote — se ignora la coincidencia y se crea como nuevo.`}>
+                                SKU genérico — se crea como nuevo
+                              </span>
+                            ) : item.matchedProductId ? (
+                              unlinked.has(item.externalId) ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-green-600">Crear producto nuevo</span>
+                                  <button type="button" onClick={() => toggleLink(item.externalId)} className="text-xs text-gray-400 hover:text-gray-600 underline">deshacer</button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-blue-600">Vincular a "{item.matchedProductName}"</span>
+                                  <button type="button" onClick={() => toggleLink(item.externalId)} className="text-xs text-red-400 hover:text-red-600 underline">quitar vínculo</button>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-xs text-green-600">Crear producto nuevo</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  </div>
+                  {pageCount > 1 && (
+                    <div className="flex items-center justify-center gap-3 py-3 border-t border-gray-100">
+                      <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">← Anterior</button>
+                      <span className="text-xs text-gray-500">Página {page + 1} de {pageCount}</span>
+                      <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">Siguiente →</button>
+                    </div>
+                  )}
+                  {hasMore && (
+                    <div className="flex items-center justify-center py-3 border-t border-gray-100">
+                      <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore}
+                        className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                        {loadingMore ? 'Cargando...' : `Cargar más productos (${items.length + alreadyImportedCount} de ${total || '?'})`}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {!loading && (
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between shrink-0">
+          {result ? (
+            <>
+              <span />
+              <button onClick={onClose} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold">Cerrar</button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-gray-500">{selected.size} seleccionado(s)</span>
+              <div className="flex gap-2">
+                <button onClick={onClose} disabled={importing} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">Cancelar</button>
+                <button onClick={handleConfirm} disabled={importing || selected.size === 0}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                  {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        )}
+      </div>
+    </div>
+  );
+}

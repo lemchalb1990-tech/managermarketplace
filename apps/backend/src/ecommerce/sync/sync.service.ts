@@ -4,8 +4,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
 import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
+import { ParisAdapter } from '../platforms/paris.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter, SyncPayload } from '../platforms/platform.interface';
+import { getEffectivePrice } from '../../common/effective-price.util';
 
 const ML_API = 'https://api.mercadolibre.com';
 
@@ -18,6 +20,7 @@ export class SyncService {
     private shopify: ShopifyAdapter,
     private woocommerce: WooCommerceAdapter,
     private jumpseller: JumpSellerAdapter,
+    private paris: ParisAdapter,
     private stub: StubAdapter,
   ) {}
 
@@ -26,6 +29,7 @@ export class SyncService {
       case MarketplaceType.SHOPIFY: return this.shopify;
       case MarketplaceType.WOOCOMMERCE: return this.woocommerce;
       case MarketplaceType.JUMPSELLER: return this.jumpseller;
+      case MarketplaceType.PARIS: return this.paris;
       default: return this.stub;
     }
   }
@@ -48,15 +52,23 @@ export class SyncService {
   private async syncOneListing(listing: any, payload: SyncPayload) {
     const { connection } = listing;
     try {
+      // El precio que llega acá es el mismo para todas las conexiones del producto — si
+      // esta conexión puntual tiene su propio precio (ChannelPrice, ej. "Precio de Venta
+      // Paris"), ese manda por sobre el genérico.
+      const effectivePrice = payload.price !== undefined
+        ? await getEffectivePrice(this.prisma, listing.productId, connection.id, payload.price)
+        : undefined;
+      const effectivePayload: SyncPayload = { ...payload, price: effectivePrice };
+
       if (connection.marketplace === MarketplaceType.MERCADO_LIBRE) {
-        await this.syncMlListing(listing, payload.stock, payload.price);
+        await this.syncMlListing(listing, effectivePayload.stock, effectivePayload.price);
       } else {
         if (!listing.externalId) {
           this.logger.warn(`Sin externalId para listing=${listing.id} marketplace=${connection.marketplace}`);
           return;
         }
         const adapter = this.getAdapter(connection.marketplace);
-        await adapter.syncListing(connection, listing.externalId, payload);
+        await adapter.syncListing(connection, listing.externalId, effectivePayload);
       }
 
       const newStatus = payload.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;

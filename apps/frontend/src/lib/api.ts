@@ -317,6 +317,12 @@ export const api = {
         `/catalog/products/bulk/import-template${companyId ? `?companyId=${companyId}` : ''}`,
         token, 'plantilla-stock-precios.xlsx',
       ),
+    // "Precio de Venta {canal}" — mismo endpoint que ya existe para Producto Maestro
+    // (product-masters), opera directo sobre productId sin exigir que tenga maestro.
+    setChannelPrice: (productId: string, connectionId: string, price: number, token: string) =>
+      apiFetch<any>(`/product-masters/products/${productId}/channel-price`, { method: 'POST', body: JSON.stringify({ connectionId, price }) }, token),
+    removeChannelPrice: (productId: string, connectionId: string, token: string) =>
+      apiFetch<any>(`/product-masters/products/${productId}/channel-price/${connectionId}`, { method: 'DELETE' }, token),
     bulkImport: (file: File, token: string, companyId?: string) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
         `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token),
@@ -496,10 +502,47 @@ export const api = {
       apiFetch<{ success: boolean; message?: string }>(`/ecommerce/connections/${id}/test`, { method: 'POST' }, token),
     publish: (connectionId: string, productId: string, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/publish`, { method: 'POST' }, token),
+    sync: (connectionId: string, productId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/sync`, { method: 'POST' }, token),
     link: (connectionId: string, productId: string, data: { externalId: string; externalUrl?: string }, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/link`, { method: 'POST', body: JSON.stringify(data) }, token),
     productListings: (productId: string, token: string) =>
       apiFetch<any[]>(`/ecommerce/connections/products/${productId}/listings`, {}, token),
+    paris: {
+      families: (connectionId: string, q: string | undefined, token: string) =>
+        apiFetch<{ id: string; name: string; allowVariant: boolean }[]>(
+          `/ecommerce/connections/${connectionId}/paris/families${q ? `?q=${encodeURIComponent(q)}` : ''}`, {}, token),
+      categories: (connectionId: string, familyId: string, token: string) =>
+        apiFetch<{ id: string; name: string; path: string }[]>(
+          `/ecommerce/connections/${connectionId}/paris/categories/${familyId}`, {}, token),
+      attributes: (connectionId: string, familyId: string, token: string) =>
+        apiFetch<{ id: string; name: string; scope: 'PRODUCT' | 'VARIANT'; dataType: string; required: boolean; options: { id: string; name: string }[] }[]>(
+          `/ecommerce/connections/${connectionId}/paris/attributes/${familyId}`, {}, token),
+      attributeOptions: (connectionId: string, attributeId: string, q: string | undefined, token: string) =>
+        apiFetch<{ id: string; name: string }[]>(
+          `/ecommerce/connections/${connectionId}/paris/attribute-options/${attributeId}${q ? `?q=${encodeURIComponent(q)}` : ''}`, {}, token),
+      storePrices: (connectionId: string, token: string) =>
+        apiFetch<{ id: string; name: string; channelName: string }[]>(
+          `/ecommerce/connections/${connectionId}/paris/store-prices`, {}, token),
+    },
+    upsertListing: (connectionId: string, productId: string, data: {
+      title?: string; description?: string;
+      channelAttributes?: { familyId: string; familyName?: string; categoryId: string; categoryPath?: string; attributes: any[] };
+    }, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/listing`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    uploadListingImage: (connectionId: string, productId: string, file: File, token: string) =>
+      apiUpload<any>(`/ecommerce/connections/${connectionId}/products/${productId}/listing-images`, file, token),
+    deleteListingImage: (connectionId: string, productId: string, imageId: string, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/listing-images/${imageId}`, { method: 'DELETE' }, token),
+    previewImport: (connectionId: string, offset: number | undefined, token: string) =>
+      apiFetch<{
+        connectionName: string; total: number; hasMore: boolean; nextOffset: number | null;
+        alreadyImportedCount: number;
+        items: { externalId: string; title: string; thumbnail: string | null; sku: string | null; skuSuspicious: boolean; matchedProductId: string | null; matchedProductName: string | null }[];
+      }>(`/ecommerce/connections/${connectionId}/import/preview${offset ? `?offset=${offset}` : ''}`, {}, token),
+    confirmImport: (connectionId: string, externalIds: string[], unlinkIds: string[], token: string) =>
+      apiFetch<{ imported: number; linked: number; skipped: number; errors: string[] }>(
+        `/ecommerce/connections/${connectionId}/import/confirm`, { method: 'POST', body: JSON.stringify({ externalIds, unlinkIds }) }, token),
   },
   billing: {
     connections: {

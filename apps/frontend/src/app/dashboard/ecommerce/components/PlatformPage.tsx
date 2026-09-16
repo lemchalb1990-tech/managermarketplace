@@ -8,6 +8,7 @@ import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
+import { ParisImportModal } from '../paris/components/ImportModal';
 
 export interface PlatformField {
   key: string;
@@ -30,6 +31,9 @@ export interface PlatformConfig {
   logoTextColor?: string;
   fields: PlatformField[];
   supportsPublish?: boolean;
+  // Habilita el botón "Importar catálogo" por conexión (traer productos ya publicados en
+  // la plataforma y unificarlos con el catálogo interno). Hoy solo implementado para Paris.
+  supportsImport?: boolean;
   helpText?: string;
 }
 
@@ -59,6 +63,7 @@ export default function PlatformPage({ config }: Props) {
   const [editError, setEditError] = useState('');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [importingConn, setImportingConn] = useState<{ id: string; name: string } | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
@@ -306,6 +311,12 @@ export default function PlatformPage({ config }: Props) {
                           Editar
                         </button>
                       )}
+                      {config.supportsImport && c.active && (
+                        <button onClick={() => setImportingConn({ id: c.id, name: c.name })}
+                          className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                          Importar catálogo
+                        </button>
+                      )}
                       <button onClick={() => handleTest(c.id)} disabled={testingId === c.id}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
                         {testingId === c.id ? 'Probando...' : 'Probar'}
@@ -383,6 +394,14 @@ export default function PlatformPage({ config }: Props) {
             </div>
           </div>
         </div>
+      )}
+      {importingConn && config.marketplace === 'PARIS' && (
+        <ParisImportModal
+          connectionId={importingConn.id}
+          connectionName={importingConn.name}
+          onClose={() => setImportingConn(null)}
+          onImported={() => {}}
+        />
       )}
     </div>
   );

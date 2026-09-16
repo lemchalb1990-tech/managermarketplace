@@ -75,6 +75,345 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
   );
 }
 
+function ParisAttributeInput({ connectionId, attribute, value, onChange }: {
+  connectionId: string; attribute: any; value: any; onChange: (v: any) => void;
+}) {
+  const isList = attribute.dataType === 'list';
+  const [options, setOptions] = useState<any[]>(attribute.options || []);
+  const [query, setQuery] = useState(value?.optionName || '');
+
+  useEffect(() => { setOptions(attribute.options || []); }, [attribute.id]);
+
+  async function search(q: string) {
+    setQuery(q);
+    if (!isList) return;
+    try {
+      const token = getToken()!;
+      const opts = await api.connections.paris.attributeOptions(connectionId, attribute.id, q, token);
+      setOptions(opts);
+    } catch { /* ignore */ }
+  }
+
+  function pick(name: string) {
+    const opt = options.find((o) => o.name === name);
+    if (opt) onChange({ optionId: opt.id, optionName: opt.name });
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{attribute.name}{attribute.required ? ' *' : ''}</label>
+      {isList ? (
+        <>
+          <input list={`paris-attr-${attribute.id}`} value={query}
+            onChange={(e) => search(e.target.value)}
+            onBlur={(e) => pick(e.target.value)}
+            placeholder="Buscar opción..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          <datalist id={`paris-attr-${attribute.id}`}>
+            {options.map((o) => <option key={o.id} value={o.name} />)}
+          </datalist>
+        </>
+      ) : (
+        <input value={value?.value || ''} onChange={(e) => onChange({ value: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      )}
+    </div>
+  );
+}
+
+// Tarjeta de publicación por conexión de Paris — reusa MlDescriptionEditor (misma
+// necesidad: descripción HTML con fotos embebidas) y sigue el mismo patrón visual que la
+// pestaña de Mercado Libre, pero con campos propios (título/atributos no se reutilizan del
+// catálogo, ver ParisAdapter.publishProduct en el backend).
+function ParisListingCard({ product, connection, onRefresh }: {
+  product: any; connection: { id: string; name: string }; onRefresh: () => Promise<any>;
+}) {
+  const listing = product.listings?.find((l: any) => l.connectionId === connection.id);
+  const channelPrice = product.channelPrices?.find((cp: any) => cp.connectionId === connection.id);
+  const savedAttrs: any = listing?.channelAttributes || null;
+
+  const [title, setTitle] = useState(listing?.title ?? '');
+  const [description, setDescription] = useState(listing?.description ?? '');
+  const [familyId, setFamilyId] = useState(savedAttrs?.familyId ?? '');
+  const [familyName, setFamilyName] = useState(savedAttrs?.familyName ?? '');
+  const [categoryId, setCategoryId] = useState(savedAttrs?.categoryId ?? '');
+  const [categoryPath, setCategoryPath] = useState(savedAttrs?.categoryPath ?? '');
+  const [attrValues, setAttrValues] = useState<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (savedAttrs?.attributes || []).forEach((a: any) => {
+      map[a.attributeId] = { value: a.value, optionId: a.optionId, optionName: a.optionName };
+    });
+    return map;
+  });
+  const [priceInput, setPriceInput] = useState(channelPrice ? String(Number(channelPrice.price)) : '');
+
+  const [families, setFamilies] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [attributes, setAttributes] = useState<any[]>([]);
+  const [showOptional, setShowOptional] = useState(false);
+  const [expanded, setExpanded] = useState(!listing?.title);
+
+  const [saving, setSaving] = useState(false);
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const token = getToken()!;
+    api.connections.paris.families(connection.id, undefined, token).then(setFamilies).catch(() => {});
+  }, [connection.id]);
+
+  useEffect(() => {
+    if (!familyId) { setCategories([]); setAttributes([]); return; }
+    const token = getToken()!;
+    api.connections.paris.categories(connection.id, familyId, token).then(setCategories).catch(() => {});
+    api.connections.paris.attributes(connection.id, familyId, token).then(setAttributes).catch(() => {});
+  }, [connection.id, familyId]);
+
+  function selectFamilyByName(name: string) {
+    const f = families.find((x) => x.name === name);
+    if (f && f.id !== familyId) { setFamilyId(f.id); setFamilyName(f.name); setCategoryId(''); setCategoryPath(''); }
+  }
+  function selectCategoryByPath(path: string) {
+    const c = categories.find((x) => x.path === path);
+    if (c) { setCategoryId(c.id); setCategoryPath(c.path); }
+  }
+
+  async function handleSaveDraft() {
+    setSaving(true); setErr('');
+    try {
+      const token = getToken()!;
+      const attrsPayload = attributes
+        .filter((a) => attrValues[a.id]?.value || attrValues[a.id]?.optionId)
+        .map((a) => ({ attributeId: a.id, name: a.name, ...attrValues[a.id] }));
+      await api.connections.upsertListing(connection.id, product.id, {
+        title: title.trim() || undefined,
+        description,
+        channelAttributes: familyId && categoryId
+          ? { familyId, familyName, categoryId, categoryPath, attributes: attrsPayload }
+          : undefined,
+      }, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleSavePrice() {
+    setSavingPrice(true); setErr('');
+    try {
+      const token = getToken()!;
+      if (priceInput.trim() === '') await api.catalog.removeChannelPrice(product.id, connection.id, token);
+      else await api.catalog.setChannelPrice(product.id, connection.id, parseFloat(priceInput), token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSavingPrice(false); }
+  }
+
+  async function handlePublish() {
+    setPublishing(true); setErr('');
+    try {
+      const token = getToken()!;
+      await handleSaveDraft();
+      await api.connections.publish(connection.id, product.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setPublishing(false); }
+  }
+
+  async function handleSync() {
+    setSyncing(true); setErr('');
+    try {
+      const token = getToken()!;
+      await api.connections.sync(connection.id, product.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSyncing(false); }
+  }
+
+  async function handleUploadImage(file: File) {
+    setUploadingImg(true); setErr('');
+    try {
+      const token = getToken()!;
+      await api.connections.uploadListingImage(connection.id, product.id, file, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setUploadingImg(false); }
+  }
+
+  async function handleDeleteImage(imageId: string) {
+    try {
+      const token = getToken()!;
+      await api.connections.deleteListingImage(connection.id, product.id, imageId, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+  }
+
+  const requiredAttrs = attributes.filter((a) => a.required);
+  const optionalAttrs = attributes.filter((a) => !a.required);
+  const listingImages = listing?.images || [];
+  const descriptionImages = listingImages.length ? listingImages : (product.images || []);
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium text-gray-900 text-sm">{connection.name}</p>
+          <p className="text-xs text-gray-400">Paris (Cencosud Marketplace)</p>
+        </div>
+        {listing?.externalId ? (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Publicado</span>
+        ) : (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Sin publicar</span>
+        )}
+      </div>
+
+      {listing?.externalId && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">ID:</span>
+          <code className="text-xs font-mono bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-gray-600">{listing.externalId}</code>
+        </div>
+      )}
+      {listing?.errorMsg && (
+        <div className="flex gap-2 items-start px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          <span className="shrink-0 mt-0.5">❌</span><span>{listing.errorMsg}</span>
+        </div>
+      )}
+      {err && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{err}</div>}
+
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+        {expanded ? '– Ocultar campos de la publicación' : '+ Campos de la publicación'}
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 border-t border-gray-100 pt-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Título en Paris *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)}
+              placeholder={product.name.slice(0, 100)}
+              maxLength={100}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <p className="text-xs text-gray-400 mt-0.5">
+              No se reutiliza el nombre del catálogo — es un título propio de esta publicación (máx. 100 caracteres).
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Descripción en Paris</label>
+            <MlDescriptionEditor value={description} productId={`${product.id}_${connection.id}`}
+              onChange={setDescription} images={descriptionImages} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Familia (Paris) *</label>
+              <input list={`paris-families-${connection.id}`} defaultValue={familyName}
+                onBlur={(e) => selectFamilyByName(e.target.value)}
+                placeholder="Buscar familia..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <datalist id={`paris-families-${connection.id}`}>
+                {families.map((f) => <option key={f.id} value={f.name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría (Paris) *</label>
+              <input list={`paris-categories-${connection.id}`} defaultValue={categoryPath}
+                disabled={!familyId}
+                onBlur={(e) => selectCategoryByPath(e.target.value)}
+                placeholder={familyId ? 'Buscar categoría...' : 'Elige primero la familia'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50" />
+              <datalist id={`paris-categories-${connection.id}`}>
+                {categories.map((c) => <option key={c.id} value={c.path} />)}
+              </datalist>
+            </div>
+          </div>
+
+          {requiredAttrs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Atributos obligatorios de Paris</p>
+              {requiredAttrs.map((a) => (
+                <ParisAttributeInput key={a.id} connectionId={connection.id} attribute={a}
+                  value={attrValues[a.id]} onChange={(v) => setAttrValues((prev) => ({ ...prev, [a.id]: v }))} />
+              ))}
+            </div>
+          )}
+          {optionalAttrs.length > 0 && (
+            <div>
+              <button type="button" onClick={() => setShowOptional((v) => !v)} className="text-xs text-gray-500 hover:text-gray-700 underline">
+                {showOptional ? 'Ocultar atributos opcionales' : `+ Agregar más atributos (${optionalAttrs.length} opcionales)`}
+              </button>
+              {showOptional && (
+                <div className="space-y-2 mt-2">
+                  {optionalAttrs.map((a) => (
+                    <ParisAttributeInput key={a.id} connectionId={connection.id} attribute={a}
+                      value={attrValues[a.id]} onChange={(v) => setAttrValues((prev) => ({ ...prev, [a.id]: v }))} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Precio de Venta Paris</label>
+            <div className="flex gap-2">
+              <input type="number" step="0.01" min="0" value={priceInput} onChange={(e) => setPriceInput(e.target.value)}
+                placeholder={`Igual al del catálogo ($${Number(product.price).toLocaleString('es-CL')}) si se deja vacío`}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <button type="button" onClick={handleSavePrice} disabled={savingPrice}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                {savingPrice ? 'Guardando...' : 'Guardar precio'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-1">Fotos Paris</p>
+            <div className="flex flex-wrap gap-2">
+              {listingImages.map((img: any) => (
+                <div key={img.id} className="relative group w-16 h-16">
+                  <img src={imgUrl(img.url)} className="w-16 h-16 object-cover rounded-lg border border-gray-200" alt="" />
+                  <button type="button" onClick={() => handleDeleteImage(img.id)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100">×</button>
+                </div>
+              ))}
+              <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-xs cursor-pointer hover:border-blue-400 hover:text-blue-500">
+                {uploadingImg ? '...' : '+ Foto'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploadingImg}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(f); e.target.value = ''; }} />
+              </label>
+            </div>
+            {listingImages.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">Sin fotos propias — se usarán las de la pestaña "Imágenes" al publicar.</p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button type="button" onClick={handleSaveDraft} disabled={saving}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+              {saving ? 'Guardando...' : 'Guardar borrador'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
+        <button type="button" onClick={handlePublish} disabled={publishing}
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+          {publishing ? 'Publicando...' : listing?.externalId ? 'Republicar' : 'Publicar'}
+        </button>
+        {listing?.externalId && (
+          <button type="button" onClick={handleSync} disabled={syncing}
+            title="Envía el stock y precio actuales a la publicación en Paris"
+            className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface LinkModalState {
   connectionId: string;
   connectionName: string;
@@ -429,7 +768,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-type Tab = 'edit' | 'images' | 'ml' | 'stock';
+type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'stock';
 
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
@@ -525,6 +864,10 @@ export default function CatalogPage() {
 
   const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
   const mlChecked = connections.some((c) => publishTargets[c.id]);
+  // Pestaña "Paris" solo visible si la empresa tiene al menos una conexión Paris activa —
+  // mismo criterio que hasMlModule usa para la pestaña de Mercado Libre, pero acá se basa
+  // en la conexión real, no en un módulo licenciado aparte.
+  const parisConnections = genericConnections.filter((c) => c.marketplace === 'PARIS' && c.active);
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -1902,14 +2245,16 @@ export default function CatalogPage() {
 
             <div className="flex items-center border-b border-gray-200 px-6">
               {(selected.id
-                ? (['edit', 'images', 'ml', 'stock'] as Tab[]).filter((t) => t !== 'ml' || hasMlModule)
+                ? (['edit', 'images', 'ml', 'paris', 'stock'] as Tab[])
+                    .filter((t) => t !== 'ml' || hasMlModule)
+                    .filter((t) => t !== 'paris' || parisConnections.length > 0)
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : 'Movimientos'}
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar" />
                   )}
@@ -2477,6 +2822,20 @@ export default function CatalogPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {tab === 'paris' && (
+                <div className="space-y-3">
+                  {parisConnections.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <p className="text-sm mb-1">No hay conexiones de Paris activas.</p>
+                      <p className="text-xs">Ve a <strong>Paris</strong> en el menú para conectar una cuenta.</p>
+                    </div>
+                  ) : parisConnections.map((conn) => (
+                    <ParisListingCard key={conn.id} product={selected} connection={conn}
+                      onRefresh={() => refreshSelected(selected.id)} />
+                  ))}
                 </div>
               )}
             </div>

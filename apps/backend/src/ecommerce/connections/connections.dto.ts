@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsObject, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateConnectionDto {
   @IsString() @IsNotEmpty()
@@ -30,4 +31,57 @@ export class LinkProductDto {
 
   @IsOptional() @IsString()
   externalUrl?: string;
+}
+
+class ParisAttributeValueDto {
+  @IsString() @IsNotEmpty()
+  attributeId: string;
+
+  @IsString() @IsNotEmpty()
+  name: string;
+
+  @IsOptional() @IsString()
+  value?: string;
+
+  @IsOptional() @IsString()
+  optionId?: string;
+
+  @IsOptional() @IsString()
+  optionName?: string;
+}
+
+class ParisChannelAttributesDto {
+  @IsString() @IsNotEmpty()
+  familyId: string;
+
+  @IsOptional() @IsString()
+  familyName?: string;
+
+  @IsString() @IsNotEmpty()
+  categoryId: string;
+
+  @IsOptional() @IsString()
+  categoryPath?: string;
+
+  @IsArray() @ValidateNested({ each: true }) @Type(() => ParisAttributeValueDto)
+  attributes: ParisAttributeValueDto[];
+}
+
+export class UpsertListingFieldsDto {
+  @IsOptional() @IsString()
+  title?: string;
+
+  @IsOptional() @IsString()
+  description?: string;
+
+  @IsOptional() @ValidateNested() @Type(() => ParisChannelAttributesDto)
+  channelAttributes?: ParisChannelAttributesDto;
+}
+
+export class ConfirmImportDto {
+  @IsArray() @IsString({ each: true })
+  externalIds: string[];
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  unlinkIds?: string[];
 }

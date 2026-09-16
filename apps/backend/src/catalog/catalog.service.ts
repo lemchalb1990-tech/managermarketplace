@@ -204,7 +204,8 @@ export class CatalogService {
       where: { id },
       include: {
         images: { orderBy: { order: 'asc' } },
-        listings: { include: { connection: true } },
+        listings: { include: { connection: true, images: { orderBy: { order: 'asc' } } } },
+        channelPrices: { select: { id: true, price: true, connectionId: true } },
         warehouse: { select: { id: true, name: true } },
         _count: { select: { purchaseItems: true } },
       },

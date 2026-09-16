@@ -5,7 +5,6 @@ import { ConnectionsService } from './connections/connections.service';
 import { ConnectionsController } from './connections/connections.controller';
 import { SyncModule } from './sync/sync.module';
 import { SalesImportCronService } from './sync/sales-import-cron.service';
-import { ParisAdapter } from './platforms/paris.adapter';
 import { CatalogModule } from '../catalog/catalog.module';
 import { SettingsModule } from '../settings/settings.module';
 import { PurchasesModule } from '../purchases/purchases.module';
@@ -16,7 +15,6 @@ import { PurchasesModule } from '../purchases/purchases.module';
     MercadolibreService,
     SalesImportCronService,
     ConnectionsService,
-    ParisAdapter,
   ],
   controllers: [MercadolibreController, ConnectionsController],
   // Re-exporta SyncModule para que quien ya importaba EcommerceModule por SyncService
