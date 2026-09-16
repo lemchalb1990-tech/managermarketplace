@@ -125,8 +125,8 @@ function ParisAttributeInput({ connectionId, attribute, value, onChange }: {
 // necesidad: descripción HTML con fotos embebidas) y sigue el mismo patrón visual que la
 // pestaña de Mercado Libre, pero con campos propios (título/atributos no se reutilizan del
 // catálogo, ver ParisAdapter.publishProduct en el backend).
-function ParisListingCard({ product, connection, onRefresh }: {
-  product: any; connection: { id: string; name: string }; onRefresh: () => Promise<any>;
+function ParisListingCard({ product, connection, currentUser, onRefresh }: {
+  product: any; connection: { id: string; name: string }; currentUser: any; onRefresh: () => Promise<any>;
 }) {
   const listing = product.listings?.find((l: any) => l.connectionId === connection.id);
   const channelPrice = product.channelPrices?.find((cp: any) => cp.connectionId === connection.id);
@@ -248,6 +248,21 @@ function ParisListingCard({ product, connection, onRefresh }: {
       await api.connections.deleteListingImage(connection.id, product.id, imageId, token);
       await onRefresh();
     } catch (e: any) { setErr(e.message); }
+  }
+
+  const [deletingListing, setDeletingListing] = useState(false);
+  async function handleDeleteListing() {
+    if (!(await confirmDialog(
+      '¿Eliminar esta sincronización con Paris? Se borran el título, descripción, atributos y fotos propias de esta publicación (la publicación seguirá viva en Paris, el sistema solo deja de rastrearla) — útil para volver a tomarla de cero.',
+      { danger: true },
+    ))) return;
+    setDeletingListing(true);
+    try {
+      const token = getToken()!;
+      await api.catalog.deleteListing(product.id, connection.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setDeletingListing(false); }
   }
 
   const requiredAttrs = attributes.filter((a) => a.required);
@@ -410,6 +425,13 @@ function ParisListingCard({ product, connection, onRefresh }: {
             title="Envía el stock y precio actuales a la publicación en Paris"
             className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
             {syncing ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        )}
+        {listing && (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
+          <button type="button" onClick={handleDeleteListing} disabled={deletingListing}
+            title="Borra el vínculo interno con Paris (título, atributos, fotos propias) sin afectar la publicación real — para volver a tomarla de cero"
+            className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
+            {deletingListing ? 'Eliminando...' : 'Eliminar sincronización'}
           </button>
         )}
       </div>
@@ -2836,7 +2858,7 @@ export default function CatalogPage() {
                       <p className="text-xs">Ve a <strong>Paris</strong> en el menú para conectar una cuenta.</p>
                     </div>
                   ) : parisConnections.map((conn) => (
-                    <ParisListingCard key={conn.id} product={selected} connection={conn}
+                    <ParisListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
                       onRefresh={() => refreshSelected(selected.id)} />
                   ))}
                 </div>
