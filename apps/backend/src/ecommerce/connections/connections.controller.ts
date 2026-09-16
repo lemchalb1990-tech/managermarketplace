@@ -148,6 +148,14 @@ export class ConnectionsController {
     return this.service.getRipleyHierarchies(id, user);
   }
 
+  // ─── Homologación Falabella (árbol de categorías) ─────────────────────────────
+
+  @Get(':id/falabella/categories')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  falabellaCategories(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getFalabellaCategories(id, user);
+  }
+
   // ─── Campos/fotos de la publicación (borrador antes de publicar) ─────────────
 
   @Patch(':connectionId/products/:productId/listing')

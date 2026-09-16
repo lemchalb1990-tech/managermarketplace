@@ -6,6 +6,7 @@ import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
+import { FalabellaAdapter } from '../platforms/falabella.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -29,6 +30,7 @@ export class ConnectionsService {
     private jumpseller: JumpSellerAdapter,
     private paris: ParisAdapter,
     private ripley: RipleyAdapter,
+    private falabella: FalabellaAdapter,
     private stub: StubAdapter,
     private catalog: CatalogService,
   ) {}
@@ -40,6 +42,7 @@ export class ConnectionsService {
       case MarketplaceType.JUMPSELLER: return this.jumpseller;
       case MarketplaceType.PARIS: return this.paris;
       case MarketplaceType.RIPLEY: return this.ripley;
+      case MarketplaceType.FALABELLA: return this.falabella;
       default: return this.stub;
     }
   }
@@ -261,10 +264,11 @@ export class ConnectionsService {
     }
   }
 
-  // Adapter con soporte de borrador/homologación por Listing (hoy Paris y Ripley).
-  private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter {
+  // Adapter con soporte de borrador/homologación por Listing (hoy Paris, Ripley y Falabella).
+  private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
     if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
+    if (conn.marketplace === MarketplaceType.FALABELLA) return this.falabella;
     throw new BadRequestException('Esta plataforma todavía no soporta homologación por producto');
   }
 
@@ -302,6 +306,12 @@ export class ConnectionsService {
     const conn = await this.getOwnedConnection(connectionId, user);
     this.assertMarketplace(conn, MarketplaceType.RIPLEY, 'Ripley');
     return this.ripley.getHierarchies(conn);
+  }
+
+  async getFalabellaCategories(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.FALABELLA, 'Falabella');
+    return this.falabella.getCategories(conn);
   }
 
   async upsertListingFields(connectionId: string, productId: string, dto: any, user: any) {

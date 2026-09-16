@@ -696,6 +696,256 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
   );
 }
 
+// Tarjeta de publicación por conexión de Falabella — mismo patrón que RipleyListingCard
+// (una sola categoría, sin homologación de atributos obligatorios, descripción en texto
+// plano). Falabella corre sobre la misma familia de API que Lazada/Linio/Dafiti.
+function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
+  product: any; connection: { id: string; name: string }; currentUser: any; onRefresh: () => Promise<any>;
+}) {
+  const listing = product.listings?.find((l: any) => l.connectionId === connection.id);
+  const channelPrice = product.channelPrices?.find((cp: any) => cp.connectionId === connection.id);
+  const savedAttrs: any = listing?.channelAttributes || null;
+
+  const [title, setTitle] = useState(listing?.title ?? '');
+  const [description, setDescription] = useState(listing?.description ?? '');
+  const [categoryId, setCategoryId] = useState(savedAttrs?.categoryId ?? '');
+  const [categoryName, setCategoryName] = useState(savedAttrs?.categoryName ?? '');
+  const [brand, setBrand] = useState(savedAttrs?.brand ?? '');
+  const [priceInput, setPriceInput] = useState(channelPrice ? String(Number(channelPrice.price)) : '');
+
+  const [categories, setCategories] = useState<any[]>([]);
+  const [expanded, setExpanded] = useState(!listing?.title);
+
+  const [saving, setSaving] = useState(false);
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [deletingListing, setDeletingListing] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const token = getToken()!;
+    api.connections.falabella.categories(connection.id, token).then(setCategories).catch(() => {});
+  }, [connection.id]);
+
+  function selectCategoryByName(name: string) {
+    const c = categories.find((x) => x.name === name);
+    if (c) { setCategoryId(c.id); setCategoryName(c.name); }
+  }
+
+  async function handleSaveDraft() {
+    setSaving(true); setErr('');
+    try {
+      const token = getToken()!;
+      await api.connections.upsertListing(connection.id, product.id, {
+        title: title.trim() || undefined,
+        description,
+        channelAttributes: categoryId ? { categoryId, categoryName, brand: brand.trim() || undefined } : undefined,
+      }, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleSavePrice() {
+    setSavingPrice(true); setErr('');
+    try {
+      const token = getToken()!;
+      if (priceInput.trim() === '') await api.catalog.removeChannelPrice(product.id, connection.id, token);
+      else await api.catalog.setChannelPrice(product.id, connection.id, parseFloat(priceInput), token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSavingPrice(false); }
+  }
+
+  async function handlePublish() {
+    setPublishing(true); setErr('');
+    try {
+      const token = getToken()!;
+      await handleSaveDraft();
+      await api.connections.publish(connection.id, product.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setPublishing(false); }
+  }
+
+  async function handleSync() {
+    setSyncing(true); setErr('');
+    try {
+      const token = getToken()!;
+      await api.connections.sync(connection.id, product.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setSyncing(false); }
+  }
+
+  async function handleUploadImage(file: File) {
+    setUploadingImg(true); setErr('');
+    try {
+      const token = getToken()!;
+      await api.connections.uploadListingImage(connection.id, product.id, file, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setUploadingImg(false); }
+  }
+
+  async function handleDeleteImage(imageId: string) {
+    try {
+      const token = getToken()!;
+      await api.connections.deleteListingImage(connection.id, product.id, imageId, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+  }
+
+  async function handleDeleteListing() {
+    if (!(await confirmDialog(
+      '¿Eliminar esta sincronización con Falabella? Se borran el título, descripción, atributos y fotos propias de esta publicación (la publicación seguirá viva en Falabella, el sistema solo deja de rastrearla) — útil para volver a tomarla de cero.',
+      { danger: true },
+    ))) return;
+    setDeletingListing(true);
+    try {
+      const token = getToken()!;
+      await api.catalog.deleteListing(product.id, connection.id, token);
+      await onRefresh();
+    } catch (e: any) { setErr(e.message); }
+    finally { setDeletingListing(false); }
+  }
+
+  const listingImages = listing?.images || [];
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium text-gray-900 text-sm">{connection.name}</p>
+          <p className="text-xs text-gray-400">Falabella Seller Center</p>
+        </div>
+        {listing?.externalId ? (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Publicado</span>
+        ) : (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Sin publicar</span>
+        )}
+      </div>
+
+      {listing?.externalId && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">SellerSku:</span>
+          <code className="text-xs font-mono bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-gray-600">{listing.externalId}</code>
+        </div>
+      )}
+      {listing?.errorMsg && (
+        <div className="flex gap-2 items-start px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          <span className="shrink-0 mt-0.5">❌</span><span>{listing.errorMsg}</span>
+        </div>
+      )}
+      {err && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{err}</div>}
+
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs font-medium text-lime-700 hover:text-lime-800">
+        {expanded ? '– Ocultar campos de la publicación' : '+ Campos de la publicación'}
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 border-t border-gray-100 pt-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Título en Falabella *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)}
+              placeholder={product.name.slice(0, 100)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <p className="text-xs text-gray-400 mt-0.5">No se reutiliza el nombre del catálogo — es un título propio de esta publicación.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Descripción en Falabella</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoría (Falabella) *</label>
+              <input list={`falabella-categories-${connection.id}`} defaultValue={categoryName}
+                onBlur={(e) => selectCategoryByName(e.target.value)}
+                placeholder="Buscar categoría..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <datalist id={`falabella-categories-${connection.id}`}>
+                {categories.map((c) => <option key={c.id} value={c.name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Marca</label>
+              <input value={brand} onChange={(e) => setBrand(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Precio de Venta Falabella</label>
+            <div className="flex gap-2">
+              <input type="number" step="0.01" min="0" value={priceInput} onChange={(e) => setPriceInput(e.target.value)}
+                placeholder={`Igual al del catálogo ($${Number(product.price).toLocaleString('es-CL')}) si se deja vacío`}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <button type="button" onClick={handleSavePrice} disabled={savingPrice}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                {savingPrice ? 'Guardando...' : 'Guardar precio'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-1">Fotos Falabella</p>
+            <div className="flex flex-wrap gap-2">
+              {listingImages.map((img: any) => (
+                <div key={img.id} className="relative group w-16 h-16">
+                  <img src={imgUrl(img.url)} className="w-16 h-16 object-cover rounded-lg border border-gray-200" alt="" />
+                  <button type="button" onClick={() => handleDeleteImage(img.id)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100">×</button>
+                </div>
+              ))}
+              <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-xs cursor-pointer hover:border-lime-500 hover:text-lime-600">
+                {uploadingImg ? '...' : '+ Foto'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploadingImg}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(f); e.target.value = ''; }} />
+              </label>
+            </div>
+            {listingImages.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">Sin fotos propias — se usarán las de la pestaña "Imágenes" al publicar.</p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button type="button" onClick={handleSaveDraft} disabled={saving}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+              {saving ? 'Guardando...' : 'Guardar borrador'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
+        <button type="button" onClick={handlePublish} disabled={publishing}
+          className="px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+          {publishing ? 'Publicando...' : listing?.externalId ? 'Republicar' : 'Publicar'}
+        </button>
+        {listing?.externalId && (
+          <button type="button" onClick={handleSync} disabled={syncing}
+            title="Envía el stock y precio actuales a la publicación en Falabella"
+            className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        )}
+        {listing && (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
+          <button type="button" onClick={handleDeleteListing} disabled={deletingListing}
+            title="Borra el vínculo interno con Falabella (título, atributos, fotos propias) sin afectar la publicación real — para volver a tomarla de cero"
+            className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
+            {deletingListing ? 'Eliminando...' : 'Eliminar sincronización'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface LinkModalState {
   connectionId: string;
   connectionName: string;
@@ -1050,7 +1300,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'stock';
+type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'falabella' | 'stock';
 
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
@@ -1151,6 +1401,7 @@ export default function CatalogPage() {
   // en la conexión real, no en un módulo licenciado aparte.
   const parisConnections = genericConnections.filter((c) => c.marketplace === 'PARIS' && c.active);
   const ripleyConnections = genericConnections.filter((c) => c.marketplace === 'RIPLEY' && c.active);
+  const falabellaConnections = genericConnections.filter((c) => c.marketplace === 'FALABELLA' && c.active);
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -2528,17 +2779,18 @@ export default function CatalogPage() {
 
             <div className="flex items-center border-b border-gray-200 px-6">
               {(selected.id
-                ? (['edit', 'images', 'ml', 'paris', 'ripley', 'stock'] as Tab[])
+                ? (['edit', 'images', 'ml', 'paris', 'ripley', 'falabella', 'stock'] as Tab[])
                     .filter((t) => t !== 'ml' || hasMlModule)
                     .filter((t) => t !== 'paris' || parisConnections.length > 0)
                     .filter((t) => t !== 'ripley' || ripleyConnections.length > 0)
+                    .filter((t) => t !== 'falabella' || falabellaConnections.length > 0)
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : 'Movimientos'}
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : t === 'falabella' ? 'Falabella' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar" />
                   )}
@@ -3132,6 +3384,20 @@ export default function CatalogPage() {
                     </div>
                   ) : ripleyConnections.map((conn) => (
                     <RipleyListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
+                      onRefresh={() => refreshSelected(selected.id)} />
+                  ))}
+                </div>
+              )}
+
+              {tab === 'falabella' && (
+                <div className="space-y-3">
+                  {falabellaConnections.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <p className="text-sm mb-1">No hay conexiones de Falabella activas.</p>
+                      <p className="text-xs">Ve a <strong>Falabella</strong> en el menú para conectar una cuenta.</p>
+                    </div>
+                  ) : falabellaConnections.map((conn) => (
+                    <FalabellaListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
                       onRefresh={() => refreshSelected(selected.id)} />
                   ))}
                 </div>

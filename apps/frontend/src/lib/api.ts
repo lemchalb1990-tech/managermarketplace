@@ -530,6 +530,11 @@ export const api = {
         apiFetch<{ code: string; label: string; parentCode: string; level: number }[]>(
           `/ecommerce/connections/${connectionId}/ripley/hierarchies`, {}, token),
     },
+    falabella: {
+      categories: (connectionId: string, token: string) =>
+        apiFetch<{ id: string; name: string; isLeaf: boolean }[]>(
+          `/ecommerce/connections/${connectionId}/falabella/categories`, {}, token),
+    },
     upsertListing: (connectionId: string, productId: string, data: {
       title?: string; description?: string;
       channelAttributes?: Record<string, any>;

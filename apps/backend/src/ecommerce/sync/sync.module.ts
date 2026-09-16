@@ -7,6 +7,7 @@ import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
+import { FalabellaAdapter } from '../platforms/falabella.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { SettingsModule } from '../../settings/settings.module';
 
@@ -18,7 +19,7 @@ import { SettingsModule } from '../../settings/settings.module';
 @Module({
   imports: [SettingsModule],
   controllers: [SyncQueueController],
-  providers: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, StubAdapter],
-  exports: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, StubAdapter],
+  providers: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, StubAdapter],
+  exports: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, StubAdapter],
 })
 export class SyncModule {}
