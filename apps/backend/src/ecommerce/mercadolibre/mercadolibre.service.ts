@@ -465,6 +465,25 @@ export class MercadolibreService {
     }
   }
 
+  // Completa con una unidad de respaldo los atributos "number_unit" (MAX_HEIGHT, DEPTH,
+  // WIDTH, WEIGHT, etc — varían según categoría) que quedaron con un valor puramente
+  // numérico sin unidad. Mismo criterio que ya se usa para los SELLER_PACKAGE_* (cm/g),
+  // pero aplicado a cualquier atributo de la categoría que ML tipifique como number_unit.
+  private async withDefaultUnits(categoryId: string, attrs: Array<{ id: string; value_name?: string }>) {
+    if (!attrs.length) return attrs;
+    const { attributes } = await this.getCategoryAttributes(categoryId).catch(() => ({ attributes: [] as any[] }));
+    const valueTypeById = new Map(attributes.map((a: any): [string, string] => [a.id, a.value_type]));
+    const bareNumber = /^-?\d+(\.\d+)?$/;
+
+    return attrs.map((attr) => {
+      if (valueTypeById.get(attr.id) !== 'number_unit') return attr;
+      const value = (attr.value_name ?? '').trim();
+      if (!bareNumber.test(value)) return attr;
+      const unit = /weight|peso/i.test(attr.id) ? 'g' : 'cm';
+      return { ...attr, value_name: `${value} ${unit}` };
+    });
+  }
+
   private async upsertMlDescription(
     itemId: string,
     token: string,
@@ -632,6 +651,13 @@ export class MercadolibreService {
 
     const effectivePrice = await getEffectivePrice(this.prisma, productId, connectionId, Number(product.mlPrice ?? product.price));
 
+    // ML exige unidad en los atributos "number_unit" (ej. MAX_HEIGHT, DEPTH, WIDTH en
+    // categorías de muebles) — si el atributo quedó cargado solo con el número (ej. "15",
+    // tipeado a mano o traído de un import viejo sin unidad), ML rechaza la publicación
+    // completa en vez de solo ese atributo. Se completa con una unidad de respaldo en vez
+    // de obligar a editar el atributo manualmente cada vez.
+    const userAttrs = await this.withDefaultUnits(categoryId, (product as any).mlAttributes || []);
+
     const mlItem = {
       title: product.name,
       category_id: categoryId,
@@ -648,7 +674,7 @@ export class MercadolibreService {
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
         ...packageAttributes,
-        ...((product as any).mlAttributes || []),
+        ...userAttrs,
       ],
       ...(saleTerms?.length ? { sale_terms: saleTerms } : {}),
     };
