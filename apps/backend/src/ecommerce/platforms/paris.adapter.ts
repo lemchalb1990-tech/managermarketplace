@@ -222,6 +222,19 @@ export class ParisAdapter implements PlatformAdapter {
     }));
   }
 
+  // Stock es una API separada de la de productos — GET /v2/stock?sku= devuelve el stock
+  // real de UNA variante puntual (availableStock ya descuenta el securityStock reservado).
+  async getStock(conn: any, sku: string): Promise<number | null> {
+    try {
+      const data = await this.request(conn, `/v2/stock?sku=${encodeURIComponent(sku)}`);
+      const row = data.skus?.[0];
+      return row ? Math.max(0, Math.round(Number(row.availableStock))) : null;
+    } catch (err: any) {
+      this.logger.warn(`Paris getStock(${sku}) falló: ${err.message}`);
+      return null;
+    }
+  }
+
   private async getPriceTypeId(conn: any, name: string): Promise<string | null> {
     const data = await this.request(conn, '/v2/price-types');
     const match = (data.results || []).find((t: any) => t.name?.toLowerCase() === name.toLowerCase());
@@ -516,11 +529,12 @@ export class ParisAdapter implements PlatformAdapter {
 
         const priceValue = variant.prices?.find((p: any) => p.type?.name === 'Precio')?.value
           ?? variant.prices?.[0]?.value ?? 0;
+        const stockValue = await this.getStock(conn, variantSku);
 
         if (!product) {
           product = await this.prisma.product.create({
             data: {
-              sku, name: item.name, price: Number(priceValue) || 0, stock: 0,
+              sku, name: item.name, price: Number(priceValue) || 0, stock: stockValue ?? 0,
               category: item.category?.name, companyId,
             },
           });

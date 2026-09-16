@@ -12,6 +12,12 @@ import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } 
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 
+const MARKETPLACE_LABELS: Record<string, string> = {
+  MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
+  JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella', PARIS: 'Paris',
+  HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart',
+};
+
 // Campos "de identidad" del producto que se pueden elegir campo por campo al unificar
 // duplicados (ver mergeProducts). Imágenes y proveedor dropship se resuelven aparte porque
 // no son un valor simple (una lista de imágenes / una relación 1 a 1), no un campo escalar.
@@ -316,6 +322,24 @@ export class CatalogService {
     return { deleted: true };
   }
 
+  // Arma un mensaje que nombra la(s) plataforma(s) reales con publicación y, si son todas
+  // no-ML, indica el botón correcto ("Eliminar sincronización" en la pestaña de esa
+  // plataforma) en vez de mandar siempre a la pestaña "Mercado Libre" aunque la publicación
+  // bloqueante sea de Paris/Shopify/etc.
+  private async listingBlockMessage(productId: string): Promise<string> {
+    const listings = await this.prisma.listing.findMany({
+      where: { productId },
+      include: { connection: { select: { marketplace: true, name: true } } },
+    });
+    const marketplaces = Array.from(new Set(listings.map((l) => l.connection.marketplace)));
+    const names = marketplaces.map((m) => MARKETPLACE_LABELS[m] || m).join(', ');
+    const onlyNonMl = marketplaces.length > 0 && marketplaces.every((m) => m !== 'MERCADO_LIBRE');
+    const hint = onlyNonMl
+      ? `Bórrala desde la pestaña "${MARKETPLACE_LABELS[marketplaces[0]] || marketplaces[0]}" del producto (botón "Eliminar sincronización") antes de eliminarlo.`
+      : 'Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.';
+    return `Tiene una publicación en ${names || 'otra plataforma'}. ${hint}`;
+  }
+
   async bulkDelete(ids: string[], user: any) {
     const owned = await this.filterOwned(ids, user);
     let deleted = 0;
@@ -331,7 +355,7 @@ export class CatalogService {
         failed.push({
           id: p.id,
           name: p.name,
-          reason: 'Tiene una publicación en Mercado Libre (u otra plataforma). Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.',
+          reason: await this.listingBlockMessage(p.id),
         });
         continue;
       }
@@ -591,9 +615,7 @@ export class CatalogService {
       this.prisma.dropshipOrderItem.count({ where: { productId: id } }),
     ]);
     if (listingCount > 0) {
-      throw new BadRequestException(
-        'Tiene una publicación en Mercado Libre (u otra plataforma). Despublícala desde la pestaña "Mercado Libre" del producto antes de eliminarlo.',
-      );
+      throw new BadRequestException(await this.listingBlockMessage(id));
     }
     if (saleItemCount > 0) {
       throw new BadRequestException('Tiene ventas registradas. Desactívalo en vez de eliminarlo para conservar el historial.');
