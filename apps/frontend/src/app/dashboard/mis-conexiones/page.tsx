@@ -47,12 +47,7 @@ const DROPSHIP_COLOR: Record<string, string> = {
 const CATEGORIES = [
   {
     title: 'Marketplaces',
-    codes: ['MERCADO_LIBRE', 'WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'HITES'],
-    addHref: '/dashboard/ecommerce',
-  },
-  {
-    title: 'E-commerce',
-    codes: ['SHOPIFY', 'WOOCOMMERCE', 'JUMPSELLER'],
+    codes: ['MERCADO_LIBRE', 'WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'HITES', 'SHOPIFY', 'WOOCOMMERCE', 'JUMPSELLER'],
     addHref: '/dashboard/ecommerce',
   },
   {
@@ -245,7 +240,7 @@ export default function MisConexionesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             {CATEGORIES.map((cat) => {
               const catRows = rows.filter((r) => (cat.codes as readonly string[]).includes(r.code));
               const uniqueKeys = Array.from(new Set(catRows.map((r) => r.key)));
