@@ -8,7 +8,7 @@ import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
-import { ParisImportModal } from '../paris/components/ImportModal';
+import { ChannelImportModal } from './ChannelImportModal';
 
 export interface PlatformField {
   key: string;
@@ -395,10 +395,11 @@ export default function PlatformPage({ config }: Props) {
           </div>
         </div>
       )}
-      {importingConn && config.marketplace === 'PARIS' && (
-        <ParisImportModal
+      {importingConn && config.supportsImport && (
+        <ChannelImportModal
           connectionId={importingConn.id}
           connectionName={importingConn.name}
+          platformLabel={config.name}
           onClose={() => setImportingConn(null)}
           onImported={() => {}}
         />

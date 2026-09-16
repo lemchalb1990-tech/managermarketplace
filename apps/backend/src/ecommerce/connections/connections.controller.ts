@@ -140,6 +140,14 @@ export class ConnectionsController {
     return this.service.getParisStorePrices(id, user);
   }
 
+  // ─── Homologación Ripley (árbol de categorías) ────────────────────────────────
+
+  @Get(':id/ripley/hierarchies')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  ripleyHierarchies(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getRipleyHierarchies(id, user);
+  }
+
   // ─── Campos/fotos de la publicación (borrador antes de publicar) ─────────────
 
   @Patch(':connectionId/products/:productId/listing')
@@ -176,17 +184,17 @@ export class ConnectionsController {
     return this.service.removeListingImage(connectionId, productId, imageId, user);
   }
 
-  // ─── Importar catálogo existente desde Paris ─────────────────────────────────
+  // ─── Importar catálogo existente desde el canal (Paris o Ripley) ─────────────
 
   @Get(':id/import/preview')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   previewImport(@Param('id') id: string, @Query('offset') offset: string, @CurrentUser() user: any) {
-    return this.service.previewParisImport(id, user, offset ? Number(offset) : undefined);
+    return this.service.previewImport(id, user, offset ? Number(offset) : undefined);
   }
 
   @Post(':id/import/confirm')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   confirmImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
-    return this.service.confirmParisImport(id, user, dto.externalIds, dto.unlinkIds);
+    return this.service.confirmImport(id, user, dto.externalIds, dto.unlinkIds);
   }
 }

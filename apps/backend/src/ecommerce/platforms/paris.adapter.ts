@@ -1,7 +1,9 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { getEffectivePrice } from '../../common/effective-price.util';
+import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
 // Paris / Cencosud Marketplace. Doc: https://developers.ecomm.cencosud.com/docs
 // La API de producción es la misma URL sin el "-stg". OJO: probado en vivo, la API Key
@@ -102,7 +104,7 @@ const IMPORT_PAGE_SIZE = 25;
 export class ParisAdapter implements PlatformAdapter {
   private readonly logger = new Logger(ParisAdapter.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -321,7 +323,9 @@ export class ParisAdapter implements PlatformAdapter {
     if (!listingImages.length) {
       throw new BadRequestException('Paris exige al menos una foto (pestaña "Fotos Paris" o "Imágenes" del producto)');
     }
-    const medias = listingImages.map((img: any, i: number) => ({ src: img.url, position: i + 1 }));
+    const medias = await Promise.all(listingImages.map(async (img: any, i: number) => ({
+      src: await toAbsoluteUrl(this.settings, img.url), position: i + 1,
+    })));
 
     const attributesPayload = await this.buildAttributesPayload(conn, attrs, listing.description || '');
 

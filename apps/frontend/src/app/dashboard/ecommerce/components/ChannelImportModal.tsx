@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 type PreviewItem = {
   externalId: string;
   title: string;
-  thumbnail: string | null;
+  thumbnail?: string | null;
   sku: string | null;
   skuSuspicious?: boolean;
   matchedProductId: string | null;
@@ -16,18 +16,21 @@ type PreviewItem = {
 
 const PAGE_SIZE = 20;
 
-// Trae y "unifica" el catálogo que ya existe publicado en Paris con el catálogo interno —
+// Trae y "unifica" el catálogo que ya existe publicado en el canal con el catálogo interno —
 // mismo patrón que el import de Mercado Libre (ver ecommerce/mercadolibre/components/ImportModal.tsx),
-// adaptado a paginación por offset (Paris no usa scroll_id) y sin precio/stock en el preview
-// (Paris no los devuelve en la búsqueda de productos).
-export function ParisImportModal({
+// adaptado a paginación por offset (estos canales no usan scroll_id) y sin precio/stock en el
+// preview. Genérico a propósito: lo usan tanto Paris como Ripley (y cualquier plataforma
+// futura con supportsImport) contra los mismos endpoints /import/preview y /import/confirm.
+export function ChannelImportModal({
   connectionId,
   connectionName,
+  platformLabel,
   onClose,
   onImported,
 }: {
   connectionId: string;
   connectionName: string;
+  platformLabel: string;
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -68,7 +71,7 @@ export function ParisImportModal({
         return next;
       });
     } catch (err: any) {
-      setError(err.message || 'No se pudieron obtener los productos de Paris.');
+      setError(err.message || `No se pudieron obtener los productos de ${platformLabel}.`);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -134,7 +137,7 @@ export function ParisImportModal({
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-gray-900">Importar catálogo de "{connectionName}"</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Trae los datos y fotos de productos ya publicados en Paris, y unifícalos con el catálogo.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Trae los datos (y fotos, si el canal las expone) de productos ya publicados en {platformLabel}, y unifícalos con el catálogo.</p>
           </div>
           <button onClick={onClose} disabled={importing || loading} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
         </div>
@@ -143,7 +146,7 @@ export function ParisImportModal({
           {loading && (
             <div className="p-16 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
               <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-              <p>Buscando productos en Paris...</p>
+              <p>Buscando productos en {platformLabel}...</p>
             </div>
           )}
 
@@ -175,7 +178,7 @@ export function ParisImportModal({
                       ? hasMore
                         ? `Los productos revisados hasta ahora (${alreadyImportedCount}) ya estaban importados. Sigue buscando para ver el resto.`
                         : 'Todos los productos de esta cuenta ya fueron importados.'
-                      : 'No se encontraron productos en esta cuenta de Paris.'}
+                      : `No se encontraron productos en esta cuenta de ${platformLabel}.`}
                   </p>
                   {hasMore && (
                     <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore}

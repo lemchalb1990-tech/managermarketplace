@@ -5,6 +5,7 @@ import { ShopifyAdapter } from '../platforms/shopify.adapter';
 import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
 import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ParisAdapter } from '../platforms/paris.adapter';
+import { RipleyAdapter } from '../platforms/ripley.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -27,6 +28,7 @@ export class ConnectionsService {
     private woocommerce: WooCommerceAdapter,
     private jumpseller: JumpSellerAdapter,
     private paris: ParisAdapter,
+    private ripley: RipleyAdapter,
     private stub: StubAdapter,
     private catalog: CatalogService,
   ) {}
@@ -37,6 +39,7 @@ export class ConnectionsService {
       case MarketplaceType.WOOCOMMERCE: return this.woocommerce;
       case MarketplaceType.JUMPSELLER: return this.jumpseller;
       case MarketplaceType.PARIS: return this.paris;
+      case MarketplaceType.RIPLEY: return this.ripley;
       default: return this.stub;
     }
   }
@@ -238,10 +241,12 @@ export class ConnectionsService {
     });
   }
 
-  // ─── Campos/homologación específicos de Paris ────────────────────────────────
-  // Por ahora estos métodos solo existen para PARIS; cuando se implemente el mismo
-  // patrón para otro marketplace (Falabella, Ripley...) se agregan sus propios métodos
-  // en vez de forzar un endpoint genérico que ningún otro adapter necesita todavía.
+  // ─── Campos/homologación y borrador de publicación por canal ─────────────────
+  // upsertListingFields/addListingImage/removeListingImage/previewImport/confirmImport son
+  // genéricos porque Paris y Ripley (ambos con adapter propio con estos mismos métodos) ya
+  // los necesitan igual — la homologación específica (families/categorías/atributos de
+  // Paris, hierarchies de Ripley) sigue siendo un método por plataforma, porque cada una
+  // expone algo distinto y forzar una forma común solo complicaría el adapter más simple.
 
   private async getOwnedConnection(connectionId: string, user: any) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
@@ -250,75 +255,88 @@ export class ConnectionsService {
     return conn;
   }
 
-  private assertParis(conn: any) {
-    if (conn.marketplace !== MarketplaceType.PARIS) {
-      throw new BadRequestException('Esta operación solo está disponible para conexiones de Paris');
+  private assertMarketplace(conn: any, marketplace: MarketplaceType, label: string) {
+    if (conn.marketplace !== marketplace) {
+      throw new BadRequestException(`Esta operación solo está disponible para conexiones de ${label}`);
     }
+  }
+
+  // Adapter con soporte de borrador/homologación por Listing (hoy Paris y Ripley).
+  private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter {
+    if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
+    if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
+    throw new BadRequestException('Esta plataforma todavía no soporta homologación por producto');
   }
 
   async getParisFamilies(connectionId: string, user: any, q?: string) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    this.assertMarketplace(conn, MarketplaceType.PARIS, 'Paris');
     return this.paris.getFamilies(conn, q);
   }
 
   async getParisCategories(connectionId: string, user: any, familyId: string) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    this.assertMarketplace(conn, MarketplaceType.PARIS, 'Paris');
     return this.paris.getCategories(conn, familyId);
   }
 
   async getParisAttributes(connectionId: string, user: any, familyId: string) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    this.assertMarketplace(conn, MarketplaceType.PARIS, 'Paris');
     return this.paris.getAttributes(conn, familyId);
   }
 
   async getParisAttributeOptions(connectionId: string, user: any, attributeId: string, q?: string) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    this.assertMarketplace(conn, MarketplaceType.PARIS, 'Paris');
     return this.paris.getAttributeOptions(conn, attributeId, q);
   }
 
   async getParisStorePrices(connectionId: string, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    this.assertMarketplace(conn, MarketplaceType.PARIS, 'Paris');
     return this.paris.getStorePrices(conn);
+  }
+
+  async getRipleyHierarchies(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.RIPLEY, 'Ripley');
+    return this.ripley.getHierarchies(conn);
   }
 
   async upsertListingFields(connectionId: string, productId: string, dto: any, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    const adapter = this.getListingAdapter(conn);
     await this.catalog.findOne(productId, user);
-    return this.paris.upsertListingFields(productId, connectionId, dto);
+    return adapter.upsertListingFields(productId, connectionId, dto);
   }
 
   async addListingImage(connectionId: string, productId: string, filename: string, url: string, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    const adapter = this.getListingAdapter(conn);
     await this.catalog.findOne(productId, user);
-    return this.paris.addListingImage(productId, connectionId, filename, url);
+    return adapter.addListingImage(productId, connectionId, filename, url);
   }
 
   async removeListingImage(connectionId: string, productId: string, imageId: string, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
+    const adapter = this.getListingAdapter(conn);
     const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
     if (!listing) throw new NotFoundException('Publicación no encontrada');
-    return this.paris.removeListingImage(listing.id, imageId);
+    return adapter.removeListingImage(listing.id, imageId);
   }
 
-  // ─── Importar catálogo existente desde Paris ─────────────────────────────────
+  // ─── Importar catálogo existente desde el canal ──────────────────────────────
 
-  async previewParisImport(connectionId: string, user: any, offset?: number) {
+  async previewImport(connectionId: string, user: any, offset?: number) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
-    return this.paris.previewImport(conn, conn.companyId, offset || 0);
+    const adapter = this.getListingAdapter(conn);
+    return adapter.previewImport(conn, conn.companyId, offset || 0);
   }
 
-  async confirmParisImport(connectionId: string, user: any, externalIds: string[], unlinkIds?: string[]) {
+  async confirmImport(connectionId: string, user: any, externalIds: string[], unlinkIds?: string[]) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    this.assertParis(conn);
-    return this.paris.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
+    const adapter = this.getListingAdapter(conn);
+    return adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
   }
 }

@@ -525,9 +525,14 @@ export const api = {
         apiFetch<{ id: string; name: string; channelName: string }[]>(
           `/ecommerce/connections/${connectionId}/paris/store-prices`, {}, token),
     },
+    ripley: {
+      hierarchies: (connectionId: string, token: string) =>
+        apiFetch<{ code: string; label: string; parentCode: string; level: number }[]>(
+          `/ecommerce/connections/${connectionId}/ripley/hierarchies`, {}, token),
+    },
     upsertListing: (connectionId: string, productId: string, data: {
       title?: string; description?: string;
-      channelAttributes?: { familyId: string; familyName?: string; categoryId: string; categoryPath?: string; attributes: any[] };
+      channelAttributes?: Record<string, any>;
     }, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/listing`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     uploadListingImage: (connectionId: string, productId: string, file: File, token: string) =>
