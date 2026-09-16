@@ -31,6 +31,19 @@ function extractDescription(attributes: any[]): string {
   return short?.value || '';
 }
 
+// Para Product.description (campo plano de la pestaña "Información" del catálogo, a
+// diferencia de Listing.description que es HTML) — prioriza "Descripción corta" y si no
+// existe, recorta la larga sacándole las etiquetas HTML.
+function extractShortDescription(attributes: any[]): string {
+  const short = attributes.find((a) => {
+    const n = (a.name || '').toLowerCase();
+    return n.includes('descripci') && n.includes('corta');
+  });
+  if (short?.value) return short.value;
+  const long = extractDescription(attributes);
+  return long ? stripHtml(long, 500) : '';
+}
+
 interface ParisAuth {
   accessToken: string;
   expiresAt: Date;
@@ -549,6 +562,7 @@ export class ParisAdapter implements PlatformAdapter {
           product = await this.prisma.product.create({
             data: {
               sku, name: item.name, price: Number(priceValue) || 0, stock: stockValue ?? 0,
+              description: extractShortDescription(item.attributes || []),
               category: item.category?.name, companyId,
             },
           });
