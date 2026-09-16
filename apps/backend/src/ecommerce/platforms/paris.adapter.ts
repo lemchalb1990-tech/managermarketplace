@@ -12,6 +12,11 @@ const STG_BASE = 'https://api-developers.ecomm-stg.cencosud.com';
 // Refresca el token un poco antes de que venza (dura ~4h) en vez de esperar el 401.
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
+function stripHtml(html: string, maxLen: number): string {
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
+}
+
 interface ParisAuth {
   accessToken: string;
   expiresAt: Date;
@@ -233,6 +238,33 @@ export class ParisAdapter implements PlatformAdapter {
     return listing;
   }
 
+  // Paris exige el conjunto COMPLETO de atributos de la familia al crear/actualizar un
+  // producto, no solo los que el usuario llenó (mismo criterio que la doc pide para el
+  // PATCH: "debes enviar toda la información relativa al producto"). Además, la
+  // descripción de la pestaña Paris no es un campo aparte del producto — Paris la maneja
+  // como un atributo más de la familia ("Descripción Larga/Emocional" admite HTML,
+  // "Descripción corta" es texto plano), así que se inyecta ahí en vez de perderse.
+  private async buildAttributesPayload(
+    conn: any,
+    attrs: ParisChannelAttributes,
+    description: string,
+  ): Promise<Array<{ id: string; value: string }>> {
+    const familyAttributes = await this.getAttributes(conn, attrs.familyId);
+    const savedByAttrId = new Map((attrs.attributes || []).map((a) => [a.attributeId, a]));
+
+    return familyAttributes.map((fa) => {
+      const saved = savedByAttrId.get(fa.id);
+      if (saved) return { id: fa.id, value: (saved.optionId || saved.value || '').toString() };
+
+      const nameLower = fa.name.toLowerCase();
+      if (description && nameLower.includes('descripci')) {
+        const isLong = nameLower.includes('larga') || nameLower.includes('emocional');
+        return { id: fa.id, value: isLong ? description : stripHtml(description, 250) };
+      }
+      return { id: fa.id, value: '' };
+    });
+  }
+
   async publishProduct(conn: any, product: any): Promise<PublishResult> {
     const listing = await this.getListingWithImages(product.id, conn.id);
     if (!listing?.title?.trim()) {
@@ -251,9 +283,7 @@ export class ParisAdapter implements PlatformAdapter {
     }
     const medias = listingImages.map((img: any, i: number) => ({ src: img.url, position: i + 1 }));
 
-    const attributesPayload = (attrs.attributes || [])
-      .filter((a) => (a.optionId || a.value)?.toString().trim())
-      .map((a) => ({ id: a.attributeId, value: a.optionId || a.value }));
+    const attributesPayload = await this.buildAttributesPayload(conn, attrs, listing.description || '');
 
     const body = {
       product: {

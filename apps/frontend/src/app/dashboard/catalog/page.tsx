@@ -303,6 +303,9 @@ function ParisListingCard({ product, connection, onRefresh }: {
             <label className="block text-xs font-medium text-gray-600 mb-1">Descripción en Paris</label>
             <MlDescriptionEditor value={description} productId={`${product.id}_${connection.id}`}
               onChange={setDescription} images={descriptionImages} />
+            <p className="text-xs text-gray-400 mt-0.5">
+              Se envía a los atributos de descripción de Paris ("Descripción Larga/Emocional" y una versión sin fotos/formato para "Descripción corta") al publicar.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
