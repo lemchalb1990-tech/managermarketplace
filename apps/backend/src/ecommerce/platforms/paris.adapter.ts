@@ -17,6 +17,20 @@ function stripHtml(html: string, maxLen: number): string {
   return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
 }
 
+// Contraparte de buildAttributesPayload: al importar desde Paris, la descripción vive
+// como un atributo más ("Descripción Larga/Emocional" con HTML, o "Descripción corta"
+// como respaldo) — se rescata de ahí para precargar Listing.description.
+function extractDescription(attributes: any[]): string {
+  const isDescription = (name: string) => name.toLowerCase().includes('descripci');
+  const long = attributes.find((a) => {
+    const n = (a.name || '').toLowerCase();
+    return isDescription(n) && (n.includes('larga') || n.includes('emocional'));
+  });
+  if (long?.value) return long.value;
+  const short = attributes.find((a) => isDescription(a.name || ''));
+  return short?.value || '';
+}
+
 interface ParisAuth {
   accessToken: string;
   expiresAt: Date;
@@ -557,24 +571,22 @@ export class ParisAdapter implements PlatformAdapter {
         const attributes = (item.attributes || []).map((a: any) => ({
           attributeId: a.id, name: a.name, value: a.value, optionId: a.optionId, optionName: a.optionName,
         }));
+        const description = extractDescription(item.attributes || []);
+        const channelAttributes = {
+          familyId: item.family?.id, familyName: item.family?.name,
+          categoryId: item.category?.id, categoryPath: item.category?.src,
+          attributes,
+        };
         const listing = await this.prisma.listing.upsert({
           where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
           update: {
             externalId: `${item.id}:${variantSku}`, status: 'ACTIVE' as any, syncedAt: new Date(),
-            title: item.name, channelAttributes: {
-              familyId: item.family?.id, familyName: item.family?.name,
-              categoryId: item.category?.id, categoryPath: item.category?.src,
-              attributes,
-            } as any,
+            title: item.name, description, channelAttributes: channelAttributes as any,
           },
           create: {
             productId: product.id, connectionId: conn.id,
             externalId: `${item.id}:${variantSku}`, status: 'ACTIVE' as any, syncedAt: new Date(),
-            title: item.name, channelAttributes: {
-              familyId: item.family?.id, familyName: item.family?.name,
-              categoryId: item.category?.id, categoryPath: item.category?.src,
-              attributes,
-            } as any,
+            title: item.name, description, channelAttributes: channelAttributes as any,
           },
         });
         const medias: any[] = variant.medias || [];
