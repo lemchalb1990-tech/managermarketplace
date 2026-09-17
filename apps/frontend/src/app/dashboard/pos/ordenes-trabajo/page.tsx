@@ -56,6 +56,9 @@ export default function WorkOrdersPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [notice, setNotice] = useState('');
   const [noticeIsError, setNoticeIsError] = useState(false);
+  const canManageSettings = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
+  const [printFormat, setPrintFormat] = useState<'CARTA' | 'TICKET' | ''>('');
+  const [savingPrintFormat, setSavingPrintFormat] = useState(false);
 
   useEffect(() => {
     const t = getToken();
@@ -83,6 +86,27 @@ export default function WorkOrdersPage() {
   }, [token, isSuperAdmin, selectedCompanyId, statusFilter, search]);
 
   useEffect(() => { loadWorkOrders(1); }, [loadWorkOrders]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) { setPrintFormat(''); return; }
+    api.pos.settings.get(token, isSuperAdmin ? selectedCompanyId : undefined)
+      .then((s) => setPrintFormat(s.workOrderPrintFormat))
+      .catch(() => {});
+  }, [token, isSuperAdmin, selectedCompanyId]);
+
+  async function handlePrintFormatChange(value: 'CARTA' | 'TICKET') {
+    setPrintFormat(value);
+    setSavingPrintFormat(true);
+    try {
+      await api.pos.settings.update({ workOrderPrintFormat: value }, token, isSuperAdmin ? selectedCompanyId : undefined);
+    } catch (err: any) {
+      setNotice(err.message || 'No se pudo guardar el formato de impresión.');
+      setNoticeIsError(true);
+    } finally {
+      setSavingPrintFormat(false);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -324,9 +348,22 @@ export default function WorkOrdersPage() {
           </p>
         </div>
         {(!isSuperAdmin || selectedCompanyId) && (
-          <Link href="/dashboard/pos" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
-            + Nueva orden de trabajo
-          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            {canManageSettings && printFormat && (
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                Formato de impresión
+                <select value={printFormat} disabled={savingPrintFormat}
+                  onChange={(e) => handlePrintFormatChange(e.target.value as 'CARTA' | 'TICKET')}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white disabled:opacity-50">
+                  <option value="CARTA">Hoja carta</option>
+                  <option value="TICKET">Ticket (impresora térmica)</option>
+                </select>
+              </label>
+            )}
+            <Link href="/dashboard/pos" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+              + Nueva orden de trabajo
+            </Link>
+          </div>
         )}
       </div>
 

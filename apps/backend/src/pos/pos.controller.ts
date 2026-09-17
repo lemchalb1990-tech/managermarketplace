@@ -13,6 +13,22 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class PosController {
   constructor(private service: PosService) {}
 
+  @Get('settings')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  getSettings(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.getSettings(user, companyId);
+  }
+
+  @Patch('settings')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  updateSettings(
+    @Body() dto: { workOrderPrintFormat?: 'CARTA' | 'TICKET' },
+    @CurrentUser() user: any,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.service.updateSettings(user, dto, companyId);
+  }
+
   @Post('sales')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   createSale(@Body() dto: CreateSaleDto, @CurrentUser() user: any) {

@@ -158,6 +158,9 @@ model Company {
   autoSyncIntervalMinutes Int      @default(1)
   // Horas límite de despacho por transportista: { "ml_flex": "19:00", ... }
   dispatchCutoffs         Json?
+  // Formato de impresión de las órdenes de trabajo del POS — lo elige cada empresa
+  // según si imprime en hoja carta o en una impresora térmica de ticket.
+  workOrderPrintFormat    WorkOrderPrintFormat @default(CARTA)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -1176,6 +1179,11 @@ enum WorkOrderStatus {
   CONVERTED // El cliente aceptó: se cobró y quedó como venta (Sale) — recién ahí se descuenta stock.
   REJECTED  // El cliente no aceptó el presupuesto.
   CANCELLED // Anulada por el local antes de presentarla o de tener respuesta del cliente.
+}
+
+enum WorkOrderPrintFormat {
+  CARTA  // Hoja carta/A4 completa, con líneas de firma.
+  TICKET // Angosto, pensado para impresora térmica de boletas/tickets.
 }
 
 // Presupuesto/orden de trabajo del POS: se arma con productos del catálogo y/o líneas

@@ -748,6 +748,17 @@ export const api = {
     remove: (id: string, token: string) => apiFetch<any>(`/notification-sounds/${id}`, { method: 'DELETE' }, token),
   },
   pos: {
+    settings: {
+      get: (token: string, companyId?: string) =>
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' }>(
+          `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' }, token: string, companyId?: string) =>
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' }>(
+          `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`,
+          { method: 'PATCH', body: JSON.stringify(data) },
+          token,
+        ),
+    },
     createSale: (data: any, token: string) =>
       apiFetch<any>('/pos/sales', { method: 'POST', body: JSON.stringify(data) }, token),
     listSales: (params: { companyId?: string; channel?: string; from?: string; to?: string; page?: number; search?: string }, token: string) => {

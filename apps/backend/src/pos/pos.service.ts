@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { FulfillmentType, ProductType, Role, SaleChannel, MovementType } from '@prisma/client';
+import { FulfillmentType, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
@@ -38,6 +38,27 @@ export class PosService {
     }
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
     return user.companyId;
+  }
+
+  // ─── Ajustes del POS (por empresa) ────────────────────────────────────────────
+
+  async getSettings(user: any, companyId?: string) {
+    const cId = this.resolveCompanyId(user, companyId);
+    const company = await this.prisma.company.findUnique({
+      where: { id: cId },
+      select: { workOrderPrintFormat: true },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    return company;
+  }
+
+  async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat }, companyId?: string) {
+    const cId = this.resolveCompanyId(user, companyId);
+    return this.prisma.company.update({
+      where: { id: cId },
+      data: { ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}) },
+      select: { workOrderPrintFormat: true },
+    });
   }
 
   async createSale(dto: CreateSaleDto, user: any) {
