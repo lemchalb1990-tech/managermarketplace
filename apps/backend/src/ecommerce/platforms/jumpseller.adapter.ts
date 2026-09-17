@@ -32,7 +32,8 @@ export class JumpSellerAdapter implements PlatformAdapter {
         return { success: false, message: err?.message || `HTTP ${res.status}` };
       }
       const data = await res.json() as any;
-      return { success: true, message: `Tienda: ${data?.name || data?.url || 'conectada'}` };
+      const store = data?.store || data;
+      return { success: true, message: `Tienda: ${store?.name || store?.url || 'conectada'}` };
     } catch (err: any) {
       return { success: false, message: err.message };
     }
