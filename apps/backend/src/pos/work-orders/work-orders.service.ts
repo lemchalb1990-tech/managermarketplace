@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { ProductType, Role, SaleChannel, WorkOrderStatus, FulfillmentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PosService } from '../pos.service';
+import { EmailService } from '../../email/email.service';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, ConvertWorkOrderDto, WorkOrderItemDto } from './work-orders.dto';
 
 // Categoría con la que se crean (y reutilizan) los "productos" de servicio auto-generados
@@ -15,6 +16,7 @@ export class WorkOrdersService {
   constructor(
     private prisma: PrismaService,
     private posService: PosService,
+    private email: EmailService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -172,6 +174,14 @@ export class WorkOrdersService {
 
   async findOne(id: string, user: any) {
     return this.getOwned(id, user);
+  }
+
+  async sendByEmail(id: string, user: any, toOverride?: string) {
+    const workOrder = await this.getOwned(id, user);
+    const to = (toOverride || workOrder.customerEmail || (workOrder as any).client?.email || '').trim();
+    if (!to) throw new BadRequestException('No hay un correo de destino');
+    await this.email.sendWorkOrderEmail(workOrder.companyId, to, workOrder);
+    return { sent: true, to };
   }
 
   async update(id: string, dto: UpdateWorkOrderDto, user: any) {

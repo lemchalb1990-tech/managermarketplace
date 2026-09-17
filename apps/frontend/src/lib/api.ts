@@ -830,6 +830,12 @@ export const api = {
         apiFetch<any>(`/pos/work-orders/${id}`, { method: 'DELETE' }, token),
       convert: (id: string, data: { paymentMethod?: string }, token: string) =>
         apiFetch<any>(`/pos/work-orders/${id}/convert`, { method: 'POST', body: JSON.stringify(data) }, token),
+      sendEmail: (id: string, email: string | undefined, token: string) =>
+        apiFetch<{ sent: boolean; to: string }>(
+          `/pos/work-orders/${id}/send-email`,
+          { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
+          token,
+        ),
     },
   },
   clients: {

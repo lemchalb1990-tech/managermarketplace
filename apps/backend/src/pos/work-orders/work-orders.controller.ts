@@ -44,6 +44,11 @@ export class WorkOrdersController {
     return this.service.reject(id, user);
   }
 
+  @Post(':id/send-email')
+  sendEmail(@Param('id') id: string, @Body() body: { email?: string }, @CurrentUser() user: any) {
+    return this.service.sendByEmail(id, user, body?.email);
+  }
+
   @Delete(':id')
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.cancel(id, user);

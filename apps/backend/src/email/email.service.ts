@@ -3,6 +3,7 @@ import { EmailType } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertEmailConfigDto, UpsertEmailTemplateDto } from './dto/email.dto';
+import { primaryFrontendUrl } from '../common/frontend-url.util';
 
 const TYPE_LABELS: Record<EmailType, string> = {
   ORDER_CONFIRMED:       'Orden confirmada',
@@ -454,6 +455,35 @@ export class EmailService {
 
     await transporter.sendMail({ from, to, subject: `${title} — ${companyName}`, html: bodyHtml, attachments });
     this.logger.log(`DTE enviado → ${to}`);
+  }
+
+  /**
+   * Envía una orden de trabajo (presupuesto POS) por correo — con un link a la página
+   * imprimible en vez de un PDF adjunto, porque no generamos PDF server-side todavía (la
+   * "impresión" es la misma página HTML vía window.print del navegador).
+   */
+  async sendWorkOrderEmail(companyId: string, to: string, workOrder: any): Promise<void> {
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new Error('Configura el servidor SMTP primero');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    const companyName = company?.name ?? 'Tienda';
+    const from = await this.getFromAddress(companyId);
+
+    const folio = `N° ${String(workOrder.folio).padStart(4, '0')}`;
+    const total = workOrder.items.reduce((s: number, i: any) => s + i.quantity * Number(i.unitPrice), 0);
+    const printUrl = `${primaryFrontendUrl()}/imprimir/orden-trabajo/${workOrder.id}`;
+
+    const bodyHtml = shell(
+      `<h2 style="margin:0 0 12px;font-size:20px;color:#1f2937;">Orden de trabajo ${folio}</h2>
+       <p style="color:#6b7280;font-size:15px;">${companyName} te envía el presupuesto/orden de trabajo solicitado.</p>
+       <p style="color:#374151;font-size:15px;">Total estimado: <strong>$${Math.round(total).toLocaleString('es-CL')}</strong></p>
+       <p style="margin-top:16px;"><a href="${printUrl}" style="color:#1d4ed8;">Ver / imprimir la orden de trabajo</a></p>`,
+      companyName,
+    );
+
+    await transporter.sendMail({ from, to, subject: `Orden de trabajo ${folio} — ${companyName}`, html: bodyHtml });
+    this.logger.log(`Orden de trabajo enviada → ${to}`);
   }
 
   /**

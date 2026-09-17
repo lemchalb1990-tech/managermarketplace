@@ -69,6 +69,35 @@ export default function PosPage() {
   const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
   const [creatingWorkOrder, setCreatingWorkOrder] = useState(false);
   const [workOrderError, setWorkOrderError] = useState('');
+  const [createdWorkOrder, setCreatedWorkOrder] = useState<any>(null);
+  const [sendEmailTo, setSendEmailTo] = useState('');
+  const [sendingWorkOrderEmail, setSendingWorkOrderEmail] = useState(false);
+  const [workOrderEmailMsg, setWorkOrderEmailMsg] = useState('');
+
+  function closeWorkOrderModal() {
+    setShowWorkOrderModal(false);
+    setCreatedWorkOrder(null);
+    setSendEmailTo('');
+    setWorkOrderEmailMsg('');
+  }
+
+  function printWorkOrder(id: string) {
+    window.open(`/imprimir/orden-trabajo/${id}`, '_blank');
+  }
+
+  async function sendWorkOrderEmail() {
+    if (!createdWorkOrder || !sendEmailTo.trim()) return;
+    setSendingWorkOrderEmail(true);
+    setWorkOrderEmailMsg('');
+    try {
+      const res = await api.pos.workOrders.sendEmail(createdWorkOrder.id, sendEmailTo.trim(), token);
+      setWorkOrderEmailMsg(`Enviado a ${res.to}`);
+    } catch (err: any) {
+      setWorkOrderEmailMsg(err.message || 'No se pudo enviar el correo.');
+    } finally {
+      setSendingWorkOrderEmail(false);
+    }
+  }
 
   // Documento tributario (DTE)
   const [billingConns, setBillingConns] = useState<any[]>([]);
@@ -328,11 +357,14 @@ export default function PosPage() {
       const workOrder = await api.pos.workOrders.create(dto, token);
 
       setSuccessMsg(`Orden de trabajo N° ${String(workOrder.folio).padStart(4, '0')} creada — sin cobrar ni descontar stock.`);
+      setCreatedWorkOrder(workOrder);
+      setSendEmailTo(dto.customerEmail || '');
+      setWorkOrderEmailMsg('');
+      printWorkOrder(workOrder.id);
       setCart([]);
       setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
       setNotes('');
       setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
-      setShowWorkOrderModal(false);
     } catch (err: any) {
       setWorkOrderError(err.message || 'No se pudo crear la orden de trabajo.');
     } finally {
@@ -953,78 +985,126 @@ export default function PosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Crear orden de trabajo</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                {createdWorkOrder ? 'Orden de trabajo creada' : 'Crear orden de trabajo'}
+              </h2>
               <button
-                onClick={() => setShowWorkOrderModal(false)}
+                onClick={closeWorkOrderModal}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold transition"
               >
                 ×
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                Queda pendiente, sin cobrar ni descontar stock. Se puede imprimir para el cliente y, si acepta, se cobra desde "Órdenes de trabajo".
-              </p>
+            {createdWorkOrder ? (
+              <div className="px-6 py-5 space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+                  Orden de trabajo N° {String(createdWorkOrder.folio).padStart(4, '0')} creada — sin cobrar ni descontar stock.
+                  Se abrió el formato en una pestaña nueva para imprimir; si tu navegador bloqueó la ventana, usa el botón de abajo.
+                </div>
 
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Cliente (opcional)</h3>
-                <select value={clientId} onChange={(e) => setClientId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white mb-2">
-                  <option value="">— Sin cliente registrado —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}{c.rut ? ` · ${c.rut}` : ''}</option>
-                  ))}
-                </select>
-                {!selectedClient && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre (opcional)"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono (opcional)"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                    <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (opcional)"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                <button
+                  onClick={() => printWorkOrder(createdWorkOrder.id)}
+                  className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl py-2.5 text-sm transition"
+                >
+                  🖨️ Imprimir
+                </button>
+
+                <div>
+                  <label className="block text-xs text-gray-500 font-medium mb-1">Enviar por correo</label>
+                  <div className="flex gap-2">
+                    <input value={sendEmailTo} onChange={(e) => setSendEmailTo(e.target.value)}
+                      placeholder="correo@cliente.com" type="email"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    <button
+                      onClick={sendWorkOrderEmail}
+                      disabled={sendingWorkOrderEmail || !sendEmailTo.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg px-4 text-sm transition"
+                    >
+                      {sendingWorkOrderEmail ? 'Enviando...' : 'Enviar'}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {workOrderEmailMsg && (
+                    <p className={`text-xs mt-1.5 ${workOrderEmailMsg.startsWith('Enviado') ? 'text-green-600' : 'text-red-600'}`}>
+                      {workOrderEmailMsg}
+                    </p>
+                  )}
+                </div>
 
-              <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Notas (opcional)</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  placeholder="Observaciones..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <button
+                  onClick={closeWorkOrderModal}
+                  className="w-full bg-gray-900 hover:bg-black text-white font-semibold rounded-xl py-2.5 text-sm transition"
+                >
+                  Listo
+                </button>
               </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    Queda pendiente, sin cobrar ni descontar stock. Se puede imprimir para el cliente y, si acepta, se cobra desde "Órdenes de trabajo".
+                  </p>
 
-              <div className="border-t border-gray-100 pt-3 space-y-1">
-                {cart.map((item) => (
-                  <div key={item.productId} className="flex justify-between text-xs text-gray-500">
-                    <span className="truncate max-w-[220px]">{item.name} x{item.quantity}</span>
-                    <span>${(item.price * item.quantity).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Cliente (opcional)</h3>
+                    <select value={clientId} onChange={(e) => setClientId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white mb-2">
+                      <option value="">— Sin cliente registrado —</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}{c.rut ? ` · ${c.rut}` : ''}</option>
+                      ))}
+                    </select>
+                    {!selectedClient && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (opcional)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="px-6 py-4 border-t border-gray-100">
-              {workOrderError && (
-                <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">{workOrderError}</div>
-              )}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Total estimado</span>
-                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
-              </div>
-              <button
-                onClick={createWorkOrderFromCart}
-                disabled={creatingWorkOrder}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
-              >
-                {creatingWorkOrder ? 'Creando...' : 'Crear orden de trabajo'}
-              </button>
-            </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 font-medium mb-1">Notas (opcional)</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Observaciones..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3 space-y-1">
+                    {cart.map((item) => (
+                      <div key={item.productId} className="flex justify-between text-xs text-gray-500">
+                        <span className="truncate max-w-[220px]">{item.name} x{item.quantity}</span>
+                        <span>${(item.price * item.quantity).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-gray-100">
+                  {workOrderError && (
+                    <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">{workOrderError}</div>
+                  )}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-gray-600">Total estimado</span>
+                    <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <button
+                    onClick={createWorkOrderFromCart}
+                    disabled={creatingWorkOrder}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
+                  >
+                    {creatingWorkOrder ? 'Creando...' : 'Crear orden de trabajo'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
