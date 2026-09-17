@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
+import { FalabellaAdapter } from '../platforms/falabella.adapter';
 
 // Usuario sintético para llamar métodos del service que exigen "user" (por los mismos
 // checks de permisos que el resto de la app) desde un cron sin sesión real. SUPER_ADMIN
@@ -35,6 +36,7 @@ export class SalesImportCronService {
     private mercadolibre: MercadolibreService,
     private paris: ParisAdapter,
     private ripley: RipleyAdapter,
+    private falabella: FalabellaAdapter,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -130,8 +132,19 @@ export class SalesImportCronService {
             }
             break;
           }
+          case MarketplaceType.FALABELLA: {
+            try {
+              const result = await this.falabella.importRecentSales(connection, connection.companyId);
+              if (result.imported || result.errors) {
+                this.logger.log(`Auto-sync Falabella ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
+              }
+            } catch (err: any) {
+              this.logger.error(`Auto-sync Falabella ventas falló para conexión ${connection.id}: ${err?.message || err}`);
+            }
+            break;
+          }
           default: {
-            // SHOPIFY, WOOCOMMERCE, FALABELLA, HITES, WALMART, JUMPSELLER:
+            // SHOPIFY, WOOCOMMERCE, HITES, WALMART, JUMPSELLER:
             // el auto-sync aún no está implementado. El check queda activo y esta rama se
             // activará sola cuando se agregue el importador de la plataforma.
             const key = `${connection.marketplace}`;

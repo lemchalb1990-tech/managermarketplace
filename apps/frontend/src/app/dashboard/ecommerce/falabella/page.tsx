@@ -13,6 +13,7 @@ export default function FalabellaPage() {
       logo: Logos.falabella,
       supportsPublish: true,
       supportsImport: true,
+      supportsSalesImport: true,
       helpText: 'Ingresa el UserID (tu email del Seller Center) y la API Key de Falabella Seller Center. BusinessUnit/OperatorCode los asigna Falabella según el país/tienda de tu cuenta (ej. "Falabella"/"facl" para Falabella Chile) — pídeselos a tu ejecutivo si no los tienes.',
       fields: [
         { key: 'userId', label: 'UserID', placeholder: 'tu-email@dominio.com', hint: 'El mismo con el que entras al Seller Center' },

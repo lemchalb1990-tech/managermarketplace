@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { createHmac } from 'crypto';
+import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
@@ -18,6 +19,10 @@ const BASE = 'https://sellercenter-api.falabella.com';
 
 function timestamp(): string {
   return `${new Date().toISOString().split('.')[0]}+00:00`;
+}
+
+function formatDate(d: Date): string {
+  return `${d.toISOString().split('.')[0]}+00:00`;
 }
 
 function sign(params: Record<string, string>, secret: string): { queryString: string; signature: string } {
@@ -73,6 +78,22 @@ export class FalabellaAdapter implements PlatformAdapter {
       throw new Error(`Falabella (${action}): ${h.ErrorMessage || `error ${h.ErrorCode}`}`);
     }
     return data?.SuccessResponse?.Body;
+  }
+
+  // GetOrders trae el total real (Head.TotalCount) para paginar, a diferencia de `call()`
+  // que descarta el Head — se usa solo donde hace falta ese dato.
+  private async callFull(conn: any, action: string, extraParams: Record<string, string> = {}): Promise<{ body: any; head: any }> {
+    const { userId, apiKey } = this.creds(conn);
+    if (!userId || !apiKey) throw new Error('Faltan UserID/API Key de Falabella');
+    const params = { Action: action, Format: 'JSON', Timestamp: timestamp(), UserID: userId, Version: '1.0', ...extraParams };
+    const { queryString, signature } = sign(params, apiKey);
+    const res = await fetch(`${BASE}/?${queryString}&Signature=${signature}`);
+    const data = await res.json().catch(() => null);
+    if (data?.ErrorResponse) {
+      const h = data.ErrorResponse.Head;
+      throw new Error(`Falabella (${action}): ${h.ErrorMessage || `error ${h.ErrorCode}`}`);
+    }
+    return { body: data?.SuccessResponse?.Body, head: data?.SuccessResponse?.Head };
   }
 
   private async post(conn: any, action: string, xmlBody: string): Promise<any> {
@@ -380,5 +401,167 @@ export class FalabellaAdapter implements PlatformAdapter {
     }
 
     return { imported, linked, skipped, errors };
+  }
+
+  // ─── Importar ventas ──────────────────────────────────────────────────────────
+  // Mismo alcance que Paris/Ripley: crea Sale/SaleItem para historial/reportes, sin tocar
+  // stock. GetOrders (probado en vivo) no trae las líneas del pedido — hay que pedirlas
+  // aparte con GetMultipleOrderItems. El "Sku" de cada OrderItem es el SellerSku (mismo
+  // campo que ya usa GetProducts/confirmImport), es decir nuestro Listing.externalId
+  // directo, sin prefijo compuesto. Cuando la orden trae más de una unidad del mismo SKU,
+  // Falabella devuelve un OrderItem por unidad (no un campo "quantity"), así que se agrupan
+  // por Sku igual que en Paris. Falabella no expone comisión a nivel de orden en esta API,
+  // así que marketplaceFee queda sin dato (no se inventa un valor).
+
+  private parseMoney(v: any): number {
+    return Number(String(v ?? '0').replace(/,/g, ''));
+  }
+
+  private async fetchOrderItemsMap(conn: any, orderIds: string[]): Promise<Map<string, any[]>> {
+    const map = new Map<string, any[]>();
+    const CHUNK = 20;
+    for (let i = 0; i < orderIds.length; i += CHUNK) {
+      const chunk = orderIds.slice(i, i + CHUNK);
+      if (!chunk.length) continue;
+      const data = await this.call(conn, 'GetMultipleOrderItems', { OrderIdList: JSON.stringify(chunk) });
+      const raw = data?.Orders?.Order;
+      const orders = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      for (const o of orders) {
+        const itemsRaw = o.OrderItems?.OrderItem;
+        const items = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw] : [];
+        map.set(o.OrderId, items);
+      }
+    }
+    return map;
+  }
+
+  private async resolveOrderItems(connectionId: string, items: any[]) {
+    const bySku = new Map<string, { count: number; unitPrice: number; title: string }>();
+    for (const it of items || []) {
+      const sku = it.Sku;
+      if (!sku) continue;
+      const price = this.parseMoney(it.ItemPrice ?? it.PaidPrice);
+      const cur = bySku.get(sku) || { count: 0, unitPrice: price, title: it.Name };
+      cur.count++;
+      bySku.set(sku, cur);
+    }
+    let resolved = true;
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    for (const [sku, info] of bySku) {
+      const listing = await this.prisma.listing.findFirst({
+        where: { connectionId, externalId: sku },
+        select: { productId: true, product: { select: { name: true } } },
+      });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null }); continue; }
+      out.push({ productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: listing.product.name });
+    }
+    return { resolved, items: out };
+  }
+
+  async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
+    const PAGE = 50;
+    const MAX = 300;
+    const params: Record<string, string> = { Limit: String(PAGE) };
+    if (from) params.CreatedAfter = formatDate(new Date(from));
+    if (to) params.CreatedBefore = formatDate(new Date(`${to}T23:59:59`));
+
+    let offset = 0;
+    let totalCount = 0;
+    const rawOrders: any[] = [];
+    do {
+      const { body, head } = await this.callFull(conn, 'GetOrders', { ...params, Offset: String(offset) });
+      totalCount = Number(head?.TotalCount || 0);
+      const raw = body?.Orders?.Order;
+      const page = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      if (!page.length) break;
+      rawOrders.push(...page);
+      offset += PAGE;
+    } while (offset < totalCount && rawOrders.length < MAX);
+    const truncated = totalCount > rawOrders.length;
+
+    const externalIds = rawOrders.map((o) => o.OrderId);
+    const existing = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.FALABELLA, externalId: { in: externalIds } },
+      select: { externalId: true },
+    });
+    const existingSet = new Set(existing.map((s) => s.externalId));
+    const itemsMap = await this.fetchOrderItemsMap(conn, externalIds);
+
+    const orders = [];
+    for (const o of rawOrders) {
+      const alreadyRegistered = existingSet.has(o.OrderId);
+      const { resolved, items } = await this.resolveOrderItems(conn.id, itemsMap.get(o.OrderId) || []);
+      orders.push({
+        externalId: o.OrderId,
+        date: o.CreatedAt,
+        total: this.parseMoney(o.Price),
+        buyerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
+        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
+        importable: !alreadyRegistered && resolved && items.length > 0,
+        alreadyRegistered,
+      });
+    }
+    const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
+
+    return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const id of externalOrderIds) {
+      try {
+        const existing = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.FALABELLA, externalId: id } });
+        if (existing) { skipped++; continue; }
+
+        const data = await this.call(conn, 'GetOrders', { OrderIdList: JSON.stringify([id]) });
+        const raw = data?.Orders?.Order;
+        const o = Array.isArray(raw) ? raw[0] : raw;
+        if (!o) { errors.push(`${id}: no se encontró en Falabella`); continue; }
+
+        const itemsMap = await this.fetchOrderItemsMap(conn, [id]);
+        const { resolved, items } = await this.resolveOrderItems(conn.id, itemsMap.get(id) || []);
+        if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+
+        await this.prisma.sale.create({
+          data: {
+            channel: SaleChannel.FALABELLA,
+            externalId: id,
+            total: this.parseMoney(o.Price),
+            shippingCost: this.parseMoney(o.ShippingFeeTotal),
+            companyId,
+            connectionId: conn.id,
+            customerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
+            address: o.AddressShipping?.Address1 || null,
+            commune: o.AddressShipping?.City || null,
+            createdAt: new Date(String(o.CreatedAt).replace(' ', 'T')),
+            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        errors.push(`${id}: ${err.message}`);
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+    const from = conn.lastSalesImportAt
+      ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
+      : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const to = new Date();
+
+    const preview = await this.previewSalesImport(conn, companyId, from);
+    const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
+    const res = ids.length
+      ? await this.confirmSalesImport(conn, companyId, ids)
+      : { imported: 0, skipped: 0, errors: [] as string[] };
+
+    await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
+    return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
 }
