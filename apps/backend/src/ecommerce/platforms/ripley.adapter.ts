@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
@@ -357,5 +358,129 @@ export class RipleyAdapter implements PlatformAdapter {
     }
 
     return { imported, linked, skipped, errors };
+  }
+
+  // ─── Importar ventas (órdenes Mirakl) ────────────────────────────────────────
+  // Mismo alcance que Paris: crea Sale/SaleItem para historial/reportes, no descuenta
+  // stock. Mirakl SÍ trae "quantity" por línea (a diferencia de Paris) y offer_sku ES
+  // directamente nuestro Listing.externalId (sin prefijo compuesto), así que el match es
+  // más simple: comparación exacta, no "termina en".
+
+  private async resolveOrderLines(connectionId: string, orderLines: any[]) {
+    let resolved = true;
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    for (const line of orderLines || []) {
+      const sku = line.offer_sku;
+      const listing = sku ? await this.prisma.listing.findFirst({
+        where: { connectionId, externalId: sku },
+        select: { productId: true, product: { select: { name: true } } },
+      }) : null;
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title, productName: null }); continue; }
+      out.push({ productId: listing.productId, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title, productName: listing.product.name });
+    }
+    return { resolved, items: out };
+  }
+
+  async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
+    const PAGE = 50;
+    const MAX = 300;
+    const params = new URLSearchParams({ max: String(PAGE), offset: '0' });
+    if (from) params.set('start_date', new Date(from).toISOString());
+    if (to) params.set('end_date', new Date(`${to}T23:59:59`).toISOString());
+
+    let offset = 0;
+    let totalCount = 0;
+    const rawOrders: any[] = [];
+    do {
+      params.set('offset', String(offset));
+      const data = await this.request(conn, `/api/orders?${params}`);
+      totalCount = data.total_count || 0;
+      rawOrders.push(...(data.orders || []));
+      offset += PAGE;
+    } while (offset < totalCount && rawOrders.length < MAX);
+    const truncated = totalCount > rawOrders.length;
+
+    const externalIds = rawOrders.map((o) => o.order_id);
+    const existing = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.RIPLEY, externalId: { in: externalIds } },
+      select: { externalId: true },
+    });
+    const existingSet = new Set(existing.map((s) => s.externalId));
+
+    const orders = [];
+    for (const o of rawOrders) {
+      const alreadyRegistered = existingSet.has(o.order_id);
+      const { resolved, items } = await this.resolveOrderLines(conn.id, o.order_lines || []);
+      orders.push({
+        externalId: o.order_id,
+        date: o.created_date,
+        total: Number(o.total_price || 0),
+        buyerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
+        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
+        importable: !alreadyRegistered && resolved && items.length > 0,
+        alreadyRegistered,
+      });
+    }
+    const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
+
+    return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const id of externalOrderIds) {
+      try {
+        const existing = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.RIPLEY, externalId: id } });
+        if (existing) { skipped++; continue; }
+
+        const data = await this.request(conn, `/api/orders?order_id=${encodeURIComponent(id)}`);
+        const o = (data.orders || [])[0];
+        if (!o) { errors.push(`${id}: no se encontró en Ripley`); continue; }
+
+        const { resolved, items } = await this.resolveOrderLines(conn.id, o.order_lines || []);
+        if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+
+        await this.prisma.sale.create({
+          data: {
+            channel: SaleChannel.RIPLEY,
+            externalId: id,
+            total: Number(o.total_price || 0),
+            shippingCost: Number(o.shipping_price || 0),
+            marketplaceFee: Number(o.total_commission || 0),
+            companyId,
+            connectionId: conn.id,
+            customerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
+            address: o.customer?.shipping_address?.street_1 || null,
+            commune: o.customer?.shipping_address?.city || null,
+            createdAt: new Date(o.created_date),
+            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        errors.push(`${id}: ${err.message}`);
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+    const from = conn.lastSalesImportAt
+      ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
+      : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const to = new Date();
+
+    const preview = await this.previewSalesImport(conn, companyId, from);
+    const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
+    const res = ids.length
+      ? await this.confirmSalesImport(conn, companyId, ids)
+      : { imported: 0, skipped: 0, errors: [] as string[] };
+
+    await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
+    return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
 }

@@ -353,8 +353,9 @@ export class ConnectionsService {
   // ─── Importar ventas (historial) ──────────────────────────────────────────────
   // Por ahora solo Paris implementa esto — se agrega un caso por plataforma a medida que
   // se construye (mismo criterio que ya usa SalesImportCronService para el auto-sync).
-  private getSalesImportAdapter(conn: any): ParisAdapter {
+  private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
+    if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
     throw new BadRequestException('Esta plataforma todavía no soporta importar ventas');
   }
 
