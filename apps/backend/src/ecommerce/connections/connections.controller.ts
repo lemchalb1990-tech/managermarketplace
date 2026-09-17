@@ -205,4 +205,20 @@ export class ConnectionsController {
   confirmImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
     return this.service.confirmImport(id, user, dto.externalIds, dto.unlinkIds);
   }
+
+  // ─── Importar ventas (historial) ─────────────────────────────────────────────
+
+  @Get(':id/sales-import/preview')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  previewSalesImport(
+    @Param('id') id: string, @Query('from') from: string, @Query('to') to: string, @CurrentUser() user: any,
+  ) {
+    return this.service.previewSalesImport(id, user, from || undefined, to || undefined);
+  }
+
+  @Post(':id/sales-import/confirm')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {
+    return this.service.confirmSalesImport(id, user, dto.externalIds);
+  }
 }

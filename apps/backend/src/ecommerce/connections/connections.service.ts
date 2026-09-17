@@ -349,4 +349,24 @@ export class ConnectionsService {
     const adapter = this.getListingAdapter(conn);
     return adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
   }
+
+  // ─── Importar ventas (historial) ──────────────────────────────────────────────
+  // Por ahora solo Paris implementa esto — se agrega un caso por plataforma a medida que
+  // se construye (mismo criterio que ya usa SalesImportCronService para el auto-sync).
+  private getSalesImportAdapter(conn: any): ParisAdapter {
+    if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
+    throw new BadRequestException('Esta plataforma todavía no soporta importar ventas');
+  }
+
+  async previewSalesImport(connectionId: string, user: any, from?: string, to?: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    const adapter = this.getSalesImportAdapter(conn);
+    return adapter.previewSalesImport(conn, conn.companyId, from, to);
+  }
+
+  async confirmSalesImport(connectionId: string, user: any, externalIds: string[]) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    const adapter = this.getSalesImportAdapter(conn);
+    return adapter.confirmSalesImport(conn, conn.companyId, externalIds);
+  }
 }

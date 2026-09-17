@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { MarketplaceType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
+import { ParisAdapter } from '../platforms/paris.adapter';
 
 // Usuario sintético para llamar métodos del service que exigen "user" (por los mismos
 // checks de permisos que el resto de la app) desde un cron sin sesión real. SUPER_ADMIN
@@ -31,6 +32,7 @@ export class SalesImportCronService {
   constructor(
     private prisma: PrismaService,
     private mercadolibre: MercadolibreService,
+    private paris: ParisAdapter,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -104,8 +106,19 @@ export class SalesImportCronService {
             }
             break;
           }
+          case MarketplaceType.PARIS: {
+            try {
+              const result = await this.paris.importRecentSales(connection, connection.companyId);
+              if (result.imported || result.errors) {
+                this.logger.log(`Auto-sync Paris ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
+              }
+            } catch (err: any) {
+              this.logger.error(`Auto-sync Paris ventas falló para conexión ${connection.id}: ${err?.message || err}`);
+            }
+            break;
+          }
           default: {
-            // SHOPIFY, WOOCOMMERCE, FALABELLA, PARIS, HITES, RIPLEY, WALMART, JUMPSELLER:
+            // SHOPIFY, WOOCOMMERCE, FALABELLA, HITES, RIPLEY, WALMART, JUMPSELLER:
             // el auto-sync aún no está implementado. El check queda activo y esta rama se
             // activará sola cuando se agregue el importador de la plataforma.
             const key = `${connection.marketplace}`;

@@ -13,6 +13,7 @@ export default function ParisPage() {
       logo: Logos.paris,
       supportsPublish: true,
       supportsImport: true,
+      supportsSalesImport: true,
       helpText:
         'La API Key se genera en el portal de desarrolladores de Paris/Cencosud (Mi cuenta > API Key). El sistema valida la conexión contra la API de Paris al guardar. Publica productos, y sincroniza stock y precio, desde la pestaña "Paris" de cada producto en el Catálogo.',
       fields: [

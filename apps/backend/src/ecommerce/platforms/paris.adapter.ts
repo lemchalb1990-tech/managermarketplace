@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
@@ -621,5 +622,157 @@ export class ParisAdapter implements PlatformAdapter {
     }
 
     return { imported, linked, skipped, errors };
+  }
+
+  // ─── Importar ventas (sub-órdenes) ───────────────────────────────────────────
+  // Alcance a propósito acotado: crea Sale/SaleItem para historial y reportes, IGUAL que
+  // el modo "recuperación histórica" de Mercado Libre (createDispatchOrder/skipStockEffects)
+  // — no descuenta stock ni crea Orden de despacho. Cada fila de "items" en Paris es UNA
+  // unidad (no trae "quantity"; si compraron 2, aparece 2 veces) — se agrupan por sku de
+  // variante antes de armar el SaleItem. El match contra el catálogo es por Listing
+  // (externalId termina en ":<sku de variante>"), no por sellerSku directo, porque el sku
+  // interno pudo quedar distinto si el producto se creó por confirmImport con colisión.
+
+  private async resolveOrderItems(connectionId: string, items: any[]) {
+    const bySku = new Map<string, { count: number; unitPrice: number; title: string }>();
+    for (const it of items || []) {
+      const sku = it.sku;
+      if (!sku) continue;
+      const price = Number(it.priceAfterDiscounts ?? it.basePrice ?? 0);
+      const cur = bySku.get(sku) || { count: 0, unitPrice: price, title: it.name };
+      cur.count++;
+      bySku.set(sku, cur);
+    }
+    let resolved = true;
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    for (const [sku, info] of bySku) {
+      const listing = await this.prisma.listing.findFirst({
+        where: { connectionId, externalId: { endsWith: `:${sku}` } },
+        select: { productId: true, product: { select: { name: true } } },
+      });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null }); continue; }
+      out.push({ productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: listing.product.name });
+    }
+    return { resolved, items: out };
+  }
+
+  private orderTotals(items: any[]) {
+    const total = (items || []).reduce((s, i) => s + Number(i.priceAfterDiscounts ?? i.basePrice ?? 0), 0);
+    const fee = (items || []).reduce((s, i) => s + Number(i.commission ?? 0), 0);
+    const tax = (items || []).reduce((s, i) => s + Number(i.tax ?? 0), 0);
+    return { total, fee, tax };
+  }
+
+  async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
+    const PAGE = 50;
+    const MAX = 300;
+    const params = new URLSearchParams({ limit: String(PAGE), offset: '0' });
+    if (from) params.set('gteCreatedAtInOrigin', new Date(from).toISOString());
+    if (to) params.set('lteCreatedAtInOrigin', new Date(`${to}T23:59:59`).toISOString());
+
+    let offset = 0;
+    let totalCount = 0;
+    const subOrders: any[] = [];
+    do {
+      params.set('offset', String(offset));
+      const data = await this.request(conn, `/v3/sub-orders?${params}`);
+      totalCount = data.count || 0;
+      subOrders.push(...(data.data || []));
+      offset += PAGE;
+    } while (offset < totalCount && subOrders.length < MAX);
+    const truncated = totalCount > subOrders.length;
+
+    const externalIds = subOrders.map((o) => o.subOrderNumber);
+    const existing = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.PARIS, externalId: { in: externalIds } },
+      select: { externalId: true },
+    });
+    const existingSet = new Set(existing.map((s) => s.externalId));
+
+    const orders = [];
+    for (const so of subOrders) {
+      const alreadyRegistered = existingSet.has(so.subOrderNumber);
+      const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
+      const { total } = this.orderTotals(so.items || []);
+      orders.push({
+        externalId: so.subOrderNumber,
+        date: so.originOrderDate,
+        total,
+        buyerName: so.customer?.name || null,
+        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
+        importable: !alreadyRegistered && resolved && items.length > 0,
+        alreadyRegistered,
+      });
+    }
+    const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
+
+    return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const id of externalOrderIds) {
+      try {
+        const existing = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.PARIS, externalId: id } });
+        if (existing) { skipped++; continue; }
+
+        const data = await this.request(conn, `/v3/sub-orders?subOrderNumber=${encodeURIComponent(id)}`);
+        const so = (data.data || [])[0];
+        if (!so) { errors.push(`${id}: no se encontró en Paris`); continue; }
+
+        const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
+        if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+
+        const { total, fee, tax } = this.orderTotals(so.items || []);
+        await this.prisma.sale.create({
+          data: {
+            channel: SaleChannel.PARIS,
+            externalId: id,
+            total,
+            shippingCost: Number(so.dispatchCost || 0),
+            marketplaceFee: fee,
+            taxes: tax,
+            companyId,
+            connectionId: conn.id,
+            customerName: so.customer?.name || null,
+            customerEmail: so.customer?.email || null,
+            customerPhone: so.customer?.phone || null,
+            address: so.shippingAddress?.address1 || null,
+            commune: so.shippingAddress?.city || null,
+            createdAt: new Date(so.originOrderDate),
+            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        errors.push(`${id}: ${err.message}`);
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  // Usado por el cron de auto-sync: trae solo lo reciente (desde la última corrida, con 2
+  // min de solapamiento por si algo quedó justo en el borde) y confirma directo lo que se
+  // pueda resolver — sin preview, porque no hay usuario mirando la pantalla. Actualiza
+  // lastSalesImportAt al final, igual que el auto-sync de Mercado Libre, para que el cron
+  // sepa desde cuándo seguir la próxima vez.
+  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+    const from = conn.lastSalesImportAt
+      ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
+      : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const to = new Date();
+
+    const preview = await this.previewSalesImport(conn, companyId, from);
+    const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
+    const res = ids.length
+      ? await this.confirmSalesImport(conn, companyId, ids)
+      : { imported: 0, skipped: 0, errors: [] as string[] };
+
+    await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
+    return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
 }

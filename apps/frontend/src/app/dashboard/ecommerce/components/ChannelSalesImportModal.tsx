@@ -1,0 +1,343 @@
+'use client';
+
+import { Fragment, useState } from 'react';
+import { getToken } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+
+type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
+type OrderPreview = {
+  externalId: string; date: string; total: number; buyerName: string | null;
+  importable: boolean; alreadyRegistered: boolean; items: OrderItem[];
+};
+
+const PAGE_SIZE = 20;
+
+function firstDayOfMonth(tz: string) {
+  const key = dateKeyInTz(tz);
+  return `${key.slice(0, 7)}-01`;
+}
+function today(tz: string) {
+  return dateKeyInTz(tz);
+}
+
+// Genérico a propósito — mismo patrón que ML (ver ecommerce/mercadolibre/components/
+// SalesImportModal.tsx) pero simplificado: sin desglose de cargos/comisión (esas
+// plataformas no lo separan igual) ni la opción de crear Orden de despacho. Trae ventas
+// ya realizadas como historial — no descuenta stock ni genera movimientos de inventario.
+export function ChannelSalesImportModal({
+  connectionId,
+  connectionName,
+  platformLabel,
+  onClose,
+}: {
+  connectionId: string;
+  connectionName: string;
+  platformLabel: string;
+  onClose: () => void;
+}) {
+  const tz = useDashboardTimezone();
+  const [from, setFrom] = useState(() => firstDayOfMonth(tz));
+  const [to, setTo] = useState(() => today(tz));
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [error, setError] = useState('');
+  const [orders, setOrders] = useState<OrderPreview[]>([]);
+  const [truncated, setTruncated] = useState(false);
+  const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
+  const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(externalId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
+
+  async function handleSearch() {
+    setLoading(true);
+    setError('');
+    setResult(null);
+    try {
+      const token = getToken()!;
+      const data = await api.connections.previewSalesImport(connectionId, from, to, token);
+      setOrders(data.orders);
+      setTruncated(data.truncated);
+      setAlreadyImportedCount(data.alreadyImportedCount);
+      setSelected(new Set(data.orders.filter((o) => o.importable).map((o) => o.externalId)));
+      setPage(0);
+      setSearched(true);
+    } catch (err: any) {
+      setError(err.message || `No se pudieron obtener las ventas de ${platformLabel}.`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggle(externalId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(externalId)) next.delete(externalId); else next.add(externalId);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    const importableIds = orders.filter((o) => o.importable).map((o) => o.externalId);
+    const allSelected = importableIds.every((id) => selected.has(id));
+    setSelected(allSelected ? new Set() : new Set(importableIds));
+  }
+
+  async function handleConfirm() {
+    if (selected.size === 0) return;
+    const ids = Array.from(selected);
+    setImporting(true);
+    setError('');
+    setImportProgress({ done: 0, total: ids.length });
+    const combined = { imported: 0, skipped: 0, errors: [] as string[] };
+    try {
+      const token = getToken()!;
+      for (const id of ids) {
+        try {
+          const res = await api.connections.confirmSalesImport(connectionId, [id], token);
+          combined.imported += res.imported;
+          combined.skipped += res.skipped;
+          combined.errors.push(...res.errors);
+        } catch (err: any) {
+          combined.errors.push(err.message || `Orden ${id}: error al importar.`);
+        }
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      setResult(combined);
+    } catch (err: any) {
+      setError(err.message || 'Error al importar las ventas.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const importableCount = orders.filter((o) => o.importable).length;
+  const unresolvedCount = orders.filter((o) => !o.importable && !o.alreadyRegistered).length;
+  const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="font-semibold text-gray-900">Importar ventas de "{connectionName}"</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Trae ventas ya realizadas en {platformLabel} como historial. No descuenta stock ni genera movimientos de inventario.
+            </p>
+          </div>
+          {!importing && (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          )}
+        </div>
+
+        {importing && (
+          <div className="px-6 py-3 border-b border-gray-100 shrink-0 space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                Importando {importProgress.done} de {importProgress.total}...
+              </span>
+              <span className="font-semibold text-gray-700">
+                {importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 transition-all duration-200"
+                style={{ width: `${importProgress.total > 0 ? (importProgress.done / importProgress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3 shrink-0">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Desde</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <button onClick={handleSearch} disabled={loading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+            {loading ? 'Buscando...' : 'Buscar ventas'}
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {error && (
+            <div className="m-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {!error && result && (
+            <div className="p-6 space-y-3">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+                <p className="font-semibold mb-1">Importación completada</p>
+                <p>{result.imported} venta(s) importada(s), {result.skipped} omitida(s) (ya existían).</p>
+              </div>
+              {result.errors.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 space-y-1">
+                  {result.errors.map((e, i) => <p key={i}>{e}</p>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!error && !result && searched && (
+            orders.length === 0 ? (
+              <div className="p-12 text-center text-gray-400 text-sm">
+                No se encontraron ventas en el período seleccionado.
+              </div>
+            ) : (
+              <>
+                {truncated && (
+                  <div className="mx-6 mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                    Se encontraron más ventas de las que se muestran aquí. Acota el rango de fechas para verlas todas.
+                  </div>
+                )}
+                <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
+                  <span>{importableCount} listas para importar</span>
+                  {unresolvedCount > 0 && <span>{unresolvedCount} con productos no vinculados en el catálogo</span>}
+                  {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya registradas en el sistema</span>}
+                </div>
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm mt-3">
+                  <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 text-left">
+                        <input type="checkbox"
+                          checked={importableCount > 0 && orders.filter(o => o.importable).every(o => selected.has(o.externalId))}
+                          onChange={toggleAll} />
+                      </th>
+                      <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
+                      <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
+                      <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
+                      <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
+                      <th className="px-2 py-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {pagedOrders.map((o) => {
+                      const isOpen = expanded.has(o.externalId);
+                      return (
+                        <Fragment key={o.externalId}>
+                          <tr
+                            className={`cursor-pointer ${o.importable ? 'hover:bg-gray-50' : 'opacity-50'}`}
+                            onClick={() => toggleExpanded(o.externalId)}>
+                            <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                              <input type="checkbox" disabled={!o.importable}
+                                checked={selected.has(o.externalId)} onChange={() => toggle(o.externalId)} />
+                            </td>
+                            <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
+                              {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
+                            </td>
+                            <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerName || '—'}</td>
+                            <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
+                            <td className="px-2 py-2">
+                              {o.importable ? (
+                                <span className="text-xs text-green-600">Lista</span>
+                              ) : o.alreadyRegistered ? (
+                                <span className="text-xs text-gray-400">Ya registrada</span>
+                              ) : (
+                                <span className="text-xs text-red-500">No importable</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</td>
+                          </tr>
+                          {isOpen && (
+                            <tr>
+                              <td colSpan={6} className="bg-gray-50 px-6 py-3">
+                                <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
+                                <div className="space-y-1">
+                                  {o.items.map((it, i) => (
+                                    <div key={i} className="text-xs text-gray-700 flex justify-between">
+                                      <span>
+                                        {it.quantity}× {it.productName || it.title}
+                                        {!it.resolved && <span className="text-red-500 ml-1">(sin vincular)</span>}
+                                      </span>
+                                      <span className="text-gray-500">${Math.round(it.unitPrice).toLocaleString('es-CL')} c/u</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                </div>
+                {pageCount > 1 && (
+                  <div className="flex items-center justify-center gap-3 py-3 border-t border-gray-100">
+                    <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                      className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                      ← Anterior
+                    </button>
+                    <span className="text-xs text-gray-500">Página {page + 1} de {pageCount}</span>
+                    <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}
+                      className="px-3 py-1 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                      Siguiente →
+                    </button>
+                  </div>
+                )}
+              </>
+            )
+          )}
+
+          {!error && !result && !searched && !loading && (
+            <div className="p-12 text-center text-gray-400 text-sm">
+              Elige un rango de fechas y haz clic en "Buscar ventas".
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between shrink-0">
+          {result ? (
+            <>
+              <span />
+              <button onClick={onClose} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold">
+                Cerrar
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
+              <div className="flex gap-2">
+                {!importing && (
+                  <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                )}
+                <button
+                  onClick={handleConfirm}
+                  disabled={importing || selected.size === 0}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                >
+                  {importing ? `Importando... ${Math.round((importProgress.done / Math.max(importProgress.total, 1)) * 100)}%` : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

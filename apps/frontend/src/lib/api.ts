@@ -553,6 +553,18 @@ export const api = {
     confirmImport: (connectionId: string, externalIds: string[], unlinkIds: string[], token: string) =>
       apiFetch<{ imported: number; linked: number; skipped: number; errors: string[] }>(
         `/ecommerce/connections/${connectionId}/import/confirm`, { method: 'POST', body: JSON.stringify({ externalIds, unlinkIds }) }, token),
+    previewSalesImport: (connectionId: string, from: string, to: string, token: string) =>
+      apiFetch<{
+        connectionName: string; total: number; truncated: boolean; alreadyImportedCount: number;
+        orders: {
+          externalId: string; date: string; total: number; buyerName: string | null;
+          importable: boolean; alreadyRegistered: boolean;
+          items: { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null }[];
+        }[];
+      }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
+    confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>
+      apiFetch<{ imported: number; skipped: number; errors: string[] }>(
+        `/ecommerce/connections/${connectionId}/sales-import/confirm`, { method: 'POST', body: JSON.stringify({ externalIds }) }, token),
   },
   billing: {
     connections: {
