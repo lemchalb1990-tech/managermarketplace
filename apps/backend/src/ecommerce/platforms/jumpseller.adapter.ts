@@ -1,7 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 
-const BASE = 'https://app.jumpseller.com/api/v1';
+// Doc oficial: https://github.com/jumpseller/api-docs (spec OpenAPI en
+// https://api.jumpseller.com/swagger.json). Confirmado ahí, no en pruebas en vivo (las
+// credenciales que nos dieron fallan con "Failed to Login" incluso con este esquema
+// exacto — pendiente de resolver del lado de la cuenta del cliente): Basic Auth con
+// "login:authtoken" (o los mismos como query params ?login=&authtoken=). La base URL y
+// los nombres de parámetro de la versión anterior de este adapter (app.jumpseller.com,
+// login_token/store) no existen en el spec oficial.
+const BASE = 'https://api.jumpseller.com/v1';
 
 @Injectable()
 export class JumpSellerAdapter implements PlatformAdapter {
@@ -11,26 +18,30 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return (conn.credentials as any) || {};
   }
 
-  private auth(conn: any): string {
-    const { loginToken, storeHandle } = this.creds(conn);
-    return `login_token=${loginToken}&store=${storeHandle}`;
+  private authHeader(conn: any): Record<string, string> {
+    const { login, authtoken } = this.creds(conn);
+    const basic = Buffer.from(`${login}:${authtoken}`).toString('base64');
+    return { Authorization: `Basic ${basic}` };
   }
 
   async testConnection(conn: any): Promise<{ success: boolean; message?: string }> {
     try {
-      const res = await fetch(`${BASE}/stores.json?${this.auth(conn)}`);
-      if (!res.ok) return { success: false, message: `HTTP ${res.status}` };
+      const res = await fetch(`${BASE}/store/info.json`, { headers: this.authHeader(conn) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null) as any;
+        return { success: false, message: err?.message || `HTTP ${res.status}` };
+      }
       const data = await res.json() as any;
-      return { success: true, message: `Tienda: ${data?.name || this.creds(conn).storeHandle}` };
+      return { success: true, message: `Tienda: ${data?.name || data?.url || 'conectada'}` };
     } catch (err: any) {
       return { success: false, message: err.message };
     }
   }
 
   async publishProduct(conn: any, product: any): Promise<PublishResult> {
-    const res = await fetch(`${BASE}/products.json?${this.auth(conn)}`, {
+    const res = await fetch(`${BASE}/products.json`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.authHeader(conn) },
       body: JSON.stringify({
         product: {
           name: product.name,
@@ -57,9 +68,9 @@ export class JumpSellerAdapter implements PlatformAdapter {
     const body: any = { product: { stock: payload.stock } };
     if (payload.price !== undefined) body.product.price = payload.price;
 
-    const res = await fetch(`${BASE}/products/${externalId}.json?${this.auth(conn)}`, {
+    const res = await fetch(`${BASE}/products/${externalId}.json`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.authHeader(conn) },
       body: JSON.stringify(body),
     });
     if (!res.ok) {

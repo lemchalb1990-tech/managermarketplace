@@ -12,10 +12,10 @@ export default function JumpSellerPage() {
       color: '#FF6B35',
       logo: Logos.jumpseller,
       supportsPublish: true,
-      helpText: 'Encuentra tu Login Token en Tienda → Configuración → API en tu panel de JumpSeller.',
+      helpText: 'Encuentra el Login Key y el Auth Token en tu panel de JumpSeller: Editar cuenta → API.',
       fields: [
-        { key: 'storeHandle', label: 'Handle de la tienda', placeholder: 'mi-tienda', hint: 'El identificador único de tu tienda en JumpSeller' },
-        { key: 'loginToken', label: 'Login Token', type: 'password', placeholder: 'Tu token de API' },
+        { key: 'login', label: 'Login Key', placeholder: 'Tu login key' },
+        { key: 'authtoken', label: 'Auth Token', type: 'password', placeholder: 'Tu auth token' },
       ],
     }} />
   );
