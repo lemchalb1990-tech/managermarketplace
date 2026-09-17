@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -13,6 +13,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const tz = useDashboardTimezone();
   const [workOrder, setWorkOrder] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [error, setError] = useState('');
   const user = getUser();
 
@@ -22,6 +23,10 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
     api.pos.workOrders.get(id, token)
       .then((wo) => {
         setWorkOrder(wo);
+        // Membrete (logo/razón social/RUT/dirección) — mismo Perfil de Facturación que
+        // usan boletas y facturas, para no duplicar el dato en dos lugares. Si la empresa
+        // no lo configuró todavía, se sigue mostrando solo el nombre (como antes).
+        api.billing.profile.get(token, wo.companyId).then(setProfile).catch(() => {});
         setTimeout(() => window.print(), 300);
       })
       .catch((err) => setError(err.message || 'No se pudo cargar la orden de trabajo.'));
@@ -61,9 +66,25 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 20, margin: 0 }}>{user?.company?.name || 'Orden de trabajo'}</h1>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>Presupuesto / Orden de trabajo</p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          {profile?.logoUrl && (
+            <img src={imgUrl(profile.logoUrl)} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+          )}
+          <div>
+            <h1 style={{ fontSize: 20, margin: 0 }}>{profile?.razonSocial || user?.company?.name || 'Orden de trabajo'}</h1>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>Presupuesto / Orden de trabajo</p>
+            {profile?.rut && <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>RUT {profile.rut}{profile.giro ? ` — ${profile.giro}` : ''}</p>}
+            {(profile?.address || profile?.commune || profile?.city) && (
+              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>
+                {[profile.address, profile.commune, profile.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {(profile?.phone || profile?.email) && (
+              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>
+                {[profile.phone, profile.email].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ fontSize: 18, fontWeight: 'bold', margin: 0 }}>N° {String(workOrder.folio).padStart(4, '0')}</p>

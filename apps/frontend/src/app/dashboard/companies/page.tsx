@@ -53,6 +53,8 @@ export default function CompaniesPage() {
   const [editing, setEditing] = useState<EditState>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   async function load() {
     const token = getToken();
@@ -102,6 +104,11 @@ export default function CompaniesPage() {
     setForm(f => ({ ...f, name, slug }));
   }
 
+  function handleLogoChange(file: File | null) {
+    setLogoFile(file);
+    setLogoPreview(file ? URL.createObjectURL(file) : null);
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -112,8 +119,16 @@ export default function CompaniesPage() {
       if (form.adminEmail) {
         payload.admin = { name: form.adminName, email: form.adminEmail, password: form.adminPassword };
       }
-      await api.companies.create(payload, token);
+      const created = await api.companies.create(payload, token);
+      if (logoFile) {
+        // El logo queda guardado en el Perfil de Facturación de la empresa (mismo membrete
+        // que ya usan boletas/facturas) — no se duplica el dato en otro lugar.
+        await api.billing.profile.uploadLogo(logoFile, token, created.id).catch((err: any) => {
+          setError(`Empresa creada, pero no se pudo subir el logo: ${err.message}`);
+        });
+      }
       setForm(emptyForm);
+      handleLogoChange(null);
       setShowForm(false);
       await load();
     } catch (err: any) {
@@ -200,6 +215,21 @@ export default function CompaniesPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Logo (opcional)</label>
+              <div className="flex items-center gap-3">
+                {logoPreview && (
+                  <img src={logoPreview} alt="Logo" className="w-12 h-12 object-contain border border-gray-200 rounded-lg" />
+                )}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  onChange={(e) => handleLogoChange(e.target.files?.[0] || null)}
+                  className="text-sm text-gray-600" />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Queda guardado en el Perfil de Facturación de la empresa (membrete de boletas, facturas y órdenes de trabajo). El resto del membrete (razón social, RUT, dirección) se completa después desde ahí.
+              </p>
+            </div>
+
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Administrador de empresa (opcional)</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -227,7 +257,7 @@ export default function CompaniesPage() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                 {loading ? 'Creando...' : 'Crear empresa'}
               </button>
-              <button type="button" onClick={() => { setShowForm(false); setForm(emptyForm); }}
+              <button type="button" onClick={() => { setShowForm(false); setForm(emptyForm); handleLogoChange(null); }}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
                 Cancelar
               </button>
