@@ -1422,6 +1422,7 @@ export default function CatalogPage() {
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  const [autoSaveNotice, setAutoSaveNotice] = useState('');
   const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [stockMovements, setStockMovements] = useState<any[]>([]);
@@ -1750,8 +1751,11 @@ export default function CatalogPage() {
     return refreshed;
   }
 
-  async function handleEdit(e: FormEvent) {
-    e.preventDefault();
+  // Guarda los cambios de la pestaña "Información" de un producto ya existente, sin cerrar
+  // el modal — se reusa tanto para el submit del formulario como para el autoguardado al
+  // cambiar de pestaña (así el usuario nunca pierde cambios por navegar a "Paris"/"Ripley"/etc).
+  async function saveEditChanges(): Promise<boolean> {
+    if (!selected?.id) return true;
     setEditError('');
     setEditLoading(true);
     try {
@@ -1776,35 +1780,74 @@ export default function CatalogPage() {
         packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
         packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
-        ...(isSuperAdmin && !selected.id ? { companyId: selectedCompanyId } : {}),
       };
-      if (selected.id) {
-        const updated = await api.catalog.update(selected.id, payload, token);
-        await refreshSelected(selected.id);
-        setIsDirty(false);
+      await api.catalog.update(selected.id, payload, token);
+      await refreshSelected(selected.id);
+      setIsDirty(false);
+      return true;
+    } catch (err: any) {
+      setEditError(err.message);
+      return false;
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleEdit(e: FormEvent) {
+    e.preventDefault();
+    setEditError('');
+    if (selected.id) {
+      const ok = await saveEditChanges();
+      if (ok) {
         setSelected(null);
         setListNoticeIsWarning(false);
-        setListNotice(`Cambios guardados en "${updated?.name ?? editForm.name}".`);
-      } else {
-        const created = await api.catalog.create(payload, token);
-        const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
-        await loadProducts(1);
+        setListNotice(`Cambios guardados en "${editForm.name}".`);
+      }
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const token = getToken()!;
+      const payload = {
+        sku: editForm.sku,
+        name: editForm.name,
+        type: editForm.type || 'ARTICULO',
+        description: editForm.description || undefined,
+        price: parseFloat(editForm.price),
+        mlPrice: editForm.mlPrice !== '' ? parseFloat(editForm.mlPrice) : undefined,
+        cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
+        supplierPrice: hasDropshippingModule && editForm.supplierPrice !== '' ? parseFloat(editForm.supplierPrice) : undefined,
+        stock: parseInt(editForm.stock),
+        criticalStock: editForm.criticalStock !== '' ? parseInt(editForm.criticalStock) : undefined,
+        category: editForm.category || undefined,
+        mlCategoryId: editForm.mlCategoryId || undefined,
+        mlDescription: editForm.mlDescription || undefined,
+        mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
+        warehouseId: editForm.warehouseId || undefined,
+        packageHeight: editForm.packageHeight !== '' ? parseFloat(editForm.packageHeight) : undefined,
+        packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
+        packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
+        packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
+        ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
+      };
+      const created = await api.catalog.create(payload, token);
+      const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
+      await loadProducts(1);
 
-        if (targetIds.length) {
-          // Un producto sin fotos no se publica en marketplaces: se deja creado (visible
-          // en el catálogo, sin publicar) y el modal pasa a la pestaña de Imágenes — recién
-          // con al menos una foto se puede completar la publicación con "Publicar ahora".
-          await refreshSelected(created.id);
-          setIsDirty(false);
-          setPendingPublishTargets(targetIds);
-          setTab('images');
-          setListNoticeIsWarning(true);
-          setListNotice(`Producto "${created.name}" creado. Sube al menos una foto y presiona "Publicar ahora" para completar la publicación en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
-        } else {
-          setSelected(null);
-          setListNoticeIsWarning(false);
-          setListNotice(`Producto "${created.name}" creado.`);
-        }
+      if (targetIds.length) {
+        // Un producto sin fotos no se publica en marketplaces: se deja creado (visible
+        // en el catálogo, sin publicar) y el modal pasa a la pestaña de Imágenes — recién
+        // con al menos una foto se puede completar la publicación con "Publicar ahora".
+        await refreshSelected(created.id);
+        setIsDirty(false);
+        setPendingPublishTargets(targetIds);
+        setTab('images');
+        setListNoticeIsWarning(true);
+        setListNotice(`Producto "${created.name}" creado. Sube al menos una foto y presiona "Publicar ahora" para completar la publicación en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+      } else {
+        setSelected(null);
+        setListNoticeIsWarning(false);
+        setListNotice(`Producto "${created.name}" creado.`);
       }
     } catch (err: any) {
       setEditError(err.message);
@@ -1966,8 +2009,13 @@ export default function CatalogPage() {
   }
 
   async function changeTab(newTab: Tab) {
-    if (newTab !== tab && tab === 'edit' && isDirty) {
-      if (!(await confirmDialog('Tienes cambios sin guardar. ¿Salir sin guardar?', { danger: true }))) return;
+    if (newTab !== tab && tab === 'edit' && isDirty && selected?.id) {
+      // Autoguardado en vez de preguntar/descartar — el usuario no debe perder cambios de
+      // "Información" solo por ir a mirar "Paris"/"Ripley"/"Mercado Libre"/etc.
+      const ok = await saveEditChanges();
+      if (!ok) return; // se queda en Información mostrando el error de guardado
+      setAutoSaveNotice('✓ Cambios guardados');
+      setTimeout(() => setAutoSaveNotice(''), 2500);
     }
     setTab(newTab);
     if (newTab === 'stock' && selected) {
@@ -2771,7 +2819,12 @@ export default function CatalogPage() {
                   <h3 className="font-semibold text-gray-900">Nuevo producto</h3>
                 )}
               </div>
-              <button onClick={() => { setSelected(null); setPendingPublishTargets([]); }}
+              <button
+                onClick={async () => {
+                  if (tab === 'edit' && isDirty && selected.id) await saveEditChanges();
+                  setSelected(null);
+                  setPendingPublishTargets([]);
+                }}
                 className="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">
                 ×
               </button>
@@ -2792,10 +2845,13 @@ export default function CatalogPage() {
                   }`}>
                   {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : t === 'falabella' ? 'Falabella' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
-                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar" />
+                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar — se guardan solos al cambiar de pestaña" />
                   )}
                 </button>
               ))}
+              {autoSaveNotice && (
+                <span className="ml-auto text-xs text-green-600 font-medium">{autoSaveNotice}</span>
+              )}
             </div>
 
             {pendingPublishTargets.length > 0 && (
@@ -2878,6 +2934,9 @@ export default function CatalogPage() {
                       placeholder="Ej: Electrónica"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
+                  <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Precios</p>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       {hasPosModule ? 'Precio Venta - Tienda Física *' : 'Precio *'}
@@ -2923,6 +2982,9 @@ export default function CatalogPage() {
                       </p>
                     </div>
                   )}
+                  <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Inventario</p>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Stock
@@ -2959,6 +3021,11 @@ export default function CatalogPage() {
                       ))}
                     </select>
                   </div>
+                  {hasMlModule && (selected.id || mlChecked) && (
+                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Mercado Libre</p>
+                    </div>
+                  )}
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
