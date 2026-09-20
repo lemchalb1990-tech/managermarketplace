@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { ImportProgress } from '@/components/ImportProgress';
 
 type PreviewItem = {
   externalId: string;
@@ -19,6 +20,7 @@ type PreviewItem = {
 };
 
 const PAGE_SIZE = 20;
+const IMPORT_BATCH_SIZE = 10;
 
 const mlStatusLabel: Record<string, string> = {
   active: 'Activa',
@@ -59,6 +61,7 @@ export function ImportModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [unlinked, setUnlinked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
 
@@ -136,16 +139,31 @@ export function ImportModal({
 
   async function handleConfirm() {
     if (selected.size === 0) return;
+    const ids = Array.from(selected);
     setImporting(true);
     setError('');
+    setImportProgress({ done: 0, total: ids.length });
+    // Se confirma por lotes para poder mostrar el % de avance real.
+    const combined = { imported: 0, linked: 0, skipped: 0, errors: [] as string[] };
     try {
       const token = getToken()!;
-      const unlinkIds = Array.from(selected).filter((id) => unlinked.has(id));
-      const res = await api.marketplace.confirmImport(connectionId, Array.from(selected), unlinkIds, token);
-      setResult(res);
+      for (let i = 0; i < ids.length; i += IMPORT_BATCH_SIZE) {
+        const batch = ids.slice(i, i + IMPORT_BATCH_SIZE);
+        try {
+          const res = await api.marketplace.confirmImport(connectionId, batch, batch.filter((id) => unlinked.has(id)), token);
+          combined.imported += res.imported;
+          combined.linked += res.linked;
+          combined.skipped += res.skipped;
+          combined.errors.push(...res.errors);
+        } catch (err: any) {
+          combined.errors.push(err.message || `Lote de publicaciones: error al importar.`);
+        }
+        setImportProgress({ done: Math.min(i + IMPORT_BATCH_SIZE, ids.length), total: ids.length });
+      }
+      setResult(combined);
       onImported();
     } catch (err: any) {
-      setError(err.message || 'Error al importar las publicaciones.');
+      setError(err.message || 'Error al importar.');
     } finally {
       setImporting(false);
     }
@@ -162,7 +180,13 @@ export function ImportModal({
         {importing && (
           <div className="absolute inset-0 bg-white/90 rounded-xl flex flex-col items-center justify-center gap-3 z-10">
             <div className="w-8 h-8 border-4 border-gray-200 border-t-yellow-500 rounded-full animate-spin" />
-            <p className="text-sm text-gray-600 font-medium">Importando publicaciones...</p>
+            <div className="w-64">
+              <ImportProgress
+                label={`Importando ${importProgress.done} de ${importProgress.total}...`}
+                percent={importProgress.total > 0 ? (importProgress.done / importProgress.total) * 100 : 0}
+                color="bg-yellow-500"
+              />
+            </div>
             <p className="text-xs text-gray-400">Esto puede tardar unos segundos, no cierres esta ventana.</p>
           </div>
         )}
@@ -366,7 +390,7 @@ export function ImportModal({
                   disabled={importing || selected.size === 0}
                   className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold disabled:opacity-50"
                 >
-                  {importing ? 'Importando...' : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
+                  {importing ? `Importando... ${Math.round((importProgress.done / Math.max(importProgress.total, 1)) * 100)}%` : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
                 </button>
               </div>
             </>

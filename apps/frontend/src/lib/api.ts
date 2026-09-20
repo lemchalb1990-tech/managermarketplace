@@ -28,9 +28,33 @@ export async function apiFetch<T>(
   return res.json();
 }
 
-export async function apiUpload<T>(path: string, file: File, token: string): Promise<T> {
+export async function apiUpload<T>(
+  path: string,
+  file: File,
+  token: string,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
   const formData = new FormData();
   formData.append('file', file);
+  if (onProgress) {
+    // fetch no expone el avance de subida; con XHR sí.
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/api${path}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
+      };
+      xhr.onerror = () => reject(new Error('Error de red al subir el archivo'));
+      xhr.onload = () => {
+        let body: any = null;
+        try { body = JSON.parse(xhr.responseText); } catch { /* sin cuerpo JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body as T);
+        else reject(new Error(body?.message || `Error ${xhr.status}`));
+      };
+      xhr.send(formData);
+    });
+  }
   const res = await fetch(`${API_URL}/api${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -323,9 +347,9 @@ export const api = {
       apiFetch<any>(`/product-masters/products/${productId}/channel-price`, { method: 'POST', body: JSON.stringify({ connectionId, price }) }, token),
     removeChannelPrice: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/product-masters/products/${productId}/channel-price/${connectionId}`, { method: 'DELETE' }, token),
-    bulkImport: (file: File, token: string, companyId?: string) =>
+    bulkImport: (file: File, token: string, companyId?: string, onProgress?: (percent: number) => void) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
-        `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token),
+        `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token, onProgress),
     mergePreview: (ids: string[], token: string) =>
       apiFetch<{ products: any[]; connectionConflicts: { connectionId: string; connectionName: string; products: { id: string; name: string }[] }[] }>(
         '/catalog/products/bulk/merge-preview', { method: 'POST', body: JSON.stringify({ ids }) }, token),

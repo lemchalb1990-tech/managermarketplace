@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
+import { ImportProgress } from '@/components/ImportProgress';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule } from '@/lib/modules';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -1364,6 +1365,7 @@ export default function CatalogPage() {
   const [importTemplateLoading, setImportTemplateLoading] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importUploadPct, setImportUploadPct] = useState(0);
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] } | null>(null);
   const [search, setSearch] = useState('');
@@ -1911,11 +1913,12 @@ export default function CatalogPage() {
   async function handleImportSubmit() {
     if (!importFile) return;
     setImportLoading(true);
+    setImportUploadPct(0);
     setImportError('');
     setImportResult(null);
     try {
       const token = getToken()!;
-      const result = await api.catalog.bulkImport(importFile, token, isSuperAdmin ? selectedCompanyId : undefined);
+      const result = await api.catalog.bulkImport(importFile, token, isSuperAdmin ? selectedCompanyId : undefined, setImportUploadPct);
       setImportResult(result);
       setImportFile(null);
       await loadProducts(page);
@@ -2358,6 +2361,13 @@ export default function CatalogPage() {
                   onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                   className="w-full text-sm" />
               </div>
+              {importLoading && (
+                <ImportProgress
+                  label={importUploadPct >= 100 ? 'Procesando archivo en el servidor...' : 'Subiendo archivo...'}
+                  percent={importUploadPct >= 100 ? undefined : importUploadPct}
+                  detail={importUploadPct >= 100 ? 'Subida completa (100%). Aplicando cambios, no cierres esta ventana.' : undefined}
+                />
+              )}
               {importError && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{importError}</p>
               )}
@@ -2387,7 +2397,7 @@ export default function CatalogPage() {
               </button>
               <button onClick={handleImportSubmit} disabled={!importFile || importLoading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
-                {importLoading ? 'Subiendo...' : 'Subir y actualizar'}
+                {importLoading ? (importUploadPct >= 100 ? 'Procesando...' : `Subiendo... ${Math.round(importUploadPct)}%`) : 'Subir y actualizar'}
               </button>
             </div>
           </div>
