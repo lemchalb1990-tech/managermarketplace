@@ -273,6 +273,11 @@ model MarketplaceConnection {
   credentials       Json?
   active            Boolean         @default(true)
   lastSalesImportAt DateTime?
+  // Algunas plataformas (Falabella, Ripley) exigen que el vendedor asocie el DTE (boleta/
+  // factura, según lo pida el cliente final) a la orden original. Este flag, por conexión,
+  // habilita el envío automático del documento ya emitido en Facturación hacia la
+  // plataforma — ver BillingService.pushInvoiceToMarketplace.
+  sendInvoiceToPlatform Boolean     @default(false)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 

@@ -500,6 +500,9 @@ export const api = {
       apiFetch<any>(`/ecommerce/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     test: (id: string, token: string) =>
       apiFetch<{ success: boolean; message?: string }>(`/ecommerce/connections/${id}/test`, { method: 'POST' }, token),
+    setInvoicePush: (id: string, enabled: boolean, token: string) =>
+      apiFetch<{ id: string; sendInvoiceToPlatform: boolean }>(
+        `/ecommerce/connections/${id}/invoice-push`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, token),
     publish: (connectionId: string, productId: string, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/publish`, { method: 'POST' }, token),
     sync: (connectionId: string, productId: string, token: string) =>

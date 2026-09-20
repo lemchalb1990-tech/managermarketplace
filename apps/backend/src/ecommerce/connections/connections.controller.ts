@@ -8,7 +8,7 @@ import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { ConnectionsService } from './connections.service';
 import {
-  CreateConnectionDto, LinkProductDto, UpdateConnectionDto, UpsertListingFieldsDto, ConfirmImportDto,
+  CreateConnectionDto, LinkProductDto, UpdateConnectionDto, UpsertListingFieldsDto, ConfirmImportDto, SetInvoicePushDto,
 } from './connections.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -66,6 +66,14 @@ export class ConnectionsController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   test(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.testConnection(id, user);
+  }
+
+  // Envío automático de boleta/factura hacia la plataforma (ver BillingService). No exige
+  // Super Admin: es un ajuste operativo de la conexión, no credenciales.
+  @Patch(':id/invoice-push')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  setInvoicePush(@Param('id') id: string, @Body() dto: SetInvoicePushDto, @CurrentUser() user: any) {
+    return this.service.setSendInvoiceToPlatform(id, dto.enabled, user);
   }
 
   @Post(':connectionId/products/:productId/publish')

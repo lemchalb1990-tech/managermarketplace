@@ -38,6 +38,11 @@ export interface PlatformConfig {
   // Habilita el botón "Importar ventas" por conexión (traer historial de ventas ya
   // realizadas en la plataforma). Hoy solo implementado para Paris.
   supportsSalesImport?: boolean;
+  // Habilita el check "Enviar boleta/factura" por conexión: cuando está activo, cada DTE
+  // emitido en Facturación para una venta de este canal se reenvía automáticamente a la
+  // plataforma (algunas, como Falabella y Ripley, exigen adjuntar el documento tributario
+  // del cliente final a la orden original). Ver BillingService.pushInvoiceToMarketplace.
+  supportsInvoicePush?: boolean;
   helpText?: string;
 }
 
@@ -69,6 +74,7 @@ export default function PlatformPage({ config }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [importingConn, setImportingConn] = useState<{ id: string; name: string } | null>(null);
   const [salesImportConn, setSalesImportConn] = useState<{ id: string; name: string } | null>(null);
+  const [invoicePushSavingId, setInvoicePushSavingId] = useState<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
@@ -200,6 +206,19 @@ export default function PlatformPage({ config }: Props) {
     }
   }
 
+  async function handleToggleInvoicePush(id: string, current: boolean) {
+    setInvoicePushSavingId(id);
+    try {
+      const token = getToken()!;
+      await api.connections.setInvoicePush(id, !current, token);
+      await loadConnections(activeCompanyId || undefined);
+    } catch (err: any) {
+      await alertDialog(err.message || 'No se pudo actualizar el envío de boleta/factura.');
+    } finally {
+      setInvoicePushSavingId(null);
+    }
+  }
+
   const showContent = !isSuperAdmin || selectedCompanyId;
 
   return (
@@ -293,6 +312,9 @@ export default function PlatformPage({ config }: Props) {
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Plataforma</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Conectada</th>
+                  {config.supportsInvoicePush && (
+                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Boleta/Factura</th>
+                  )}
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -309,6 +331,20 @@ export default function PlatformPage({ config }: Props) {
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {new Date(c.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
                     </td>
+                    {config.supportsInvoicePush && (
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleToggleInvoicePush(c.id, !!c.sendInvoiceToPlatform)}
+                          disabled={invoicePushSavingId === c.id || !c.active}
+                          title={c.active ? 'Envía automáticamente el DTE emitido a la orden en la plataforma' : 'Activa la conexión para poder usar esta opción'}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium disabled:opacity-50 ${
+                            c.sendInvoiceToPlatform ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          {invoicePushSavingId === c.id ? '...' : c.sendInvoiceToPlatform ? 'Activado' : 'Desactivado'}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-right flex gap-3 justify-end">
                       {isSuperAdmin && (
                         <button onClick={() => openEdit(c)} disabled={editLoading}
@@ -341,7 +377,7 @@ export default function PlatformPage({ config }: Props) {
                 ))}
                 {connections.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                    <td colSpan={config.supportsInvoicePush ? 6 : 5} className="px-4 py-10 text-center text-gray-400">
                       <p className="text-sm mb-1">Sin conexiones</p>
                       <p className="text-xs">Haz clic en "+ Conectar tienda" para vincular tu cuenta de {config.name}.</p>
                     </td>
@@ -350,6 +386,14 @@ export default function PlatformPage({ config }: Props) {
               </tbody>
             </table>
           </div>
+
+          {config.supportsInvoicePush && (
+            <div className="mt-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+              <strong>Boleta/Factura:</strong> con "Activado", cada boleta o factura que emitas en Facturación para una
+              venta de este canal se reenvía automáticamente a {config.name}, asociándola a la orden original —
+              varias plataformas lo exigen para que el cliente reciba su documento tributario.
+            </div>
+          )}
 
           {config.supportsPublish === false && (
             <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">

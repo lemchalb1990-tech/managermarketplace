@@ -75,6 +75,7 @@ export class ConnectionsService {
         id: true, name: true, marketplace: true, active: true, createdAt: true,
         credentials: false, // no exponer credenciales en listado
         expiresAt: true,
+        sendInvoiceToPlatform: true,
         company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -256,6 +257,18 @@ export class ConnectionsService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
     return conn;
+  }
+
+  // Habilita/deshabilita el envío automático de boleta/factura a la plataforma para esta
+  // conexión (ver BillingService.pushInvoiceToMarketplace). A diferencia de update() no
+  // requiere Super Admin: es un ajuste operativo, no credenciales.
+  async setSendInvoiceToPlatform(connectionId: string, enabled: boolean, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    return this.prisma.marketplaceConnection.update({
+      where: { id: conn.id },
+      data: { sendInvoiceToPlatform: enabled },
+      select: { id: true, sendInvoiceToPlatform: true },
+    });
   }
 
   private assertMarketplace(conn: any, marketplace: MarketplaceType, label: string) {

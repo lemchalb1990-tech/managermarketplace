@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, PaymentCondition, Role } from '@prisma/client';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, MarketplaceType, PaymentCondition, Role } from '@prisma/client';
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenFacturaAdapter } from './providers/openfactura.adapter';
 import { BsaleAdapter } from './providers/bsale.adapter';
@@ -9,6 +11,11 @@ import { BillingAdapter } from './providers/provider.interface';
 import { CreateBillingConnectionDto, UpdateBillingConnectionDto, IssueInvoiceDto, ListInvoicesDto, MarkInvoicePaidDto, UpsertBillingProfileDto } from './dto/billing.dto';
 import { normalizeRut } from '../common/rut.util';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
+import { RipleyAdapter } from '../ecommerce/platforms/ripley.adapter';
+import { FalabellaAdapter } from '../ecommerce/platforms/falabella.adapter';
+import { fetchInvoiceDocument, InvoiceDocument } from '../common/invoice-document.util';
+import { toAbsoluteUrl } from '../common/absolute-url.util';
 
 const PAGE_SIZE = 20;
 
@@ -16,15 +23,19 @@ const IVA = 0.19;
 
 @Injectable()
 export class BillingService {
+  private readonly logger = new Logger(BillingService.name);
   private adapters: Map<BillingProvider, BillingAdapter>;
 
   constructor(
     private prisma: PrismaService,
     private email: EmailService,
+    private settings: SettingsService,
     private openfactura: OpenFacturaAdapter,
     private bsale: BsaleAdapter,
     private facto: FactoAdapter,
     private stub: BillingStubAdapter,
+    private ripley: RipleyAdapter,
+    private falabella: FalabellaAdapter,
   ) {
     this.adapters = new Map<BillingProvider, BillingAdapter>([
       [BillingProvider.OPENFACTURA, openfactura],
@@ -250,6 +261,53 @@ export class BillingService {
     });
   }
 
+  // ── Envío de la boleta/factura ya emitida a la plataforma del marketplace ──────────
+  // Algunas plataformas (Falabella, Ripley confirmados en vivo) exigen que el vendedor
+  // adjunte el DTE del cliente final a la orden original. Es "mejor esfuerzo" y opcional
+  // por conexión (MarketplaceConnection.sendInvoiceToPlatform): si falla, NO revierte ni
+  // marca error en la emisión del DTE — el documento tributario real ante el SII ya se
+  // emitió, eso es lo crítico. Solo aplica cuando el Invoice viene de una venta de canal
+  // (invoice.saleId) con conexión asociada.
+  private async pushInvoiceToMarketplace(invoice: Invoice): Promise<void> {
+    if (!invoice.saleId) return;
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: invoice.saleId },
+      include: { connection: true },
+    });
+    const conn = sale?.connection;
+    if (!conn || !conn.sendInvoiceToPlatform) return;
+    if (conn.marketplace !== MarketplaceType.FALABELLA && conn.marketplace !== MarketplaceType.RIPLEY) return;
+
+    try {
+      const sourceUrl = invoice.xmlUrl || invoice.pdfUrl;
+      if (!sourceUrl) throw new Error('El proveedor de facturación no devolvió un documento descargable');
+      const doc = await fetchInvoiceDocument(sourceUrl);
+
+      if (conn.marketplace === MarketplaceType.RIPLEY) {
+        await this.ripley.sendInvoiceDocument(conn, sale, doc);
+      } else {
+        const documentUrl = sourceUrl.startsWith('data:')
+          ? await this.hostInvoiceDocumentPublicly(invoice.id, doc)
+          : sourceUrl;
+        const invoiceNumber = invoice.folio != null ? String(invoice.folio) : invoice.id;
+        await this.falabella.sendInvoiceDocument(conn, sale, documentUrl, invoiceNumber);
+      }
+      this.logger.log(`Documento tributario de la venta ${sale.id} enviado a ${conn.marketplace} (conexión ${conn.id})`);
+    } catch (err: any) {
+      this.logger.error(`No se pudo enviar el documento tributario a ${conn.marketplace} para la venta ${invoice.saleId}: ${err.message}`);
+    }
+  }
+
+  // Falabella necesita un link público (va a buscar el archivo, no acepta bytes en el
+  // request) — cuando el proveedor de facturación devuelve el documento embebido (data URI,
+  // caso de Facto) hay que hospedarlo nosotros mismos bajo /api/uploads.
+  private async hostInvoiceDocumentPublicly(invoiceId: string, doc: InvoiceDocument): Promise<string> {
+    const dir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+    const filename = `invoice-${invoiceId}.${doc.extension}`;
+    await writeFile(join(dir, filename), doc.bytes);
+    return toAbsoluteUrl(this.settings, `/api/uploads/${filename}`);
+  }
+
   // Intenta emitir un Invoice ya guardado (DRAFT) ante el proveedor real. La identidad del
   // emisor sale del Perfil de facturación de la empresa (si está configurado), completando
   // lo que falte en las credenciales propias de la conexión para no romper conexiones ya
@@ -283,7 +341,7 @@ export class BillingService {
         paymentCondition: invoice.paymentCondition ?? undefined,
         dueDate: invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : undefined,
       });
-      return this.prisma.invoice.update({
+      const issued = await this.prisma.invoice.update({
         where: { id: invoice.id },
         data: {
           externalId: result.externalId,
@@ -294,6 +352,8 @@ export class BillingService {
           issuedAt: new Date(),
         },
       });
+      await this.pushInvoiceToMarketplace(issued);
+      return issued;
     } catch (err: any) {
       await this.prisma.invoice.update({
         where: { id: invoice.id },

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsObject, IsArray, IsBoolean } from 'class-validator';
 
 export class CreateConnectionDto {
   @IsString() @IsNotEmpty()
@@ -12,6 +12,11 @@ export class CreateConnectionDto {
 
   @IsOptional() @IsString()
   companyId?: string;
+}
+
+export class SetInvoicePushDto {
+  @IsBoolean()
+  enabled: boolean;
 }
 
 export class UpdateConnectionDto {

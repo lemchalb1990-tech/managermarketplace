@@ -483,4 +483,25 @@ export class RipleyAdapter implements PlatformAdapter {
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
     return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
+
+  // ─── Envío de boleta/factura a la orden (opcional, por conexión) ─────────────────
+  // Ripley (Mirakl) exige adjuntar el documento tributario a la orden real — confirmado en
+  // vivo (POST /api/orders/{order_id}/documents contra una orden inexistente para no tocar
+  // datos reales): multipart con dos partes, "files" (el archivo) y "order_documents" (JSON
+  // *envuelto* en un objeto, no un array suelto: `{"order_documents":[{"file_name":"...",
+  // "type_code":"INVOICE"}]}`). "file_name" debe ser idéntico al nombre del archivo en la
+  // parte "files"; "type_code" no se pudo confirmar contra una orden real (nunca se probó
+  // una escritura real) — "INVOICE" es la mejor estimación a partir de la doc estándar de
+  // Mirakl (OR74), pero si Ripley la rechaza, revisar primero ese valor.
+  async sendInvoiceDocument(conn: any, sale: { externalId: string | null }, doc: { bytes: Buffer; contentType: string; extension: string }): Promise<void> {
+    if (!sale.externalId) throw new Error('La venta no tiene una orden Ripley asociada');
+    const filename = `factura-${sale.externalId}.${doc.extension}`;
+    const form = new FormData();
+    form.append('files', new Blob([new Uint8Array(doc.bytes)], { type: doc.contentType }), filename);
+    form.append('order_documents', new Blob(
+      [JSON.stringify({ order_documents: [{ file_name: filename, type_code: 'INVOICE' }] })],
+      { type: 'application/json' },
+    ));
+    await this.request(conn, `/api/orders/${sale.externalId}/documents`, { method: 'POST', body: form as any });
+  }
 }

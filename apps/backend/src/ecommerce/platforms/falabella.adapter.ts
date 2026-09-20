@@ -564,4 +564,28 @@ export class FalabellaAdapter implements PlatformAdapter {
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
     return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
+
+  // ─── Envío de boleta/factura a la orden (opcional, por conexión) ─────────────────
+  // Confirmado en vivo que el Action real se llama "SetInvoiceNumber" (no "SetInvoicePDF",
+  // que da E008 Invalid Action en esta cuenta/versión) y exige InvoiceDocumentLink (una URL
+  // pública que Falabella va a buscar — no acepta el archivo embebido en el request) +
+  // InvoiceNumber + OrderItemIds. Los OrderItemIds hay que resolverlos aparte con
+  // GetOrderItems porque solo guardamos el OrderId (externalId de la venta), no los items.
+  // Nunca se probó una escritura real completa (el 500 que devolvió al probar con un link
+  // falso ocurrió igual con un OrderItemId real e inexistente, así que no hay evidencia de
+  // que haya tocado datos reales) — si el primer envío real falla, revisar el ErrorMessage.
+  async sendInvoiceDocument(conn: any, sale: { externalId: string | null }, documentUrl: string, invoiceNumber: string): Promise<void> {
+    if (!sale.externalId) throw new Error('La venta no tiene una orden Falabella asociada');
+    const itemsData = await this.call(conn, 'GetOrderItems', { OrderId: sale.externalId });
+    const raw = itemsData?.OrderItems?.OrderItem;
+    const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const orderItemIds = items.map((i: any) => i.OrderItemId).filter(Boolean);
+    if (!orderItemIds.length) throw new Error(`No se encontraron ítems para la orden ${sale.externalId} en Falabella`);
+
+    await this.call(conn, 'SetInvoiceNumber', {
+      OrderItemIds: orderItemIds.join(','),
+      InvoiceNumber: invoiceNumber,
+      InvoiceDocumentLink: documentUrl,
+    });
+  }
 }
