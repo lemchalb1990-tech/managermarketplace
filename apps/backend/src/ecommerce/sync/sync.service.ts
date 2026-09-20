@@ -7,6 +7,7 @@ import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
 import { FalabellaAdapter } from '../platforms/falabella.adapter';
+import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter, SyncPayload } from '../platforms/platform.interface';
 import { getEffectivePrice } from '../../common/effective-price.util';
@@ -25,6 +26,7 @@ export class SyncService {
     private paris: ParisAdapter,
     private ripley: RipleyAdapter,
     private falabella: FalabellaAdapter,
+    private walmart: WalmartAdapter,
     private stub: StubAdapter,
   ) {}
 
@@ -36,6 +38,7 @@ export class SyncService {
       case MarketplaceType.PARIS: return this.paris;
       case MarketplaceType.RIPLEY: return this.ripley;
       case MarketplaceType.FALABELLA: return this.falabella;
+      case MarketplaceType.WALMART: return this.walmart;
       default: return this.stub;
     }
   }

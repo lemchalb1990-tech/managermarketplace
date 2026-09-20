@@ -7,6 +7,7 @@ import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
 import { FalabellaAdapter } from '../platforms/falabella.adapter';
+import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -31,6 +32,7 @@ export class ConnectionsService {
     private paris: ParisAdapter,
     private ripley: RipleyAdapter,
     private falabella: FalabellaAdapter,
+    private walmart: WalmartAdapter,
     private stub: StubAdapter,
     private catalog: CatalogService,
   ) {}
@@ -43,6 +45,7 @@ export class ConnectionsService {
       case MarketplaceType.PARIS: return this.paris;
       case MarketplaceType.RIPLEY: return this.ripley;
       case MarketplaceType.FALABELLA: return this.falabella;
+      case MarketplaceType.WALMART: return this.walmart;
       default: return this.stub;
     }
   }
@@ -278,11 +281,19 @@ export class ConnectionsService {
   }
 
   // Adapter con soporte de borrador/homologación por Listing (hoy Paris, Ripley y Falabella).
+  // Walmart todavía no tiene publish/homologación — solo import (ver getCatalogImportAdapter).
   private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
     if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
     if (conn.marketplace === MarketplaceType.FALABELLA) return this.falabella;
     throw new BadRequestException('Esta plataforma todavía no soporta homologación por producto');
+  }
+
+  // Adapter con soporte de "traer catálogo ya publicado" (previewImport/confirmImport) —
+  // superconjunto de getListingAdapter: Walmart importa catálogo/ventas pero no publica.
+  private getCatalogImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter {
+    if (conn.marketplace === MarketplaceType.WALMART) return this.walmart;
+    return this.getListingAdapter(conn);
   }
 
   async getParisFamilies(connectionId: string, user: any, q?: string) {
@@ -353,23 +364,22 @@ export class ConnectionsService {
 
   async previewImport(connectionId: string, user: any, offset?: number) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    const adapter = this.getListingAdapter(conn);
+    const adapter = this.getCatalogImportAdapter(conn);
     return adapter.previewImport(conn, conn.companyId, offset || 0);
   }
 
   async confirmImport(connectionId: string, user: any, externalIds: string[], unlinkIds?: string[]) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    const adapter = this.getListingAdapter(conn);
+    const adapter = this.getCatalogImportAdapter(conn);
     return adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
   }
 
   // ─── Importar ventas (historial) ──────────────────────────────────────────────
-  // Por ahora solo Paris implementa esto — se agrega un caso por plataforma a medida que
-  // se construye (mismo criterio que ya usa SalesImportCronService para el auto-sync).
-  private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter {
+  private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
     if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
     if (conn.marketplace === MarketplaceType.FALABELLA) return this.falabella;
+    if (conn.marketplace === MarketplaceType.WALMART) return this.walmart;
     throw new BadRequestException('Esta plataforma todavía no soporta importar ventas');
   }
 
