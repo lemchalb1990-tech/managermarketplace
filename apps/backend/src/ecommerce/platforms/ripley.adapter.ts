@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, BadGatewayException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -65,16 +65,29 @@ export class RipleyAdapter implements PlatformAdapter {
   private async request(conn: any, path: string, init: RequestInit = {}): Promise<any> {
     const apiKey = this.creds(conn).apiKey;
     if (!apiKey) throw new Error('Falta la API Key de Ripley');
-    const res = await fetch(`${BASE}${path}`, {
-      ...init,
-      headers: { Accept: 'application/json', ...(init.headers || {}), Authorization: apiKey },
-    });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) {
-      throw new Error(data?.message || `Ripley respondió HTTP ${res.status} en ${path}`);
+    // Mirakl limita la tasa de llamadas (429 "Too Many Requests"): se reintenta con espera
+    // creciente en vez de romper la importación con un 500 genérico.
+    const MAX_ATTEMPTS = 4;
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetch(`${BASE}${path}`, {
+        ...init,
+        headers: { Accept: 'application/json', ...(init.headers || {}), Authorization: apiKey },
+      });
+      const text = await res.text();
+      let data: any = null;
+      try { data = text ? JSON.parse(text) : null; } catch { /* respuesta no-JSON (p. ej. HTML del proxy) */ }
+      if (res.ok) return data;
+      if ((res.status === 429 || res.status >= 502) && attempt < MAX_ATTEMPTS) {
+        const retryAfter = Number(res.headers.get('retry-after'));
+        const waitMs = retryAfter > 0 ? Math.min(retryAfter, 30) * 1000 : attempt * 2000;
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+      const msg = res.status === 429
+        ? 'Ripley limitó las solicitudes (demasiadas en poco tiempo). Espera un minuto e inténtalo de nuevo.'
+        : data?.message || `Ripley respondió HTTP ${res.status} en ${path}`;
+      throw new BadGatewayException(msg);
     }
-    return data;
   }
 
   async testConnection(conn: any): Promise<{ success: boolean; message?: string }> {
