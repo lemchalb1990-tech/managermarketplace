@@ -341,14 +341,17 @@ export class WalmartAdapter implements PlatformAdapter {
   //   el comprador lo ve compensado por el cargo DISCOUNT/SHIP_DISC, que no es costo del vendedor).
   // - COMMISSION = comisión marketplace. La API la entrega en 0 en todas las órdenes (igual que
   //   Seller Center) y los reportes de conciliación vienen vacíos, así que no hay otra fuente.
-  // - DISCOUNT (distinto de SHIP_DISC) = descuento/promoción sobre el producto; el total de la orden
-  //   ya viene con él descontado, por eso NO se resta de nuevo en el neto.
+  // - DISCOUNT (distinto de SHIP_DISC) = descuento/promoción sobre el producto. El IVA de la orden se
+  //   calcula sobre el precio SIN descuento, así que el descuento sale directo del ingreso del vendedor.
+  // - El neto parte del precio del producto sin IVA (cargo PRODUCT): el IVA que Walmart cobra al
+  //   comprador (total de la orden) no es ganancia del vendedor, va al fisco.
   private orderCharges(order: any, orderLines: any[]) {
     const total = Number(order.orderSummary?.totalAmount?.amount ?? 0);
+    const productNet = this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT');
     const shippingCost = this.chargeTotal(orderLines, (c) => c.chargeType === 'SHIPPING');
     const marketplaceFee = this.chargeTotal(orderLines, (c) => c.chargeType === 'COMMISSION');
     const discount = this.chargeTotal(orderLines, (c) => c.chargeType === 'DISCOUNT' && c.chargeName !== 'SHIP_DISC');
-    return { total, shippingCost, marketplaceFee, discount, netAmount: total - shippingCost - marketplaceFee };
+    return { total, shippingCost, marketplaceFee, discount, netAmount: productNet - discount - shippingCost - marketplaceFee };
   }
 
   private extractOrderLines(order: any): any[] {
@@ -385,17 +388,18 @@ export class WalmartAdapter implements PlatformAdapter {
     });
     const existingSet = new Set(existing.map((s) => s.externalId));
 
-    // Ventas importadas antes de guardar cargos (netAmount null): se completan con los datos
-    // que este mismo listado ya trae, sin llamadas extra.
+    // Recalcula cargos/neto de ventas ya importadas (corrige las guardadas sin cargos o con la
+    // fórmula anterior) con los datos que este mismo listado ya trae, sin llamadas extra.
     const pendingCharges = await this.prisma.sale.findMany({
-      where: { channel: SaleChannel.WALMART, externalId: { in: externalIds }, netAmount: null },
+      where: { channel: SaleChannel.WALMART, externalId: { in: externalIds } },
       select: { id: true, externalId: true },
     });
     const byId = new Map(rawOrders.map((o) => [o.purchaseOrderId, o]));
     for (const sale of pendingCharges) {
       const o = byId.get(sale.externalId!);
       if (!o) continue;
-      await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderCharges(o, this.extractOrderLines(o)) });
+      const { total: _total, ...charges } = this.orderCharges(o, this.extractOrderLines(o));
+      await this.prisma.sale.update({ where: { id: sale.id }, data: charges });
     }
 
     const orders = [];
