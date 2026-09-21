@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, BadGatewayException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -86,7 +86,7 @@ export class RipleyAdapter implements PlatformAdapter {
       const msg = res.status === 429
         ? 'Ripley limitó las solicitudes (demasiadas en poco tiempo). Espera un minuto e inténtalo de nuevo.'
         : data?.message || `Ripley respondió HTTP ${res.status} en ${path}`;
-      throw new BadGatewayException(msg);
+      throw new BadRequestException(msg);
     }
   }
 
