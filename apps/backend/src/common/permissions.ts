@@ -105,6 +105,11 @@ export const ALL_PERMISSION_KEYS: string[] = PERMISSION_GROUPS.flatMap((g) =>
   g.items.map((i) => i.key),
 );
 
+// Keys de módulos ya eliminados que pueden seguir guardadas en perfiles antiguos
+// (p.ej. 'shipping', del módulo de Envíos). Se descartan al guardar en vez de rechazar
+// el perfil completo.
+export const RETIRED_PERMISSION_KEYS: string[] = ['shipping'];
+
 export function isValidPermissionKey(k: string): boolean {
   return k === '*' || ALL_PERMISSION_KEYS.includes(k);
 }

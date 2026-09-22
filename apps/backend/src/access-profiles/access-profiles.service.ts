@@ -11,7 +11,7 @@ import {
   CreateAccessProfileDto,
   UpdateAccessProfileDto,
 } from './dto/access-profile.dto';
-import { PERMISSION_GROUPS, isValidPermissionKey } from '../common/permissions';
+import { PERMISSION_GROUPS, isValidPermissionKey, RETIRED_PERMISSION_KEYS } from '../common/permissions';
 
 @Injectable()
 export class AccessProfilesService {
@@ -42,7 +42,11 @@ export class AccessProfilesService {
 
   private sanitizePermissions(perms: string[]): string[] {
     const clean = Array.from(
-      new Set((perms || []).map((p) => String(p).trim()).filter(Boolean)),
+      new Set(
+        (perms || [])
+          .map((p) => String(p).trim())
+          .filter((p) => p && !RETIRED_PERMISSION_KEYS.includes(p)),
+      ),
     );
     const bad = clean.filter((p) => !isValidPermissionKey(p));
     if (bad.length)
