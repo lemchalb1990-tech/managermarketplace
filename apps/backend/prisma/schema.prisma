@@ -1321,8 +1321,40 @@ model Order {
   @@index([companyId, status, prepStage])
   photos     ShipmentPhoto[]
   routeStop  RouteStop?
+  statusEvents OrderStatusEvent[]
 
   @@map("orders")
+}
+
+// Origen de un evento del historial de la orden.
+enum OrderEventSource {
+  MANUAL        // cambio hecho por un usuario del panel
+  SYSTEM        // acción automática del sistema (p.ej. ruta de despacho)
+  MERCADO_LIBRE // estado informado por Mercado Libre (envío/orden)
+}
+
+// Historial de seguimiento de una orden: cambios de estado internos y eventos del envío
+// traídos del marketplace (etiqueta impresa, despachado, entregado...).
+model OrderStatusEvent {
+  id                String           @id @default(cuid())
+  orderId           String
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Estado interno en que quedó la orden, si el evento la hizo cambiar.
+  status            OrderStatus?
+  source            OrderEventSource
+  title             String
+  detail            String?
+  externalStatus    String?
+  externalSubstatus String?
+  // Clave para no duplicar eventos importados del marketplace en cada sincronización.
+  externalKey       String?
+  actorName         String?
+  occurredAt        DateTime
+  createdAt         DateTime         @default(now())
+
+  @@unique([orderId, externalKey])
+  @@index([orderId, occurredAt])
+  @@map("order_status_events")
 }
 
 model OrderItemCheck {

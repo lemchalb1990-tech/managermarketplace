@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import {
   Role, SaleChannel, MovementType, MarketplaceType,
-  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType, OrderStatus,
+  MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType, OrderStatus, OrderEventSource,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../../catalog/catalog.service';
@@ -2166,7 +2166,7 @@ export class MercadolibreService {
         status: OrderStatus.PREPARING,
         trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
       },
-    });
+    });    await this.recordMlStatusChange(order.id, OrderStatus.PREPARING, 'Etiqueta impresa — en preparación', null, new Date());
   }
 
   // Vuelve a traer los datos reales desde Mercado Libre para una Orden ya existente:
@@ -2220,6 +2220,9 @@ export class MercadolibreService {
       },
       include: { sale: { select: { id: true, externalId: true, mlPackId: true, mlShippingId: true } } },
     });
+
+    // Además del despacho, trae el estado y el historial de seguimiento del envío.
+    await this.syncInternalOrderFromMl(mlOrder, token);
 
     return updated;
   }
@@ -2334,6 +2337,22 @@ export class MercadolibreService {
     }
     const order = sale?.order;
     if (!order) return false;
+
+    // El estado del envío solo existe si la venta usa Mercado Envíos (cualquier modalidad:
+    // colecta, drop-off, Flex, Full). Se trae siempre, también para órdenes ya cerradas,
+    // para completar el historial de seguimiento con lo que informe ML.
+    const shippingId = mlOrder.shipping?.id;
+    let shipment: any = null;
+    if (shippingId) {
+      try {
+        const res = await fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) shipment = await res.json();
+      } catch {
+        /* sin envío: solo se evalúa la cancelación */
+      }
+      if (shipment) await this.syncMlShipmentHistory(order.id, String(shippingId), token, shipment);
+    }
+
     if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) return false;
 
     // Una orden cancelada en ML gana siempre, sin importar en qué etapa interna estaba
@@ -2347,66 +2366,170 @@ export class MercadolibreService {
         where: { id: order.id },
         data: { status: OrderStatus.CANCELLED, notes: [order.notes, note].filter(Boolean).join('\n') },
       });
+      await this.recordMlStatusChange(order.id, OrderStatus.CANCELLED, 'Orden cancelada en Mercado Libre', null, new Date());
       return true;
     }
 
-    // El estado del envío solo existe si la publicación usa Mercado Envíos — un
-    // despacho propio (self_service) no tiene shipping.id o su estado no lo controla ML.
-    const shippingId = mlOrder.shipping?.id;
-    if (!shippingId) return false;
+    if (!shipment) return false;
 
-    let shipment: any;
-    try {
-      const res = await fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return false;
-      shipment = await res.json();
-    } catch {
-      return false;
-    }
+    const tracking = {
+      trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
+      courier: shipment.shipping_option?.name || order.courier,
+    };
 
     if (shipment.status === 'delivered') {
+      const deliveredAt = this.mlDate(shipment.status_history?.date_delivered) ?? new Date();
       await this.prisma.order.update({
         where: { id: order.id },
-        data: { status: OrderStatus.DELIVERED, deliveredAt: new Date() },
+        data: { status: OrderStatus.DELIVERED, deliveredAt, ...tracking },
       });
+      await this.recordMlStatusChange(order.id, OrderStatus.DELIVERED, 'Entregado según Mercado Libre', this.mlReceiverDetail(shipment), deliveredAt);
       return true;
     }
 
-    if (shipment.status === 'shipped' && order.status !== OrderStatus.IN_TRANSIT) {
+    // Despachado: en camino, o ya entregado al transportista (retiro en bodega o dejado en
+    // punto/agencia) aunque ML todavía no lo pase a "shipped".
+    const handedOver = shipment.status === 'shipped'
+      || (shipment.status === 'ready_to_ship' && ['picked_up', 'dropped_off'].includes(shipment.substatus));
+    if (handedOver && order.status !== OrderStatus.IN_TRANSIT) {
       await this.prisma.order.update({
         where: { id: order.id },
-        data: {
-          status: OrderStatus.IN_TRANSIT,
-          trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
-          courier: shipment.shipping_option?.name || order.courier,
-        },
+        data: { status: OrderStatus.IN_TRANSIT, ...tracking },
       });
+      const when = this.mlDate(shipment.status_history?.date_shipped) ?? new Date();
+      const detail = [tracking.courier, tracking.trackingCode && `Seguimiento ${tracking.trackingCode}`].filter(Boolean).join(' · ');
+      await this.recordMlStatusChange(order.id, OrderStatus.IN_TRANSIT, 'Despachado según Mercado Libre', detail || null, when);
       return true;
     }
 
-    if (shipment.status === 'ready_to_ship') {
-      // Ya entregado al transportista (retiro en bodega o dejado en punto/agencia) pero ML
-      // todavía no lo pasa a "shipped": para el vendedor la orden ya está despachada.
-      if (['picked_up', 'dropped_off'].includes(shipment.substatus) && order.status !== OrderStatus.IN_TRANSIT) {
-        await this.prisma.order.update({
-          where: { id: order.id },
-          data: {
-            status: OrderStatus.IN_TRANSIT,
-            trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
-            courier: shipment.shipping_option?.name || order.courier,
-          },
-        });
-        return true;
-      }
-      // Etiqueta impresa directamente en Mercado Libre (no desde acá): mismo avance que
-      // al imprimirla desde el sistema — Pendiente pasa a Preparando.
-      if (shipment.substatus === 'printed' && order.status === OrderStatus.PENDING) {
-        await this.advanceAfterLabelPrint(order, shipment);
-        return true;
-      }
+    // Etiqueta impresa directamente en Mercado Libre (no desde acá): mismo avance que
+    // al imprimirla desde el sistema — Pendiente pasa a Preparando.
+    if (shipment.status === 'ready_to_ship' && shipment.substatus === 'printed' && order.status === OrderStatus.PENDING) {
+      await this.advanceAfterLabelPrint(order, shipment);
+      return true;
     }
 
     return false;
+  }
+
+  private mlDate(value: any): Date | null {
+    if (!value) return null;
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // ML no expone públicamente quién firmó la recepción; lo más cercano que entrega es el
+  // destinatario registrado en el envío (y un comentario, si viene en el hito).
+  private mlReceiverDetail(shipment: any, entry?: any): string | null {
+    const parts: string[] = [];
+    const receiver = entry?.receiver_name || shipment?.receiver_address?.receiver_name;
+    if (receiver && !this.isMaskedMlValue(receiver)) parts.push(`Destinatario: ${receiver}`);
+    const comment = entry?.comment || entry?.description;
+    if (comment && typeof comment === 'string') parts.push(comment);
+    return parts.length ? parts.join(' · ') : null;
+  }
+
+  private async recordMlStatusChange(orderId: string, status: OrderStatus, title: string, detail: string | null, occurredAt: Date) {
+    await this.prisma.orderStatusEvent.create({
+      data: { orderId, status, source: OrderEventSource.MERCADO_LIBRE, title, detail, occurredAt },
+    });
+  }
+
+  // Importa al historial de la orden los hitos del envío que informa ML: las fechas de
+  // status_history del propio envío y, si responde, el detalle de /shipments/{id}/history
+  // (con subestados como etiqueta impresa, retirado, en reparto, destinatario ausente...).
+  // Idempotente: cada hito se identifica por estado|subestado|minuto y no se duplica.
+  private async syncMlShipmentHistory(orderId: string, shippingId: string, token: string, shipment: any): Promise<void> {
+    const entries: { status: string; substatus: string | null; date: Date; raw?: any }[] = [];
+
+    const sh = shipment.status_history || {};
+    const fromStatusHistory: [string, string][] = [
+      ['date_handling', 'handling'],
+      ['date_ready_to_ship', 'ready_to_ship'],
+      ['date_shipped', 'shipped'],
+      ['date_first_visit', 'first_visit'],
+      ['date_not_delivered', 'not_delivered'],
+      ['date_delivered', 'delivered'],
+      ['date_returned', 'returned'],
+      ['date_cancelled', 'cancelled'],
+    ];
+    for (const [field, status] of fromStatusHistory) {
+      const date = this.mlDate(sh[field]);
+      if (date) entries.push({ status, substatus: null, date });
+    }
+
+    try {
+      const res = await fetch(`${ML_API}/shipments/${shippingId}/history`, {
+        headers: { Authorization: `Bearer ${token}`, 'x-format-new': 'true' },
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        const list: any[] = Array.isArray(data) ? data : (data?.results || data?.history || data?.data || []);
+        for (const e of list) {
+          const date = this.mlDate(e?.date || e?.date_created || e?.last_updated);
+          if (!e?.status || !date) continue;
+          entries.push({ status: String(e.status), substatus: e.substatus ? String(e.substatus) : null, date, raw: e });
+        }
+      }
+    } catch {
+      /* el detalle es opcional: con status_history alcanza para los hitos principales */
+    }
+
+    for (const e of entries) {
+      const minute = new Date(Math.floor(e.date.getTime() / 60000) * 60000).toISOString();
+      const externalKey = `ml:${e.status}|${e.substatus ?? ''}|${minute}`;
+      try {
+        await this.prisma.orderStatusEvent.upsert({
+          where: { orderId_externalKey: { orderId, externalKey } },
+          update: {},
+          create: {
+            orderId,
+            source: OrderEventSource.MERCADO_LIBRE,
+            title: this.mlShipmentLabel(e.status, e.substatus),
+            detail: e.status === 'delivered' ? this.mlReceiverDetail(shipment, e.raw) : null,
+            externalStatus: e.status,
+            externalSubstatus: e.substatus,
+            externalKey,
+            occurredAt: e.date,
+          },
+        });
+      } catch {
+        /* carrera con otra sincronización del mismo hito: ya quedó registrado */
+      }
+    }
+  }
+
+  private mlShipmentLabel(status: string, substatus: string | null): string {
+    const SUB: Record<string, string> = {
+      ready_to_print: 'Etiqueta lista para imprimir',
+      printed: 'Etiqueta impresa',
+      picked_up: 'Retirado por el transportista',
+      dropped_off: 'Dejado en punto de despacho',
+      in_hub: 'En centro de distribución',
+      in_packing_list: 'En lista de despacho',
+      authorized_by_carrier: 'Autorizado por el transportista',
+      out_for_delivery: 'En reparto',
+      receiver_absent: 'Destinatario ausente',
+      not_visited: 'No visitado',
+      bad_address: 'Dirección incorrecta',
+      returning_to_sender: 'Volviendo al vendedor',
+      delayed: 'Envío demorado',
+      waiting_for_withdrawal: 'Esperando retiro en sucursal',
+    };
+    const STATUS: Record<string, string> = {
+      pending: 'Envío pendiente',
+      handling: 'Pago acreditado, envío en preparación',
+      ready_to_ship: 'Listo para despachar',
+      shipped: 'Despachado — en camino',
+      first_visit: 'Primera visita del transportista',
+      not_delivered: 'No entregado',
+      delivered: 'Entregado',
+      returned: 'Devuelto al vendedor',
+      cancelled: 'Envío cancelado',
+    };
+    if (substatus && SUB[substatus]) return SUB[substatus];
+    const base = STATUS[status] || `Estado ML: ${status}`;
+    return substatus ? `${base} (${substatus})` : base;
   }
 
   // Webhook del tópico "shipments": ML avisa por acá los cambios del envío (etiqueta

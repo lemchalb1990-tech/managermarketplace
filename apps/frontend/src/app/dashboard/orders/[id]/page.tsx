@@ -6,6 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
+import { useAdminCompany } from '../../AdminCompanyContext';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -26,6 +27,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
   const tz = useDashboardTimezone();
+  const { isSuperAdmin, selectedCompanyId, companies, openPicker } = useAdminCompany();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -246,6 +248,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     ? order.sale.externalId
     : order.id.slice(-6).toUpperCase();
 
+  const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
   const nextAction: Record<string, { label: string; next: string; disabled?: boolean; reason?: string }> = {
     PENDING: { label: 'Comenzar preparación', next: 'PREPARING' },
     PREPARING: {
@@ -262,26 +265,71 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     },
     IN_TRANSIT: { label: 'Confirmar entrega', next: 'DELIVERED' },
   };
-  const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
-  // Para una orden de ML, Pendiente se resuelve imprimiendo la etiqueta (ver más abajo),
-  // no con el botón genérico de "próxima acción" — evita mostrar dos caminos a la vez.
-  const action = isMlOrder && order.status === 'PENDING' ? undefined : nextAction[order.status];
+  // En Mercado Libre: Pendiente se resuelve imprimiendo la etiqueta, y el despacho ("En
+  // camino") y la entrega los informa ML según el envío — el panel no los cambia a mano.
+  const mlManagesNext = isMlOrder && ['READY', 'IN_TRANSIT'].includes(order.status);
+  const action = isMlOrder && (order.status === 'PENDING' || mlManagesNext) ? undefined : nextAction[order.status];
   const isDone = order.status === 'DELIVERED' || order.status === 'CANCELLED';
 
+  const fmtDateTime = (d: string | Date) =>
+    new Date(d).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz });
+
+  // Historial: eventos guardados (cambios de estado y seguimiento de ML) + hitos que la
+  // orden ya registra en sus propias fechas (creación y etapas de bodega).
+  type TimelineItem = { key: string; at: string; title: string; detail?: string | null; source: string; actor?: string | null; status?: string | null };
+  const timeline: TimelineItem[] = [
+    { key: 'created', at: order.createdAt, title: 'Orden creada', source: 'SYSTEM', actor: order.createdBy?.name, detail: order.sale ? `Desde venta ${CHANNEL_LABEL[order.sale.channel] || order.sale.channel}` : null },
+    ...(order.assignedAt ? [{ key: 'assigned', at: order.assignedAt, title: 'Asignada para preparación', source: 'SYSTEM' }] : []),
+    ...(order.pickedAt ? [{ key: 'picked', at: order.pickedAt, title: 'Productos pickeados', source: 'SYSTEM' }] : []),
+    ...(order.packedAt ? [{ key: 'packed', at: order.packedAt, title: 'Pedido empacado', source: 'SYSTEM' }] : []),
+    ...(order.statusEvents || []).map((e: any) => ({
+      key: e.id, at: e.occurredAt, title: e.title, detail: e.detail, source: e.source, actor: e.actorName, status: e.status,
+    })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+    MERCADO_LIBRE: { label: 'Mercado Libre', cls: 'bg-yellow-100 text-yellow-800' },
+    MANUAL:        { label: 'Manual',        cls: 'bg-blue-50 text-blue-700' },
+    SYSTEM:        { label: 'Sistema',       cls: 'bg-gray-100 text-gray-500' },
+  };
+
+  const summary = [
+    { label: 'Cliente', value: order.customerName },
+    { label: 'Fecha venta', value: order.sale ? new Date(order.sale.createdAt).toLocaleDateString('es-CL', { timeZone: tz }) : new Date(order.createdAt).toLocaleDateString('es-CL', { timeZone: tz }) },
+    { label: 'Total', value: order.sale ? `$${Number(order.sale.total).toLocaleString('es-CL')}` : null },
+    { label: 'Courier', value: order.courier },
+    { label: 'Seguimiento', value: order.trackingCode, mono: true },
+    { label: 'Bodega', value: order.warehouse?.name },
+    { label: 'Productos', value: totalItems ? `${totalItems} ítem(s)` : null },
+    { label: 'Entregada', value: order.deliveredAt ? fmtDateTime(order.deliveredAt) : null },
+  ];
+
   return (
-    <div className="max-w-4xl">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 mb-6 text-sm">
-        <a href="/dashboard/orders" className="text-gray-400 hover:text-gray-600">Órdenes</a>
-        <span className="text-gray-300">/</span>
-        <span className="text-gray-700 font-semibold">#{shortId}</span>
+    <div className="max-w-7xl">
+      {/* Título + empresa gestionada en la misma línea */}
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2 flex-wrap">
+          <a href="/dashboard/orders" className="hover:text-blue-600">Detalle de orden</a>
+          <span className="text-gray-300 font-normal">/</span>
+          <span className="font-mono">N° {shortId}</span>
+        </h1>
+        {isSuperAdmin && selectedCompanyId && (
+          <button
+            onClick={openPicker}
+            title="Cambiar empresa"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
+          >
+            Gestionando <strong className="truncate">{companies.find((c: any) => c.id === selectedCompanyId)?.name ?? 'empresa'}</strong>
+            <span className="text-blue-500">▾</span>
+          </button>
+        )}
       </div>
 
       {/* Header */}
       <div className={`bg-white rounded-2xl border-2 ${cfg.border} p-5 mb-6`}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                 isDelivery ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
@@ -296,12 +344,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
             <p className="font-mono text-gray-400 text-xs">Orden #{shortId}</p>
-            {order.warehouse && (
-              <p className="text-xs text-gray-500 mt-0.5">Bodega: {order.warehouse.name}</p>
-            )}
             {order.createdBy && (
               <p className="text-xs text-gray-400 mt-0.5">Creado por {order.createdBy.name}</p>
             )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 mt-4">
+              {summary.map(({ label, value, mono }) => (
+                <div key={label} className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
+                  <p className={`text-sm text-gray-800 font-medium truncate ${mono ? 'font-mono' : ''}`} title={value || undefined}>
+                    {value || <span className="text-gray-300">—</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col items-end gap-2">
@@ -348,6 +404,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
             )}
+            {isMlOrder && !isDone && (
+              <p className="text-xs text-gray-500 max-w-[16rem] text-right">
+                El despacho y la entrega los actualiza Mercado Libre según el estado del envío.
+              </p>
+            )}
             {!isDone && order.status !== 'CANCELLED' && isAdmin && (
               <button
                 onClick={() => handleStatus('CANCELLED')}
@@ -356,7 +417,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 Cancelar orden
               </button>
             )}
-            {order.status === 'DELIVERED' && isAdmin && (
+            {order.status === 'DELIVERED' && isAdmin && !isMlOrder && (
               <button
                 onClick={async () => {
                   if (await confirmDialog(
@@ -383,11 +444,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        {/* Columna principal */}
-        <div className="lg:col-span-3 space-y-6">
-
+        {/* Columna 1 — productos y fotos del pedido */}
+        <div className="space-y-6 min-w-0">
           {/* Verificación de productos */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-4">
@@ -564,8 +624,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
 
-        {/* Columna lateral — datos de cliente y despacho */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* Columna 2 — datos de despacho y venta de origen */}
+        <div className="space-y-6 min-w-0">
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">
@@ -762,26 +822,40 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
           )}
+        </div>
 
-          {/* Fechas */}
+        {/* Columna 3 — historial de la orden */}
+        <div className="min-w-0">
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-800 mb-3 text-sm">Historial</h2>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex gap-2">
-                <span className="text-gray-400 w-20 shrink-0">Creada</span>
-                <span className="text-gray-700">
-                  {new Date(order.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
-                </span>
-              </div>
-              {order.deliveredAt && (
-                <div className="flex gap-2">
-                  <span className="text-gray-400 w-20 shrink-0">Entregada</span>
-                  <span className="text-green-700 font-medium">
-                    {new Date(order.deliveredAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz })}
-                  </span>
-                </div>
-              )}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-800">Historial de la orden</h2>
             </div>
+            <ol className="relative border-l border-gray-200 ml-2 space-y-4">
+              {timeline.map((ev) => {
+                const badge = SOURCE_BADGE[ev.source] ?? SOURCE_BADGE.SYSTEM;
+                const st = ev.status ? STATUS_CONFIG[ev.status] : null;
+                return (
+                  <li key={ev.key} className="ml-4">
+                    <span className={`absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      ev.source === 'MERCADO_LIBRE' ? 'bg-yellow-400' : ev.source === 'MANUAL' ? 'bg-blue-500' : 'bg-gray-300'
+                    }`} />
+                    <p className="text-xs text-gray-400">{fmtDateTime(ev.at)}</p>
+                    <p className="text-sm font-medium text-gray-800">{ev.title}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${badge.cls}`}>{badge.label}</span>
+                      {st && <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${st.color}`}>{st.label}</span>}
+                      {ev.actor && <span className="text-[11px] text-gray-500">por {ev.actor}</span>}
+                    </div>
+                    {ev.detail && <p className="text-xs text-gray-500 mt-0.5 break-words">{ev.detail}</p>}
+                  </li>
+                );
+              })}
+            </ol>
+            {isMlOrder && (
+              <p className="text-[11px] text-gray-400 mt-4">
+                Los hitos del envío se traen de Mercado Libre en cada sincronización.
+              </p>
+            )}
           </div>
         </div>
       </div>

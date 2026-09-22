@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, ForbiddenException,
   BadRequestException, ConflictException, Logger,
 } from '@nestjs/common';
-import { OrderStatus, FulfillmentType, PrepStage, Role } from '@prisma/client';
+import { OrderStatus, FulfillmentType, PrepStage, Role, OrderEventSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateOrderDto, UpdateOrderDto, UpdateStatusDto, CheckItemDto, FindOrdersDto } from './dto/order.dto';
@@ -40,7 +40,22 @@ const ORDER_INCLUDE = {
   },
   createdBy: { select: { id: true, name: true } },
   company: { select: { id: true, name: true } },
+  statusEvents: { orderBy: { occurredAt: 'asc' as const } },
 };
+
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  PENDING: 'Pendiente',
+  PREPARING: 'Preparando',
+  READY: 'Listo',
+  IN_TRANSIT: 'En camino',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+};
+
+// En una venta de Mercado Libre el despacho y la entrega los informa ML (webhook/barrido,
+// ver MercadolibreService.syncInternalOrderFromMl) según el envío real, sea cual sea el
+// tipo de envío: no se pueden marcar a mano desde el panel.
+const ML_MANAGED_STATUSES: OrderStatus[] = [OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED];
 
 @Injectable()
 export class OrdersService {
@@ -223,6 +238,17 @@ export class OrdersService {
       );
     }
 
+    if (order.sale?.channel === 'MERCADO_LIBRE') {
+      if (ML_MANAGED_STATUSES.includes(dto.status)) {
+        throw new BadRequestException(
+          'En ventas de Mercado Libre el despacho y la entrega los actualiza Mercado Libre según el estado del envío.',
+        );
+      }
+      if (order.status === OrderStatus.DELIVERED) {
+        throw new BadRequestException('Esta orden fue marcada como entregada por Mercado Libre: no se puede revertir desde el panel.');
+      }
+    }
+
     if (dto.status === OrderStatus.READY) {
       const unchecked = order.itemChecks.filter((i: any) => !i.checked);
       if (unchecked.length > 0) {
@@ -268,7 +294,18 @@ export class OrdersService {
       data.packedAt = new Date();
     }
 
-    const updated = await this.prisma.order.update({ where: { id }, data, include: ORDER_INCLUDE });
+    await this.prisma.order.update({ where: { id }, data });
+    await this.prisma.orderStatusEvent.create({
+      data: {
+        orderId: id,
+        status: dto.status,
+        source: OrderEventSource.MANUAL,
+        title: `${STATUS_LABEL[order.status]} → ${STATUS_LABEL[dto.status]}`,
+        actorName: user.name ?? user.email ?? null,
+        occurredAt: new Date(),
+      },
+    });
+    const updated = (await this.prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE }))!;
 
     // No avisar al cliente que "su pedido está en preparación" cuando en realidad es
     // una corrección interna de una entrega ya hecha, no un pedido nuevo empezando.

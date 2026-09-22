@@ -150,6 +150,17 @@ export class DriversService {
               where: { id: stop.orderId },
               data: { status: 'DELIVERED', deliveredAt: new Date() },
             }),
+            this.prisma.orderStatusEvent.create({
+              data: {
+                orderId: stop.orderId,
+                status: 'DELIVERED',
+                source: 'SYSTEM',
+                title: 'Entregado por el conductor',
+                actorName: user.name ?? user.email ?? null,
+                detail: dto.notes || null,
+                occurredAt: new Date(),
+              },
+            }),
           ]
         : []),
     ]);

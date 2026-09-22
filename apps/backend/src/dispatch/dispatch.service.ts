@@ -361,6 +361,17 @@ export class DispatchService {
         where: { id: stop.orderId },
         data: { status: OrderStatus.DELIVERED, deliveredAt: now },
       });
+      await tx.orderStatusEvent.create({
+        data: {
+          orderId: stop.orderId,
+          status: OrderStatus.DELIVERED,
+          source: 'SYSTEM',
+          title: 'Entregado en ruta de despacho',
+          detail: dto.notes || null,
+          actorName: user.name ?? user.email ?? null,
+          occurredAt: now,
+        },
+      });
       if (photo) {
         await tx.shipmentPhoto.create({
           data: {
