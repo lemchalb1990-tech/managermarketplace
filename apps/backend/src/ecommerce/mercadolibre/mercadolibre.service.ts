@@ -2384,7 +2384,77 @@ export class MercadolibreService {
       return true;
     }
 
+    if (shipment.status === 'ready_to_ship') {
+      // Ya entregado al transportista (retiro en bodega o dejado en punto/agencia) pero ML
+      // todavía no lo pasa a "shipped": para el vendedor la orden ya está despachada.
+      if (['picked_up', 'dropped_off'].includes(shipment.substatus) && order.status !== OrderStatus.IN_TRANSIT) {
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: OrderStatus.IN_TRANSIT,
+            trackingCode: shipment.tracking_number ? String(shipment.tracking_number) : order.trackingCode,
+            courier: shipment.shipping_option?.name || order.courier,
+          },
+        });
+        return true;
+      }
+      // Etiqueta impresa directamente en Mercado Libre (no desde acá): mismo avance que
+      // al imprimirla desde el sistema — Pendiente pasa a Preparando.
+      if (shipment.substatus === 'printed' && order.status === OrderStatus.PENDING) {
+        await this.advanceAfterLabelPrint(order, shipment);
+        return true;
+      }
+    }
+
     return false;
+  }
+
+  // Webhook del tópico "shipments": ML avisa por acá los cambios del envío (etiqueta
+  // impresa, despachado, entregado), que no siempre llegan también como orders_v2.
+  private async handleShipmentWebhook(body: any) {
+    const shippingId = body.resource?.split('/').pop();
+    if (!shippingId) return { received: true };
+
+    try {
+      const sale = await this.prisma.sale.findFirst({
+        where: { channel: SaleChannel.MERCADO_LIBRE, mlShippingId: String(shippingId), connectionId: { not: null } },
+      });
+
+      let mlOrder: any = null;
+      let token = '';
+      if (sale?.connectionId && sale.externalId) {
+        token = await this.getValidToken(sale.connectionId);
+        const res = await fetch(`${ML_API}/orders/${sale.externalId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) mlOrder = await res.json();
+      } else {
+        // Ventas importadas antes de guardar mlShippingId: se resuelve la orden desde el
+        // propio envío, probando cada conexión hasta dar con la dueña.
+        const mlConnections = await this.prisma.marketplaceConnection.findMany({
+          where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' } },
+        });
+        for (const conn of mlConnections) {
+          try {
+            const t = await this.getValidToken(conn.id);
+            const shipRes = await fetch(`${ML_API}/shipments/${shippingId}`, { headers: { Authorization: `Bearer ${t}` } });
+            if (!shipRes.ok) continue;
+            const shipment = await shipRes.json();
+            if (!shipment.order_id) break;
+            const res = await fetch(`${ML_API}/orders/${shipment.order_id}`, { headers: { Authorization: `Bearer ${t}` } });
+            if (!res.ok) break;
+            mlOrder = await res.json();
+            token = t;
+            break;
+          } catch {
+            /* probamos la siguiente conexión */
+          }
+        }
+      }
+
+      if (mlOrder) await this.syncInternalOrderFromMl(mlOrder, token);
+    } catch (error) {
+      this.logger.error('Error procesando webhook ML de envío', error);
+    }
+    return { received: true };
   }
 
   // Barrido periódico (Auto-sync ML): revisa las órdenes de esta conexión que todavía
@@ -2402,6 +2472,7 @@ export class MercadolibreService {
         order: { status: { notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] } },
       },
       select: { externalId: true },
+      orderBy: { createdAt: 'desc' },
       take: 100,
     });
 
@@ -2426,6 +2497,7 @@ export class MercadolibreService {
     if (body.topic === 'questions') return this.handleQuestionWebhook(body);
     if (body.topic === 'claims') return this.handleClaimWebhook(body);
     if (body.topic === 'orders_feedback') return this.handleFeedbackWebhook(body);
+    if (body.topic === 'shipments') return this.handleShipmentWebhook(body);
     if (body.topic !== 'orders_v2') return { received: true };
 
     try {
