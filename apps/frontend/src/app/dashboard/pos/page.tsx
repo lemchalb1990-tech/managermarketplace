@@ -19,6 +19,36 @@ interface CartItem {
 const PAGE_SIZE = 20;
 const VIEW_KEY = 'pos_products_view';
 
+const MARKETPLACE_LABEL: Record<string, string> = {
+  MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller',
+  FALABELLA: 'Falabella', PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart',
+};
+
+const fmtCLP = (n: number) => `$${Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
+
+// Precio del producto en cada marketplace donde está publicado, solo para conexiones
+// activas. Mismo criterio que al publicar/sincronizar (getEffectivePrice en el backend):
+// precio propio de la conexión (ChannelPrice) si existe; si no, mlPrice (o precio base)
+// para Mercado Libre y el precio base para el resto.
+function channelPrices(p: any): { key: string; label: string; price: number }[] {
+  const listings = (p.listings || []).filter((l: any) => l.connection?.active && l.status !== 'ERROR' && l.status !== 'DRAFT');
+  const seen = new Set<string>();
+  const perMarketplace: Record<string, number> = {};
+  for (const l of listings) perMarketplace[l.connection.marketplace] = (perMarketplace[l.connection.marketplace] || 0) + 1;
+  const rows: { key: string; label: string; price: number }[] = [];
+  for (const l of listings) {
+    const c = l.connection;
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    const override = (p.channelPrices || []).find((cp: any) => cp.connectionId === c.id);
+    const fallback = c.marketplace === 'MERCADO_LIBRE' ? (p.mlPrice ?? p.price) : p.price;
+    const base = MARKETPLACE_LABEL[c.marketplace] || c.marketplace;
+    const label = c.marketplace === 'MERCADO_LIBRE' || perMarketplace[c.marketplace] > 1 ? `${base} - ${c.name}` : base;
+    rows.push({ key: c.id, label, price: Number(override ? override.price : fallback) });
+  }
+  return rows.sort((a, b) => a.label.localeCompare(b.label, 'es'));
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Efectivo',
   CARD: 'Tarjeta',
@@ -525,23 +555,35 @@ export default function PosPage() {
                     disabled={out}
                     className={`flex flex-col text-left border border-gray-200 rounded-xl overflow-hidden transition hover:border-blue-400 hover:shadow-sm ${out ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
-                    <div className="aspect-square bg-gray-50 overflow-hidden">
-                      {primaryImg ? (
-                        <img src={imgUrl(primaryImg.url)} alt={p.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">
-                          {isService ? '🛠️' : '📦'}
-                        </div>
-                      )}
+                    <p className="px-2.5 pt-2.5 pb-1.5 text-xs font-semibold text-gray-900 leading-tight line-clamp-2 text-center">{p.name}</p>
+                    <div className="px-4">
+                      <div className="aspect-square bg-gray-50 overflow-hidden rounded-lg">
+                        {primaryImg ? (
+                          <img src={imgUrl(primaryImg.url)} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">
+                            {isService ? '🛠️' : '📦'}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="p-2.5 flex-1 flex flex-col gap-1">
-                      <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
-                      <p className="text-[11px] text-gray-400 font-mono truncate">{p.sku}</p>
-                      <div className="mt-auto flex items-center justify-between pt-1">
-                        <span className="text-blue-600 font-bold text-xs">${Number(p.price).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                          {isService ? 'Serv.' : p.stock > 0 ? `${p.stock}` : '0'}
+                    <div className="p-2.5 flex-1 flex flex-col gap-1.5">
+                      <div className="flex justify-center">
+                        <span className={`text-[15px] leading-none px-2.5 py-1 rounded-full font-bold ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {isService ? 'Serv.' : `${p.stock > 0 ? p.stock : 0} u.`}
                         </span>
+                      </div>
+                      <div className="mt-auto space-y-0.5 text-[11px]">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-gray-500 truncate">Venta Directa</span>
+                          <span className="text-blue-600 font-bold shrink-0">{fmtCLP(p.price)}</span>
+                        </div>
+                        {channelPrices(p).map((cp) => (
+                          <div key={cp.key} className="flex justify-between gap-2">
+                            <span className="text-gray-500 truncate" title={cp.label}>{cp.label}</span>
+                            <span className="text-gray-800 font-semibold shrink-0">{fmtCLP(cp.price)}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </button>

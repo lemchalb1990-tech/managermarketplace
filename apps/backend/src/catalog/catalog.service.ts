@@ -180,7 +180,8 @@ export class CatalogService {
         where,
         include: {
           images: { orderBy: { order: 'asc' } },
-          listings: { include: { connection: { select: { id: true, name: true } } } },
+          listings: { include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } } },
+          channelPrices: { select: { price: true, connectionId: true } },
           warehouse: { select: { id: true, name: true } },
           _count: { select: { purchaseItems: true } },
         },
