@@ -11,7 +11,8 @@ import { CompanyGate } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 import { DialogProvider } from './ConfirmDialog';
 
-type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null };
+// superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
+type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null; superOnly?: boolean };
 type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -53,7 +54,7 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/mercadolibre/reclamos', label: 'Reclamos', perm: 'ml.reclamos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/devoluciones', label: 'Devoluciones', perm: 'ml.devoluciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/calificaciones', label: 'Calificaciones', perm: 'ml.calificaciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
-      { href: '/dashboard/mercadolibre/registros-sin-conexion', label: 'Registros sin conexión', perm: 'connections', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/mercadolibre/registros-sin-conexion', label: 'Registros sin conexión', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
     ],
   },
   {
@@ -102,7 +103,7 @@ const navGroups: NavGroup[] = [
     key: 'admin',
     label: 'Administración',
     items: [
-      { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null },
+      { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null },
       { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
@@ -239,7 +240,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navGroups
       .map((g) => ({
         ...g,
-        items: g.items.filter((n) => can(user, n.perm, n.roles) && hasModule(user, n.module)),
+        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && can(user, n.perm, n.roles) && hasModule(user, n.module)),
       }))
       .filter((g) => g.items.length > 0);
   }, [user]);

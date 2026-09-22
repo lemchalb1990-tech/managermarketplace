@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 
@@ -55,6 +56,8 @@ export default function CompaniesPage() {
   const [editError, setEditError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
 
   async function load() {
     const token = getToken();
@@ -63,7 +66,16 @@ export default function CompaniesPage() {
     setCompanies(data);
   }
 
-  useEffect(() => { load(); }, []);
+  // La gestión de empresas es solo de Super Admin (el backend también lo exige).
+  useEffect(() => {
+    if (getUser()?.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+    setAllowed(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleDelete(id: string, name: string) {
     if (!(await confirmDialog(`¿Eliminar la empresa "${name}"?`, { danger: true }))) return;
@@ -186,6 +198,8 @@ export default function CompaniesPage() {
       setEditLoading(false);
     }
   }
+
+  if (!allowed) return null;
 
   return (
     <div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../../AdminCompanyContext';
@@ -26,6 +27,8 @@ export default function RegistrosSinConexionPage() {
   const [deletingId, setDeletingId] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
 
   async function load(p = 1, companyId = companyFilter) {
     const token = getToken();
@@ -46,7 +49,16 @@ export default function RegistrosSinConexionPage() {
     }
   }
 
-  useEffect(() => { load(1); }, []);
+  // Vista de mantenimiento global: solo Super Admin (el backend también lo exige).
+  useEffect(() => {
+    if (getUser()?.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+    setAllowed(true);
+    load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleCompanyFilterChange(id: string) {
     setCompanyFilter(id);
@@ -96,6 +108,8 @@ export default function RegistrosSinConexionPage() {
       setBulkDeleting(false);
     }
   }
+
+  if (!allowed) return null;
 
   return (
     <div className="space-y-6">
