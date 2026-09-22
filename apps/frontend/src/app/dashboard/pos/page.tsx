@@ -555,9 +555,8 @@ export default function PosPage() {
                     disabled={out}
                     className={`flex flex-col text-left border border-gray-200 rounded-xl overflow-hidden transition hover:border-blue-400 hover:shadow-sm ${out ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
-                    <p className="px-2.5 pt-2.5 pb-1.5 text-xs font-semibold text-gray-900 leading-tight line-clamp-2 text-center">{p.name}</p>
-                    <div className="px-4">
-                      <div className="aspect-square bg-gray-50 overflow-hidden rounded-lg">
+                    <div className="px-4 pt-3">
+                      <div className="relative aspect-square bg-gray-50 overflow-hidden rounded-lg">
                         {primaryImg ? (
                           <img src={imgUrl(primaryImg.url)} alt={p.name} className="w-full h-full object-cover" />
                         ) : (
@@ -565,14 +564,13 @@ export default function PosPage() {
                             {isService ? '🛠️' : '📦'}
                           </div>
                         )}
-                      </div>
-                    </div>
-                    <div className="p-2.5 flex-1 flex flex-col gap-1.5">
-                      <div className="flex justify-center">
-                        <span className={`text-[15px] leading-none px-2.5 py-1 rounded-full font-bold ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        <span className={`absolute bottom-1.5 right-1.5 text-[15px] leading-none px-2.5 py-1 rounded-full font-bold shadow-sm ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                           {isService ? 'Serv.' : `${p.stock > 0 ? p.stock : 0} u.`}
                         </span>
                       </div>
+                    </div>
+                    <div className="p-2.5 flex-1 flex flex-col gap-1.5">
+                      <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2 text-center">{p.name}</p>
                       <div className="mt-auto space-y-0.5 text-[11px]">
                         <div className="flex justify-between gap-2">
                           <span className="text-gray-500 truncate">Venta Directa</span>
