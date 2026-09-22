@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
@@ -31,6 +32,8 @@ type Row = {
 
 export default function ConnectionsPage() {
   const tz = useDashboardTimezone();
+  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -88,7 +91,17 @@ export default function ConnectionsPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  // Conexiones globales (todas las empresas): solo Super Admin. El admin de empresa
+  // gestiona las suyas en "Mis conexiones".
+  useEffect(() => {
+    if (getUser()?.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+    setAllowed(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleRefreshToken(id: string) {
     setRefreshingId(id);
@@ -129,6 +142,8 @@ export default function ConnectionsPage() {
     }
     return true;
   });
+
+  if (!allowed) return null;
 
   return (
     <div className="space-y-6">
