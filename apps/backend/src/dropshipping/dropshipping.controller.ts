@@ -75,6 +75,12 @@ export class DropshippingController {
     });
   }
 
+  // Descarga en segundo plano el catálogo completo para buscar en todos los registros.
+  @Post('suppliers/:id/catalog/load-full')
+  loadFullCatalog(@Param('id') id: string, @Body() body: { force?: boolean }, @CurrentUser() user: any) {
+    return this.service.loadFullCatalog(id, user, body?.force === true);
+  }
+
   @Post('suppliers/:id/catalog/import')
   importCatalog(@Param('id') id: string, @Body() dto: ImportDropshipCatalogDto, @CurrentUser() user: any) {
     return this.service.importSelected(id, user, dto.skus);

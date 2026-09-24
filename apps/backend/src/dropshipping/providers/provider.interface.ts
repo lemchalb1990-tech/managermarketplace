@@ -8,6 +8,8 @@ export interface DropshipCatalogRow {
   stock?: number;
   cost?: number;
   price?: number;
+  // Otros códigos con que se conoce la pieza (OEM, número de fábrica): se usan en la búsqueda.
+  codes?: string[];
 }
 
 export interface DropshipTokenCache {

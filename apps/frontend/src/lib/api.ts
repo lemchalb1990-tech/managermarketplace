@@ -958,13 +958,17 @@ export const api = {
         if (params.pageSize) q.set('pageSize', String(params.pageSize));
         if (params.refresh) q.set('refresh', '1');
         if (params.loadMore) q.set('loadMore', '1');
-        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string; providerHasMore: boolean; providerRecordsFetched: number; providerTotalRecords: number | null }>(
+        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string; providerHasMore: boolean; catalogComplete: boolean; providerRecordsFetched: number; providerTotalRecords: number | null }>(
           `/dropshipping/suppliers/${id}/catalog?${q}`, {}, token,
         );
       },
       progress: (id: string, token: string) =>
-        apiFetch<{ active: false } | { active: true; message: string; percent: number | null; recordsDone: number; totalRecords: number | null }>(
+        apiFetch<{ active: false; error: string | null } | { active: true; message: string; percent: number | null; recordsDone: number; totalRecords: number | null }>(
           `/dropshipping/suppliers/${id}/progress`, {}, token,
+        ),
+      loadFullCatalog: (id: string, force: boolean, token: string) =>
+        apiFetch<{ ready: boolean }>(
+          `/dropshipping/suppliers/${id}/catalog/load-full`, { method: 'POST', body: JSON.stringify({ force }) }, token,
         ),
       importCatalog: (id: string, skus: string[], token: string) =>
         apiFetch<{ created: number; updated: number; skipped: string[] }>(

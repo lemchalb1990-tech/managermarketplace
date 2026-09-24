@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -107,7 +107,11 @@ export default function DropshippingPage() {
   // Modal de avance mientras se espera al proveedor API (cada página tarda ~20s).
   // immediate: se muestra apenas empieza (sync); si no, solo cuando el backend informa
   // que de verdad está consultando al proveedor (evita un parpadeo al paginar el caché).
-  const [progressTarget, setProgressTarget] = useState<{ id: string; title: string; immediate: boolean; startedAt: number } | null>(null);
+  const [progressTarget, setProgressTarget] = useState<{ id: string; title: string; immediate: boolean; startedAt: number; dismissible?: boolean } | null>(null);
+  // true cuando el usuario manda la descarga completa a segundo plano desde el modal.
+  const fullLoadDismissed = useRef(false);
+  const [catalogComplete, setCatalogComplete] = useState(false);
+  const [catalogInfo, setCatalogInfo] = useState('');
   const [progressInfo, setProgressInfo] = useState<{ message: string; percent: number | null; recordsDone: number; totalRecords: number | null } | null>(null);
   const [catalogRecords, setCatalogRecords] = useState<{ fetched: number; total: number | null }>({ fetched: 0, total: null });
   const [progressNow, setProgressNow] = useState(Date.now());
@@ -305,10 +309,41 @@ export default function DropshippingPage() {
     }
   }
 
+  // Deja descargado el catálogo completo del proveedor (todas las páginas, ~10 min) para
+  // buscar en todos sus registros. Devuelve false si el usuario lo mandó a segundo plano.
+  async function ensureFullCatalog(supplierId: string, force: boolean): Promise<boolean> {
+    const start = await api.dropshipping.suppliers.loadFullCatalog(supplierId, force, token());
+    if (start.ready) return true;
+    fullLoadDismissed.current = false;
+    setProgressTarget({ id: supplierId, title: 'Descargando todos los registros del proveedor', immediate: true, startedAt: Date.now(), dismissible: true });
+    try {
+      while (true) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (fullLoadDismissed.current) return false;
+        const p = await api.dropshipping.suppliers.progress(supplierId, token());
+        if (!p.active) {
+          if (p.error) throw new Error(p.error);
+          return true;
+        }
+      }
+    } finally {
+      setProgressTarget(null);
+    }
+  }
+
   async function loadCatalogPage(supplierId: string, page: number, q: string, refresh = false) {
     setCatalogLoading(true);
     setCatalogError('');
+    setCatalogInfo('');
     try {
+      // Una búsqueda nueva (o "Actualizar" con el catálogo completo ya bajado) recorre
+      // todos los registros del proveedor, no solo las páginas traídas hasta ahora.
+      let fullReady = false;
+      if ((q && page === 1) || (refresh && catalogComplete)) {
+        fullReady = await ensureFullCatalog(supplierId, refresh);
+        if (!fullReady) setCatalogInfo('La descarga del catálogo completo sigue en segundo plano; mientras tanto se busca solo en lo ya descargado.');
+      }
+      if (fullReady) refresh = false;
       const res = await withProgress(supplierId, 'Consultando el catálogo del proveedor', refresh, () =>
         api.dropshipping.suppliers.browseCatalog(supplierId, { q: q || undefined, page, pageSize: 50, refresh }, token()));
       setCatalogRows(res.rows);
@@ -317,6 +352,7 @@ export default function DropshippingPage() {
       setCatalogTotal(res.total);
       setCatalogProviderHasMore(res.providerHasMore);
       setCatalogRecords({ fetched: res.providerRecordsFetched, total: res.providerTotalRecords });
+      setCatalogComplete(res.catalogComplete);
     } catch (err: any) {
       setCatalogError(err.message || 'No se pudo consultar el catálogo del proveedor. Si sigue fallando, puede ser que el proveedor no responda (red/URL).');
     } finally {
@@ -337,6 +373,7 @@ export default function DropshippingPage() {
       setCatalogTotal(res.total);
       setCatalogProviderHasMore(res.providerHasMore);
       setCatalogRecords({ fetched: res.providerRecordsFetched, total: res.providerTotalRecords });
+      setCatalogComplete(res.catalogComplete);
     } catch (err: any) {
       setCatalogError(err.message || 'No se pudo traer más productos del proveedor.');
     } finally {
@@ -891,7 +928,18 @@ export default function DropshippingPage() {
                   Registros: {progressInfo.recordsDone.toLocaleString('es-CL')} de {progressInfo.totalRecords.toLocaleString('es-CL')}
                 </p>
               )}
-              <p className="text-[11px] text-gray-400 mt-3">El proveedor tarda unos 20 segundos por página. No cierres ni recargues esta página.</p>
+              <p className="text-[11px] text-gray-400 mt-3">
+                El proveedor tarda unos 20 segundos por página.
+                {progressTarget.dismissible ? ' Quedará guardado por 6 horas para búsquedas instantáneas.' : ' No cierres ni recargues esta página.'}
+              </p>
+              {progressTarget.dismissible && (
+                <div className="mt-4 flex justify-end">
+                  <button onClick={() => { fullLoadDismissed.current = true; }}
+                    className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs">
+                    Seguir en segundo plano
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1068,7 +1116,7 @@ export default function DropshippingPage() {
             </div>
 
             <div className="px-6 py-3 border-b border-gray-100 flex items-center gap-2 shrink-0">
-              <input value={catalogQuery} placeholder="Buscar por SKU, nombre, marca o modelo..."
+              <input value={catalogQuery} placeholder="Buscar por SKU, código OEM, nombre, marca o modelo..."
                 onChange={(e) => setCatalogQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') loadCatalogPage(catalogSupplier.id, 1, catalogQuery); }}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -1084,6 +1132,9 @@ export default function DropshippingPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto">
+              {catalogInfo && (
+                <div className="m-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">{catalogInfo}</div>
+              )}
               {catalogError && (
                 <div className="m-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{catalogError}</div>
               )}
@@ -1120,7 +1171,12 @@ export default function DropshippingPage() {
                             <div className="w-10 h-10 rounded border border-gray-100 bg-gray-50" />
                           )}
                         </td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.sku}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-600">
+                          {r.sku}
+                          {r.match === 'exact' && <div className="font-sans text-[10px] text-green-600">Exacto</div>}
+                          {r.match === 'similar' && <div className="font-sans text-[10px] text-amber-600">Similar</div>}
+                          {r.codes?.length > 0 && <div className="font-sans text-[10px] text-gray-400">OEM: {r.codes.join(' · ')}</div>}
+                        </td>
                         <td className="px-4 py-2 text-gray-800">
                           {r.name || '—'}
                           {r.description && <div className="text-xs text-gray-400 whitespace-pre-line">{r.description}</div>}
@@ -1155,7 +1211,9 @@ export default function DropshippingPage() {
                 {catalogTotal} producto(s) · página {catalogPage} de {catalogPages} · {catalogSelected.size} seleccionado(s)
                 {catalogRecords.total != null && (
                   <span className="block text-gray-400">
-                    Registros del proveedor: {catalogRecords.fetched.toLocaleString('es-CL')} traídos de {catalogRecords.total.toLocaleString('es-CL')}
+                    {catalogComplete
+                      ? `Buscando en todos los registros del proveedor (${catalogRecords.total.toLocaleString('es-CL')})`
+                      : `Registros del proveedor: ${catalogRecords.fetched.toLocaleString('es-CL')} traídos de ${catalogRecords.total.toLocaleString('es-CL')}`}
                   </span>
                 )}
                 <div className="flex gap-2 mt-1">

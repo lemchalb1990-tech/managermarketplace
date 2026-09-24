@@ -11,7 +11,7 @@ import {
   ListDropshipOrdersDto, UpdateDropshipOrderDto,
 } from './dto/dropshipping.dto';
 import { NoriegaAdapter } from './providers/noriega.adapter';
-import { DropshipCatalogProvider, mergeDuplicateSkuRows } from './providers/provider.interface';
+import { DropshipCatalogProvider, DropshipCatalogRow, mergeDuplicateSkuRows } from './providers/provider.interface';
 
 const PAGE_SIZE = 20;
 
@@ -172,13 +172,72 @@ function suggestMapping(columns: string[]): Record<string, string | null> {
 }
 
 const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000;
+// El catálogo completo tarda ~10 min en bajar (28 páginas de ~20s), así que se conserva
+// más tiempo; el precio/stock definitivo de lo importado lo corrige igual el próximo sync.
+const FULL_CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+
+function catalogCacheFresh(entry: ApiCatalogCacheEntry | undefined): entry is ApiCatalogCacheEntry {
+  if (!entry) return false;
+  const ttl = entry.hasMore ? CATALOG_CACHE_TTL_MS : FULL_CATALOG_TTL_MS;
+  return Date.now() - entry.fetchedAt <= ttl;
+}
+
+// Deja solo letras y números: "54813-3E000" y "548133e000" cuentan como el mismo código.
+function normCode(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function levenshtein(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+type CatalogMatch = 'exact' | 'partial' | 'similar';
+
+// Puntaje de qué tan bien calza una fila con la búsqueda (0 = no calza). Prioriza el SKU,
+// luego los códigos OEM/fábrica, luego nombre/descripción, y al final códigos "parecidos"
+// (1-2 caracteres de diferencia) para cubrir errores de tipeo.
+function scoreCatalogRow(row: DropshipCatalogRow, q: string): { score: number; match: CatalogMatch } | null {
+  const qn = normCode(q);
+  const sku = normCode(row.sku);
+  const codes = (row.codes || []).map(normCode).filter(Boolean);
+  const noZeros = (s: string) => s.replace(/^0+/, '');
+
+  if (qn) {
+    if (sku === qn) return { score: 100, match: 'exact' };
+    if (codes.includes(qn)) return { score: 95, match: 'exact' };
+    if (noZeros(qn) && noZeros(sku) === noZeros(qn)) return { score: 90, match: 'exact' };
+    if (sku.startsWith(qn)) return { score: 85, match: 'partial' };
+    if (codes.some((c) => c.startsWith(qn))) return { score: 80, match: 'partial' };
+    if (qn.length >= 3 && sku.includes(qn)) return { score: 75, match: 'partial' };
+    if (qn.length >= 3 && codes.some((c) => c.includes(qn))) return { score: 70, match: 'partial' };
+  }
+
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack = `${row.sku} ${row.name ?? ''} ${row.description ?? ''} ${(row.codes || []).join(' ')}`.toLowerCase();
+  if (tokens.length && tokens.every((t) => haystack.includes(t))) return { score: 60, match: 'partial' };
+
+  if (qn.length >= 4) {
+    const maxDist = qn.length >= 8 ? 2 : 1;
+    const close = [sku, ...codes].some((c) => Math.abs(c.length - qn.length) <= maxDist && levenshtein(c, qn) <= maxDist);
+    if (close) return { score: 40, match: 'similar' };
+  }
+  return null;
+}
 
 // Filas ya descargadas del proveedor API para un supplier + cuánto falta por traer.
 // browseCatalog solo pide la página 1 al inicio (rápido) y va sumando páginas del
 // proveedor bajo demanda ("Cargar más del proveedor"), en vez de esperar el catálogo
 // completo antes de mostrar algo.
 interface ApiCatalogCacheEntry {
-  rows: CatalogRow[];
+  rows: DropshipCatalogRow[];
   hasMore: boolean;
   nextProviderPage: number | null;
   fetchedAt: number;
@@ -222,6 +281,8 @@ export class DropshippingService {
   private readonly progress = new Map<string, ProviderProgress>();
   // Total de páginas del último sync por proveedor, para mostrar % desde el primer segundo.
   private readonly lastTotalPages = new Map<string, number>();
+  // Último error de una descarga completa en segundo plano, para informarlo a la UI.
+  private readonly fullLoadErrors = new Map<string, string>();
   // Última duración medida de una página del proveedor, para estimar el avance de la siguiente.
   private lastPageMs = DEFAULT_PAGE_MS;
 
@@ -416,7 +477,7 @@ export class DropshippingService {
   // al negocio; para sumar productos nuevos el usuario los elige explícitamente con
   // browseCatalog()/importSelected() (ver "Buscar y agregar productos" en la UI).
   private async syncFromApiProvider(ds: DropshipSupplierRef) {
-    if (!this.startProgress(ds.id, 'Conectando con el proveedor...', true)) {
+    if (!this.startProgress(ds.id, 'Conectando con el proveedor...', 'sync')) {
       throw new BadRequestException('Ya hay una sincronización en curso con este proveedor; espera a que termine');
     }
     try {
@@ -442,13 +503,15 @@ export class DropshippingService {
 
   // Registra una operación en curso contra el proveedor. Devuelve false si ya había otra
   // (en ese caso quien llama no debe pisar ni borrar el avance de la operación existente).
-  private startProgress(id: string, message: string, applies: boolean): boolean {
+  // kind: 'sync' descarga todo y aplica a la BD; 'full' solo descarga todo (para buscar);
+  // 'page' trae una sola página.
+  private startProgress(id: string, message: string, kind: 'sync' | 'full' | 'page'): boolean {
     if (this.progress.has(id)) return false;
     this.progress.set(id, {
       message, phase: 'download', pagesDone: 0, recordsDone: 0, totalRecords: null,
-      // La búsqueda trae una sola página; el sync conoce el total recién tras la primera.
-      totalPages: applies ? (this.lastTotalPages.get(id) ?? null) : 1,
-      pageStartedAt: Date.now(), rowsDone: 0, rowsTotal: 0, applies,
+      // El total de páginas de una descarga completa se conoce recién tras la primera.
+      totalPages: kind === 'page' ? 1 : (this.lastTotalPages.get(id) ?? null),
+      pageStartedAt: Date.now(), rowsDone: 0, rowsTotal: 0, applies: kind === 'sync',
     });
     return true;
   }
@@ -465,7 +528,7 @@ export class DropshippingService {
     if (totalPages) {
       p.totalPages = totalPages;
       this.lastTotalPages.set(id, totalPages);
-      if (p.applies && pagesDone < totalPages) {
+      if (pagesDone < totalPages) {
         p.message = `Descargando catálogo del proveedor (página ${pagesDone + 1} de ${totalPages})...`;
       }
     }
@@ -478,7 +541,7 @@ export class DropshippingService {
     if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
 
     const p = this.progress.get(id);
-    if (!p) return { active: false as const };
+    if (!p) return { active: false as const, error: this.fullLoadErrors.get(id) ?? null };
 
     let percent: number | null;
     if (p.phase === 'apply') {
@@ -550,9 +613,34 @@ export class DropshippingService {
     }
   }
 
+  // Descarga el catálogo completo en segundo plano (~10 min) para poder buscar en todos
+  // los registros del proveedor. Responde al instante; la UI sigue el avance con getProgress.
+  async loadFullCatalog(id: string, user: any, force = false) {
+    const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id } });
+    if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
+    if (ds.connectorType === DropshipConnectorType.FEED) {
+      throw new BadRequestException('Este proveedor usa un feed URL; no tiene catálogo consultable por API');
+    }
+
+    const cached = this.catalogCache.get(id);
+    if (!force && catalogCacheFresh(cached) && !cached.hasMore) return { ready: true };
+    // Ya hay una descarga (o sync, que también baja todo) en curso: la UI solo espera.
+    if (!this.startProgress(id, 'Conectando con el proveedor...', 'full')) return { ready: false };
+
+    this.fullLoadErrors.delete(id);
+    this.fetchProviderCatalog(ds)
+      .catch((err: any) => {
+        this.logger.error(`Descarga completa del catálogo falló para el proveedor ${id}: ${err?.stack || err}`);
+        this.fullLoadErrors.set(id, err?.message || 'No se pudo descargar el catálogo completo del proveedor');
+      })
+      .finally(() => this.progress.delete(id));
+    return { ready: false };
+  }
+
   // fetchProviderPage + avance visible en la UI mientras el proveedor responde.
   private async fetchProviderPageTracked(ds: DropshipSupplierRef, page: number) {
-    const owned = this.startProgress(ds.id, 'Consultando el catálogo del proveedor...', false);
+    const owned = this.startProgress(ds.id, 'Consultando el catálogo del proveedor...', 'page');
     const startedAt = Date.now();
     try {
       const result = await this.fetchProviderPage(ds, page);
@@ -603,9 +691,11 @@ export class DropshippingService {
 
     try {
       let cached = this.catalogCache.get(id);
-      const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS;
+      const stale = !catalogCacheFresh(cached);
 
-      if (opts.refresh || stale) {
+      // Un catálogo completo vigente no se reemplaza por la página 1: "Actualizar" en ese
+      // caso vuelve a bajar todo con loadFullCatalog(force).
+      if ((opts.refresh && cached?.hasMore !== false) || stale) {
         const first = await this.fetchProviderPageTracked(ds, 1);
         cached = {
           rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now(),
@@ -632,13 +722,14 @@ export class DropshippingService {
       });
       const linkedSkus = new Set(linked.map((p) => p.supplierSku).filter(Boolean) as string[]);
 
-      let rows = cached!.rows;
-      const q = (opts.q || '').trim().toLowerCase();
+      let rows: Array<DropshipCatalogRow & { match?: CatalogMatch }> = cached!.rows;
+      const q = (opts.q || '').trim();
       if (q) {
-        rows = rows.filter((r) =>
-          r.sku.toLowerCase().includes(q) ||
-          r.name?.toLowerCase().includes(q) ||
-          r.description?.toLowerCase().includes(q));
+        rows = cached!.rows
+          .map((r) => ({ r, s: scoreCatalogRow(r, q) }))
+          .filter((x) => x.s)
+          .sort((a, b) => b.s!.score - a.s!.score)
+          .map((x) => ({ ...x.r, match: x.s!.match }));
       }
 
       const total = rows.length;
@@ -657,6 +748,8 @@ export class DropshippingService {
         // Hay más productos en el proveedor que todavía no se han traído al buscador
         // (el catálogo completo no cabe/no conviene descargarlo entero de una).
         providerHasMore: cached!.hasMore,
+        // Se buscó en todos los registros del proveedor (catálogo completo descargado).
+        catalogComplete: !cached!.hasMore,
         providerRecordsFetched: cached!.recordsFetched,
         providerTotalRecords: cached!.totalRecords,
       };

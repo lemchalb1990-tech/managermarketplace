@@ -71,6 +71,7 @@ function mapRow(rec: Record<string, any>): DropshipCatalogRow {
     stock: rec.stock != null ? Math.max(0, Math.round(Number(rec.stock))) : undefined,
     cost: cost != null ? Number(cost) : undefined,
     price: rec.precio != null ? Number(rec.precio) : undefined,
+    codes: Array.from(new Set([rec.oem1, rec.num_fabrica].map((c) => String(c ?? '').trim()).filter(Boolean))),
   };
 }
 
