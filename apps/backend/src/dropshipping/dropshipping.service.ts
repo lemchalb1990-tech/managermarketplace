@@ -184,6 +184,26 @@ interface ApiCatalogCacheEntry {
   fetchedAt: number;
 }
 
+// Una página de Noriega tarda ~20-26s en responder (casi todo es espera del servidor,
+// no descarga), así que el avance dentro de la página se estima por tiempo transcurrido.
+const DEFAULT_PAGE_MS = 22_000;
+// Parte de la barra que corresponde a descargar; el resto es aplicar los cambios en la BD.
+const DOWNLOAD_SHARE = 90;
+
+// Avance de una consulta/sincronización en curso contra un proveedor API, para que la UI
+// muestre un % mientras espera. Vive en memoria: solo describe operaciones en curso.
+interface ProviderProgress {
+  message: string;
+  phase: 'download' | 'apply';
+  pagesDone: number;
+  totalPages: number | null;
+  pageStartedAt: number;
+  rowsDone: number;
+  rowsTotal: number;
+  // Solo se aplica a la BD en el sync; en la búsqueda la descarga es el 100%.
+  applies: boolean;
+}
+
 @Injectable()
 export class DropshippingService {
   private readonly logger = new Logger(DropshippingService.name);
@@ -194,6 +214,11 @@ export class DropshippingService {
   // paginar/buscar sin volver a pegarle al proveedor en cada tecleo. Se pierde si el
   // proceso se reinicia (no es crítico: el usuario solo tiene que "Actualizar" de nuevo).
   private readonly catalogCache = new Map<string, ApiCatalogCacheEntry>();
+  private readonly progress = new Map<string, ProviderProgress>();
+  // Total de páginas del último sync por proveedor, para mostrar % desde el primer segundo.
+  private readonly lastTotalPages = new Map<string, number>();
+  // Última duración medida de una página del proveedor, para estimar el avance de la siguiente.
+  private lastPageMs = DEFAULT_PAGE_MS;
 
   constructor(
     private prisma: PrismaService,
@@ -386,18 +411,85 @@ export class DropshippingService {
   // al negocio; para sumar productos nuevos el usuario los elige explícitamente con
   // browseCatalog()/importSelected() (ver "Buscar y agregar productos" en la UI).
   private async syncFromApiProvider(ds: DropshipSupplierRef) {
-    const rows = await this.fetchProviderCatalog(ds);
-    if (!rows.length) throw new BadRequestException('El proveedor no devolvió productos');
-
+    if (!this.startProgress(ds.id, 'Conectando con el proveedor...', true)) {
+      throw new BadRequestException('Ya hay una sincronización en curso con este proveedor; espera a que termine');
+    }
     try {
-      const result = await this.applyCatalogRows(ds, rows, { createNew: false });
+      const rows = await this.fetchProviderCatalog(ds);
+      if (!rows.length) throw new BadRequestException('El proveedor no devolvió productos');
+
+      const p = this.progress.get(ds.id);
+      if (p) Object.assign(p, { phase: 'apply', rowsDone: 0, rowsTotal: rows.length, message: 'Actualizando precio y stock de los productos vinculados...' });
+      const result = await this.applyCatalogRows(ds, rows, {
+        createNew: false,
+        onRow: (done) => { if (p) p.rowsDone = done; },
+      });
       await this.prisma.dropshipSupplier.update({ where: { id: ds.id }, data: { lastSyncedAt: new Date() } });
       return result;
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
       this.logger.error(`syncFromApiProvider falló para el proveedor ${ds.id}: ${err?.stack || err}`);
       throw new BadRequestException(err?.message || 'No se pudo sincronizar con el proveedor');
+    } finally {
+      this.progress.delete(ds.id);
     }
+  }
+
+  // Registra una operación en curso contra el proveedor. Devuelve false si ya había otra
+  // (en ese caso quien llama no debe pisar ni borrar el avance de la operación existente).
+  private startProgress(id: string, message: string, applies: boolean): boolean {
+    if (this.progress.has(id)) return false;
+    this.progress.set(id, {
+      message, phase: 'download', pagesDone: 0,
+      // La búsqueda trae una sola página; el sync conoce el total recién tras la primera.
+      totalPages: applies ? (this.lastTotalPages.get(id) ?? null) : 1,
+      pageStartedAt: Date.now(), rowsDone: 0, rowsTotal: 0, applies,
+    });
+    return true;
+  }
+
+  private markPageDone(id: string, pagesDone: number, totalPages: number | null) {
+    const p = this.progress.get(id);
+    if (!p) return;
+    const now = Date.now();
+    if (pagesDone > p.pagesDone) this.lastPageMs = Math.max(1000, now - p.pageStartedAt);
+    p.pagesDone = pagesDone;
+    p.pageStartedAt = now;
+    if (totalPages) {
+      p.totalPages = totalPages;
+      this.lastTotalPages.set(id, totalPages);
+      if (p.applies && pagesDone < totalPages) {
+        p.message = `Descargando catálogo del proveedor (página ${pagesDone + 1} de ${totalPages})...`;
+      }
+    }
+  }
+
+  // Avance de la consulta/sincronización en curso (la UI lo consulta cada ~1s).
+  async getProgress(id: string, user: any) {
+    const ds = await this.prisma.dropshipSupplier.findUnique({ where: { id }, select: { companyId: true } });
+    if (!ds) throw new NotFoundException('Proveedor dropship no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && ds.companyId !== user.companyId) throw new ForbiddenException();
+
+    const p = this.progress.get(id);
+    if (!p) return { active: false as const };
+
+    let percent: number | null;
+    if (p.phase === 'apply') {
+      const ratio = p.rowsTotal ? p.rowsDone / p.rowsTotal : 0;
+      percent = DOWNLOAD_SHARE + ratio * (100 - DOWNLOAD_SHARE);
+    } else if (!p.totalPages) {
+      percent = null; // Aún no se sabe cuántas páginas hay: la UI muestra barra indeterminada.
+    } else {
+      const share = p.applies ? DOWNLOAD_SHARE : 100;
+      // Estimado por tiempo, sin llegar nunca al 100% de la página hasta que realmente llega.
+      const inPage = Math.min(0.95, (Date.now() - p.pageStartedAt) / this.lastPageMs);
+      percent = ((p.pagesDone + inPage) / p.totalPages) * share;
+    }
+    return {
+      active: true as const,
+      message: p.message,
+      percent: percent == null ? null : Math.min(99, Math.round(percent)),
+    };
   }
 
   // Descarga el catálogo completo del proveedor API (login + token cacheado + paginación)
@@ -418,7 +510,8 @@ export class DropshippingService {
 
     let fetchResult;
     try {
-      fetchResult = await provider.fetchCatalog(credentials, cachedToken);
+      fetchResult = await provider.fetchCatalog(credentials, cachedToken,
+        ({ pagesDone, totalPages }) => this.markPageDone(ds.id, pagesDone, totalPages));
     } catch (err: any) {
       throw new BadRequestException(`No se pudo conectar con el proveedor: ${err?.message || err}`);
     }
@@ -440,6 +533,19 @@ export class DropshippingService {
       });
     } catch (err: any) {
       this.logger.warn(`No se pudo cachear el token del proveedor para ${supplierId}: ${err?.message || err}`);
+    }
+  }
+
+  // fetchProviderPage + avance visible en la UI mientras el proveedor responde.
+  private async fetchProviderPageTracked(ds: DropshipSupplierRef, page: number) {
+    const owned = this.startProgress(ds.id, 'Consultando el catálogo del proveedor...', false);
+    const startedAt = Date.now();
+    try {
+      const result = await this.fetchProviderPage(ds, page);
+      this.lastPageMs = Math.max(1000, Date.now() - startedAt);
+      return result;
+    } finally {
+      if (owned) this.progress.delete(ds.id);
     }
   }
 
@@ -486,11 +592,11 @@ export class DropshippingService {
       const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_CACHE_TTL_MS;
 
       if (opts.refresh || stale) {
-        const first = await this.fetchProviderPage(ds, 1);
+        const first = await this.fetchProviderPageTracked(ds, 1);
         cached = { rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now() };
         this.catalogCache.set(id, cached);
       } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
-        const next = await this.fetchProviderPage(ds, cached!.nextProviderPage);
+        const next = await this.fetchProviderPageTracked(ds, cached!.nextProviderPage);
         cached = {
           // Un SKU puede haber quedado partido entre esta página y la anterior.
           rows: mergeDuplicateSkuRows([...cached!.rows, ...next.rows]),
@@ -575,14 +681,19 @@ export class DropshippingService {
   // createNew=false (usado por el sync de "actualización" de un conector API) solo
   // refresca los productos ya vinculados; nunca crea ni auto-vincula uno nuevo — eso
   // requiere que el usuario lo elija explícitamente vía importSelected().
-  private async applyCatalogRows(ds: { id: string; companyId: string }, rows: CatalogRow[], opts: { createNew?: boolean } = {}) {
+  private async applyCatalogRows(
+    ds: { id: string; companyId: string },
+    rows: CatalogRow[],
+    opts: { createNew?: boolean; onRow?: (done: number, total: number) => void } = {},
+  ) {
     const createNew = opts.createNew ?? true;
     let created = 0;
     let updated = 0;
     const skipped: string[] = [];
     const id = ds.id;
 
-    for (const row of rows) {
+    for (const [i, row] of rows.entries()) {
+      opts.onRow?.(i, rows.length);
       if (!row.sku) { skipped.push('(fila sin SKU)'); continue; }
 
       const existingDp = await this.prisma.dropshipProduct.findFirst({

@@ -962,6 +962,10 @@ export const api = {
           `/dropshipping/suppliers/${id}/catalog?${q}`, {}, token,
         );
       },
+      progress: (id: string, token: string) =>
+        apiFetch<{ active: false } | { active: true; message: string; percent: number | null }>(
+          `/dropshipping/suppliers/${id}/progress`, {}, token,
+        ),
       importCatalog: (id: string, skus: string[], token: string) =>
         apiFetch<{ created: number; updated: number; skipped: string[] }>(
           `/dropshipping/suppliers/${id}/catalog/import`, { method: 'POST', body: JSON.stringify({ skus }) }, token,

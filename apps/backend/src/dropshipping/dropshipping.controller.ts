@@ -57,6 +57,12 @@ export class DropshippingController {
     return this.service.syncCatalog(id, user, dto.catalogUrl);
   }
 
+  // Avance (%) de la sincronización/consulta en curso contra un proveedor API.
+  @Get('suppliers/:id/progress')
+  getProgress(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getProgress(id, user);
+  }
+
   // Conectores API: consultar el catálogo del proveedor para elegir qué productos traer.
   @Get('suppliers/:id/catalog')
   browseCatalog(@Param('id') id: string, @Query() query: BrowseDropshipCatalogDto, @CurrentUser() user: any) {

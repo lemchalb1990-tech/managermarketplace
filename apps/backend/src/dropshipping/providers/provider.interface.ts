@@ -24,8 +24,13 @@ export interface DropshipCatalogPage {
   rows: DropshipCatalogRow[];
   hasMore: boolean;
   nextPage: number | null;
+  // Total de páginas que informa el proveedor (null si no lo informa); se usa para el % de avance.
+  totalPages: number | null;
   tokenCache: DropshipTokenCache;
 }
+
+// Avance de la descarga del catálogo completo: se llama al empezar y después de cada página.
+export type DropshipFetchProgress = (info: { pagesDone: number; totalPages: number | null }) => void;
 
 function stripBullet(line: string): string {
   return line.replace(/^-\s*/, '').trim();
@@ -63,6 +68,7 @@ export interface DropshipCatalogProvider {
   fetchCatalog(
     credentials: Record<string, string>,
     tokenCache: DropshipTokenCache | null,
+    onProgress?: DropshipFetchProgress,
   ): Promise<DropshipCatalogFetchResult>;
   // Una sola página — para que el buscador muestre resultados sin esperar todo el catálogo.
   fetchPage(

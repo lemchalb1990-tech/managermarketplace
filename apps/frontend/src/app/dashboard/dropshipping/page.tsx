@@ -104,6 +104,12 @@ export default function DropshippingPage() {
   const [catalogImporting, setCatalogImporting] = useState(false);
   const [catalogProviderHasMore, setCatalogProviderHasMore] = useState(false);
   const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
+  // Modal de avance mientras se espera al proveedor API (cada página tarda ~20s).
+  // immediate: se muestra apenas empieza (sync); si no, solo cuando el backend informa
+  // que de verdad está consultando al proveedor (evita un parpadeo al paginar el caché).
+  const [progressTarget, setProgressTarget] = useState<{ id: string; title: string; immediate: boolean; startedAt: number } | null>(null);
+  const [progressInfo, setProgressInfo] = useState<{ message: string; percent: number | null } | null>(null);
+  const [progressNow, setProgressNow] = useState(Date.now());
 
   const logoMap = usePlatformLogos();
   const [editingLogoKey, setEditingLogoKey] = useState<string | null>(null);
@@ -118,6 +124,35 @@ export default function DropshippingPage() {
   useEffect(() => {
     setCurrentUser(getUser());
   }, []);
+
+  useEffect(() => {
+    if (!progressTarget) { setProgressInfo(null); return; }
+    let cancelled = false;
+    const tick = async () => {
+      setProgressNow(Date.now());
+      try {
+        const r = await api.dropshipping.suppliers.progress(progressTarget.id, token());
+        if (cancelled) return;
+        // El % es estimado por tiempo; nunca lo dejamos retroceder en pantalla.
+        setProgressInfo((prev) => r.active
+          ? { message: r.message, percent: r.percent == null ? prev?.percent ?? null : Math.max(prev?.percent ?? 0, r.percent) }
+          : null);
+      } catch { /* el avance es solo informativo: si falla la consulta no se interrumpe nada */ }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressTarget]);
+
+  async function withProgress<T>(supplierId: string, title: string, immediate: boolean, fn: () => Promise<T>): Promise<T> {
+    setProgressTarget({ id: supplierId, title, immediate, startedAt: Date.now() });
+    try {
+      return await fn();
+    } finally {
+      setProgressTarget(null);
+    }
+  }
 
   async function load() {
     const token = getToken();
@@ -270,7 +305,8 @@ export default function DropshippingPage() {
     setCatalogLoading(true);
     setCatalogError('');
     try {
-      const res = await api.dropshipping.suppliers.browseCatalog(supplierId, { q: q || undefined, page, pageSize: 50, refresh }, token());
+      const res = await withProgress(supplierId, 'Consultando el catálogo del proveedor', refresh, () =>
+        api.dropshipping.suppliers.browseCatalog(supplierId, { q: q || undefined, page, pageSize: 50, refresh }, token()));
       setCatalogRows(res.rows);
       setCatalogPage(res.page);
       setCatalogPages(res.pages);
@@ -288,7 +324,8 @@ export default function DropshippingPage() {
     setCatalogLoadingMore(true);
     setCatalogError('');
     try {
-      const res = await api.dropshipping.suppliers.browseCatalog(catalogSupplier.id, { q: catalogQuery || undefined, page: 1, pageSize: 50, loadMore: true }, token());
+      const res = await withProgress(catalogSupplier.id, 'Trayendo más productos del proveedor', true, () =>
+        api.dropshipping.suppliers.browseCatalog(catalogSupplier.id, { q: catalogQuery || undefined, page: 1, pageSize: 50, loadMore: true }, token()));
       setCatalogRows(res.rows);
       setCatalogPage(res.page);
       setCatalogPages(res.pages);
@@ -544,7 +581,8 @@ export default function DropshippingPage() {
                             </button>
                           )}
                           <button disabled={busy || !s.hasCredentials}
-                            onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
+                            onClick={() => run(() => withProgress(s.id, `Sincronizando ${s.supplier?.name || 'proveedor'}`, true, () =>
+                              api.dropshipping.suppliers.syncCatalog(s.id, {}, token())).then((r) =>
                               setNotice(`Actualizado: ${r.updated} producto(s) ya vinculado(s)${r.skipped.length ? `, ${r.skipped.length} sin traer aún` : ''}`)))}
                             title="Actualiza precio/stock de los productos ya vinculados. Para sumar productos nuevos usa 'Agregar productos'."
                             className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
@@ -821,6 +859,32 @@ export default function DropshippingPage() {
           </div>
         </div>
       )}
+
+      {progressTarget && (progressTarget.immediate || progressInfo) && (() => {
+        const percent = progressInfo?.percent ?? null;
+        const secs = Math.max(0, Math.floor((progressNow - progressTarget.startedAt) / 1000));
+        const elapsed = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-xl w-full max-w-md p-6">
+              <h3 className="font-semibold text-gray-900">{progressTarget.title}</h3>
+              <p className="text-sm text-gray-500 mt-1">{progressInfo?.message || 'Conectando con el proveedor...'}</p>
+              <div className="mt-4 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                {percent != null ? (
+                  <div className="h-full bg-teal-500 rounded-full transition-all duration-1000 ease-linear" style={{ width: `${percent}%` }} />
+                ) : (
+                  <div className="h-full w-1/3 bg-teal-500 rounded-full animate-pulse" />
+                )}
+              </div>
+              <div className="mt-2 flex justify-between text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{percent != null ? `${percent}%` : 'Calculando...'}</span>
+                <span>Tiempo: {elapsed}</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-3">El proveedor tarda unos 20 segundos por página. No cierres ni recargues esta página.</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {mappingSupplier && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   DropshipCatalogFetchResult, DropshipCatalogPage, DropshipCatalogProvider,
-  DropshipCatalogRow, DropshipTokenCache, mergeDuplicateSkuRows,
+  DropshipCatalogRow, DropshipFetchProgress, DropshipTokenCache, mergeDuplicateSkuRows,
 } from './provider.interface';
 
 // Ver "API de Productos Noriega — Guía de Inicio Rápido" (proveedor externo).
@@ -29,6 +29,7 @@ interface NoriegaProductsResponse {
   datos: Array<Record<string, any>>;
   hayMas: boolean;
   siguientePagina?: number;
+  totalPaginas?: number;
 }
 
 function sleep(ms: number) {
@@ -137,6 +138,7 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       rows,
       hasMore: !!data.hayMas,
       nextPage: data.hayMas ? (data.siguientePagina ?? page + 1) : null,
+      totalPages: Number(data.totalPaginas) > 0 ? Number(data.totalPaginas) : null,
       tokenCache: cache,
     };
   }
@@ -146,11 +148,14 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
   async fetchCatalog(
     credentials: Record<string, string>,
     tokenCache: DropshipTokenCache | null,
+    onProgress?: DropshipFetchProgress,
   ): Promise<DropshipCatalogFetchResult> {
     let cache = tokenCache;
     const rows: DropshipCatalogRow[] = [];
     let pagina = 1;
     let pageCount = 0;
+    let totalPages: number | null = null;
+    onProgress?.({ pagesDone: 0, totalPages });
 
     while (true) {
       pageCount++;
@@ -161,6 +166,8 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       const result = await this.fetchPage(credentials, cache, pagina);
       cache = result.tokenCache;
       rows.push(...result.rows);
+      totalPages = result.totalPages ?? totalPages;
+      onProgress?.({ pagesDone: pageCount, totalPages });
 
       if (!result.hasMore || result.nextPage == null) break;
       pagina = result.nextPage;
