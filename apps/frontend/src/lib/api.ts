@@ -958,12 +958,12 @@ export const api = {
         if (params.pageSize) q.set('pageSize', String(params.pageSize));
         if (params.refresh) q.set('refresh', '1');
         if (params.loadMore) q.set('loadMore', '1');
-        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string; providerHasMore: boolean }>(
+        return apiFetch<{ rows: any[]; total: number; page: number; pages: number; fetchedAt: string; providerHasMore: boolean; providerRecordsFetched: number; providerTotalRecords: number | null }>(
           `/dropshipping/suppliers/${id}/catalog?${q}`, {}, token,
         );
       },
       progress: (id: string, token: string) =>
-        apiFetch<{ active: false } | { active: true; message: string; percent: number | null }>(
+        apiFetch<{ active: false } | { active: true; message: string; percent: number | null; recordsDone: number; totalRecords: number | null }>(
           `/dropshipping/suppliers/${id}/progress`, {}, token,
         ),
       importCatalog: (id: string, skus: string[], token: string) =>

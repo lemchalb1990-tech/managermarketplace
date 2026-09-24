@@ -108,7 +108,8 @@ export default function DropshippingPage() {
   // immediate: se muestra apenas empieza (sync); si no, solo cuando el backend informa
   // que de verdad está consultando al proveedor (evita un parpadeo al paginar el caché).
   const [progressTarget, setProgressTarget] = useState<{ id: string; title: string; immediate: boolean; startedAt: number } | null>(null);
-  const [progressInfo, setProgressInfo] = useState<{ message: string; percent: number | null } | null>(null);
+  const [progressInfo, setProgressInfo] = useState<{ message: string; percent: number | null; recordsDone: number; totalRecords: number | null } | null>(null);
+  const [catalogRecords, setCatalogRecords] = useState<{ fetched: number; total: number | null }>({ fetched: 0, total: null });
   const [progressNow, setProgressNow] = useState(Date.now());
 
   const logoMap = usePlatformLogos();
@@ -135,7 +136,10 @@ export default function DropshippingPage() {
         if (cancelled) return;
         // El % es estimado por tiempo; nunca lo dejamos retroceder en pantalla.
         setProgressInfo((prev) => r.active
-          ? { message: r.message, percent: r.percent == null ? prev?.percent ?? null : Math.max(prev?.percent ?? 0, r.percent) }
+          ? {
+            message: r.message, recordsDone: r.recordsDone, totalRecords: r.totalRecords,
+            percent: r.percent == null ? prev?.percent ?? null : Math.max(prev?.percent ?? 0, r.percent),
+          }
           : null);
       } catch { /* el avance es solo informativo: si falla la consulta no se interrumpe nada */ }
     };
@@ -312,6 +316,7 @@ export default function DropshippingPage() {
       setCatalogPages(res.pages);
       setCatalogTotal(res.total);
       setCatalogProviderHasMore(res.providerHasMore);
+      setCatalogRecords({ fetched: res.providerRecordsFetched, total: res.providerTotalRecords });
     } catch (err: any) {
       setCatalogError(err.message || 'No se pudo consultar el catálogo del proveedor. Si sigue fallando, puede ser que el proveedor no responda (red/URL).');
     } finally {
@@ -331,6 +336,7 @@ export default function DropshippingPage() {
       setCatalogPages(res.pages);
       setCatalogTotal(res.total);
       setCatalogProviderHasMore(res.providerHasMore);
+      setCatalogRecords({ fetched: res.providerRecordsFetched, total: res.providerTotalRecords });
     } catch (err: any) {
       setCatalogError(err.message || 'No se pudo traer más productos del proveedor.');
     } finally {
@@ -880,6 +886,11 @@ export default function DropshippingPage() {
                 <span className="font-medium text-gray-700">{percent != null ? `${percent}%` : 'Calculando...'}</span>
                 <span>Tiempo: {elapsed}</span>
               </div>
+              {progressInfo?.totalRecords != null && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Registros: {progressInfo.recordsDone.toLocaleString('es-CL')} de {progressInfo.totalRecords.toLocaleString('es-CL')}
+                </p>
+              )}
               <p className="text-[11px] text-gray-400 mt-3">El proveedor tarda unos 20 segundos por página. No cierres ni recargues esta página.</p>
             </div>
           </div>
@@ -1142,6 +1153,11 @@ export default function DropshippingPage() {
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0">
               <div className="text-xs text-gray-500">
                 {catalogTotal} producto(s) · página {catalogPage} de {catalogPages} · {catalogSelected.size} seleccionado(s)
+                {catalogRecords.total != null && (
+                  <span className="block text-gray-400">
+                    Registros del proveedor: {catalogRecords.fetched.toLocaleString('es-CL')} traídos de {catalogRecords.total.toLocaleString('es-CL')}
+                  </span>
+                )}
                 <div className="flex gap-2 mt-1">
                   <button disabled={catalogLoading || catalogPage <= 1}
                     onClick={() => loadCatalogPage(catalogSupplier.id, catalogPage - 1, catalogQuery)}

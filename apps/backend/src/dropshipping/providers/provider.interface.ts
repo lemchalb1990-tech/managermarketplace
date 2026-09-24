@@ -26,11 +26,17 @@ export interface DropshipCatalogPage {
   nextPage: number | null;
   // Total de páginas que informa el proveedor (null si no lo informa); se usa para el % de avance.
   totalPages: number | null;
+  // Filas crudas que trajo esta página y total de registros que informa el proveedor
+  // (un registro = un SKU x un modelo compatible; por eso son más que los productos).
+  recordCount: number;
+  totalRecords: number | null;
   tokenCache: DropshipTokenCache;
 }
 
 // Avance de la descarga del catálogo completo: se llama al empezar y después de cada página.
-export type DropshipFetchProgress = (info: { pagesDone: number; totalPages: number | null }) => void;
+export type DropshipFetchProgress = (info: {
+  pagesDone: number; totalPages: number | null; recordsDone: number; totalRecords: number | null;
+}) => void;
 
 function stripBullet(line: string): string {
   return line.replace(/^-\s*/, '').trim();

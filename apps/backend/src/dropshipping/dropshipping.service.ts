@@ -182,6 +182,9 @@ interface ApiCatalogCacheEntry {
   hasMore: boolean;
   nextProviderPage: number | null;
   fetchedAt: number;
+  // Registros crudos ya traídos del proveedor vs. el total que informa.
+  recordsFetched: number;
+  totalRecords: number | null;
 }
 
 // Una página de Noriega tarda ~20-26s en responder (casi todo es espera del servidor,
@@ -197,6 +200,8 @@ interface ProviderProgress {
   phase: 'download' | 'apply';
   pagesDone: number;
   totalPages: number | null;
+  recordsDone: number;
+  totalRecords: number | null;
   pageStartedAt: number;
   rowsDone: number;
   rowsTotal: number;
@@ -440,7 +445,7 @@ export class DropshippingService {
   private startProgress(id: string, message: string, applies: boolean): boolean {
     if (this.progress.has(id)) return false;
     this.progress.set(id, {
-      message, phase: 'download', pagesDone: 0,
+      message, phase: 'download', pagesDone: 0, recordsDone: 0, totalRecords: null,
       // La búsqueda trae una sola página; el sync conoce el total recién tras la primera.
       totalPages: applies ? (this.lastTotalPages.get(id) ?? null) : 1,
       pageStartedAt: Date.now(), rowsDone: 0, rowsTotal: 0, applies,
@@ -448,13 +453,15 @@ export class DropshippingService {
     return true;
   }
 
-  private markPageDone(id: string, pagesDone: number, totalPages: number | null) {
+  private markPageDone(id: string, pagesDone: number, totalPages: number | null, recordsDone: number, totalRecords: number | null) {
     const p = this.progress.get(id);
     if (!p) return;
     const now = Date.now();
     if (pagesDone > p.pagesDone) this.lastPageMs = Math.max(1000, now - p.pageStartedAt);
     p.pagesDone = pagesDone;
     p.pageStartedAt = now;
+    p.recordsDone = recordsDone;
+    p.totalRecords = totalRecords ?? p.totalRecords;
     if (totalPages) {
       p.totalPages = totalPages;
       this.lastTotalPages.set(id, totalPages);
@@ -488,6 +495,8 @@ export class DropshippingService {
     return {
       active: true as const,
       message: p.message,
+      recordsDone: p.recordsDone,
+      totalRecords: p.totalRecords,
       percent: percent == null ? null : Math.min(99, Math.round(percent)),
     };
   }
@@ -511,7 +520,8 @@ export class DropshippingService {
     let fetchResult;
     try {
       fetchResult = await provider.fetchCatalog(credentials, cachedToken,
-        ({ pagesDone, totalPages }) => this.markPageDone(ds.id, pagesDone, totalPages));
+        ({ pagesDone, totalPages, recordsDone, totalRecords }) =>
+          this.markPageDone(ds.id, pagesDone, totalPages, recordsDone, totalRecords));
     } catch (err: any) {
       throw new BadRequestException(`No se pudo conectar con el proveedor: ${err?.message || err}`);
     }
@@ -521,7 +531,11 @@ export class DropshippingService {
     // la respuesta que el usuario sí está esperando.
     await this.cacheProviderToken(ds.id, fetchResult.tokenCache);
 
-    this.catalogCache.set(ds.id, { rows: fetchResult.rows, hasMore: false, nextProviderPage: null, fetchedAt: Date.now() });
+    const done = this.progress.get(ds.id);
+    this.catalogCache.set(ds.id, {
+      rows: fetchResult.rows, hasMore: false, nextProviderPage: null, fetchedAt: Date.now(),
+      recordsFetched: done?.recordsDone ?? 0, totalRecords: done?.totalRecords ?? null,
+    });
     return fetchResult.rows;
   }
 
@@ -593,7 +607,10 @@ export class DropshippingService {
 
       if (opts.refresh || stale) {
         const first = await this.fetchProviderPageTracked(ds, 1);
-        cached = { rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now() };
+        cached = {
+          rows: first.rows, hasMore: first.hasMore, nextProviderPage: first.nextPage, fetchedAt: Date.now(),
+          recordsFetched: first.recordCount, totalRecords: first.totalRecords,
+        };
         this.catalogCache.set(id, cached);
       } else if (opts.loadMore && cached!.hasMore && cached!.nextProviderPage != null) {
         const next = await this.fetchProviderPageTracked(ds, cached!.nextProviderPage);
@@ -603,6 +620,8 @@ export class DropshippingService {
           hasMore: next.hasMore,
           nextProviderPage: next.nextPage,
           fetchedAt: cached!.fetchedAt,
+          recordsFetched: cached!.recordsFetched + next.recordCount,
+          totalRecords: next.totalRecords ?? cached!.totalRecords,
         };
         this.catalogCache.set(id, cached);
       }
@@ -638,6 +657,8 @@ export class DropshippingService {
         // Hay más productos en el proveedor que todavía no se han traído al buscador
         // (el catálogo completo no cabe/no conviene descargarlo entero de una).
         providerHasMore: cached!.hasMore,
+        providerRecordsFetched: cached!.recordsFetched,
+        providerTotalRecords: cached!.totalRecords,
       };
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;

@@ -30,6 +30,7 @@ interface NoriegaProductsResponse {
   hayMas: boolean;
   siguientePagina?: number;
   totalPaginas?: number;
+  totalRegistros?: number;
 }
 
 function sleep(ms: number) {
@@ -139,6 +140,8 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       hasMore: !!data.hayMas,
       nextPage: data.hayMas ? (data.siguientePagina ?? page + 1) : null,
       totalPages: Number(data.totalPaginas) > 0 ? Number(data.totalPaginas) : null,
+      recordCount: (data.datos || []).length,
+      totalRecords: Number(data.totalRegistros) > 0 ? Number(data.totalRegistros) : null,
       tokenCache: cache,
     };
   }
@@ -155,7 +158,9 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
     let pagina = 1;
     let pageCount = 0;
     let totalPages: number | null = null;
-    onProgress?.({ pagesDone: 0, totalPages });
+    let recordsDone = 0;
+    let totalRecords: number | null = null;
+    onProgress?.({ pagesDone: 0, totalPages, recordsDone, totalRecords });
 
     while (true) {
       pageCount++;
@@ -167,7 +172,9 @@ export class NoriegaAdapter implements DropshipCatalogProvider {
       cache = result.tokenCache;
       rows.push(...result.rows);
       totalPages = result.totalPages ?? totalPages;
-      onProgress?.({ pagesDone: pageCount, totalPages });
+      recordsDone += result.recordCount;
+      totalRecords = result.totalRecords ?? totalRecords;
+      onProgress?.({ pagesDone: pageCount, totalPages, recordsDone, totalRecords });
 
       if (!result.hasMore || result.nextPage == null) break;
       pagina = result.nextPage;
