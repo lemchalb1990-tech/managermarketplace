@@ -12,8 +12,9 @@ const REQUEST_DELAY_MS = 650;
 // Refresca el token un poco antes de que venza (venceEn: "8h") en vez de esperar el 401.
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 // Si el proveedor no responde en este tiempo (red caída, servidor colgado) cortamos con
-// un error claro en vez de dejar la request pegada indefinidamente.
-const REQUEST_TIMEOUT_MS = 20_000;
+// un error claro en vez de dejar la request pegada indefinidamente. Medido en vivo:
+// cada página de 5.000 filas tarda ~20-26s en responder, así que 20s cortaba el sync.
+const REQUEST_TIMEOUT_MS = 90_000;
 // Corta un loop infinito si el proveedor nunca manda hayMas:false (o siguientePagina no avanza).
 const MAX_PAGES_SAFETY = 50;
 
