@@ -98,6 +98,11 @@ export class PosService {
     }
     const autoWarehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
 
+    // Los servicios no se preparan ni despachan: solo se facturan. La orden de pedido lleva
+    // únicamente los productos físicos y una venta solo de servicios no tiene forma de despacho.
+    const physicalItems = dto.items.filter(i => products.find(pr => pr.id === i.productId)!.type !== ProductType.SERVICIO);
+    const fulfillmentType = physicalItems.length > 0 ? dto.fulfillmentType : undefined;
+
     const sale = await this.prisma.$transaction(async (tx) => {
       const created = await tx.sale.create({
         data: {
@@ -109,7 +114,7 @@ export class PosService {
           customerName: dto.customerName || client?.name,
           customerEmail: dto.customerEmail || client?.email || undefined,
           customerPhone: dto.customerPhone || client?.phone || undefined,
-          fulfillmentType: dto.fulfillmentType,
+          fulfillmentType,
           address: dto.address,
           commune: dto.commune,
           city: dto.city,
@@ -147,10 +152,10 @@ export class PosService {
       }
 
       // Auto-create order when fulfillmentType is provided (POS checkout)
-      if (dto.fulfillmentType) {
+      if (fulfillmentType) {
         await tx.order.create({
           data: {
-            fulfillmentType: dto.fulfillmentType,
+            fulfillmentType,
             customerName: dto.customerName,
             customerEmail: dto.customerEmail,
             customerPhone: dto.customerPhone,
@@ -162,7 +167,7 @@ export class PosService {
             warehouseId: autoWarehouseId || undefined,
             createdById: user.id,
             itemChecks: {
-              create: dto.items.map(i => {
+              create: physicalItems.map(i => {
                 const p = products.find(pr => pr.id === i.productId)!;
                 return {
                   productId: i.productId,
@@ -197,7 +202,7 @@ export class PosService {
         quantity: i.quantity,
         unitPrice: Number(i.unitPrice),
       }));
-      this.email.sendSaleReceipt({ ...sale, companyId, customerEmail: dto.customerEmail, customerName: dto.customerName, fulfillmentType: dto.fulfillmentType, address: dto.address, commune: dto.commune, city: dto.city }, receiptItems).catch(e =>
+      this.email.sendSaleReceipt({ ...sale, companyId, customerEmail: dto.customerEmail, customerName: dto.customerName, fulfillmentType, address: dto.address, commune: dto.commune, city: dto.city }, receiptItems).catch(e =>
         this.logger.error(`Sale receipt email failed: ${e.message}`),
       );
     }

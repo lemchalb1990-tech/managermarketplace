@@ -213,6 +213,10 @@ export default function PosPage() {
       .catch(() => setBillingConns([]));
   }, [token, isSuperAdmin, selectedCompanyId]);
 
+  // Venta solo de servicios: no hay nada que preparar ni despachar (no genera orden de
+  // pedido), solo se factura — al abrir el cobro se deja marcado el documento tributario.
+  const servicesOnly = cart.length > 0 && cart.every((c) => c.type === 'SERVICIO');
+
   function addToCart(product: any) {
     const isService = product.type === 'SERVICIO';
     setCart((prev) => {
@@ -262,6 +266,7 @@ export default function PosPage() {
   function openCheckout() {
     setErrorMsg('');
     setSuccessMsg('');
+    if (servicesOnly && billingConns.length > 0) setEmitDte(true);
     setShowCheckout(true);
   }
 
@@ -296,14 +301,14 @@ export default function PosPage() {
         channel: 'POS',
         paymentMethod,
         notes: notes || undefined,
-        fulfillmentType,
+        fulfillmentType: servicesOnly ? undefined : fulfillmentType,
         clientId: clientId || undefined,
         customerName: (selectedClient?.name || customerName) || undefined,
         customerPhone: (selectedClient?.phone || customerPhone) || undefined,
         customerEmail: (selectedClient?.email || customerEmail) || undefined,
-        address: fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
-        commune: fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
-        city: fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
+        address: !servicesOnly && fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
+        commune: !servicesOnly && fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
+        city: !servicesOnly && fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
         items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price })),
       };
       if (companyId) dto.companyId = companyId;
@@ -358,7 +363,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+  }, [cart, servicesOnly, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -895,7 +900,14 @@ export default function PosPage() {
                 </div>
               )}
 
-              {/* Tipo de entrega */}
+              {servicesOnly && (
+                <div className="px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+                  Venta de servicios: no genera orden de pedido ni despacho, solo se registra y se factura.
+                </div>
+              )}
+
+              {/* Tipo de entrega (no aplica a servicios) */}
+              {!servicesOnly && (<>
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Tipo de entrega</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -964,6 +976,7 @@ export default function PosPage() {
                   </div>
                 </div>
               )}
+              </>)}
 
               {/* Método de pago */}
               <div>
