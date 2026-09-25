@@ -3,6 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
+import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -656,11 +657,42 @@ export class ParisAdapter implements PlatformAdapter {
     return { resolved, items: out };
   }
 
-  private orderTotals(items: any[]) {
-    const total = (items || []).reduce((s, i) => s + Number(i.priceAfterDiscounts ?? i.basePrice ?? 0), 0);
-    const fee = (items || []).reduce((s, i) => s + Number(i.commission ?? 0), 0);
-    const tax = (items || []).reduce((s, i) => s + Number(i.tax ?? 0), 0);
-    return { total, fee, tax };
+  // Desglose por sub-orden con los campos de cada item (una fila por unidad): basePrice
+  // (precio de lista), priceAfterDiscounts (cobrado), commission y tax; dispatchCost es el
+  // despacho a cargo del vendedor. No verificado en vivo contra una venta con promoción:
+  // el descuento se calcula como basePrice − priceAfterDiscounts. El precio viene con IVA
+  // incluido y `tax` se informa aparte, sin restarlo del neto.
+  private orderBreakdown(so: any): SaleBreakdown & { total: number } {
+    const items: any[] = so.items || [];
+    const num = (v: any) => Number(v ?? 0);
+    const listPrice = items.reduce((s, i) => s + num(i.basePrice ?? i.priceAfterDiscounts), 0);
+    const total = items.reduce((s, i) => s + num(i.priceAfterDiscounts ?? i.basePrice), 0);
+    const discount = Math.max(0, round2(listPrice - total));
+    const fee = round2(items.reduce((s, i) => s + num(i.commission), 0));
+    const hasTax = items.some((i) => i.tax != null);
+    const taxes = hasTax ? round2(items.reduce((s, i) => s + num(i.tax), 0)) : null;
+    const shippingCost = num(so.dispatchCost);
+    const netAmount = round2(total - fee - shippingCost);
+
+    const rows: ChargeDetailRow[] = [];
+    for (const i of items) {
+      rows.push({ type: 'PRODUCT', name: 'basePrice', amount: num(i.basePrice ?? i.priceAfterDiscounts), tax: num(i.tax) });
+      const d = num(i.basePrice ?? i.priceAfterDiscounts) - num(i.priceAfterDiscounts ?? i.basePrice);
+      if (d) rows.push({ type: 'DISCOUNT', name: 'basePrice − priceAfterDiscounts', amount: d, tax: 0 });
+      if (i.commission != null) rows.push({ type: 'COMMISSION', name: 'commission', amount: num(i.commission), tax: 0 });
+    }
+    if (so.dispatchCost != null) rows.push({ type: 'SHIPPING', name: 'dispatchCost', amount: shippingCost, tax: 0 });
+    return {
+      total,
+      charges: { shippingCost, marketplaceFee: fee, taxes, discount, netAmount },
+      breakdown: [
+        { label: 'Precio productos (con IVA)', amount: listPrice },
+        { label: 'Descuento/Promoción', amount: -discount },
+        { label: 'Despacho a cargo del vendedor', amount: -shippingCost },
+        { label: 'Comisión Paris', amount: -fee },
+      ],
+      chargeDetail: groupChargeRows(rows),
+    };
   }
 
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
@@ -689,15 +721,25 @@ export class ParisAdapter implements PlatformAdapter {
     });
     const existingSet = new Set(existing.map((s) => s.externalId));
 
+    // Completa descuento/neto de ventas ya importadas con los datos que este listado ya trae.
+    const byId = new Map(subOrders.map((so) => [so.subOrderNumber, so]));
+    const saved = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.PARIS, externalId: { in: externalIds } },
+      select: { id: true, externalId: true },
+    });
+    for (const sale of saved) {
+      const so = byId.get(sale.externalId!);
+      if (so) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(so).charges });
+    }
+
     const orders = [];
     for (const so of subOrders) {
       const alreadyRegistered = existingSet.has(so.subOrderNumber);
       const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
-      const { total } = this.orderTotals(so.items || []);
       orders.push({
         externalId: so.subOrderNumber,
         date: so.originOrderDate,
-        total,
+        ...this.orderBreakdown(so),
         buyerName: so.customer?.name || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
@@ -726,15 +768,13 @@ export class ParisAdapter implements PlatformAdapter {
         const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
 
-        const { total, fee, tax } = this.orderTotals(so.items || []);
+        const { total, charges } = this.orderBreakdown(so);
         await this.prisma.sale.create({
           data: {
             channel: SaleChannel.PARIS,
             externalId: id,
             total,
-            shippingCost: Number(so.dispatchCost || 0),
-            marketplaceFee: fee,
-            taxes: tax,
+            ...charges,
             companyId,
             connectionId: conn.id,
             customerName: so.customer?.name || null,

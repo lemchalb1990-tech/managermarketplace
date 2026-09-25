@@ -3,6 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
+import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -394,6 +395,47 @@ export class RipleyAdapter implements PlatformAdapter {
     return { resolved, items: out };
   }
 
+  // Desglose de la orden según el modelo de Mirakl (OR11, doc pública — no verificado en vivo
+  // con la cuenta del cliente): el seller cobra precio de productos + envío y Mirakl le descuenta
+  // la comisión (total_commission, ya incluye su IVA). Por línea: price_unit × quantity es el
+  // precio de lista y `price` el cobrado tras promociones, así que la diferencia es el descuento
+  // (y cuadra aunque la orden no traiga el detalle de `promotions`). Los precios en Chile vienen
+  // con IVA incluido; `taxes` solo se informa si la API lo trae.
+  private orderBreakdown(o: any): SaleBreakdown {
+    const lines: any[] = o.order_lines || [];
+    const num = (v: any) => Number(v || 0);
+    const listPrice = lines.reduce((s, l) => s + num(l.price_unit) * (num(l.quantity) || 1), 0);
+    const charged = lines.length ? lines.reduce((s, l) => s + num(l.price), 0) : num(o.price);
+    const discount = Math.max(0, round2(listPrice - charged));
+    const shipping = lines.length ? lines.reduce((s, l) => s + num(l.shipping_price), 0) : num(o.shipping_price);
+    const commission = o.total_commission != null
+      ? num(o.total_commission)
+      : lines.reduce((s, l) => s + num(l.total_commission ?? num(l.commission_fee) + num(l.commission_vat)), 0);
+    const taxRows = lines.flatMap((l) => [...(l.taxes || []), ...(l.shipping_taxes || [])]);
+    const taxes = taxRows.length ? round2(taxRows.reduce((s, t) => s + num(t.amount), 0)) : null;
+    const netAmount = round2(listPrice - discount + shipping - commission);
+
+    const rows: ChargeDetailRow[] = [];
+    for (const l of lines) {
+      rows.push({ type: 'PRODUCT', name: 'price', amount: num(l.price), tax: (l.taxes || []).reduce((s: number, t: any) => s + num(t.amount), 0) });
+      if (l.shipping_price != null) rows.push({ type: 'SHIPPING', name: 'shipping_price', amount: num(l.shipping_price), tax: (l.shipping_taxes || []).reduce((s: number, t: any) => s + num(t.amount), 0) });
+      if (l.commission_fee != null) rows.push({ type: 'COMMISSION', name: 'commission_fee', amount: num(l.commission_fee), tax: num(l.commission_vat) });
+      for (const p of l.promotions || []) {
+        rows.push({ type: 'DISCOUNT', name: String(p.id || p.configuration?.internal_description || 'promotion'), amount: num(p.deduced_amount), tax: 0 });
+      }
+    }
+    return {
+      charges: { shippingCost: -shipping, marketplaceFee: commission, taxes, discount, netAmount },
+      breakdown: [
+        { label: 'Precio productos (con IVA)', amount: listPrice },
+        { label: 'Descuento/Promoción', amount: -discount },
+        { label: 'Envío cobrado al comprador', amount: shipping },
+        { label: 'Comisión Ripley', amount: -commission },
+      ],
+      chargeDetail: groupChargeRows(rows),
+    };
+  }
+
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
     const PAGE = 50;
     const MAX = 300;
@@ -420,6 +462,17 @@ export class RipleyAdapter implements PlatformAdapter {
     });
     const existingSet = new Set(existing.map((s) => s.externalId));
 
+    // Completa descuento/neto de ventas ya importadas con los datos que este listado ya trae.
+    const byId = new Map(rawOrders.map((o) => [o.order_id, o]));
+    const saved = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.RIPLEY, externalId: { in: externalIds } },
+      select: { id: true, externalId: true },
+    });
+    for (const sale of saved) {
+      const o = byId.get(sale.externalId!);
+      if (o) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(o).charges });
+    }
+
     const orders = [];
     for (const o of rawOrders) {
       const alreadyRegistered = existingSet.has(o.order_id);
@@ -428,6 +481,7 @@ export class RipleyAdapter implements PlatformAdapter {
         externalId: o.order_id,
         date: o.created_date,
         total: Number(o.total_price || 0),
+        ...this.orderBreakdown(o),
         buyerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
@@ -461,8 +515,7 @@ export class RipleyAdapter implements PlatformAdapter {
             channel: SaleChannel.RIPLEY,
             externalId: id,
             total: Number(o.total_price || 0),
-            shippingCost: Number(o.shipping_price || 0),
-            marketplaceFee: Number(o.total_commission || 0),
+            ...this.orderBreakdown(o).charges,
             companyId,
             connectionId: conn.id,
             customerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,

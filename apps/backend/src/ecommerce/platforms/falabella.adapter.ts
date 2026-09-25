@@ -4,6 +4,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
+import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -458,6 +459,49 @@ export class FalabellaAdapter implements PlatformAdapter {
     return { resolved, items: out };
   }
 
+  // Desglose por orden a partir de sus OrderItems (uno por unidad). Confirmado: ItemPrice y
+  // PaidPrice. Descuento = ItemPrice − PaidPrice (vouchers/promociones). Comisión: esta API no
+  // la expone a nivel de orden (ver arriba); si algún item trae un campo de comisión se usa, si
+  // no queda en null y el neto no la descuenta. ShippingFeeTotal se guarda igual que antes pero
+  // no se resta del neto: no está confirmado si lo paga el comprador o el vendedor.
+  // chargeDetail lista TODOS los campos monetarios que traiga cada item, para ver qué entrega.
+  private orderBreakdown(o: any, items: any[]): SaleBreakdown {
+    const listPrice = items.reduce((s, it) => s + this.parseMoney(it.ItemPrice ?? it.PaidPrice), 0);
+    const paid = items.reduce((s, it) => s + this.parseMoney(it.PaidPrice ?? it.ItemPrice), 0);
+    const discount = Math.max(0, round2(listPrice - paid));
+    const feeKeys = (it: any) => Object.keys(it).filter((k) => /commission/i.test(k) && it[k] !== '' && it[k] != null);
+    const hasFee = items.some((it) => feeKeys(it).length > 0);
+    const fee = hasFee ? round2(items.reduce((s, it) => s + feeKeys(it).reduce((a, k) => a + this.parseMoney(it[k]), 0), 0)) : null;
+    const hasTax = items.some((it) => it.TaxAmount != null && it.TaxAmount !== '');
+    const taxes = hasTax ? round2(items.reduce((s, it) => s + this.parseMoney(it.TaxAmount), 0)) : null;
+    const netAmount = round2(paid - (fee ?? 0));
+
+    const MONEY = /price|amount|cost|fee|voucher|credit|discount|commission|tax/i;
+    const rows: ChargeDetailRow[] = [];
+    for (const it of items) {
+      for (const [k, v] of Object.entries(it)) {
+        if (!MONEY.test(k) || v == null || v === '' || typeof v === 'object') continue;
+        const n = this.parseMoney(v);
+        if (!Number.isFinite(n) || n === 0) continue;
+        const type = /commission/i.test(k) ? 'COMMISSION' : /voucher|discount|credit/i.test(k) ? 'DISCOUNT'
+          : /tax/i.test(k) ? 'TAX' : /shipping/i.test(k) ? 'SHIPPING' : /price/i.test(k) ? 'PRODUCT' : 'FEE';
+        rows.push({ type, name: k, amount: n, tax: 0 });
+      }
+    }
+    const shippingFee = this.parseMoney(o.ShippingFeeTotal);
+    if (shippingFee) rows.push({ type: 'SHIPPING', name: 'ShippingFeeTotal (orden)', amount: shippingFee, tax: 0 });
+
+    return {
+      charges: { shippingCost: shippingFee, marketplaceFee: fee, taxes, discount, netAmount },
+      breakdown: [
+        { label: 'Precio productos (con IVA)', amount: listPrice },
+        { label: 'Descuento/Voucher', amount: -discount },
+        { label: fee == null ? 'Comisión Falabella (la API no la informa)' : 'Comisión Falabella', amount: -(fee ?? 0) },
+      ],
+      chargeDetail: groupChargeRows(rows),
+    };
+  }
+
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
     const PAGE = 50;
     const MAX = 300;
@@ -487,6 +531,18 @@ export class FalabellaAdapter implements PlatformAdapter {
     const existingSet = new Set(existing.map((s) => s.externalId));
     const itemsMap = await this.fetchOrderItemsMap(conn, externalIds);
 
+    // Completa descuento/neto de ventas ya importadas con los datos que ya se trajeron.
+    const byId = new Map(rawOrders.map((o) => [o.OrderId, o]));
+    const saved = await this.prisma.sale.findMany({
+      where: { channel: SaleChannel.FALABELLA, externalId: { in: externalIds } },
+      select: { id: true, externalId: true },
+    });
+    for (const sale of saved) {
+      const o = byId.get(sale.externalId!);
+      const its = itemsMap.get(sale.externalId!);
+      if (o && its?.length) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(o, its).charges });
+    }
+
     const orders = [];
     for (const o of rawOrders) {
       const alreadyRegistered = existingSet.has(o.OrderId);
@@ -495,6 +551,7 @@ export class FalabellaAdapter implements PlatformAdapter {
         externalId: o.OrderId,
         date: o.CreatedAt,
         total: this.parseMoney(o.Price),
+        ...this.orderBreakdown(o, itemsMap.get(o.OrderId) || []),
         buyerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
@@ -530,7 +587,7 @@ export class FalabellaAdapter implements PlatformAdapter {
             channel: SaleChannel.FALABELLA,
             externalId: id,
             total: this.parseMoney(o.Price),
-            shippingCost: this.parseMoney(o.ShippingFeeTotal),
+            ...this.orderBreakdown(o, itemsMap.get(id) || []).charges,
             companyId,
             connectionId: conn.id,
             customerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,

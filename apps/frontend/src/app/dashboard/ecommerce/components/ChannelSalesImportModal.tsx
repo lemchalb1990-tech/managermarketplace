@@ -6,11 +6,12 @@ import { api } from '@/lib/api';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
-type OrderCharges = { productNet: number; shippingCost: number; marketplaceFee: number; taxes: number | null; discount: number; netAmount: number };
+type OrderCharges = { shippingCost: number; marketplaceFee: number | null; taxes: number | null; discount: number; netAmount: number };
 type OrderPreview = {
   externalId: string; date: string; total: number; buyerName: string | null;
   importable: boolean; alreadyRegistered: boolean; items: OrderItem[];
   charges?: OrderCharges;
+  breakdown?: { label: string; amount: number }[];
   chargeDetail?: ChargeDetail[];
 };
 type ChargeDetail = { type: string; name: string; amount: number; tax: number };
@@ -25,12 +26,6 @@ const CHARGE_TYPE_LABELS: Record<string, string> = {
   FEE: 'Cargo',
   TAX: 'IVA total (va al fisco)',
 };
-// Descuentos, comisiones, envío y cargos restan del ingreso; el precio del producto suma.
-// SHIP_DISC es la bonificación de envío al comprador (compensa SHIPPING), no costo del vendedor.
-function chargeSign(c: ChargeDetail) {
-  if (c.type === 'PRODUCT' || c.name === 'SHIP_DISC') return '';
-  return '-';
-}
 
 const PAGE_SIZE = 20;
 
@@ -44,7 +39,7 @@ function today(tz: string) {
 
 // Genérico a propósito — mismo patrón que ML (ver ecommerce/mercadolibre/components/
 // SalesImportModal.tsx) pero simplificado: el desglose de cargos solo aparece si la
-// plataforma lo entrega (`charges`, hoy Walmart) y no ofrece crear Orden de despacho. Trae ventas
+// plataforma lo entrega (`charges`/`breakdown`) y no ofrece crear Orden de despacho. Trae ventas
 // ya realizadas como historial — no descuenta stock ni genera movimientos de inventario.
 export function ChannelSalesImportModal({
   connectionId,
@@ -286,10 +281,10 @@ export function ChannelSalesImportModal({
                                   {o.charges ? (o.charges.discount ? `-${money(o.charges.discount)}` : money(0)) : '—'}
                                 </td>
                                 <td className="px-2 py-2 text-right text-red-600">
-                                  {o.charges
-                                    ? (o.charges.shippingCost + o.charges.marketplaceFee
-                                      ? `-${money(o.charges.shippingCost + o.charges.marketplaceFee)}` : money(0))
-                                    : '—'}
+                                  {o.charges ? (() => {
+                                    const costs = Math.max(0, o.charges.shippingCost) + (o.charges.marketplaceFee ?? 0);
+                                    return costs ? `-${money(costs)}` : money(0);
+                                  })() : '—'}
                                 </td>
                                 <td className="px-2 py-2 text-right text-gray-900 font-medium">
                                   {o.charges ? money(o.charges.netAmount) : '—'}
@@ -329,10 +324,14 @@ export function ChannelSalesImportModal({
                                       <span>Total pagado por el comprador{o.charges.taxes != null && ` (incluye IVA ${money(o.charges.taxes)})`}</span>
                                       <span>{money(o.total)}</span>
                                     </div>
-                                    <div className="flex justify-between pt-1"><span>Precio productos sin IVA</span><span>{money(o.charges.productNet)}</span></div>
-                                    <div className="flex justify-between"><span>Descuento/Promoción</span><span>-{money(o.charges.discount)}</span></div>
-                                    <div className="flex justify-between"><span>Envío (a cargo del vendedor)</span><span>-{money(o.charges.shippingCost)}</span></div>
-                                    <div className="flex justify-between"><span>Comisión marketplace</span><span>-{money(o.charges.marketplaceFee)}</span></div>
+                                    {(o.breakdown || []).map((b, i) => (
+                                      <div key={i} className={`flex justify-between${i === 0 ? ' pt-1' : ''}`}>
+                                        <span>{b.label}</span>
+                                        <span className={b.amount < 0 ? 'text-red-600' : ''}>
+                                          {b.amount < 0 ? `-${money(-b.amount)}` : money(b.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
                                     <div className="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
                                       <span>Neto recibido</span><span>{money(o.charges.netAmount)}</span>
                                     </div>
@@ -358,7 +357,7 @@ export function ChannelSalesImportModal({
                                               {c.name === 'SHIP_DISC' && ' (bonificación envío al comprador)'}
                                             </td>
                                             <td className="py-0.5 text-gray-400">{c.name || '—'}</td>
-                                            <td className="py-0.5 text-right">{c.amount ? `${chargeSign(c)}${money(Math.abs(c.amount))}` : money(0)}</td>
+                                            <td className="py-0.5 text-right">{money(c.amount)}</td>
                                             <td className="py-0.5 text-right text-gray-400">{c.tax ? money(c.tax) : '—'}</td>
                                           </tr>
                                         ))}

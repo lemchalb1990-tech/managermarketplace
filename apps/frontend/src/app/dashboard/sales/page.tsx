@@ -437,7 +437,9 @@ export default function SalesPage() {
                         {sale.shippingCost != null && (
                           <div className="flex justify-between text-xs">
                             <span className="text-gray-500">
-                              {Number(sale.shippingCost) < 0 ? 'Envío (bonificado por ML)' : 'Envío (a cargo del vendedor)'}
+                              {Number(sale.shippingCost) < 0
+                                ? (sale.channel === 'MERCADOLIBRE' ? 'Envío (bonificado por ML)' : 'Envío (cobrado al comprador)')
+                                : 'Envío (a cargo del vendedor)'}
                             </span>
                             <span className={Number(sale.shippingCost) < 0 ? 'text-green-600 font-medium' : 'text-gray-500'}>
                               {Number(sale.shippingCost) > 0 ? `-${fmt(Number(sale.shippingCost))}`

@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
+import { SaleBreakdown, ChargeDetailRow, groupChargeRows } from './sale-breakdown';
 
 // Walmart Chile (Líder) corre sobre la misma "Global Marketplace API" que Walmart US/CA/MX
 // (`https://marketplace.walmartapis.com`) — NO existe una API propia de Líder aparte.
@@ -345,39 +346,35 @@ export class WalmartAdapter implements PlatformAdapter {
   //   calcula sobre el precio SIN descuento, así que el descuento sale directo del ingreso del vendedor.
   // - El neto parte del precio del producto sin IVA (cargo PRODUCT): el IVA que Walmart cobra al
   //   comprador (total de la orden) no es ganancia del vendedor, va al fisco.
-  // - IVA = suma de `charge.tax.taxAmount` de cada cargo; null si la orden no trae ese dato.
-  private orderCharges(order: any, orderLines: any[]) {
+  // - IVA = cargo TAX/TAX (= suma de `charge.tax.taxAmount` de PRODUCT y SHIPPING, verificado en vivo).
+  // - Total de la orden = PRODUCT + SHIPPING + TAX − SHIP_DISC (verificado contra 57 órdenes reales).
+  private orderBreakdown(order: any, orderLines: any[]): SaleBreakdown & { total: number } {
     const total = Number(order.orderSummary?.totalAmount?.amount ?? 0);
     const productNet = this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT');
     const shippingCost = this.chargeTotal(orderLines, (c) => c.chargeType === 'SHIPPING');
     const marketplaceFee = this.chargeTotal(orderLines, (c) => c.chargeType === 'COMMISSION');
     const discount = this.chargeTotal(orderLines, (c) => c.chargeType === 'DISCOUNT' && c.chargeName !== 'SHIP_DISC');
     let taxes: number | null = null;
+    const rows: ChargeDetailRow[] = [];
     for (const line of orderLines || []) {
       for (const c of line.charges?.charge || []) {
-        const amount = c.tax?.taxAmount?.amount;
-        if (amount != null) taxes = (taxes ?? 0) + Number(amount);
+        const tax = c.tax?.taxAmount?.amount;
+        if (tax != null) taxes = (taxes ?? 0) + Number(tax);
+        rows.push({ type: String(c.chargeType || 'OTRO'), name: String(c.chargeName || ''), amount: Number(c.chargeAmount?.amount ?? 0), tax: Number(tax ?? 0) });
       }
     }
-    return { total, shippingCost, marketplaceFee, taxes, discount, netAmount: productNet - discount - shippingCost - marketplaceFee };
-  }
-
-  // Detalle de cada cargo tal como lo entrega Walmart (agrupado por tipo + nombre sumando las
-  // líneas de la orden), para mostrar descuentos/comisiones/cargos uno por uno en la importación.
-  private chargeDetail(orderLines: any[]) {
-    const map = new Map<string, { type: string; name: string; amount: number; tax: number }>();
-    for (const line of orderLines || []) {
-      for (const c of line.charges?.charge || []) {
-        const type = String(c.chargeType || 'OTRO');
-        const name = String(c.chargeName || '');
-        const key = `${type}|${name}`;
-        const row = map.get(key) || { type, name, amount: 0, tax: 0 };
-        row.amount += Number(c.chargeAmount?.amount ?? 0);
-        row.tax += Number(c.tax?.taxAmount?.amount ?? 0);
-        map.set(key, row);
-      }
-    }
-    return Array.from(map.values());
+    const netAmount = productNet - discount - shippingCost - marketplaceFee;
+    return {
+      total,
+      charges: { shippingCost, marketplaceFee, taxes, discount, netAmount },
+      breakdown: [
+        { label: 'Precio productos sin IVA', amount: productNet },
+        { label: 'Descuento/Promoción', amount: -discount },
+        { label: 'Envío a cargo del vendedor', amount: -shippingCost },
+        { label: 'Comisión Walmart', amount: -marketplaceFee },
+      ],
+      chargeDetail: groupChargeRows(rows),
+    };
   }
 
   private extractOrderLines(order: any): any[] {
@@ -424,7 +421,7 @@ export class WalmartAdapter implements PlatformAdapter {
     for (const sale of pendingCharges) {
       const o = byId.get(sale.externalId!);
       if (!o) continue;
-      const { total: _total, ...charges } = this.orderCharges(o, this.extractOrderLines(o));
+      const { charges } = this.orderBreakdown(o, this.extractOrderLines(o));
       await this.prisma.sale.update({ where: { id: sale.id }, data: charges });
     }
 
@@ -433,13 +430,12 @@ export class WalmartAdapter implements PlatformAdapter {
       const alreadyRegistered = existingSet.has(o.purchaseOrderId);
       const orderLines = this.extractOrderLines(o);
       const { resolved, items } = await this.resolveOrderLines(conn.id, orderLines);
-      const { total, ...charges } = this.orderCharges(o, orderLines);
+      const { total, ...breakdown } = this.orderBreakdown(o, orderLines);
       orders.push({
         externalId: o.purchaseOrderId,
         date: new Date(Number(o.orderDate)).toISOString(),
         total,
-        charges: { ...charges, productNet: this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT') },
-        chargeDetail: this.chargeDetail(orderLines),
+        ...breakdown,
         buyerName: o.shippingInfo?.postalAddress?.name || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
@@ -473,7 +469,8 @@ export class WalmartAdapter implements PlatformAdapter {
           data: {
             channel: SaleChannel.WALMART,
             externalId: id,
-            ...this.orderCharges(o, orderLines),
+            total: Number(o.orderSummary?.totalAmount?.amount ?? 0),
+            ...this.orderBreakdown(o, orderLines).charges,
             companyId,
             connectionId: conn.id,
             customerName: o.shippingInfo?.postalAddress?.name || null,
