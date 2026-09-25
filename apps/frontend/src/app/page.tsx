@@ -3,8 +3,7 @@ import Link from "next/link";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
-import { ModulesExplorer, HowItWorks } from "@/components/landing/interactive";
-import { Spotlight, Tilt, Magnetic, CountUp, Words } from "@/components/landing/effects";
+import { ModulesExplorer } from "@/components/landing/interactive";
 
 const salesChannels = [
   "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
@@ -12,44 +11,36 @@ const salesChannels = [
 ] as const;
 const billingChannels = ["openfactura", "facto", "bsale", "defontana", "nubox", "siigo"] as const;
 
-const EASE = "cubic-bezier(0.32,0.72,0,1)";
-
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
 
 function ShipMock() {
   const rows = [
-    { l: "Mercado Envíos · Colecta", n: 12, w: "78%", c: "var(--ok)" },
-    { l: "Envío Falabella", n: 7, w: "48%", c: "var(--brand)" },
-    { l: "Envío Ripley", n: 2, w: "22%", c: "var(--warn)" },
-    { l: "Despacho propio", n: 10, w: "62%", c: "var(--info)" },
+    { l: "Mercado Envíos · Colecta", n: 12, cut: "corte 16:00", w: "78%", c: "var(--ok)" },
+    { l: "Envío Falabella", n: 7, cut: "2 atrasados", bad: true, w: "48%", c: "var(--brand)" },
+    { l: "Envío Ripley", n: 2, cut: "corte 18:00", w: "22%", c: "var(--warn)" },
+    { l: "Despacho propio", n: 10, cut: "sin corte", w: "62%", c: "var(--info)" },
   ];
   return (
-    <div className="rounded-[1.6rem] bg-white/5 p-2 ring-1 ring-white/10">
-      <div className="rounded-[calc(1.6rem-0.5rem)] bg-[var(--surface)] p-5 text-[var(--text)] shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-[var(--text-2)]">Por despachar hoy</p>
-          <span className="rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--brand-ink)]">31</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          {rows.map((r) => (
-            <div key={r.l} className="flex items-center gap-3 rounded-lg bg-[var(--surface-soft)] px-3 py-2">
-              <span className="flex-1 truncate text-[0.78rem]">{r.l}</span>
-              <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--border-soft)]">
-                <span className="block h-full rounded-full" style={{ width: r.w, background: r.c }} />
-              </span>
-              <span className="w-5 text-right font-mono text-[0.72rem] text-[var(--text-2)]">{r.n}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {[["56%", "Picking"], ["40%", "Packing"], ["28", "Empacados"]].map(([v, k]) => (
-            <div key={k} className="rounded-lg bg-[var(--surface-soft)] px-2.5 py-2">
-              <p className="text-[0.95rem] font-bold tracking-tight">{v}</p>
-              <p className="text-[0.62rem] text-[var(--text-muted)]">{k}</p>
-            </div>
-          ))}
-        </div>
+    <div className="rounded-2xl bg-[var(--surface)] p-5 text-[var(--text)] shadow-[0_24px_60px_-12px_rgba(20,16,6,0.55)]">
+      <div className="flex items-baseline justify-between">
+        <p className="text-sm font-semibold">Por despachar hoy</p>
+        <p className="font-mono text-xs text-[var(--text-muted)]">jue 25 sep · 31 pedidos</p>
       </div>
+      <div className="mt-4 space-y-2">
+        {rows.map((r) => (
+          <div key={r.l} className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5">
+            <div className="flex items-center gap-3">
+              <span className="flex-1 truncate text-[0.8rem]">{r.l}</span>
+              <span className={`text-[0.66rem] ${r.bad ? "font-semibold text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>{r.cut}</span>
+              <span className="w-5 text-right font-mono text-[0.75rem] text-[var(--text-2)]">{r.n}</span>
+            </div>
+            <span className="mt-2 block h-1 overflow-hidden rounded-full bg-[var(--border-soft)]">
+              <span className="block h-full rounded-full" style={{ width: r.w, background: r.c }} />
+            </span>
+          </div>
+        ))}
+      </div>
+      <button type="button" tabIndex={-1} className="ui-btn-brand mt-4 w-full text-xs">Imprimir 21 etiquetas</button>
     </div>
   );
 }
@@ -114,10 +105,40 @@ function StockSyncMock() {
   );
 }
 
+// Desglose real de una venta importada (mismo formato que el modal de importación).
+function NetMock() {
+  const rows: Array<[string, string, boolean?]> = [
+    ["Precio sin IVA", "$43.689"],
+    ["Envío a cargo tuyo", "−$2.517", true],
+    ["Comisión (12%)", "−$6.239", true],
+    ["Costo del producto", "−$10.000", true],
+  ];
+  return (
+    <div className="ui-card p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-[var(--text-2)]">Mesa de bar Circle · Walmart</p>
+        <span className="font-mono text-[0.66rem] text-[var(--text-muted)]">PO 2777001234</span>
+      </div>
+      <div className="mt-3 space-y-1 text-[0.8rem]">
+        {rows.map(([k, v, neg]) => (
+          <div key={k} className="flex justify-between">
+            <span className="text-[var(--text-2)]">{k}</span>
+            <span className={`font-mono ${neg ? "text-[var(--danger)]" : ""}`}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between border-t border-[var(--border-soft)] pt-2 text-[0.9rem] font-semibold">
+        <span>Ganancia</span>
+        <span className="font-mono text-[var(--ok)]">$24.933</span>
+      </div>
+    </div>
+  );
+}
+
 function LogoChip({ node }: { node: ReactNode }) {
   return (
-    <span className="group/logo flex h-16 w-[132px] shrink-0 items-center justify-center px-2 transition-transform duration-300 hover:-translate-y-0.5">
-      <span className="h-11 w-[74px] opacity-80 grayscale-[0.35] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[9px]">
+    <span className="group/logo flex h-16 w-[132px] shrink-0 items-center justify-center px-2">
+      <span className="h-11 w-[74px] opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[9px]">
         {node}
       </span>
     </span>
@@ -160,6 +181,27 @@ async function getPlatformLogoMap(): Promise<LogoMap> {
   }
 }
 
+/* ── Contenido ─────────────────────────────────────────────────────────────── */
+
+const BEFORE_AFTER: Array<[string, string]> = [
+  [
+    "Vendes en Falabella y corres a bajar el stock en Mercado Libre, Paris y Ripley antes de que alguien compre lo que ya no tienes.",
+    "La venta descuenta de la bodega que corresponde y el stock nuevo se publica solo en el resto de los canales.",
+  ],
+  [
+    "Los pedidos del día están repartidos en cuatro Seller Center y te enteras del atrasado cuando llega el reclamo.",
+    "Todos los pedidos en una lista, agrupados por transportista y ordenados por hora de corte. Los atrasados salen en rojo.",
+  ],
+  [
+    "Copias los datos de cada venta a otro sistema para emitir la boleta.",
+    "La boleta o factura sale en el mismo paso, con tu proveedor: OpenFactura, Facto, Bsale, Nubox y otros.",
+  ],
+  [
+    "El marketplace te muestra el total, pero no sabes cuánto te quedó después de comisión, envío e IVA.",
+    "Cada venta importada trae el neto sin IVA y la ganancia contra el costo del producto.",
+  ],
+];
+
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
 export default async function Home() {
@@ -167,203 +209,179 @@ export default async function Home() {
   const logoMap = await getPlatformLogoMap();
   return (
     <div className="ui-grain min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[var(--page-bg)] text-[var(--text)]">
-      {/* Nav flotante */}
-      <header className="ui-enter sticky top-0 z-40 px-4 pt-4">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] py-2.5 pl-5 pr-2.5 shadow-[var(--shadow-sm)] backdrop-blur-xl">
-          <div className="flex items-center gap-2.5 text-[0.9rem] font-semibold tracking-tight">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-bold text-[#35301f]">M</span>
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--surface)] focus:px-3 focus:py-2 focus:text-sm">
+        Saltar al contenido
+      </a>
+
+      {/* Barra superior */}
+      <header className="border-b border-white/10 bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
+        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6" aria-label="Principal">
+          <Link href="/" className="flex items-center gap-2 text-[0.95rem] font-bold tracking-tight">
+            <span className="grid h-6 w-6 place-items-center rounded-[5px] bg-[var(--brand)] text-[0.8rem] font-extrabold text-[#35301f]">M</span>
             Admin Marketplace
-          </div>
-          <Magnetic strength={0.25}>
-            <Link href="/login" style={{ transitionTimingFunction: EASE }}
-              className="group inline-flex items-center gap-2 rounded-full bg-[var(--text)] py-1.5 pl-4 pr-1.5 text-sm font-medium text-[var(--page-bg)] transition-transform duration-300 active:scale-[0.98]">
-              Entrar al panel
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform duration-300 group-hover:translate-x-0.5">
-                <Icon d={ICONS.arrow} size={16} />
-              </span>
+          </Link>
+          <div className="flex items-center gap-6 text-sm">
+            <a href="#canales" className="hidden text-white/65 transition-colors hover:text-white sm:inline">Canales</a>
+            <a href="#modulos" className="hidden text-white/65 transition-colors hover:text-white sm:inline">Módulos</a>
+            <Link href="/login" className="rounded-md bg-white/10 px-3 py-1.5 font-medium transition-colors hover:bg-white/15 active:translate-y-px">
+              Iniciar sesión
             </Link>
-          </Magnetic>
-        </div>
+          </div>
+        </nav>
       </header>
 
-      {/* Hero */}
-      <Spotlight className="ui-dots overflow-hidden bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
-        <div className="mx-auto grid max-w-6xl gap-14 px-6 pb-24 pt-20 sm:pb-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div>
-            <span className="ui-enter ui-eyebrow bg-white/10 text-[var(--brand)]" style={{ ["--d" as string]: "80ms" }}>Operación omnicanal</span>
-            <h1 className="font-serif mt-6 text-[2.6rem] leading-[1.06] sm:text-[3.3rem]">
-              <Words text="Tus ventas y tu" />{" "}
-              <em className="text-[var(--brand)]">bodega</em>,{" "}
-              <Words text="en un solo panel." />
-            </h1>
-            <p className="ui-enter mt-6 max-w-md text-[1.05rem] leading-relaxed text-white/65" style={{ ["--d" as string]: "260ms" }}>
-              Conecta tus marketplaces, sincroniza el stock y despacha a tiempo.
-              La boleta se emite sin cambiar de sistema.
-            </p>
-            <div className="ui-enter mt-10 flex flex-wrap items-center gap-3" style={{ ["--d" as string]: "360ms" }}>
-              <Magnetic>
-                <Link href="/login" style={{ transitionTimingFunction: EASE }}
-                  className="group inline-flex items-center gap-2 rounded-full bg-[var(--brand)] py-3 pl-6 pr-3 font-medium text-[#35301f] transition-transform duration-300 hover:bg-[var(--brand-dark)] active:scale-[0.98]">
+      <main id="contenido">
+        {/* Hero */}
+        <section className="ui-dots overflow-hidden bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
+          <div className="mx-auto grid max-w-6xl gap-14 px-6 pb-24 pt-16 sm:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pb-28">
+            <div>
+              <h1 className="ui-enter text-balance text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-[3.4rem]">
+                Un solo stock para Mercado Libre, Falabella, Paris, Ripley y Walmart.
+              </h1>
+              <p className="ui-enter mt-6 max-w-[34rem] text-pretty text-[1.08rem] leading-relaxed text-white/65" style={{ ["--d" as string]: "120ms" }}>
+                Vendes en uno y se descuenta en todos. Los pedidos del día llegan juntos,
+                ordenados por hora de corte, y la boleta sale en el mismo paso.
+              </p>
+              <div className="ui-enter mt-9 flex flex-wrap items-center gap-x-6 gap-y-3" style={{ ["--d" as string]: "220ms" }}>
+                <Link href="/login"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-3 font-semibold text-[#35301f] transition-[background-color,transform] duration-200 hover:bg-[var(--brand-dark)] active:translate-y-px">
                   Entrar al panel
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/10 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-[1px]">
-                    <Icon d={ICONS.arrow} />
-                  </span>
+                  <Icon d={ICONS.arrow} size={18} />
                 </Link>
-              </Magnetic>
-              <a href="#modulos" className="rounded-full border border-white/20 px-5 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/5">
-                Ver los módulos
-              </a>
+                <a href="#modulos" className="text-sm font-medium text-white/70 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60">
+                  Ver cómo se ve por dentro
+                </a>
+              </div>
+              <p className="ui-enter mt-12 text-[0.8rem] text-white/45" style={{ ["--d" as string]: "300ms" }}>
+                Hecho en Chile para vendedores con bodega propia · boleta y factura electrónica SII
+              </p>
             </div>
-          </div>
 
-          <div className="ui-enter-panel hidden lg:block" style={{ ["--d" as string]: "420ms" }} aria-hidden="true">
-            <Tilt className="ui-halo">
+            <div className="ui-enter-panel relative hidden lg:block" style={{ ["--d" as string]: "260ms" }} aria-hidden="true">
               <ShipMock />
-            </Tilt>
-          </div>
-        </div>
-      </Spotlight>
-
-      {/* Cifras */}
-      <section className="border-b border-[var(--border)] bg-[var(--surface)] py-16">
-        <div className="mx-auto grid max-w-6xl gap-8 px-6 sm:grid-cols-3">
-          {[
-            { v: <CountUp to={9} />, l: "canales de venta conectados" },
-            { v: <CountUp to={6} />, l: "proveedores de facturación" },
-            { v: "En vivo", l: "el stock se ajusta con cada venta" },
-          ].map((s, i) => (
-            <div key={i} className="border-l-2 border-[var(--brand)] pl-4">
-              <p className="font-serif text-[2.4rem] leading-none text-[var(--text)]">{s.v}</p>
-              <p className="mt-2 text-[0.9rem] text-[var(--text-2)]">{s.l}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Integraciones — bento */}
-      <section className="border-b border-[var(--border)] bg-[var(--surface-soft)] py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <h2 className="ui-reveal font-serif max-w-2xl text-[1.9rem] leading-tight sm:text-[2.4rem]">
-            Stock, precios y documentos, siempre al día
-          </h2>
-
-          <div className="ui-reveal mt-10 grid grid-cols-1 gap-4 md:grid-cols-6">
-            {/* Canales conectados */}
-            <div className="md:col-span-4 [&>*]:h-full">
-              <ChannelsMock />
-            </div>
-
-            {/* Titular tintado */}
-            <div className="relative flex flex-col justify-center overflow-hidden rounded-[1.6rem] bg-[var(--brand-soft)] p-7 md:col-span-2">
-              <div className="ui-hatch absolute inset-x-0 bottom-0 h-16 opacity-40" aria-hidden="true" />
-              <p className="relative text-[1.05rem] font-semibold leading-snug">
-                Cada venta descuenta de la bodega correcta.
-              </p>
-              <p className="relative mt-2 text-[0.85rem] text-[var(--text-2)]">
-                Y el stock vuelve a publicarse en el resto de los canales.
-              </p>
-            </div>
-
-            {/* Detalle de sincronización */}
-            <div className="md:col-span-4 [&>*]:h-full">
-              <StockSyncMock />
-            </div>
-
-            {/* Sin sobreventa */}
-            <div className="flex flex-col justify-center rounded-[1.6rem] border border-[var(--border)] bg-[var(--surface)] p-7 md:col-span-2">
-              <p className="font-mono text-[0.7rem] tracking-wide text-[var(--brand-ink)]">SIN SOBREVENTA</p>
-              <p className="mt-2.5 text-[0.88rem] leading-relaxed text-[var(--text-2)]">
-                Un inventario para todas tus bodegas. Sin planillas paralelas ni
-                vender lo que ya no tienes.
-              </p>
+              <div className="absolute -bottom-16 -left-10 w-60 rotate-[-2.5deg]">
+                <div className="rounded-xl bg-[var(--surface)] p-3.5 text-[var(--text)] shadow-[0_18px_40px_-10px_rgba(20,16,6,0.5)]">
+                  <p className="text-[0.66rem] text-[var(--text-muted)]">Venta Falabella #88213</p>
+                  <p className="mt-1 text-[0.8rem] font-semibold">Stock actualizado en 4 canales</p>
+                </div>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div className="ui-reveal mt-14 space-y-6">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Funciona con lo que ya usas</p>
-            <LogosMarquee logoMap={logoMap} />
-            <div className="flex flex-wrap items-center gap-x-7 gap-y-4 pt-2">
-              {billingChannels.map((k) => (
-                <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
+        {/* Antes / ahora */}
+        <section className="border-b border-[var(--border)] bg-[var(--surface)] py-24">
+          <div className="mx-auto max-w-6xl px-6">
+            <h2 className="ui-reveal max-w-2xl text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
+              Lo que deja de pasarte en el día a día
+            </h2>
+            <div className="mt-12 hidden grid-cols-2 gap-10 pb-3 text-[0.78rem] font-semibold text-[var(--text-muted)] md:grid">
+              <p>Hoy</p>
+              <p className="text-[var(--brand-ink)]">Con el panel</p>
+            </div>
+            <ol className="divide-y divide-[var(--border-soft)] border-y border-[var(--border-soft)]">
+              {BEFORE_AFTER.map(([before, after], i) => (
+                <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-2 md:gap-10">
+                  <p className="text-[0.95rem] leading-relaxed text-[var(--text-muted)]">
+                    <span className="mr-2 font-semibold text-[var(--text-muted)] md:hidden">Hoy:</span>
+                    {before}
+                  </p>
+                  <p className="text-[0.95rem] leading-relaxed text-[var(--text)]">
+                    <span className="mr-2 font-semibold text-[var(--brand-ink)] md:hidden">Con el panel:</span>
+                    {after}
+                  </p>
+                </li>
               ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* Canales — bento */}
+        <section id="canales" className="border-b border-[var(--border)] bg-[var(--surface-soft)] py-24">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="ui-reveal flex flex-wrap items-end justify-between gap-4">
+              <h2 className="max-w-xl text-balance text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
+                Stock, precios y documentos al día en cada canal
+              </h2>
+              <p className="max-w-xs text-[0.9rem] text-[var(--text-2)]">
+                Conectas cada cuenta una vez con su API. Lo demás corre solo.
+              </p>
+            </div>
+
+            <div className="ui-reveal mt-10 grid grid-cols-1 gap-4 md:grid-cols-6">
+              <div className="md:col-span-4 [&>*]:h-full">
+                <ChannelsMock />
+              </div>
+              <div className="md:col-span-2 [&>*]:h-full">
+                <NetMock />
+              </div>
+              <div className="md:col-span-3 [&>*]:h-full">
+                <StockSyncMock />
+              </div>
+              <div className="flex flex-col justify-end rounded-2xl bg-[var(--brand-soft)] p-6 md:col-span-3">
+                <p className="text-[1.05rem] font-semibold leading-snug">
+                  Un inventario para todas tus bodegas.
+                </p>
+                <p className="mt-1.5 max-w-sm text-[0.88rem] leading-relaxed text-[var(--text-2)]">
+                  Cada venta descuenta de la bodega correcta, sin planillas paralelas ni vender lo que ya no tienes.
+                </p>
+              </div>
+            </div>
+
+            <div className="ui-reveal mt-16 space-y-5">
+              <p className="text-[0.85rem] font-medium text-[var(--text-2)]">Marketplaces y tiendas que puedes conectar</p>
+              <LogosMarquee logoMap={logoMap} />
+              <p className="pt-4 text-[0.85rem] font-medium text-[var(--text-2)]">Proveedores de facturación electrónica</p>
+              <div className="flex flex-wrap items-center gap-x-7 gap-y-4">
+                {billingChannels.map((k) => (
+                  <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Módulos */}
-      <section id="modulos" className="py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="ui-reveal max-w-2xl">
-            <span className="ui-eyebrow bg-[var(--brand-soft)] text-[var(--brand-ink)]">Módulos</span>
-            <h2 className="font-serif mt-4 text-[1.9rem] leading-tight sm:text-[2.4rem]">
-              Un módulo para cada parte de la operación
-            </h2>
-            <p className="mt-3 text-[0.95rem] text-[var(--text-2)]">
-              Abre cada módulo para ver cómo se ve por dentro.
-            </p>
+        {/* Módulos */}
+        <section id="modulos" className="py-24">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="ui-reveal max-w-xl">
+              <h2 className="text-balance text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
+                Desde que entra el pedido hasta que llega al cliente
+              </h2>
+              <p className="mt-3 text-[0.95rem] text-[var(--text-2)]">
+                Estas son pantallas reales del panel, con datos de ejemplo.
+              </p>
+            </div>
+
+            <ModulesExplorer />
           </div>
+        </section>
 
-          <ModulesExplorer />
-        </div>
-      </section>
-
-      {/* Cómo funciona */}
-      <section className="border-y border-[var(--border)] bg-[var(--surface-soft)] py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="ui-reveal max-w-2xl">
-            <h2 className="font-serif text-[1.9rem] leading-tight sm:text-[2.4rem]">
-              De conectar los canales a emitir la boleta
-            </h2>
-          </div>
-
-          <HowItWorks />
-        </div>
-      </section>
-
-      {/* CTA */}
-      <Spotlight className="ui-dots bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
-        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-24 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-serif max-w-md text-[1.9rem] leading-tight">
-            Empieza a operar desde un solo panel
-          </h2>
-          <Magnetic>
-            <Link href="/login" style={{ transitionTimingFunction: EASE }}
-              className="group inline-flex shrink-0 items-center gap-2 rounded-full bg-[var(--brand)] py-3 pl-6 pr-3 font-medium text-[#35301f] transition-transform duration-300 hover:bg-[var(--brand-dark)] active:scale-[0.98]">
-              Entrar al panel
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/10 transition-transform duration-300 group-hover:translate-x-1">
-                <Icon d={ICONS.arrow} />
-              </span>
+        {/* Cierre */}
+        <section className="border-t border-[var(--border)] bg-[var(--surface)]">
+          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-20 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-[1.6rem] font-extrabold leading-tight tracking-[-0.03em]">¿Ya tienes cuenta?</h2>
+              <p className="mt-2 text-[0.95rem] text-[var(--text-2)]">Entra con tu correo y sigue donde quedaste.</p>
+            </div>
+            <Link href="/login"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--text)] px-5 py-3 font-semibold text-[var(--page-bg)] transition-transform duration-200 active:translate-y-px">
+              Iniciar sesión
+              <Icon d={ICONS.arrow} size={18} />
             </Link>
-          </Magnetic>
-        </div>
-      </Spotlight>
+          </div>
+        </section>
+      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--border)] py-12">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 sm:grid-cols-4">
-          <div className="col-span-2 sm:col-span-1">
-            <div className="flex items-center gap-2 text-sm font-semibold tracking-tight">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--brand)] text-xs font-bold text-[#35301f]">M</span>
-              Admin Marketplace
-            </div>
-            <p className="mt-3 text-xs text-[var(--text-muted)]">Operación omnicanal para vendedores.</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Producto</p>
-            <ul className="mt-3 space-y-2 text-sm text-[var(--text-2)]">
-              <li><a href="#modulos" className="hover:text-[var(--brand-ink)]">Módulos</a></li>
-              <li><a href="#modulos" className="hover:text-[var(--brand-ink)]">Canales</a></li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Acceso</p>
-            <ul className="mt-3 space-y-2 text-sm text-[var(--text-2)]">
-              <li><Link href="/login" className="hover:text-[var(--brand-ink)]">Entrar al panel</Link></li>
-            </ul>
+      <footer className="border-t border-[var(--border)]">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-xs text-[var(--text-muted)]">
+          <span>© {year} Admin Marketplace</span>
+          <div className="flex gap-5">
+            <a href="#canales" className="hover:text-[var(--text)]">Canales</a>
+            <a href="#modulos" className="hover:text-[var(--text)]">Módulos</a>
+            <Link href="/login" className="hover:text-[var(--text)]">Iniciar sesión</Link>
           </div>
         </div>
-        <p className="mx-auto mt-10 max-w-6xl px-6 text-xs text-[var(--text-muted)]">© {year} Admin Marketplace</p>
       </footer>
     </div>
   );

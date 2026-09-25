@@ -224,8 +224,8 @@ body {
 
 /* Entrada al cargar la página (hero). Escalonado con --d. */
 @keyframes ui-enter {
-  from { opacity: 0; transform: translateY(22px); filter: blur(6px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .ui-enter {
   opacity: 0;
@@ -234,7 +234,7 @@ body {
 }
 @keyframes ui-enter-panel {
   from { opacity: 0; transform: translateY(28px) rotate(0deg) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) rotate(1.4deg) scale(1); }
+  to { opacity: 1; transform: translateY(0) rotate(0.8deg) scale(1); }
 }
 .ui-enter-panel {
   opacity: 0;
@@ -243,7 +243,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-enter, .ui-enter-panel { opacity: 1; animation: none; transform: none; }
-  .ui-enter-panel { transform: rotate(1.4deg); }
+  .ui-enter-panel { transform: rotate(0.8deg); }
 }
 
 /* Textura de puntos sutil para fondos oscuros */
@@ -269,20 +269,6 @@ body {
   .ui-grain::after { mix-blend-mode: screen; opacity: 0.28; }
 }
 
-/* Halo cálido detrás de un asset (hero). */
-.ui-halo {
-  position: relative;
-  isolation: isolate;
-}
-.ui-halo::before {
-  content: "";
-  position: absolute;
-  inset: -18% -12% -12% -12%;
-  z-index: -1;
-  background: radial-gradient(60% 55% at 65% 35%, rgba(224, 168, 51, 0.22), transparent 70%);
-  filter: blur(8px);
-}
-
 /* Rayado diagonal fino para separar bloques claros sin una línea dura. */
 .ui-hatch {
   background-image: repeating-linear-gradient(
@@ -298,84 +284,10 @@ body {
   mask-image: linear-gradient(to bottom, transparent, #000 40px);
 }
 
-/* ── Spotlight que sigue al cursor (secciones oscuras) ─────────────────────── */
-.ui-spot {
-  position: relative;
-  isolation: isolate;
-}
-.ui-spot::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  background: radial-gradient(
-    280px circle at var(--mx, 50%) var(--my, 0%),
-    rgba(224, 168, 51, 0.16),
-    transparent 65%
-  );
-}
-.ui-spot[data-active="true"]::before { opacity: 1; }
-.ui-spot > * { position: relative; z-index: 1; }
-
-/* ── Tilt de parálax (hero mock) ──────────────────────────────────────────── */
-.ui-tilt {
-  perspective: 1100px;
-}
-.ui-tilt-inner {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
-  transform-style: preserve-3d;
-}
-
-/* ── Línea de progreso del timeline "Cómo funciona" ───────────────────────── */
-.ui-timeline-line {
-  position: absolute;
-  left: 15px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: var(--border);
-  overflow: hidden;
-}
-.ui-timeline-line::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(var(--brand), var(--brand-ink));
-  transform-origin: top;
-  transform: scaleY(var(--p, 0));
-}
-@supports (animation-timeline: scroll()) {
-  .ui-timeline-line::after {
-    transform: scaleY(1);
-    animation: ui-grow linear both;
-    animation-timeline: scroll(nearest);
-    animation-range: cover 12% cover 82%;
-  }
-  @keyframes ui-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-}
-
-/* ── Aparición palabra por palabra (titular del hero) ─────────────────────── */
-.ui-words > span {
-  display: inline-block;
-  opacity: 0;
-  animation: ui-word 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(220ms + var(--i) * 60ms);
-}
-@keyframes ui-word {
-  from { opacity: 0; transform: translateY(0.5em) rotate(2deg); filter: blur(4px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ui-tilt-inner { transform: none !important; }
-  .ui-timeline-line::after { transform: scaleY(1); animation: none; }
-  .ui-words > span { opacity: 1; animation: none; }
-  .ui-spot::before { display: none; }
-}
+/* ── Cambio de módulo en la landing: fundido corto al reemplazar el contenido ── */
+@keyframes ui-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.ui-fade { animation: ui-fade 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) { .ui-fade { animation: none; } }
 
 /* ── Tema del panel ─────────────────────────────────────────────────────────
    Muchas vistas del dashboard se construyeron con la paleta genérica de
