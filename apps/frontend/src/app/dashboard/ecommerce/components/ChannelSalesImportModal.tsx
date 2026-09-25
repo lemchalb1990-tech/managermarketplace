@@ -11,9 +11,25 @@ type OrderPreview = {
   externalId: string; date: string; total: number; buyerName: string | null;
   importable: boolean; alreadyRegistered: boolean; items: OrderItem[];
   charges?: OrderCharges;
+  chargeDetail?: ChargeDetail[];
 };
+type ChargeDetail = { type: string; name: string; amount: number; tax: number };
 
 const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+
+const CHARGE_TYPE_LABELS: Record<string, string> = {
+  PRODUCT: 'Precio producto',
+  SHIPPING: 'Envío',
+  DISCOUNT: 'Descuento',
+  COMMISSION: 'Comisión',
+  FEE: 'Cargo',
+};
+// Descuentos, comisiones, envío y cargos restan del ingreso; el precio del producto suma.
+// SHIP_DISC es la bonificación de envío al comprador (compensa SHIPPING), no costo del vendedor.
+function chargeSign(c: ChargeDetail) {
+  if (c.type === 'PRODUCT' || c.name === 'SHIP_DISC') return '';
+  return '-';
+}
 
 const PAGE_SIZE = 20;
 
@@ -131,7 +147,7 @@ export function ChannelSalesImportModal({
   const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   const hasCharges = orders.some((o) => o.charges);
-  const colCount = hasCharges ? 7 : 6;
+  const colCount = hasCharges ? 9 : 6;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -235,7 +251,13 @@ export function ChannelSalesImportModal({
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
                       <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
-                      {hasCharges && <th className="px-2 py-2 text-right text-gray-600 font-medium">Neto</th>}
+                      {hasCharges && (
+                        <>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium">Descuentos</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Envío a cargo del vendedor + comisión">Costos</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium">Neto</th>
+                        </>
+                      )}
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
                       <th className="px-2 py-2 w-8"></th>
                     </tr>
@@ -258,9 +280,20 @@ export function ChannelSalesImportModal({
                             <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerName || '—'}</td>
                             <td className="px-2 py-2 text-right text-gray-700">{money(o.total)}</td>
                             {hasCharges && (
-                              <td className="px-2 py-2 text-right text-gray-900 font-medium">
-                                {o.charges ? money(o.charges.netAmount) : '—'}
-                              </td>
+                              <>
+                                <td className="px-2 py-2 text-right text-red-600">
+                                  {o.charges ? (o.charges.discount ? `-${money(o.charges.discount)}` : money(0)) : '—'}
+                                </td>
+                                <td className="px-2 py-2 text-right text-red-600">
+                                  {o.charges
+                                    ? (o.charges.shippingCost + o.charges.marketplaceFee
+                                      ? `-${money(o.charges.shippingCost + o.charges.marketplaceFee)}` : money(0))
+                                    : '—'}
+                                </td>
+                                <td className="px-2 py-2 text-right text-gray-900 font-medium">
+                                  {o.charges ? money(o.charges.netAmount) : '—'}
+                                </td>
+                              </>
                             )}
                             <td className="px-2 py-2">
                               {o.importable ? (
@@ -302,6 +335,34 @@ export function ChannelSalesImportModal({
                                     <div className="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
                                       <span>Neto recibido</span><span>{money(o.charges.netAmount)}</span>
                                     </div>
+                                  </div>
+                                )}
+                                {o.chargeDetail && o.chargeDetail.length > 0 && (
+                                  <div className="mt-3 pt-2 border-t border-gray-200 text-xs text-gray-600">
+                                    <p className="font-semibold text-gray-600 mb-1">Detalle de cargos y descuentos ({platformLabel})</p>
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr className="text-gray-400">
+                                          <th className="text-left font-normal py-0.5">Concepto</th>
+                                          <th className="text-left font-normal py-0.5">Código</th>
+                                          <th className="text-right font-normal py-0.5">Monto</th>
+                                          <th className="text-right font-normal py-0.5">IVA</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {o.chargeDetail.map((c, i) => (
+                                          <tr key={i} className={c.name === 'SHIP_DISC' ? 'text-gray-400' : ''}>
+                                            <td className="py-0.5">
+                                              {CHARGE_TYPE_LABELS[c.type] || c.type}
+                                              {c.name === 'SHIP_DISC' && ' (bonificación envío al comprador)'}
+                                            </td>
+                                            <td className="py-0.5 text-gray-400">{c.name || '—'}</td>
+                                            <td className="py-0.5 text-right">{c.amount ? `${chargeSign(c)}${money(Math.abs(c.amount))}` : money(0)}</td>
+                                            <td className="py-0.5 text-right text-gray-400">{c.tax ? money(c.tax) : '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
                                   </div>
                                 )}
                               </td>

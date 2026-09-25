@@ -588,6 +588,7 @@ export const api = {
           importable: boolean; alreadyRegistered: boolean;
           items: { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null }[];
           charges?: { productNet: number; shippingCost: number; marketplaceFee: number; taxes: number | null; discount: number; netAmount: number };
+          chargeDetail?: { type: string; name: string; amount: number; tax: number }[];
         }[];
       }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
     confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>

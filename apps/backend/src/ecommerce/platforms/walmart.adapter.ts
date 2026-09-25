@@ -362,6 +362,24 @@ export class WalmartAdapter implements PlatformAdapter {
     return { total, shippingCost, marketplaceFee, taxes, discount, netAmount: productNet - discount - shippingCost - marketplaceFee };
   }
 
+  // Detalle de cada cargo tal como lo entrega Walmart (agrupado por tipo + nombre sumando las
+  // líneas de la orden), para mostrar descuentos/comisiones/cargos uno por uno en la importación.
+  private chargeDetail(orderLines: any[]) {
+    const map = new Map<string, { type: string; name: string; amount: number; tax: number }>();
+    for (const line of orderLines || []) {
+      for (const c of line.charges?.charge || []) {
+        const type = String(c.chargeType || 'OTRO');
+        const name = String(c.chargeName || '');
+        const key = `${type}|${name}`;
+        const row = map.get(key) || { type, name, amount: 0, tax: 0 };
+        row.amount += Number(c.chargeAmount?.amount ?? 0);
+        row.tax += Number(c.tax?.taxAmount?.amount ?? 0);
+        map.set(key, row);
+      }
+    }
+    return Array.from(map.values());
+  }
+
   private extractOrderLines(order: any): any[] {
     const lines = order.orderLines?.orderLine;
     return Array.isArray(lines) ? lines : lines ? [lines] : [];
@@ -421,6 +439,7 @@ export class WalmartAdapter implements PlatformAdapter {
         date: new Date(Number(o.orderDate)).toISOString(),
         total,
         charges: { ...charges, productNet: this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT') },
+        chargeDetail: this.chargeDetail(orderLines),
         buyerName: o.shippingInfo?.postalAddress?.name || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
