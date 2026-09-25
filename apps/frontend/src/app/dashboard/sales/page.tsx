@@ -34,6 +34,15 @@ const FULFILLMENT_LABELS: Record<string, string> = {
   DELIVERY: 'Entrega a domicilio',
 };
 
+// Canales cuyo desglose importado (Sale.netAmount / SaleItem.netAmount) está SIN IVA.
+const NET_SIN_IVA_CHANNELS = new Set(['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA']);
+
+// Costo sin IVA de una línea: Product.cost viene con IVA (mismo supuesto que Rentabilidad).
+function itemCostSinIva(item: any): number | null {
+  const cost = Number(item.product?.cost ?? 0);
+  return cost > 0 ? (cost / 1.19) * item.quantity : null;
+}
+
 export default function SalesPage() {
   const searchParams = useSearchParams();
   const tz = useDashboardTimezone();
@@ -412,8 +421,20 @@ export default function SalesPage() {
                               {item.product?.name || 'Producto eliminado'} × {item.quantity}
                             </span>
                           </span>
-                          <span className="text-gray-600 font-medium shrink-0">
-                            {fmt(Number(item.unitPrice) * item.quantity)}
+                          <span className="flex flex-col items-end shrink-0">
+                            <span className="text-gray-600 font-medium">{fmt(Number(item.unitPrice) * item.quantity)}</span>
+                            {item.netAmount != null && (() => {
+                              const cost = itemCostSinIva(item);
+                              const profit = cost != null ? Number(item.netAmount) - cost : null;
+                              return (
+                                <span className="text-[11px] text-gray-400">
+                                  neto s/IVA {fmt(Number(item.netAmount))}
+                                  {profit != null && (
+                                    <> · ganancia <b className={profit < 0 ? 'text-red-600' : 'text-emerald-700'}>{fmt(profit)}</b></>
+                                  )}
+                                </span>
+                              );
+                            })()}
                           </span>
                         </div>
                       );
@@ -438,7 +459,7 @@ export default function SalesPage() {
                           <div className="flex justify-between text-xs">
                             <span className="text-gray-500">
                               {Number(sale.shippingCost) < 0
-                                ? (sale.channel === 'MERCADOLIBRE' ? 'Envío (bonificado por ML)' : 'Envío (cobrado al comprador)')
+                                ? (sale.channel === 'MERCADO_LIBRE' ? 'Envío (bonificado por ML)' : 'Envío (cobrado al comprador)')
                                 : 'Envío (a cargo del vendedor)'}
                             </span>
                             <span className={Number(sale.shippingCost) < 0 ? 'text-green-600 font-medium' : 'text-gray-500'}>
@@ -452,14 +473,36 @@ export default function SalesPage() {
                           <div className="flex justify-between text-xs text-gray-500"><span>Comisión marketplace</span><span>-{fmt(Number(sale.marketplaceFee))}</span></div>
                         )}
                         {sale.taxes != null && (
-                          <div className="flex justify-between text-xs text-gray-500"><span>Impuestos</span><span>{fmt(Number(sale.taxes))}</span></div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>{NET_SIN_IVA_CHANNELS.has(sale.channel) ? 'IVA incluido en el total (va al fisco)' : 'Impuestos'}</span>
+                            <span>{fmt(Number(sale.taxes))}</span>
+                          </div>
                         )}
                         {sale.discount != null && (
                           <div className="flex justify-between text-xs text-gray-500"><span>Descuento/Cupón</span><span>-{fmt(Number(sale.discount))}</span></div>
                         )}
                         {sale.netAmount != null && (
-                          <div className="flex justify-between text-xs font-semibold text-gray-700"><span>Total neto recibido</span><span>{fmt(Number(sale.netAmount))}</span></div>
+                          <div className="flex justify-between text-xs font-semibold text-gray-700">
+                            <span>{NET_SIN_IVA_CHANNELS.has(sale.channel) ? 'Neto sin IVA' : 'Total neto recibido'}</span>
+                            <span>{fmt(Number(sale.netAmount))}</span>
+                          </div>
                         )}
+                        {sale.netAmount != null && NET_SIN_IVA_CHANNELS.has(sale.channel) && (() => {
+                          const costs = (sale.items || []).map(itemCostSinIva);
+                          if (!costs.length || costs.some((c: number | null) => c == null)) {
+                            return <p className="text-[11px] text-gray-400">Carga el costo de los productos en el catálogo para ver la ganancia.</p>;
+                          }
+                          const cost = costs.reduce((s: number, c: number | null) => s + (c ?? 0), 0);
+                          const profit = Number(sale.netAmount) - cost;
+                          return (
+                            <>
+                              <div className="flex justify-between text-xs text-gray-500"><span>Costo productos sin IVA</span><span>-{fmt(cost)}</span></div>
+                              <div className={`flex justify-between text-xs font-semibold ${profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                                <span>Ganancia</span><span>{fmt(profit)}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                     {sale.notes && (

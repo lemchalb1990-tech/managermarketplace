@@ -3,7 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -645,53 +645,79 @@ export class ParisAdapter implements PlatformAdapter {
       bySku.set(sku, cur);
     }
     let resolved = true;
-    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null; unitCost: number | null }> = [];
     for (const [sku, info] of bySku) {
       const listing = await this.prisma.listing.findFirst({
         where: { connectionId, externalId: { endsWith: `:${sku}` } },
-        select: { productId: true, product: { select: { name: true } } },
+        select: { productId: true, product: { select: { name: true, cost: true } } },
       });
-      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null }); continue; }
-      out.push({ productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: listing.product.name });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null, unitCost: null }); continue; }
+      out.push({
+        productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title,
+        productName: listing.product.name, unitCost: listing.product.cost != null ? Number(listing.product.cost) : null,
+      });
     }
     return { resolved, items: out };
   }
 
-  // Desglose por sub-orden con los campos de cada item (una fila por unidad): basePrice
-  // (precio de lista), priceAfterDiscounts (cobrado), commission y tax; dispatchCost es el
-  // despacho a cargo del vendedor. No verificado en vivo contra una venta con promoción:
-  // el descuento se calcula como basePrice − priceAfterDiscounts. El precio viene con IVA
-  // incluido y `tax` se informa aparte, sin restarlo del neto.
-  private orderBreakdown(so: any): SaleBreakdown & { total: number } {
-    const items: any[] = so.items || [];
+  // Desglose por sub-orden según el OpenAPI oficial de Cencosud (GET /v3/sub-orders). Cada item
+  // es UNA unidad, agrupadas por sku igual que resolveOrderItems (mismo orden):
+  // - basePrice = precio de lista, priceAfterDiscounts = cobrado; ambos CON IVA. `tax` es el IVA
+  //   incluido (ejemplo oficial: tax 877 sobre taxBasis 5490 = 5490 × 0,19 / 1,19), así que el
+  //   precio sin IVA es priceAfterDiscounts − tax.
+  // - commission = comisión aplicada (el ejemplo oficial la trae en 0) → si viene en 0 se estima
+  //   con el % configurado en la conexión. Se toma como monto sin IVA.
+  // - dispatchCost (sub-orden) y shippingCost (item) = costo de despacho del vendedor, con IVA;
+  //   dispatchCost se reparte entre los productos según su precio.
+  // - Unidades con cancellationReasonId o returnId (cancelada/devuelta) no suman al neto.
+  private orderBreakdown(conn: any, so: any, unitCosts: (number | null)[]): SaleBreakdown & { total: number } {
     const num = (v: any) => Number(v ?? 0);
-    const listPrice = items.reduce((s, i) => s + num(i.basePrice ?? i.priceAfterDiscounts), 0);
-    const total = items.reduce((s, i) => s + num(i.priceAfterDiscounts ?? i.basePrice), 0);
-    const discount = Math.max(0, round2(listPrice - total));
-    const fee = round2(items.reduce((s, i) => s + num(i.commission), 0));
-    const hasTax = items.some((i) => i.tax != null);
-    const taxes = hasTax ? round2(items.reduce((s, i) => s + num(i.tax), 0)) : null;
-    const shippingCost = num(so.dispatchCost);
-    const netAmount = round2(total - fee - shippingCost);
+    const units: any[] = (so.items || []).filter((i: any) => i.sku);
+    const isOut = (i: any) => i.cancellationReasonId != null || i.returnId != null;
+    const bySku = new Map<string, any[]>();
+    for (const u of units) bySku.set(u.sku, [...(bySku.get(u.sku) || []), u]);
 
+    const activeGross = units.filter((u) => !isOut(u)).reduce((s, u) => s + num(u.priceAfterDiscounts ?? u.basePrice), 0);
+    const dispatch = num(so.dispatchCost);
     const rows: ChargeDetailRow[] = [];
-    for (const i of items) {
-      rows.push({ type: 'PRODUCT', name: 'basePrice', amount: num(i.basePrice ?? i.priceAfterDiscounts), tax: num(i.tax) });
-      const d = num(i.basePrice ?? i.priceAfterDiscounts) - num(i.priceAfterDiscounts ?? i.basePrice);
-      if (d) rows.push({ type: 'DISCOUNT', name: 'basePrice − priceAfterDiscounts', amount: d, tax: 0 });
-      if (i.commission != null) rows.push({ type: 'COMMISSION', name: 'commission', amount: num(i.commission), tax: 0 });
-    }
-    if (so.dispatchCost != null) rows.push({ type: 'SHIPPING', name: 'dispatchCost', amount: shippingCost, tax: 0 });
+
+    const lines: LineCalc[] = Array.from(bySku.values()).map((group) => {
+      const act = group.filter((u) => !isOut(u));
+      const gross = act.reduce((s, u) => s + num(u.priceAfterDiscounts ?? u.basePrice), 0);
+      const tax = act.reduce((s, u) => s + (u.tax != null ? num(u.tax) : num(u.priceAfterDiscounts ?? u.basePrice) - sinIva(num(u.priceAfterDiscounts ?? u.basePrice))), 0);
+      const listGross = act.reduce((s, u) => s + num(u.basePrice ?? u.priceAfterDiscounts), 0);
+      const hasCommission = act.some((u) => u.commission != null);
+      const itemShipping = act.reduce((s, u) => s + num(u.shippingCost), 0);
+      const dispatchShare = activeGross > 0 ? (dispatch * gross) / activeGross : 0;
+
+      for (const u of group) {
+        const out = isOut(u) ? ' (cancelado/devuelto)' : '';
+        rows.push({ type: 'PRODUCT', name: `priceAfterDiscounts${out}`, amount: num(u.priceAfterDiscounts ?? u.basePrice), tax: num(u.tax) });
+        const d = num(u.basePrice) - num(u.priceAfterDiscounts ?? u.basePrice);
+        if (d > 0) rows.push({ type: 'DISCOUNT', name: `basePrice − priceAfterDiscounts${out}`, amount: d, tax: 0 });
+        if (u.commission != null) rows.push({ type: 'COMMISSION', name: `commission${out}`, amount: num(u.commission), tax: 0 });
+        if (u.shippingCost != null) rows.push({ type: 'SHIPPING', name: `shippingCost${out}`, amount: num(u.shippingCost), tax: 0 });
+      }
+      return {
+        title: group[0].name,
+        quantity: act.length || group.length,
+        revenue: round2(gross - tax),
+        discount: sinIva(Math.max(0, listGross - gross)),
+        gross,
+        commission: hasCommission ? round2(act.reduce((s, u) => s + num(u.commission), 0)) : null,
+        shipping: -sinIva(itemShipping + dispatchShare),
+        tax: round2(tax),
+        cancelled: act.length === 0,
+      };
+    });
+    if (so.dispatchCost != null) rows.push({ type: 'SHIPPING', name: 'dispatchCost (sub-orden)', amount: dispatch, tax: 0 });
+
     return {
-      total,
-      charges: { shippingCost, marketplaceFee: fee, taxes, discount, netAmount },
-      breakdown: [
-        { label: 'Precio productos (con IVA)', amount: listPrice },
-        { label: 'Descuento/Promoción', amount: -discount },
-        { label: 'Despacho a cargo del vendedor', amount: -shippingCost },
-        { label: 'Comisión Paris', amount: -fee },
-      ],
-      chargeDetail: groupChargeRows(rows),
+      total: activeGross,
+      ...buildBreakdown({
+        lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+        platform: 'Paris', shippingLabel: 'Despacho a cargo del vendedor',
+      }),
     };
   }
 
@@ -717,33 +743,26 @@ export class ParisAdapter implements PlatformAdapter {
     const externalIds = subOrders.map((o) => o.subOrderNumber);
     const existing = await this.prisma.sale.findMany({
       where: { channel: SaleChannel.PARIS, externalId: { in: externalIds } },
-      select: { externalId: true },
-    });
-    const existingSet = new Set(existing.map((s) => s.externalId));
-
-    // Completa descuento/neto de ventas ya importadas con los datos que este listado ya trae.
-    const byId = new Map(subOrders.map((so) => [so.subOrderNumber, so]));
-    const saved = await this.prisma.sale.findMany({
-      where: { channel: SaleChannel.PARIS, externalId: { in: externalIds } },
       select: { id: true, externalId: true },
     });
-    for (const sale of saved) {
-      const so = byId.get(sale.externalId!);
-      if (so) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(so).charges });
-    }
+    const existingById = new Map(existing.map((s) => [s.externalId, s.id]));
 
     const orders = [];
     for (const so of subOrders) {
-      const alreadyRegistered = existingSet.has(so.subOrderNumber);
+      const saleId = existingById.get(so.subOrderNumber);
       const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
+      const { total, ...b } = this.orderBreakdown(conn, so, items.map((i) => i.unitCost));
+      // Recalcula cargos/neto (sin IVA) de ventas ya importadas con los datos de este mismo listado.
+      if (saleId) await backfillSale(this.prisma, saleId, b, items.map((i) => i.productId));
       orders.push({
         externalId: so.subOrderNumber,
         date: so.originOrderDate,
-        ...this.orderBreakdown(so),
+        total,
+        ...b,
         buyerName: so.customer?.name || null,
-        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
-        importable: !alreadyRegistered && resolved && items.length > 0,
-        alreadyRegistered,
+        items: previewItems(items, b),
+        importable: !saleId && resolved && items.length > 0,
+        alreadyRegistered: !!saleId,
       });
     }
     const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
@@ -768,13 +787,13 @@ export class ParisAdapter implements PlatformAdapter {
         const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
 
-        const { total, charges } = this.orderBreakdown(so);
+        const { total, ...b } = this.orderBreakdown(conn, so, items.map((i) => i.unitCost));
         await this.prisma.sale.create({
           data: {
             channel: SaleChannel.PARIS,
             externalId: id,
             total,
-            ...charges,
+            ...b.charges,
             companyId,
             connectionId: conn.id,
             customerName: so.customer?.name || null,
@@ -783,7 +802,7 @@ export class ParisAdapter implements PlatformAdapter {
             address: so.shippingAddress?.address1 || null,
             commune: so.shippingAddress?.city || null,
             createdAt: new Date(so.originOrderDate),
-            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
           },
         });
         imported++;

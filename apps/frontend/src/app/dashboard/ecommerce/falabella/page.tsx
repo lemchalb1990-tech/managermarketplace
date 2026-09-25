@@ -21,6 +21,7 @@ export default function FalabellaPage() {
         { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Tu clave de API' },
         { key: 'businessUnit', label: 'Business Unit', placeholder: 'Falabella', required: false },
         { key: 'operatorCode', label: 'Operator Code', placeholder: 'facl', required: false, hint: 'Ej: "facl" para Falabella Chile.' },
+        { key: 'commissionRate', label: '% comisión', placeholder: 'Ej: 12', required: false, hint: 'La API de Falabella no informa la comisión: indica tu % de comisión (sobre el precio con IVA) para calcular el neto y la ganancia reales de cada venta importada.' },
       ],
     }} />
   );

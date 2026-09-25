@@ -3,7 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -382,58 +382,68 @@ export class RipleyAdapter implements PlatformAdapter {
 
   private async resolveOrderLines(connectionId: string, orderLines: any[]) {
     let resolved = true;
-    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null; unitCost: number | null }> = [];
     for (const line of orderLines || []) {
       const sku = line.offer_sku;
       const listing = sku ? await this.prisma.listing.findFirst({
         where: { connectionId, externalId: sku },
-        select: { productId: true, product: { select: { name: true } } },
+        select: { productId: true, product: { select: { name: true, cost: true } } },
       }) : null;
-      if (!listing) { resolved = false; out.push({ productId: null, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title, productName: null }); continue; }
-      out.push({ productId: listing.productId, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title, productName: listing.product.name });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title, productName: null, unitCost: null }); continue; }
+      out.push({
+        productId: listing.productId, quantity: line.quantity || 1, unitPrice: Number(line.price_unit || 0), title: line.product_title,
+        productName: listing.product.name, unitCost: listing.product.cost != null ? Number(listing.product.cost) : null,
+      });
     }
     return { resolved, items: out };
   }
 
-  // Desglose de la orden según el modelo de Mirakl (OR11, doc pública — no verificado en vivo
-  // con la cuenta del cliente): el seller cobra precio de productos + envío y Mirakl le descuenta
-  // la comisión (total_commission, ya incluye su IVA). Por línea: price_unit × quantity es el
-  // precio de lista y `price` el cobrado tras promociones, así que la diferencia es el descuento
-  // (y cuadra aunque la orden no traiga el detalle de `promotions`). Los precios en Chile vienen
-  // con IVA incluido; `taxes` solo se informa si la API lo trae.
-  private orderBreakdown(o: any): SaleBreakdown {
-    const lines: any[] = o.order_lines || [];
+  // Desglose por línea según OR11 (documentación de Mercado Ripley, ejemplo de respuesta real):
+  // - `price` = lo cobrado por la línea CON IVA (Chile: `taxes` viene vacío porque el precio ya
+  //   lo incluye) y `price_unit × quantity` el precio de lista → la diferencia es la promoción.
+  // - `shipping_price` = envío cobrado al comprador; en Mirakl lo recibe el vendedor (el reembolso
+  //   de OR11 devuelve `shipping_amount` al comprador y descuenta al vendedor) → ingreso, con IVA.
+  // - `commission_fee` = comisión SIN IVA (`commission_vat` es su IVA, crédito fiscal).
+  // - `refunds[]` y `cancelations[]` traen amount / shipping_amount / commission_amount: se restan
+  //   para que el neto refleje lo que realmente queda. Líneas CANCELED/REFUSED no suman.
+  private orderBreakdown(conn: any, o: any, unitCosts: (number | null)[]): SaleBreakdown {
     const num = (v: any) => Number(v || 0);
-    const listPrice = lines.reduce((s, l) => s + num(l.price_unit) * (num(l.quantity) || 1), 0);
-    const charged = lines.length ? lines.reduce((s, l) => s + num(l.price), 0) : num(o.price);
-    const discount = Math.max(0, round2(listPrice - charged));
-    const shipping = lines.length ? lines.reduce((s, l) => s + num(l.shipping_price), 0) : num(o.shipping_price);
-    const commission = o.total_commission != null
-      ? num(o.total_commission)
-      : lines.reduce((s, l) => s + num(l.total_commission ?? num(l.commission_fee) + num(l.commission_vat)), 0);
-    const taxRows = lines.flatMap((l) => [...(l.taxes || []), ...(l.shipping_taxes || [])]);
-    const taxes = taxRows.length ? round2(taxRows.reduce((s, t) => s + num(t.amount), 0)) : null;
-    const netAmount = round2(listPrice - discount + shipping - commission);
-
     const rows: ChargeDetailRow[] = [];
-    for (const l of lines) {
-      rows.push({ type: 'PRODUCT', name: 'price', amount: num(l.price), tax: (l.taxes || []).reduce((s: number, t: any) => s + num(t.amount), 0) });
-      if (l.shipping_price != null) rows.push({ type: 'SHIPPING', name: 'shipping_price', amount: num(l.shipping_price), tax: (l.shipping_taxes || []).reduce((s: number, t: any) => s + num(t.amount), 0) });
+    const lines: LineCalc[] = (o.order_lines || []).map((l: any) => {
+      const undo = [...(l.refunds || []), ...(l.cancelations || [])];
+      const back = (k: string) => undo.reduce((s: number, r: any) => s + num(r[k]), 0);
+      const qty = num(l.quantity) || 1;
+      const listGross = num(l.price_unit) * qty;
+      const gross = Math.max(0, num(l.price) - back('amount'));
+      const shippingGross = Math.max(0, num(l.shipping_price) - back('shipping_amount'));
+      const commission = l.commission_fee != null ? Math.max(0, num(l.commission_fee) - back('commission_amount')) : null;
+      const state = String(l.order_line_state || '');
+      const cancelled = /CANCELED|REFUSED/.test(state) || (undo.length > 0 && gross === 0);
+
+      rows.push({ type: 'PRODUCT', name: 'price', amount: num(l.price), tax: 0 });
+      if (listGross > num(l.price)) rows.push({ type: 'DISCOUNT', name: 'price_unit × quantity − price', amount: round2(listGross - num(l.price)), tax: 0 });
+      for (const p of l.promotions || []) rows.push({ type: 'DISCOUNT', name: `promoción ${p.id ?? ''}`.trim(), amount: num(p.deduced_amount), tax: 0 });
+      if (l.shipping_price != null) rows.push({ type: 'SHIPPING', name: 'shipping_price', amount: num(l.shipping_price), tax: 0 });
       if (l.commission_fee != null) rows.push({ type: 'COMMISSION', name: 'commission_fee', amount: num(l.commission_fee), tax: num(l.commission_vat) });
-      for (const p of l.promotions || []) {
-        rows.push({ type: 'DISCOUNT', name: String(p.id || p.configuration?.internal_description || 'promotion'), amount: num(p.deduced_amount), tax: 0 });
-      }
-    }
-    return {
-      charges: { shippingCost: -shipping, marketplaceFee: commission, taxes, discount, netAmount },
-      breakdown: [
-        { label: 'Precio productos (con IVA)', amount: listPrice },
-        { label: 'Descuento/Promoción', amount: -discount },
-        { label: 'Envío cobrado al comprador', amount: shipping },
-        { label: 'Comisión Ripley', amount: -commission },
-      ],
-      chargeDetail: groupChargeRows(rows),
-    };
+      for (const r of l.refunds || []) rows.push({ type: 'REFUND', name: `reembolso ${r.reason_code ?? ''}`.trim(), amount: num(r.amount) + num(r.shipping_amount), tax: 0 });
+      for (const c of l.cancelations || []) rows.push({ type: 'REFUND', name: `cancelación ${c.reason_code ?? ''}`.trim(), amount: num(c.amount) + num(c.shipping_amount), tax: 0 });
+
+      return {
+        title: l.product_title,
+        quantity: qty,
+        revenue: sinIva(gross),
+        discount: sinIva(Math.max(0, listGross - num(l.price))),
+        gross,
+        commission: commission != null ? round2(commission) : null,
+        shipping: sinIva(shippingGross),
+        tax: round2(gross - sinIva(gross) + shippingGross - sinIva(shippingGross)),
+        cancelled,
+      };
+    });
+    return buildBreakdown({
+      lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+      platform: 'Ripley', shippingLabel: 'Envío cobrado al comprador (a favor)',
+    });
   }
 
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
@@ -458,34 +468,26 @@ export class RipleyAdapter implements PlatformAdapter {
     const externalIds = rawOrders.map((o) => o.order_id);
     const existing = await this.prisma.sale.findMany({
       where: { channel: SaleChannel.RIPLEY, externalId: { in: externalIds } },
-      select: { externalId: true },
-    });
-    const existingSet = new Set(existing.map((s) => s.externalId));
-
-    // Completa descuento/neto de ventas ya importadas con los datos que este listado ya trae.
-    const byId = new Map(rawOrders.map((o) => [o.order_id, o]));
-    const saved = await this.prisma.sale.findMany({
-      where: { channel: SaleChannel.RIPLEY, externalId: { in: externalIds } },
       select: { id: true, externalId: true },
     });
-    for (const sale of saved) {
-      const o = byId.get(sale.externalId!);
-      if (o) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(o).charges });
-    }
+    const existingById = new Map(existing.map((s) => [s.externalId, s.id]));
 
     const orders = [];
     for (const o of rawOrders) {
-      const alreadyRegistered = existingSet.has(o.order_id);
+      const saleId = existingById.get(o.order_id);
       const { resolved, items } = await this.resolveOrderLines(conn.id, o.order_lines || []);
+      const b = this.orderBreakdown(conn, o, items.map((i) => i.unitCost));
+      // Recalcula cargos/neto (sin IVA) de ventas ya importadas con los datos de este mismo listado.
+      if (saleId) await backfillSale(this.prisma, saleId, b, items.map((i) => i.productId));
       orders.push({
         externalId: o.order_id,
         date: o.created_date,
         total: Number(o.total_price || 0),
-        ...this.orderBreakdown(o),
+        ...b,
         buyerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
-        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
-        importable: !alreadyRegistered && resolved && items.length > 0,
-        alreadyRegistered,
+        items: previewItems(items, b),
+        importable: !saleId && resolved && items.length > 0,
+        alreadyRegistered: !!saleId,
       });
     }
     const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
@@ -509,20 +511,21 @@ export class RipleyAdapter implements PlatformAdapter {
 
         const { resolved, items } = await this.resolveOrderLines(conn.id, o.order_lines || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+        const b = this.orderBreakdown(conn, o, items.map((i) => i.unitCost));
 
         await this.prisma.sale.create({
           data: {
             channel: SaleChannel.RIPLEY,
             externalId: id,
             total: Number(o.total_price || 0),
-            ...this.orderBreakdown(o).charges,
+            ...b.charges,
             companyId,
             connectionId: conn.id,
             customerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
             address: o.customer?.shipping_address?.street_1 || null,
             commune: o.customer?.shipping_address?.city || null,
             createdAt: new Date(o.created_date),
-            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
           },
         });
         imported++;

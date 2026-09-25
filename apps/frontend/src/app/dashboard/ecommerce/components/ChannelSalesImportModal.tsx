@@ -5,7 +5,12 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
-type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
+// Montos del desglose SIN IVA (ver backend ecommerce/platforms/sale-breakdown.ts).
+type OrderItem = {
+  title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null;
+  revenue?: number; discount?: number; commission?: number | null; commissionEstimated?: boolean;
+  shipping?: number; net?: number; cost?: number | null; profit?: number | null; cancelled?: boolean;
+};
 type OrderCharges = { shippingCost: number; marketplaceFee: number | null; taxes: number | null; discount: number; netAmount: number };
 type OrderPreview = {
   externalId: string; date: string; total: number; buyerName: string | null;
@@ -13,10 +18,12 @@ type OrderPreview = {
   charges?: OrderCharges;
   breakdown?: { label: string; amount: number }[];
   chargeDetail?: ChargeDetail[];
+  commissionEstimated?: boolean; cost?: number | null; profit?: number | null;
 };
 type ChargeDetail = { type: string; name: string; amount: number; tax: number };
 
-const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('es-CL')}`;
+const profitClass = (n: number | null | undefined) => (n == null ? 'text-gray-400' : n < 0 ? 'text-red-600' : 'text-emerald-700');
 
 const CHARGE_TYPE_LABELS: Record<string, string> = {
   PRODUCT: 'Precio producto',
@@ -25,6 +32,7 @@ const CHARGE_TYPE_LABELS: Record<string, string> = {
   COMMISSION: 'Comisión',
   FEE: 'Cargo',
   TAX: 'IVA total (va al fisco)',
+  REFUND: 'Reembolso/cancelación',
 };
 
 const PAGE_SIZE = 20;
@@ -143,7 +151,12 @@ export function ChannelSalesImportModal({
   const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   const hasCharges = orders.some((o) => o.charges);
-  const colCount = hasCharges ? 9 : 6;
+  const colCount = hasCharges ? 10 : 6;
+  const withCharges = orders.filter((o) => o.charges);
+  const periodNet = withCharges.reduce((s, o) => s + o.charges!.netAmount, 0);
+  const periodProfit = withCharges.every((o) => o.profit != null) ? withCharges.reduce((s, o) => s + (o.profit ?? 0), 0) : null;
+  const anyEstimated = orders.some((o) => o.commissionEstimated);
+  const missingCommission = withCharges.some((o) => o.charges!.marketplaceFee == null);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -235,6 +248,18 @@ export function ChannelSalesImportModal({
                   {unresolvedCount > 0 && <span>{unresolvedCount} con productos no vinculados en el catálogo</span>}
                   {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya registradas en el sistema</span>}
                 </div>
+                {hasCharges && (
+                  <div className="mx-6 mt-3 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex flex-wrap gap-x-6 gap-y-1">
+                    <span>Neto sin IVA de estas ventas: <b className="text-gray-900">{money(periodNet)}</b></span>
+                    <span>Ganancia (neto − costo sin IVA): <b className={profitClass(periodProfit)}>{periodProfit != null ? money(periodProfit) : 'falta costo en algún producto'}</b></span>
+                    {anyEstimated && <span className="text-amber-700">Comisión estimada con el % configurado en la conexión.</span>}
+                    {missingCommission && (
+                      <span className="text-amber-700">
+                        {platformLabel} no informa la comisión por API: configura el "% comisión" en la conexión para que el neto la descuente.
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm mt-3">
                   <thead className="bg-gray-50 border-y border-gray-200 sticky top-0">
@@ -246,12 +271,13 @@ export function ChannelSalesImportModal({
                       </th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
-                      <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
+                      <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Pagado por el comprador, con IVA">Total</th>
                       {hasCharges && (
                         <>
-                          <th className="px-2 py-2 text-right text-gray-600 font-medium">Descuentos</th>
-                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Envío a cargo del vendedor + comisión">Costos</th>
-                          <th className="px-2 py-2 text-right text-gray-600 font-medium">Neto</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Sin IVA">Descuentos</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Envío a cargo del vendedor + comisión, sin IVA">Costos</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Lo que queda de la venta, sin IVA">Neto s/IVA</th>
+                          <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Neto − costo de los productos (sin IVA)">Ganancia</th>
                         </>
                       )}
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
@@ -289,6 +315,10 @@ export function ChannelSalesImportModal({
                                 <td className="px-2 py-2 text-right text-gray-900 font-medium">
                                   {o.charges ? money(o.charges.netAmount) : '—'}
                                 </td>
+                                <td className={`px-2 py-2 text-right font-medium ${profitClass(o.profit)}`}
+                                  title={o.profit == null ? 'Falta el costo de algún producto en el catálogo' : undefined}>
+                                  {o.profit != null ? money(o.profit) : '—'}
+                                </td>
                               </>
                             )}
                             <td className="px-2 py-2">
@@ -305,18 +335,64 @@ export function ChannelSalesImportModal({
                           {isOpen && (
                             <tr>
                               <td colSpan={colCount} className="bg-gray-50 px-6 py-3">
-                                <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
-                                <div className="space-y-1">
-                                  {o.items.map((it, i) => (
-                                    <div key={i} className="text-xs text-gray-700 flex justify-between">
-                                      <span>
-                                        {it.quantity}× {it.productName || it.title}
-                                        {!it.resolved && <span className="text-red-500 ml-1">(sin vincular)</span>}
-                                      </span>
-                                      <span className="text-gray-500">${Math.round(it.unitPrice).toLocaleString('es-CL')} c/u</span>
-                                    </div>
-                                  ))}
-                                </div>
+                                <p className="text-xs font-semibold text-gray-600 mb-1.5">
+                                  Productos{o.items.some((it) => it.net != null) && ' — montos sin IVA'}
+                                </p>
+                                {o.items.some((it) => it.net != null) ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs text-gray-700">
+                                      <thead>
+                                        <tr className="text-gray-400">
+                                          <th className="text-left font-normal py-0.5 pr-2">Producto</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Venta</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Desc.</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Comisión</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Envío</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Neto</th>
+                                          <th className="text-right font-normal py-0.5 px-1">Costo</th>
+                                          <th className="text-right font-normal py-0.5 pl-1">Ganancia</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {o.items.map((it, i) => (
+                                          <tr key={i} className={it.cancelled ? 'text-gray-400 line-through' : ''}>
+                                            <td className="py-0.5 pr-2">
+                                              {it.quantity}× {it.productName || it.title}
+                                              {!it.resolved && <span className="text-red-500 ml-1 no-underline">(sin vincular)</span>}
+                                              {it.cancelled && <span className="ml-1">(cancelado/devuelto)</span>}
+                                            </td>
+                                            <td className="py-0.5 px-1 text-right">{money(it.revenue ?? 0)}</td>
+                                            <td className="py-0.5 px-1 text-right text-red-600">{it.discount ? money(-it.discount) : '—'}</td>
+                                            <td className="py-0.5 px-1 text-right text-red-600" title={it.commissionEstimated ? 'Estimada con el % de la conexión' : undefined}>
+                                              {it.commission != null ? `${money(-it.commission)}${it.commissionEstimated ? '*' : ''}` : '?'}
+                                            </td>
+                                            <td className={`py-0.5 px-1 text-right ${(it.shipping ?? 0) < 0 ? 'text-red-600' : ''}`}>{it.shipping ? money(it.shipping) : '—'}</td>
+                                            <td className="py-0.5 px-1 text-right font-semibold text-gray-900">{money(it.net ?? 0)}</td>
+                                            <td className="py-0.5 px-1 text-right text-gray-500" title={it.cost == null ? 'Sin costo en el catálogo' : 'Costo del producto sin IVA'}>
+                                              {it.cost != null ? money(-it.cost) : '—'}
+                                            </td>
+                                            <td className={`py-0.5 pl-1 text-right font-semibold ${profitClass(it.profit)}`}>{it.profit != null ? money(it.profit) : '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                    {o.items.some((it) => it.commissionEstimated) && (
+                                      <p className="text-[11px] text-gray-400 mt-1">* Comisión estimada con el % configurado en la conexión ({platformLabel} no la informa por API).</p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {o.items.map((it, i) => (
+                                      <div key={i} className="text-xs text-gray-700 flex justify-between">
+                                        <span>
+                                          {it.quantity}× {it.productName || it.title}
+                                          {!it.resolved && <span className="text-red-500 ml-1">(sin vincular)</span>}
+                                        </span>
+                                        <span className="text-gray-500">{money(it.unitPrice)} c/u</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {o.charges && (
                                   <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-xs text-gray-600 max-w-sm ml-auto">
                                     <p className="font-semibold text-gray-600 mb-1">Desglose</p>
@@ -327,13 +403,18 @@ export function ChannelSalesImportModal({
                                     {(o.breakdown || []).map((b, i) => (
                                       <div key={i} className={`flex justify-between${i === 0 ? ' pt-1' : ''}`}>
                                         <span>{b.label}</span>
-                                        <span className={b.amount < 0 ? 'text-red-600' : ''}>
-                                          {b.amount < 0 ? `-${money(-b.amount)}` : money(b.amount)}
-                                        </span>
+                                        <span className={b.amount < 0 ? 'text-red-600' : ''}>{money(b.amount)}</span>
                                       </div>
                                     ))}
                                     <div className="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
-                                      <span>Neto recibido</span><span>{money(o.charges.netAmount)}</span>
+                                      <span>Neto sin IVA</span><span>{money(o.charges.netAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-gray-500">
+                                      <span>Costo de los productos sin IVA</span>
+                                      <span>{o.cost != null ? money(-o.cost) : 'falta costo en el catálogo'}</span>
+                                    </div>
+                                    <div className={`flex justify-between font-semibold pt-1 border-t border-gray-200 ${profitClass(o.profit)}`}>
+                                      <span>Ganancia</span><span>{o.profit != null ? money(o.profit) : '—'}</span>
                                     </div>
                                   </div>
                                 )}

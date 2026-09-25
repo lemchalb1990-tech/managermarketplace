@@ -31,6 +31,7 @@ export default function ParisPage() {
           required: false,
           hint: 'Después de guardar, usa "Probar" para confirmar la conexión y pide al equipo el ID de GET /v2/store-prices de la tienda donde se publica (ej. "Paris Ecommers"). Sin esto no se pueden enviar precios.',
         },
+        { key: 'commissionRate', label: '% comisión', placeholder: 'Ej: 12', required: false, hint: 'La API de Paris entrega la comisión en $0: indica tu % de comisión (sobre el precio con IVA) para calcular el neto y la ganancia reales de cada venta importada.' },
       ],
     }} />
   );

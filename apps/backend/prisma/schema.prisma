@@ -872,6 +872,8 @@ model SaleItem {
   quantity  Int
   unitPrice Decimal  @db.Decimal(10, 2)
   totalCost Decimal? @db.Decimal(10, 2)
+  // Neto sin IVA de la línea en ventas importadas de marketplaces (venta − comisión ± envío).
+  netAmount Decimal? @db.Decimal(10, 2)
 
   saleId    String
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)

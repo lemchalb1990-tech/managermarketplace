@@ -4,7 +4,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, groupChargeRows, round2 } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -411,8 +411,8 @@ export class FalabellaAdapter implements PlatformAdapter {
   // campo que ya usa GetProducts/confirmImport), es decir nuestro Listing.externalId
   // directo, sin prefijo compuesto. Cuando la orden trae más de una unidad del mismo SKU,
   // Falabella devuelve un OrderItem por unidad (no un campo "quantity"), así que se agrupan
-  // por Sku igual que en Paris. Falabella no expone comisión a nivel de orden en esta API,
-  // así que marketplaceFee queda sin dato (no se inventa un valor).
+  // por Sku igual que en Paris. Falabella no expone comisión en ninguna API: se estima con el
+  // % configurado en la conexión, o queda sin dato si no hay % (ver orderBreakdown).
 
   private parseMoney(v: any): number {
     return Number(String(v ?? '0').replace(/,/g, ''));
@@ -447,59 +447,79 @@ export class FalabellaAdapter implements PlatformAdapter {
       bySku.set(sku, cur);
     }
     let resolved = true;
-    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null; unitCost: number | null }> = [];
     for (const [sku, info] of bySku) {
       const listing = await this.prisma.listing.findFirst({
         where: { connectionId, externalId: sku },
-        select: { productId: true, product: { select: { name: true } } },
+        select: { productId: true, product: { select: { name: true, cost: true } } },
       });
-      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null }); continue; }
-      out.push({ productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: listing.product.name });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null, unitCost: null }); continue; }
+      out.push({
+        productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title,
+        productName: listing.product.name, unitCost: listing.product.cost != null ? Number(listing.product.cost) : null,
+      });
     }
     return { resolved, items: out };
   }
 
-  // Desglose por orden a partir de sus OrderItems (uno por unidad). Confirmado: ItemPrice y
-  // PaidPrice. Descuento = ItemPrice − PaidPrice (vouchers/promociones). Comisión: esta API no
-  // la expone a nivel de orden (ver arriba); si algún item trae un campo de comisión se usa, si
-  // no queda en null y el neto no la descuenta. ShippingFeeTotal se guarda igual que antes pero
-  // no se resta del neto: no está confirmado si lo paga el comprador o el vendedor.
-  // chargeDetail lista TODOS los campos monetarios que traiga cada item, para ver qué entrega.
-  private orderBreakdown(o: any, items: any[]): SaleBreakdown {
-    const listPrice = items.reduce((s, it) => s + this.parseMoney(it.ItemPrice ?? it.PaidPrice), 0);
-    const paid = items.reduce((s, it) => s + this.parseMoney(it.PaidPrice ?? it.ItemPrice), 0);
-    const discount = Math.max(0, round2(listPrice - paid));
-    const feeKeys = (it: any) => Object.keys(it).filter((k) => /commission/i.test(k) && it[k] !== '' && it[k] != null);
-    const hasFee = items.some((it) => feeKeys(it).length > 0);
-    const fee = hasFee ? round2(items.reduce((s, it) => s + feeKeys(it).reduce((a, k) => a + this.parseMoney(it[k]), 0), 0)) : null;
-    const hasTax = items.some((it) => it.TaxAmount != null && it.TaxAmount !== '');
-    const taxes = hasTax ? round2(items.reduce((s, it) => s + this.parseMoney(it.TaxAmount), 0)) : null;
-    const netAmount = round2(paid - (fee ?? 0));
+  // Desglose por orden según la documentación oficial de GetOrderItems (un OrderItem por unidad,
+  // agrupados por Sku igual que resolveOrderItems):
+  // - ItemPrice = precio original, PaidPrice = pagado tras descuentos/cupones; ambos CON IVA
+  //   (TaxAmount suele venir en 0 en Chile; si trae valor se usa como IVA incluido).
+  // - El documento tributario del vendedor es por PaidPrice + ShippingAmount ("Grand Total"), así
+  //   que ShippingAmount (envío cobrado al comprador) es ingreso del vendedor, con IVA; y
+  //   ShippingServiceCost ("costo real del servicio de envío") es costo del vendedor.
+  // - La API NO expone comisión (no hay endpoint financiero) → se estima con el % de la conexión.
+  // - Unidades en estado canceled / returned / failed no suman al neto.
+  // chargeDetail lista todos los campos monetarios de cada item, para ver qué entrega la API.
+  private orderBreakdown(conn: any, o: any, items: any[], unitCosts: (number | null)[]): SaleBreakdown {
+    const money = (v: any) => this.parseMoney(v);
+    const units = (items || []).filter((it) => it.Sku);
+    const isOut = (it: any) => /cancel|return|fail/i.test(String(it.Status || ''));
+    const bySku = new Map<string, any[]>();
+    for (const u of units) bySku.set(u.Sku, [...(bySku.get(u.Sku) || []), u]);
 
     const MONEY = /price|amount|cost|fee|voucher|credit|discount|commission|tax/i;
     const rows: ChargeDetailRow[] = [];
-    for (const it of items) {
+    for (const it of units) {
+      const out = isOut(it) ? ' (cancelado/devuelto)' : '';
       for (const [k, v] of Object.entries(it)) {
         if (!MONEY.test(k) || v == null || v === '' || typeof v === 'object') continue;
-        const n = this.parseMoney(v);
+        const n = money(v);
         if (!Number.isFinite(n) || n === 0) continue;
         const type = /commission/i.test(k) ? 'COMMISSION' : /voucher|discount|credit/i.test(k) ? 'DISCOUNT'
           : /tax/i.test(k) ? 'TAX' : /shipping/i.test(k) ? 'SHIPPING' : /price/i.test(k) ? 'PRODUCT' : 'FEE';
-        rows.push({ type, name: k, amount: n, tax: 0 });
+        rows.push({ type, name: `${k}${out}`, amount: n, tax: 0 });
       }
     }
-    const shippingFee = this.parseMoney(o.ShippingFeeTotal);
-    if (shippingFee) rows.push({ type: 'SHIPPING', name: 'ShippingFeeTotal (orden)', amount: shippingFee, tax: 0 });
 
-    return {
-      charges: { shippingCost: shippingFee, marketplaceFee: fee, taxes, discount, netAmount },
-      breakdown: [
-        { label: 'Precio productos (con IVA)', amount: listPrice },
-        { label: 'Descuento/Voucher', amount: -discount },
-        { label: fee == null ? 'Comisión Falabella (la API no la informa)' : 'Comisión Falabella', amount: -(fee ?? 0) },
-      ],
-      chargeDetail: groupChargeRows(rows),
-    };
+    const lines: LineCalc[] = Array.from(bySku.values()).map((group) => {
+      const act = group.filter((u) => !isOut(u));
+      const paid = act.reduce((s, u) => s + money(u.PaidPrice ?? u.ItemPrice), 0);
+      const list = act.reduce((s, u) => s + money(u.ItemPrice ?? u.PaidPrice), 0);
+      const taxApi = act.reduce((s, u) => s + money(u.TaxAmount), 0);
+      const revenue = taxApi > 0 ? round2(paid - taxApi) : sinIva(paid);
+      const shipIn = act.reduce((s, u) => s + money(u.ShippingAmount), 0);
+      const shipCost = act.reduce((s, u) => s + money(u.ShippingServiceCost), 0);
+      const feeKeys = (u: any) => Object.keys(u).filter((k) => /commission/i.test(k) && u[k] !== '' && u[k] != null);
+      const hasFee = act.some((u) => feeKeys(u).length > 0);
+      return {
+        title: group[0].Name,
+        quantity: act.length || group.length,
+        revenue,
+        discount: sinIva(Math.max(0, list - paid)),
+        gross: paid,
+        commission: hasFee ? round2(act.reduce((s, u) => s + feeKeys(u).reduce((a, k) => a + money(u[k]), 0), 0)) : null,
+        shipping: round2(sinIva(shipIn) - sinIva(shipCost)),
+        tax: round2(paid - revenue + shipIn - sinIva(shipIn)),
+        cancelled: act.length === 0,
+      };
+    });
+
+    return buildBreakdown({
+      lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+      platform: 'Falabella', shippingLabel: 'Envío (cobrado al comprador − costo del servicio)',
+    });
   }
 
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
@@ -526,36 +546,28 @@ export class FalabellaAdapter implements PlatformAdapter {
     const externalIds = rawOrders.map((o) => o.OrderId);
     const existing = await this.prisma.sale.findMany({
       where: { channel: SaleChannel.FALABELLA, externalId: { in: externalIds } },
-      select: { externalId: true },
-    });
-    const existingSet = new Set(existing.map((s) => s.externalId));
-    const itemsMap = await this.fetchOrderItemsMap(conn, externalIds);
-
-    // Completa descuento/neto de ventas ya importadas con los datos que ya se trajeron.
-    const byId = new Map(rawOrders.map((o) => [o.OrderId, o]));
-    const saved = await this.prisma.sale.findMany({
-      where: { channel: SaleChannel.FALABELLA, externalId: { in: externalIds } },
       select: { id: true, externalId: true },
     });
-    for (const sale of saved) {
-      const o = byId.get(sale.externalId!);
-      const its = itemsMap.get(sale.externalId!);
-      if (o && its?.length) await this.prisma.sale.update({ where: { id: sale.id }, data: this.orderBreakdown(o, its).charges });
-    }
+    const existingById = new Map(existing.map((s) => [s.externalId, s.id]));
+    const itemsMap = await this.fetchOrderItemsMap(conn, externalIds);
 
     const orders = [];
     for (const o of rawOrders) {
-      const alreadyRegistered = existingSet.has(o.OrderId);
-      const { resolved, items } = await this.resolveOrderItems(conn.id, itemsMap.get(o.OrderId) || []);
+      const saleId = existingById.get(o.OrderId);
+      const rawItems = itemsMap.get(o.OrderId) || [];
+      const { resolved, items } = await this.resolveOrderItems(conn.id, rawItems);
+      const b = this.orderBreakdown(conn, o, rawItems, items.map((i) => i.unitCost));
+      // Recalcula cargos/neto (sin IVA) de ventas ya importadas con los datos ya traídos.
+      if (saleId && rawItems.length) await backfillSale(this.prisma, saleId, b, items.map((i) => i.productId));
       orders.push({
         externalId: o.OrderId,
         date: o.CreatedAt,
         total: this.parseMoney(o.Price),
-        ...this.orderBreakdown(o, itemsMap.get(o.OrderId) || []),
+        ...b,
         buyerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
-        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
-        importable: !alreadyRegistered && resolved && items.length > 0,
-        alreadyRegistered,
+        items: previewItems(items, b),
+        importable: !saleId && resolved && items.length > 0,
+        alreadyRegistered: !!saleId,
       });
     }
     const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
@@ -579,22 +591,24 @@ export class FalabellaAdapter implements PlatformAdapter {
         if (!o) { errors.push(`${id}: no se encontró en Falabella`); continue; }
 
         const itemsMap = await this.fetchOrderItemsMap(conn, [id]);
-        const { resolved, items } = await this.resolveOrderItems(conn.id, itemsMap.get(id) || []);
+        const rawItems = itemsMap.get(id) || [];
+        const { resolved, items } = await this.resolveOrderItems(conn.id, rawItems);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+        const b = this.orderBreakdown(conn, o, rawItems, items.map((i) => i.unitCost));
 
         await this.prisma.sale.create({
           data: {
             channel: SaleChannel.FALABELLA,
             externalId: id,
             total: this.parseMoney(o.Price),
-            ...this.orderBreakdown(o, itemsMap.get(id) || []).charges,
+            ...b.charges,
             companyId,
             connectionId: conn.id,
             customerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
             address: o.AddressShipping?.Address1 || null,
             commune: o.AddressShipping?.City || null,
             createdAt: new Date(String(o.CreatedAt).replace(' ', 'T')),
-            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
           },
         });
         imported++;

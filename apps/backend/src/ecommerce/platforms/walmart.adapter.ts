@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, groupChargeRows } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
 
 // Walmart Chile (Líder) corre sobre la misma "Global Marketplace API" que Walmart US/CA/MX
 // (`https://marketplace.walmartapis.com`) — NO existe una API propia de Líder aparte.
@@ -307,7 +307,7 @@ export class WalmartAdapter implements PlatformAdapter {
 
   private async resolveOrderLines(connectionId: string, orderLines: any[]) {
     let resolved = true;
-    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null }> = [];
+    const out: Array<{ productId: string | null; quantity: number; unitPrice: number; title: string; productName: string | null; unitCost: number | null }> = [];
     for (const line of orderLines || []) {
       const sku = line.item?.sku;
       const quantity = Math.max(1, Number(line.orderLineQuantity?.amount ?? 1) || 1);
@@ -319,61 +319,56 @@ export class WalmartAdapter implements PlatformAdapter {
 
       const listing = sku ? await this.prisma.listing.findFirst({
         where: { connectionId, externalId: sku },
-        select: { productId: true, product: { select: { name: true } } },
+        select: { productId: true, product: { select: { name: true, cost: true } } },
       }) : null;
-      if (!listing) { resolved = false; out.push({ productId: null, quantity, unitPrice, title, productName: null }); continue; }
-      out.push({ productId: listing.productId, quantity, unitPrice, title, productName: listing.product.name });
+      if (!listing) { resolved = false; out.push({ productId: null, quantity, unitPrice, title, productName: null, unitCost: null }); continue; }
+      out.push({ productId: listing.productId, quantity, unitPrice, title, productName: listing.product.name, unitCost: listing.product.cost != null ? Number(listing.product.cost) : null });
     }
     return { resolved, items: out };
   }
 
-  private chargeTotal(orderLines: any[], match: (c: any) => boolean): number {
-    let total = 0;
-    for (const line of orderLines || []) {
-      for (const c of line.charges?.charge || []) {
-        if (match(c)) total += Number(c.chargeAmount?.amount ?? 0);
-      }
-    }
-    return total;
-  }
-
-  // Cargos del vendedor por orden, verificado contra 245 órdenes reales:
-  // - SHIPPING = envío a cargo del vendedor (coincide con "Cargos y bonificaciones" de Seller Center;
-  //   el comprador lo ve compensado por el cargo DISCOUNT/SHIP_DISC, que no es costo del vendedor).
-  // - COMMISSION = comisión marketplace. La API la entrega en 0 en todas las órdenes (igual que
-  //   Seller Center) y los reportes de conciliación vienen vacíos, así que no hay otra fuente.
-  // - DISCOUNT (distinto de SHIP_DISC) = descuento/promoción sobre el producto. El IVA de la orden se
-  //   calcula sobre el precio SIN descuento, así que el descuento sale directo del ingreso del vendedor.
-  // - El neto parte del precio del producto sin IVA (cargo PRODUCT): el IVA que Walmart cobra al
-  //   comprador (total de la orden) no es ganancia del vendedor, va al fisco.
-  // - IVA = cargo TAX/TAX (= suma de `charge.tax.taxAmount` de PRODUCT y SHIPPING, verificado en vivo).
-  // - Total de la orden = PRODUCT + SHIPPING + TAX − SHIP_DISC (verificado contra 57 órdenes reales).
-  private orderBreakdown(order: any, orderLines: any[]): SaleBreakdown & { total: number } {
+  // Cargos por línea, verificado contra órdenes reales (245 y luego 57):
+  // - PRODUCT/ItemPrice = precio del producto SIN IVA (su IVA viene en `tax.taxAmount`).
+  // - SHIPPING = envío a cargo del vendedor, sin IVA (coincide con "Cargos y bonificaciones" de
+  //   Seller Center; al comprador se le compensa con DISCOUNT/SHIP_DISC, que no es costo del vendedor).
+  // - COMMISSION = comisión. La API la entrega en 0 en todas las órdenes (igual que Seller Center)
+  //   → se estima con el % configurado en la conexión (ver sale-breakdown.ts).
+  // - DISCOUNT (≠ SHIP_DISC) = promoción sobre el producto; el IVA se calcula sobre el precio SIN
+  //   descuento, así que se resta directo del ingreso sin IVA.
+  // - TAX/TAX = IVA total (= suma de los `tax.taxAmount`). Total = PRODUCT + SHIPPING + TAX − SHIP_DISC.
+  // - Una línea con todos sus estados en "Cancelled" no suma al neto.
+  private orderBreakdown(conn: any, order: any, orderLines: any[], unitCosts: (number | null)[]): SaleBreakdown & { total: number } {
     const total = Number(order.orderSummary?.totalAmount?.amount ?? 0);
-    const productNet = this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT');
-    const shippingCost = this.chargeTotal(orderLines, (c) => c.chargeType === 'SHIPPING');
-    const marketplaceFee = this.chargeTotal(orderLines, (c) => c.chargeType === 'COMMISSION');
-    const discount = this.chargeTotal(orderLines, (c) => c.chargeType === 'DISCOUNT' && c.chargeName !== 'SHIP_DISC');
-    let taxes: number | null = null;
     const rows: ChargeDetailRow[] = [];
-    for (const line of orderLines || []) {
-      for (const c of line.charges?.charge || []) {
-        const tax = c.tax?.taxAmount?.amount;
-        if (tax != null) taxes = (taxes ?? 0) + Number(tax);
-        rows.push({ type: String(c.chargeType || 'OTRO'), name: String(c.chargeName || ''), amount: Number(c.chargeAmount?.amount ?? 0), tax: Number(tax ?? 0) });
+    const lines: LineCalc[] = orderLines.map((line) => {
+      const charges: any[] = line.charges?.charge || [];
+      const amt = (m: (c: any) => boolean) => charges.filter(m).reduce((s, c) => s + Number(c.chargeAmount?.amount ?? 0), 0);
+      const taxOf = (m: (c: any) => boolean) => charges.filter(m).reduce((s, c) => s + Number(c.tax?.taxAmount?.amount ?? 0), 0);
+      for (const c of charges) {
+        rows.push({ type: String(c.chargeType || 'OTRO'), name: String(c.chargeName || ''), amount: Number(c.chargeAmount?.amount ?? 0), tax: Number(c.tax?.taxAmount?.amount ?? 0) });
       }
-    }
-    const netAmount = productNet - discount - shippingCost - marketplaceFee;
+      const product = amt((c) => c.chargeType === 'PRODUCT');
+      const discount = amt((c) => c.chargeType === 'DISCOUNT' && c.chargeName !== 'SHIP_DISC');
+      const hasCommission = charges.some((c) => c.chargeType === 'COMMISSION');
+      const statuses = ([] as any[]).concat(line.orderLineStatuses?.orderLineStatus || []).map((s: any) => String(s?.status || ''));
+      return {
+        title: line.item?.productName,
+        quantity: Math.max(1, Number(line.orderLineQuantity?.amount ?? 1) || 1),
+        revenue: round2(product - discount),
+        discount: round2(discount),
+        gross: round2(product + taxOf((c) => c.chargeType === 'PRODUCT') - discount),
+        commission: hasCommission ? round2(amt((c) => c.chargeType === 'COMMISSION')) : null,
+        shipping: round2(-amt((c) => c.chargeType === 'SHIPPING')),
+        tax: round2(taxOf(() => true)),
+        cancelled: statuses.length > 0 && statuses.every((s) => /cancel/i.test(s)),
+      };
+    });
     return {
       total,
-      charges: { shippingCost, marketplaceFee, taxes, discount, netAmount },
-      breakdown: [
-        { label: 'Precio productos sin IVA', amount: productNet },
-        { label: 'Descuento/Promoción', amount: -discount },
-        { label: 'Envío a cargo del vendedor', amount: -shippingCost },
-        { label: 'Comisión Walmart', amount: -marketplaceFee },
-      ],
-      chargeDetail: groupChargeRows(rows),
+      ...buildBreakdown({
+        lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+        platform: 'Walmart', shippingLabel: 'Envío a cargo del vendedor',
+      }),
     };
   }
 
@@ -407,39 +402,27 @@ export class WalmartAdapter implements PlatformAdapter {
     const externalIds = rawOrders.map((o) => o.purchaseOrderId);
     const existing = await this.prisma.sale.findMany({
       where: { channel: SaleChannel.WALMART, externalId: { in: externalIds } },
-      select: { externalId: true },
-    });
-    const existingSet = new Set(existing.map((s) => s.externalId));
-
-    // Recalcula cargos/neto de ventas ya importadas (corrige las guardadas sin cargos o con la
-    // fórmula anterior) con los datos que este mismo listado ya trae, sin llamadas extra.
-    const pendingCharges = await this.prisma.sale.findMany({
-      where: { channel: SaleChannel.WALMART, externalId: { in: externalIds } },
       select: { id: true, externalId: true },
     });
-    const byId = new Map(rawOrders.map((o) => [o.purchaseOrderId, o]));
-    for (const sale of pendingCharges) {
-      const o = byId.get(sale.externalId!);
-      if (!o) continue;
-      const { charges } = this.orderBreakdown(o, this.extractOrderLines(o));
-      await this.prisma.sale.update({ where: { id: sale.id }, data: charges });
-    }
+    const existingById = new Map(existing.map((s) => [s.externalId, s.id]));
 
     const orders = [];
     for (const o of rawOrders) {
-      const alreadyRegistered = existingSet.has(o.purchaseOrderId);
+      const saleId = existingById.get(o.purchaseOrderId);
       const orderLines = this.extractOrderLines(o);
       const { resolved, items } = await this.resolveOrderLines(conn.id, orderLines);
-      const { total, ...breakdown } = this.orderBreakdown(o, orderLines);
+      const { total, ...b } = this.orderBreakdown(conn, o, orderLines, items.map((i) => i.unitCost));
+      // Recalcula cargos/neto (sin IVA) de ventas ya importadas con los datos de este mismo listado.
+      if (saleId) await backfillSale(this.prisma, saleId, b, items.map((i) => i.productId));
       orders.push({
         externalId: o.purchaseOrderId,
         date: new Date(Number(o.orderDate)).toISOString(),
         total,
-        ...breakdown,
+        ...b,
         buyerName: o.shippingInfo?.postalAddress?.name || null,
-        items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
-        importable: !alreadyRegistered && resolved && items.length > 0,
-        alreadyRegistered,
+        items: previewItems(items, b),
+        importable: !saleId && resolved && items.length > 0,
+        alreadyRegistered: !!saleId,
       });
     }
     const alreadyImportedCount = orders.filter((o) => o.alreadyRegistered).length;
@@ -464,20 +447,21 @@ export class WalmartAdapter implements PlatformAdapter {
         const orderLines = this.extractOrderLines(o);
         const { resolved, items } = await this.resolveOrderLines(conn.id, orderLines);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
+        const b = this.orderBreakdown(conn, o, orderLines, items.map((i) => i.unitCost));
 
         await this.prisma.sale.create({
           data: {
             channel: SaleChannel.WALMART,
             externalId: id,
-            total: Number(o.orderSummary?.totalAmount?.amount ?? 0),
-            ...this.orderBreakdown(o, orderLines).charges,
+            total: b.total,
+            ...b.charges,
             companyId,
             connectionId: conn.id,
             customerName: o.shippingInfo?.postalAddress?.name || null,
             address: o.shippingInfo?.postalAddress?.address1 || null,
             commune: o.shippingInfo?.postalAddress?.city || null,
             createdAt: new Date(Number(o.orderDate)),
-            items: { create: items.map((i) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice })) },
+            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
           },
         });
         imported++;

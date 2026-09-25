@@ -358,7 +358,7 @@ export class PosService {
             include: {
               product: {
                 select: {
-                  id: true, name: true, sku: true,
+                  id: true, name: true, sku: true, cost: true,
                   images: { select: { url: true, isPrimary: true }, orderBy: { order: 'asc' } },
                 },
               },
@@ -502,7 +502,7 @@ export class PosService {
     const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const header = [
       'Fecha', 'Canal', 'Cuenta', 'ID Venta', 'ID Externo', 'Comprador', 'Forma de despacho', 'SKU', 'Producto', 'Cantidad', 'Precio unitario', 'Subtotal',
-      'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto recibido',
+      'Envío', 'Comisión marketplace', 'Impuestos', 'Descuento/Cupón', 'Total neto (sin IVA en Walmart/Ripley/Paris/Falabella)',
     ];
     const rows = [header.join(',')];
     for (const sale of sales) {

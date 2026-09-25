@@ -18,6 +18,7 @@ export default function WalmartPage() {
       fields: [
         { key: 'clientId', label: 'Client ID', placeholder: 'Tu Client ID', hint: 'Pega aqui el Client ID de Walmart' },
         { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Tu Client Secret', hint: 'Pega aqui el Client Secret de Walmart' },
+        { key: 'commissionRate', label: '% comisión', placeholder: 'Ej: 12', required: false, hint: 'La API de Walmart entrega la comisión en $0: indica tu % de comisión (sobre el precio con IVA) para calcular el neto y la ganancia reales de cada venta importada.' },
       ],
     }} />
   );
