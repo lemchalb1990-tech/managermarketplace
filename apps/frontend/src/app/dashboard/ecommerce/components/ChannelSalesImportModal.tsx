@@ -6,10 +6,14 @@ import { api } from '@/lib/api';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 
 type OrderItem = { title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null };
+type OrderCharges = { productNet: number; shippingCost: number; marketplaceFee: number; taxes: number | null; discount: number; netAmount: number };
 type OrderPreview = {
   externalId: string; date: string; total: number; buyerName: string | null;
   importable: boolean; alreadyRegistered: boolean; items: OrderItem[];
+  charges?: OrderCharges;
 };
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
 
 const PAGE_SIZE = 20;
 
@@ -22,8 +26,8 @@ function today(tz: string) {
 }
 
 // Genérico a propósito — mismo patrón que ML (ver ecommerce/mercadolibre/components/
-// SalesImportModal.tsx) pero simplificado: sin desglose de cargos/comisión (esas
-// plataformas no lo separan igual) ni la opción de crear Orden de despacho. Trae ventas
+// SalesImportModal.tsx) pero simplificado: el desglose de cargos solo aparece si la
+// plataforma lo entrega (`charges`, hoy Walmart) y no ofrece crear Orden de despacho. Trae ventas
 // ya realizadas como historial — no descuenta stock ni genera movimientos de inventario.
 export function ChannelSalesImportModal({
   connectionId,
@@ -126,6 +130,8 @@ export function ChannelSalesImportModal({
   const unresolvedCount = orders.filter((o) => !o.importable && !o.alreadyRegistered).length;
   const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const hasCharges = orders.some((o) => o.charges);
+  const colCount = hasCharges ? 7 : 6;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -229,6 +235,7 @@ export function ChannelSalesImportModal({
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
                       <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
+                      {hasCharges && <th className="px-2 py-2 text-right text-gray-600 font-medium">Neto</th>}
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
                       <th className="px-2 py-2 w-8"></th>
                     </tr>
@@ -249,7 +256,12 @@ export function ChannelSalesImportModal({
                               {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                             </td>
                             <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerName || '—'}</td>
-                            <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
+                            <td className="px-2 py-2 text-right text-gray-700">{money(o.total)}</td>
+                            {hasCharges && (
+                              <td className="px-2 py-2 text-right text-gray-900 font-medium">
+                                {o.charges ? money(o.charges.netAmount) : '—'}
+                              </td>
+                            )}
                             <td className="px-2 py-2">
                               {o.importable ? (
                                 <span className="text-xs text-green-600">Lista</span>
@@ -263,7 +275,7 @@ export function ChannelSalesImportModal({
                           </tr>
                           {isOpen && (
                             <tr>
-                              <td colSpan={6} className="bg-gray-50 px-6 py-3">
+                              <td colSpan={colCount} className="bg-gray-50 px-6 py-3">
                                 <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
                                 <div className="space-y-1">
                                   {o.items.map((it, i) => (
@@ -276,6 +288,22 @@ export function ChannelSalesImportModal({
                                     </div>
                                   ))}
                                 </div>
+                                {o.charges && (
+                                  <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-xs text-gray-600 max-w-sm ml-auto">
+                                    <p className="font-semibold text-gray-600 mb-1">Desglose</p>
+                                    <div className="flex justify-between"><span>Total pagado por el comprador</span><span>{money(o.total)}</span></div>
+                                    {o.charges.taxes != null && (
+                                      <div className="flex justify-between"><span>IVA (va al fisco)</span><span>-{money(o.charges.taxes)}</span></div>
+                                    )}
+                                    <div className="flex justify-between"><span>Precio productos sin IVA</span><span>{money(o.charges.productNet)}</span></div>
+                                    <div className="flex justify-between"><span>Descuento/Promoción</span><span>-{money(o.charges.discount)}</span></div>
+                                    <div className="flex justify-between"><span>Envío (a cargo del vendedor)</span><span>-{money(o.charges.shippingCost)}</span></div>
+                                    <div className="flex justify-between"><span>Comisión marketplace</span><span>-{money(o.charges.marketplaceFee)}</span></div>
+                                    <div className="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
+                                      <span>Neto recibido</span><span>{money(o.charges.netAmount)}</span>
+                                    </div>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           )}

@@ -345,13 +345,21 @@ export class WalmartAdapter implements PlatformAdapter {
   //   calcula sobre el precio SIN descuento, así que el descuento sale directo del ingreso del vendedor.
   // - El neto parte del precio del producto sin IVA (cargo PRODUCT): el IVA que Walmart cobra al
   //   comprador (total de la orden) no es ganancia del vendedor, va al fisco.
+  // - IVA = suma de `charge.tax.taxAmount` de cada cargo; null si la orden no trae ese dato.
   private orderCharges(order: any, orderLines: any[]) {
     const total = Number(order.orderSummary?.totalAmount?.amount ?? 0);
     const productNet = this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT');
     const shippingCost = this.chargeTotal(orderLines, (c) => c.chargeType === 'SHIPPING');
     const marketplaceFee = this.chargeTotal(orderLines, (c) => c.chargeType === 'COMMISSION');
     const discount = this.chargeTotal(orderLines, (c) => c.chargeType === 'DISCOUNT' && c.chargeName !== 'SHIP_DISC');
-    return { total, shippingCost, marketplaceFee, discount, netAmount: productNet - discount - shippingCost - marketplaceFee };
+    let taxes: number | null = null;
+    for (const line of orderLines || []) {
+      for (const c of line.charges?.charge || []) {
+        const amount = c.tax?.taxAmount?.amount;
+        if (amount != null) taxes = (taxes ?? 0) + Number(amount);
+      }
+    }
+    return { total, shippingCost, marketplaceFee, taxes, discount, netAmount: productNet - discount - shippingCost - marketplaceFee };
   }
 
   private extractOrderLines(order: any): any[] {
@@ -407,10 +415,12 @@ export class WalmartAdapter implements PlatformAdapter {
       const alreadyRegistered = existingSet.has(o.purchaseOrderId);
       const orderLines = this.extractOrderLines(o);
       const { resolved, items } = await this.resolveOrderLines(conn.id, orderLines);
+      const { total, ...charges } = this.orderCharges(o, orderLines);
       orders.push({
         externalId: o.purchaseOrderId,
         date: new Date(Number(o.orderDate)).toISOString(),
-        total: Number(o.orderSummary?.totalAmount?.amount ?? 0),
+        total,
+        charges: { ...charges, productNet: this.chargeTotal(orderLines, (c) => c.chargeType === 'PRODUCT') },
         buyerName: o.shippingInfo?.postalAddress?.name || null,
         items: items.map((i) => ({ title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName })),
         importable: !alreadyRegistered && resolved && items.length > 0,
