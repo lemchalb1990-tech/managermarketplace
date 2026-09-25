@@ -23,6 +23,7 @@ const CHARGE_TYPE_LABELS: Record<string, string> = {
   DISCOUNT: 'Descuento',
   COMMISSION: 'Comisión',
   FEE: 'Cargo',
+  TAX: 'IVA total (va al fisco)',
 };
 // Descuentos, comisiones, envío y cargos restan del ingreso; el precio del producto suma.
 // SHIP_DISC es la bonificación de envío al comprador (compensa SHIPPING), no costo del vendedor.
@@ -324,11 +325,11 @@ export function ChannelSalesImportModal({
                                 {o.charges && (
                                   <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-xs text-gray-600 max-w-sm ml-auto">
                                     <p className="font-semibold text-gray-600 mb-1">Desglose</p>
-                                    <div className="flex justify-between"><span>Total pagado por el comprador</span><span>{money(o.total)}</span></div>
-                                    {o.charges.taxes != null && (
-                                      <div className="flex justify-between"><span>IVA (va al fisco)</span><span>-{money(o.charges.taxes)}</span></div>
-                                    )}
-                                    <div className="flex justify-between"><span>Precio productos sin IVA</span><span>{money(o.charges.productNet)}</span></div>
+                                    <div className="flex justify-between text-gray-400">
+                                      <span>Total pagado por el comprador{o.charges.taxes != null && ` (incluye IVA ${money(o.charges.taxes)})`}</span>
+                                      <span>{money(o.total)}</span>
+                                    </div>
+                                    <div className="flex justify-between pt-1"><span>Precio productos sin IVA</span><span>{money(o.charges.productNet)}</span></div>
                                     <div className="flex justify-between"><span>Descuento/Promoción</span><span>-{money(o.charges.discount)}</span></div>
                                     <div className="flex justify-between"><span>Envío (a cargo del vendedor)</span><span>-{money(o.charges.shippingCost)}</span></div>
                                     <div className="flex justify-between"><span>Comisión marketplace</span><span>-{money(o.charges.marketplaceFee)}</span></div>
