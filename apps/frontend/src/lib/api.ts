@@ -152,6 +152,54 @@ export async function apiDownload(path: string, token: string, filename: string)
   URL.revokeObjectURL(url);
 }
 
+// Query string sin claves vacías (para filtros opcionales).
+function toQuery(params: Record<string, string | number | boolean | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '' || v === false) continue;
+    q.set(k, String(v));
+  }
+  return q.toString();
+}
+
+export type InventoryAvailabilityParams = {
+  companyId?: string; warehouseId?: string; search?: string; category?: string;
+  onlyStock?: boolean; belowCritical?: boolean; at?: string; page?: number; pageSize?: number;
+};
+export type InventoryWarehouseSummary = { id: string; name: string; active: boolean; units: number; skus: number; value: number; inTransitIn: number };
+export type InventoryRow = {
+  id: string; sku: string; name: string; category: string | null; cost: number | null; criticalStock: number;
+  total: number; stock: Record<string, { quantity: number; reserved: number; available: number }>;
+  inTransitIn: Record<string, number>; inTransit: number; value: number | null; belowCritical: boolean; mismatch: boolean;
+};
+export type InventoryAvailability = {
+  warehouses: InventoryWarehouseSummary[]; categories: string[]; rows: InventoryRow[];
+  total: number; page: number; pages: number; at: string | null;
+};
+export type InventoryMovementsParams = {
+  companyId?: string; productId?: string; warehouseId?: string; search?: string; type?: string;
+  document?: string; from?: string; to?: string; page?: number;
+};
+export type InventoryMovement = {
+  id: string; createdAt: string; type: string; typeLabel: string; quantity: number; in: number; out: number;
+  balanceAfter: number | null; reason: string | null; unitCost: number | null;
+  referenceType: string | null; referenceId: string | null; documentNumber: string | null;
+  product: { id: string; sku: string; name: string }; warehouse: { id: string; name: string } | null; user: { id: string; name: string } | null;
+};
+export type InventoryMovements = {
+  items: InventoryMovement[]; total: number; page: number; pages: number;
+  summary: { entries: number; exits: number; byType: Record<string, number> };
+};
+export type TransferStatus = 'DRAFT' | 'IN_TRANSIT' | 'RECEIVED' | 'RECEIVED_WITH_DIFF' | 'CANCELLED';
+type UserRef = { id: string; name: string } | null;
+export type TransferDocument = {
+  id: string; number: number; documentNumber: string; status: TransferStatus; notes: string | null; cancelReason: string | null;
+  createdAt: string; dispatchedAt: string | null; receivedAt: string | null; cancelledAt: string | null;
+  fromWarehouse: { id: string; name: string }; toWarehouse: { id: string; name: string };
+  createdBy: UserRef; dispatchedBy: UserRef; receivedBy: UserRef; cancelledBy: UserRef;
+  lines: Array<{ id: string; quantity: number; receivedQuantity: number | null; unitCost: string | null; productId: string; product: { id: string; sku: string; name: string } }>;
+};
+
 export const api = {
   login: (email: string, password: string) =>
     apiFetch<{ access_token: string; user: any }>('/auth/login', {
@@ -734,16 +782,38 @@ export const api = {
     }, token: string) =>
       apiFetch<any>('/purchases', { method: 'POST', body: JSON.stringify(data) }, token),
   },
-  stockTransfers: {
-    list: (token: string, params?: { companyId?: string; page?: number }) => {
-      const q = new URLSearchParams();
-      if (params?.companyId) q.set('companyId', params.companyId);
-      if (params?.page) q.set('page', String(params.page));
-      return apiFetch<{ transfers: any[]; total: number; page: number; pages: number }>(`/stock-transfers?${q}`, {}, token);
+  inventory: {
+    availability: (params: InventoryAvailabilityParams, token: string) =>
+      apiFetch<InventoryAvailability>(`/inventory/availability?${toQuery(params)}`, {}, token),
+    exportAvailability: (params: InventoryAvailabilityParams, token: string) =>
+      apiDownload(`/inventory/availability/export?${toQuery(params)}`, token, 'disponibilidad-por-bodega.csv'),
+    movements: (params: InventoryMovementsParams, token: string) =>
+      apiFetch<InventoryMovements>(`/inventory/movements?${toQuery(params)}`, {}, token),
+    exportMovements: (params: InventoryMovementsParams, token: string) =>
+      apiDownload(`/inventory/movements/export?${toQuery(params)}`, token, 'historial-inventario.csv'),
+    adjust: (data: { companyId?: string; productId: string; warehouseId: string; mode: 'SET' | 'DELTA'; quantity: number; reason: string }, token: string) =>
+      apiFetch<{ warehouseId: string; balanceAfter: number; productStock: number; delta: number }>('/inventory/adjust', { method: 'POST', body: JSON.stringify(data) }, token),
+    reconciliation: (token: string, companyId?: string) =>
+      apiFetch<Array<{ id: string; sku: string; name: string; total: number; warehousesSum: number; difference: number }>>(`/inventory/reconciliation${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    reconcile: (data: { companyId?: string; productIds?: string[] }, token: string) =>
+      apiFetch<{ fixed: number }>('/inventory/reconcile', { method: 'POST', body: JSON.stringify(data) }, token),
+    transfers: {
+      list: (params: { companyId?: string; status?: string; warehouseId?: string; search?: string; page?: number }, token: string) =>
+        apiFetch<{ documents: TransferDocument[]; total: number; page: number; pages: number; byStatus: Record<string, number> }>(`/inventory/transfers?${toQuery(params)}`, {}, token),
+      get: (id: string, token: string) => apiFetch<TransferDocument>(`/inventory/transfers/${id}`, {}, token),
+      create: (data: { companyId?: string; fromWarehouseId: string; toWarehouseId: string; notes?: string; lines: Array<{ productId: string; quantity: number }>; dispatch?: boolean }, token: string) =>
+        apiFetch<TransferDocument>('/inventory/transfers', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: { fromWarehouseId?: string; toWarehouseId?: string; notes?: string; lines?: Array<{ productId: string; quantity: number }> }, token: string) =>
+        apiFetch<TransferDocument>(`/inventory/transfers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      dispatch: (id: string, token: string) =>
+        apiFetch<TransferDocument>(`/inventory/transfers/${id}/dispatch`, { method: 'POST' }, token),
+      receive: (id: string, data: { lines: Array<{ lineId: string; receivedQuantity: number }>; notes?: string }, token: string) =>
+        apiFetch<TransferDocument>(`/inventory/transfers/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }, token),
+      cancel: (id: string, reason: string, token: string) =>
+        apiFetch<TransferDocument>(`/inventory/transfers/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }, token),
     },
-    create: (data: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; reason?: string; companyId?: string }, token: string) =>
-      apiFetch<any>('/stock-transfers', { method: 'POST', body: JSON.stringify(data) }, token),
   },
+
   dispatch: {
     listRoutes: (token: string, params?: { status?: string; date?: string; dispatcherId?: string }) => {
       const q = new URLSearchParams();

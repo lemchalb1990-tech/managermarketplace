@@ -178,6 +178,12 @@ export class UpdateProductDto {
 export class AdjustStockDto {
   @IsInt()
   quantity: number;
+
+  @IsOptional() @IsString()
+  warehouseId?: string;
+
+  @IsOptional() @IsString()
+  reason?: string;
 }
 
 export class BulkIdsDto {

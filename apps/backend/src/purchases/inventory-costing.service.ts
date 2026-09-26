@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { MovementType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { matchesModule } from '../common/modules.util';
+import { StockLedgerService, StockReference } from './stock-ledger.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -12,17 +13,19 @@ interface ConsumedLot {
 }
 
 // Motor de costeo por lotes (FIFO), opt-in por empresa vía Company.modules ('purchases').
-// Con el módulo apagado, todo el sistema se comporta exactamente igual que antes de que
-// este servicio existiera (stock tradicional, sin lotes). Con el módulo activo, las
-// compras generan lotes y las ventas/traspasos los consumen del más antiguo al más nuevo.
+// Con el módulo apagado, los movimientos pasan por StockLedgerService (stock por bodega +
+// kardex, sin lotes). Con el módulo activo, las compras generan lotes y las ventas/traspasos
+// los consumen del más antiguo al más nuevo; el stock por bodega y el kardex se mantienen igual.
 @Injectable()
 export class InventoryCostingService {
   private readonly logger = new Logger(InventoryCostingService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private ledger: StockLedgerService) {}
 
-  async isPurchasesModuleActive(companyId: string): Promise<boolean> {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
+  // Dentro de una transacción, pasar `client` (tx): consultar con otra conexión mientras la
+  // transacción tiene la suya puede bloquearse con un pool chico.
+  async isPurchasesModuleActive(companyId: string, client: Tx | PrismaService = this.prisma): Promise<boolean> {
+    const company = await client.company.findUnique({ where: { id: companyId }, select: { modules: true } });
     return matchesModule(company?.modules, 'purchases');
   }
 
@@ -72,6 +75,18 @@ export class InventoryCostingService {
     await tx.product.update({ where: { id: productId }, data: { cost: totalValue / totalQty } });
   }
 
+  // Deja cuadrado el stock por bodega del producto (ver StockLedgerService.seedIfEmpty) y
+  // devuelve la existencia actual en `warehouseId`, para calcular el saldo de cada movimiento.
+  private async prepareWarehouse(tx: Tx, productId: string, warehouseId: string, userId?: string): Promise<number> {
+    const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true, companyId: true, warehouseId: true, stock: true } });
+    if (product) {
+      const home = await this.ledger.resolveWarehouseId(tx, product);
+      await this.ledger.seedIfEmpty(tx, product, home, userId);
+    }
+    const row = await tx.productStock.findUnique({ where: { productId_warehouseId: { productId, warehouseId } } });
+    return row?.quantity ?? 0;
+  }
+
   // Lectura + escritura (en vez de increment/decrement atómico) para poder acotar el
   // resultado a 0 — replica el comportamiento previo a este servicio (tanto POS como el
   // webhook de ML ya evitaban dejar stock negativo).
@@ -93,10 +108,11 @@ export class InventoryCostingService {
   // producto, crea el movimiento y recalcula el costo promedio ponderado.
   async receivePurchaseItem(tx: Tx, params: {
     productId: string; warehouseId: string; quantity: number; unitCost: number;
-    purchaseItemId: string; userId?: string; reason: string;
+    purchaseItemId: string; userId?: string; reason: string; reference?: StockReference;
   }) {
     const { productId, warehouseId, quantity, unitCost, purchaseItemId, userId, reason } = params;
 
+    const before = await this.prepareWarehouse(tx, productId, warehouseId, userId);
     await this.adjustProductStock(tx, productId, warehouseId, quantity);
     await tx.stockMovement.create({
       data: {
@@ -108,6 +124,10 @@ export class InventoryCostingService {
         purchaseItemId,
         unitCost,
         userId,
+        balanceAfter: before + quantity,
+        referenceType: params.reference?.type ?? 'PURCHASE',
+        referenceId: params.reference?.id,
+        documentNumber: params.reference?.number,
       },
     });
     await this.recomputeAverageCost(tx, productId);
@@ -115,30 +135,30 @@ export class InventoryCostingService {
 
   // Consume stock para una línea de venta. Con el módulo de compras activo, hace FIFO
   // sobre los lotes vivos y devuelve el costo total consumido (para SaleItem.totalCost).
-  // Sin el módulo activo (o sin bodega resuelta), resta stock tradicional —igual que el
-  // comportamiento anterior a este servicio— y devuelve null.
+  // Sin el módulo activo (o sin bodega resuelta), descuenta por el motor de inventario
+  // (bodega del producto o la por defecto) y devuelve null.
   async consumeForSale(tx: Tx, params: {
     companyId: string; productId: string; warehouseId: string | null; quantity: number;
-    saleItemId: string; reason: string; userId?: string;
+    saleItemId: string; reason: string; userId?: string; reference?: StockReference;
   }): Promise<number | null> {
     const { companyId, productId, warehouseId, quantity, saleItemId, reason, userId } = params;
-    const active = warehouseId ? await this.isPurchasesModuleActive(companyId) : false;
+    const reference = params.reference ?? { type: 'SALE' as const };
+    const active = warehouseId ? await this.isPurchasesModuleActive(companyId, tx) : false;
 
     if (!active || !warehouseId) {
-      const product = await tx.product.findUnique({ where: { id: productId }, select: { stock: true } });
-      const newStock = Math.max(0, (product?.stock ?? 0) - quantity);
-      await tx.product.update({ where: { id: productId }, data: { stock: newStock } });
-      await tx.stockMovement.create({
-        data: { type: MovementType.SALE, quantity: -quantity, reason, productId, saleItemId, userId },
+      await this.ledger.move(tx, {
+        productId, warehouseId, delta: -quantity, type: MovementType.SALE, reason, userId, saleItemId, reference,
       });
       return null;
     }
 
+    let balance = await this.prepareWarehouse(tx, productId, warehouseId, userId);
     const consumedLots = await this.consumeLotsFifo(tx, { productId, warehouseId, quantity });
 
     let totalCost = 0;
     for (const lot of consumedLots) {
       totalCost += lot.quantity * lot.unitCost;
+      balance = Math.max(0, balance - lot.quantity);
       await tx.stockMovement.create({
         data: {
           type: MovementType.SALE,
@@ -150,6 +170,10 @@ export class InventoryCostingService {
           warehouseId,
           unitCost: lot.unitCost,
           purchaseItemId: lot.purchaseItemId || undefined,
+          balanceAfter: balance,
+          referenceType: reference.type,
+          referenceId: reference.id,
+          documentNumber: reference.number,
         },
       });
     }
@@ -160,19 +184,26 @@ export class InventoryCostingService {
     return totalCost;
   }
 
-  // Traspasa stock entre bodegas consumiendo FIFO en el origen y creando lotes nuevos en
-  // el destino con el mismo costo unitario original (preserva el costeo real). El total
-  // del producto no cambia (misma cantidad, otra bodega).
-  async transferStock(tx: Tx, params: {
-    productId: string; fromWarehouseId: string; toWarehouseId: string;
-    quantity: number; userId?: string; reason?: string;
-  }) {
-    const { productId, fromWarehouseId, toWarehouseId, quantity, userId } = params;
-    const reason = params.reason || 'Traspaso de bodega';
+  // Salida de un traspaso desde la bodega de origen. Con el módulo Compras activo consume
+  // lotes FIFO y devuelve su costo unitario promedio (se usa para crear los lotes en destino
+  // al recibir). Sin el módulo, mueve por el motor de inventario. Descuenta el total del
+  // producto: la mercadería en tránsito no se publica en los canales.
+  async transferOut(tx: Tx, params: {
+    companyId: string; productId: string; warehouseId: string; quantity: number;
+    userId?: string; reason: string; reference: StockReference;
+  }): Promise<number | null> {
+    const { companyId, productId, warehouseId, quantity, userId, reason, reference } = params;
+    if (!(await this.isPurchasesModuleActive(companyId, tx))) {
+      await this.ledger.move(tx, { productId, warehouseId, delta: -quantity, type: MovementType.TRANSFER_OUT, reason, userId, reference });
+      return null;
+    }
 
-    const consumedLots = await this.consumeLotsFifo(tx, { productId, warehouseId: fromWarehouseId, quantity });
-
+    let balance = await this.prepareWarehouse(tx, productId, warehouseId, userId);
+    const consumedLots = await this.consumeLotsFifo(tx, { productId, warehouseId, quantity });
+    let totalCost = 0;
     for (const lot of consumedLots) {
+      totalCost += lot.quantity * lot.unitCost;
+      balance = Math.max(0, balance - lot.quantity);
       await tx.stockMovement.create({
         data: {
           type: MovementType.TRANSFER_OUT,
@@ -180,47 +211,67 @@ export class InventoryCostingService {
           reason,
           productId,
           userId,
-          warehouseId: fromWarehouseId,
+          warehouseId,
           unitCost: lot.unitCost,
           purchaseItemId: lot.purchaseItemId || undefined,
-        },
-      });
-
-      const newLot = await tx.purchaseItem.create({
-        data: {
-          productId,
-          warehouseId: toWarehouseId,
-          quantity: lot.quantity,
-          remainingQuantity: lot.quantity,
-          unitCost: lot.unitCost,
-        },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          type: MovementType.TRANSFER_IN,
-          quantity: lot.quantity,
-          reason,
-          productId,
-          userId,
-          warehouseId: toWarehouseId,
-          unitCost: lot.unitCost,
-          purchaseItemId: newLot.id,
+          balanceAfter: balance,
+          referenceType: reference.type,
+          referenceId: reference.id,
+          documentNumber: reference.number,
         },
       });
     }
-
-    await this.adjustProductStock(tx, productId, fromWarehouseId, -quantity);
-    await this.adjustProductStock(tx, productId, toWarehouseId, quantity);
+    await this.adjustProductStock(tx, productId, warehouseId, -quantity);
+    await this.recomputeAverageCost(tx, productId);
+    return quantity > 0 ? totalCost / quantity : null;
   }
 
-  // Bootstrap al activar el módulo para una empresa: crea un lote de apertura por cada
+  // Entrada de un traspaso en la bodega de destino (recepción) o de vuelta en origen (anulación
+  // en tránsito). Con el módulo Compras activo crea un lote con el costo con que salió.
+  async transferIn(tx: Tx, params: {
+    companyId: string; productId: string; warehouseId: string; quantity: number; unitCost: number | null;
+    userId?: string; reason: string; reference: StockReference;
+  }) {
+    const { companyId, productId, warehouseId, quantity, unitCost, userId, reason, reference } = params;
+    if (quantity <= 0) return;
+    if (!(await this.isPurchasesModuleActive(companyId, tx))) {
+      await this.ledger.move(tx, { productId, warehouseId, delta: quantity, type: MovementType.TRANSFER_IN, reason, userId, reference });
+      return;
+    }
+
+    const before = await this.prepareWarehouse(tx, productId, warehouseId, userId);
+    const cost = unitCost ?? Number((await tx.product.findUnique({ where: { id: productId }, select: { cost: true } }))?.cost ?? 0);
+    const lot = await tx.purchaseItem.create({
+      data: { productId, warehouseId, quantity, remainingQuantity: quantity, unitCost: cost },
+    });
+    await tx.stockMovement.create({
+      data: {
+        type: MovementType.TRANSFER_IN,
+        quantity,
+        reason,
+        productId,
+        userId,
+        warehouseId,
+        unitCost: cost,
+        purchaseItemId: lot.id,
+        balanceAfter: before + quantity,
+        referenceType: reference.type,
+        referenceId: reference.id,
+        documentNumber: reference.number,
+      },
+    });
+    await this.adjustProductStock(tx, productId, warehouseId, quantity);
+    await this.recomputeAverageCost(tx, productId);
+  }
+
+  // Bootstrap al activar el módulo para una empresa: crea lotes de apertura por cada
   // producto activo con stock y sin lotes previos, usando su stock/costo actuales, para
-  // que el FIFO nunca se quede sin de dónde descontar.
+  // que el FIFO nunca se quede sin de dónde descontar. Si el producto ya tiene stock por
+  // bodega (motor de inventario), se crea un lote por bodega sin volver a sumar stock.
   async bootstrapOpeningLots(companyId: string) {
     const products = await this.prisma.product.findMany({
       where: { companyId, active: true, stock: { gt: 0 } },
-      include: { _count: { select: { purchaseItems: true } } },
+      include: { _count: { select: { purchaseItems: true } }, productStocks: true },
     });
 
     const migrated: string[] = [];
@@ -228,14 +279,27 @@ export class InventoryCostingService {
 
     for (const product of products) {
       if (product._count.purchaseItems > 0) continue;
+      const unitCost = Number(product.cost ?? 0);
+
+      if (product.productStocks.length > 0) {
+        await this.prisma.$transaction(async (tx) => {
+          for (const row of product.productStocks) {
+            if (row.quantity <= 0) continue;
+            await tx.purchaseItem.create({
+              data: { productId: product.id, warehouseId: row.warehouseId, quantity: row.quantity, remainingQuantity: row.quantity, unitCost },
+            });
+          }
+        });
+        migrated.push(product.id);
+        continue;
+      }
+
       if (!product.warehouseId) {
         skipped.push({ productId: product.id, name: product.name, reason: 'Sin bodega asignada' });
         continue;
       }
 
       const warehouseId = product.warehouseId;
-      const unitCost = Number(product.cost ?? 0);
-
       await this.prisma.$transaction(async (tx) => {
         const lot = await tx.purchaseItem.create({
           data: {
@@ -246,11 +310,7 @@ export class InventoryCostingService {
             unitCost,
           },
         });
-        await tx.productStock.upsert({
-          where: { productId_warehouseId: { productId: product.id, warehouseId } },
-          create: { productId: product.id, warehouseId, quantity: product.stock },
-          update: { quantity: { increment: product.stock } },
-        });
+        await tx.productStock.create({ data: { productId: product.id, warehouseId, quantity: product.stock } });
         await tx.stockMovement.create({
           data: {
             type: MovementType.PURCHASE,
@@ -260,6 +320,8 @@ export class InventoryCostingService {
             warehouseId,
             purchaseItemId: lot.id,
             unitCost,
+            balanceAfter: product.stock,
+            referenceType: 'INITIAL',
           },
         });
       });

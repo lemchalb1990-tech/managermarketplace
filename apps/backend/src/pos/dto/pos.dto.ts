@@ -89,4 +89,8 @@ export class StockAdjustDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
 }

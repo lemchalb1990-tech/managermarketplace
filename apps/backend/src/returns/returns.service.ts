@@ -11,6 +11,7 @@ import {
   Role,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StockLedgerService } from '../purchases/stock-ledger.service';
 import { companyWhere, assertSameCompany } from '../common/tenant';
 import {
   CreateReturnDto,
@@ -36,7 +37,7 @@ const INCLUDE = {
 
 @Injectable()
 export class ReturnsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private ledger: StockLedgerService) {}
 
   private baseWhere(user: any, companyId?: string) {
     const where = companyWhere(user);
@@ -223,18 +224,10 @@ export class ReturnsService {
       });
 
       for (const it of toRestock) {
-        await tx.product.update({
-          where: { id: it.productId! },
-          data: { stock: { increment: it.quantity } },
-        });
-        await tx.stockMovement.create({
-          data: {
-            type: MovementType.RETURN,
-            quantity: it.quantity,
-            reason: `Devolución ${ret.externalId || id.slice(-6)}`,
-            productId: it.productId!,
-            userId: user.id,
-          },
+        await this.ledger.move(tx, {
+          productId: it.productId!, warehouseId: dto.warehouseId, delta: it.quantity, type: MovementType.RETURN,
+          reason: `Devolución ${ret.externalId || id.slice(-6)}`, userId: user.id,
+          reference: { type: 'RETURN', id, number: ret.externalId || undefined },
         });
         await tx.returnItem.update({
           where: { id: it.id },
@@ -257,18 +250,16 @@ export class ReturnsService {
       for (const it of ret.items.filter(
         (i: any) => i.restocked && i.productId,
       )) {
-        await tx.product.update({
-          where: { id: it.productId! },
-          data: { stock: { decrement: it.quantity } },
+        // Sale de la misma bodega a la que entró al recibirla.
+        const entry = await tx.stockMovement.findFirst({
+          where: { referenceType: 'RETURN', referenceId: id, productId: it.productId!, type: MovementType.RETURN },
+          orderBy: { createdAt: 'desc' },
+          select: { warehouseId: true },
         });
-        await tx.stockMovement.create({
-          data: {
-            type: MovementType.ADJUSTMENT,
-            quantity: -it.quantity,
-            reason: `Reversa devolución ${ret.externalId || id.slice(-6)}`,
-            productId: it.productId!,
-            userId: user.id,
-          },
+        await this.ledger.move(tx, {
+          productId: it.productId!, warehouseId: entry?.warehouseId, delta: -it.quantity, type: MovementType.ADJUSTMENT,
+          reason: `Reversa devolución ${ret.externalId || id.slice(-6)}`, userId: user.id,
+          reference: { type: 'RETURN', id, number: ret.externalId || undefined },
         });
         await tx.returnItem.update({
           where: { id: it.id },

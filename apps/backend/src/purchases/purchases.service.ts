@@ -114,6 +114,7 @@ export class PurchasesService {
           purchaseItemId: item.id,
           userId: user.id,
           reason: `Compra ${dto.documentNumber || created.id}`,
+          reference: { type: 'PURCHASE', id: created.id, number: dto.documentNumber || undefined },
         });
       }
 

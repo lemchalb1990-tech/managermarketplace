@@ -3004,6 +3004,12 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       disabled={editForm.type === 'SERVICIO'}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                    {editForm.type !== 'SERVICIO' && selected?.id && (
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        Un cambio queda como ajuste en su bodega.{' '}
+                        <a href={`/dashboard/inventario?tab=historial&productId=${selected.id}`} className="text-blue-600 hover:underline">Ver historial y stock por bodega</a>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">

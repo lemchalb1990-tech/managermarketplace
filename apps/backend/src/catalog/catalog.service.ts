@@ -5,12 +5,13 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma, ProductType, Role } from '@prisma/client';
+import { MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
+import { StockLedgerService } from '../purchases/stock-ledger.service';
 
 const MARKETPLACE_LABELS: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -52,6 +53,7 @@ export class CatalogService {
     private prisma: PrismaService,
     private costing: InventoryCostingService,
     private sync: SyncService,
+    private ledger: StockLedgerService,
   ) {}
 
   private getCompanyId(user: any): string {
@@ -83,9 +85,16 @@ export class CatalogService {
     if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
     await this.validateWarehouseId(dto.warehouseId, companyId);
 
-    return this.prisma.product.create({
-      data: { ...dto, companyId },
-      include: { images: true },
+    // El stock con que nace el producto queda como saldo inicial en su bodega (kardex).
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: { ...dto, companyId },
+        include: { images: true },
+      });
+      if (created.type === ProductType.ARTICULO && !created.dropship) {
+        await this.ledger.seedIfEmpty(tx, created, await this.ledger.resolveWarehouseId(tx, created));
+      }
+      return created;
     });
   }
 
@@ -238,6 +247,10 @@ export class CatalogService {
     if (dto.warehouseId) await this.validateWarehouseId(dto.warehouseId, product.companyId);
 
     const data = { ...dto };
+    // El stock no se sobrescribe: la diferencia se registra como ajuste en la bodega del
+    // producto, para que quede en el historial y cuadre con el stock por bodega.
+    const stockDelta = data.stock !== undefined && data.stock !== null ? Number(data.stock) - product.stock : 0;
+    delete data.stock;
     // Con el módulo de Compras activo, el costo de un producto que ya tiene lotes se
     // calcula automáticamente (promedio ponderado) — no se puede sobreescribir a mano.
     // Los productos sin lotes todavía (sin compras registradas) siguen aceptando costo
@@ -246,10 +259,17 @@ export class CatalogService {
       delete data.cost;
     }
 
-    const updated = await this.prisma.product.update({
-      where: { id },
-      data,
-      include: { images: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.product.update({ where: { id }, data, include: { images: true } });
+      if (stockDelta !== 0 && saved.type === ProductType.ARTICULO && !saved.dropship) {
+        const moved = await this.ledger.move(tx, {
+          productId: id, delta: stockDelta, type: MovementType.ADJUSTMENT,
+          reason: 'Edición de stock en el catálogo', userId: user.id, reference: { type: 'ADJUSTMENT' },
+        });
+        return { ...saved, stock: moved.productStock };
+      }
+      if (stockDelta !== 0) return tx.product.update({ where: { id }, data: { stock: Math.max(0, product.stock + stockDelta) }, include: { images: true } });
+      return saved;
     });
 
     // Si se editó el precio del proveedor y el producto está vinculado a un proveedor
@@ -269,10 +289,11 @@ export class CatalogService {
     const newStock = product.stock + dto.quantity;
     if (newStock < 0) throw new BadRequestException('El stock no puede ser negativo');
 
-    return this.prisma.product.update({
-      where: { id },
-      data: { stock: newStock },
-    });
+    await this.prisma.$transaction((tx) => this.ledger.move(tx, {
+      productId: id, warehouseId: dto.warehouseId, delta: dto.quantity, type: MovementType.ADJUSTMENT,
+      reason: dto.reason || 'Ajuste manual', userId: user.id, reference: { type: 'ADJUSTMENT' },
+    }));
+    return this.prisma.product.findUnique({ where: { id } });
   }
 
   private async filterOwned(ids: string[], user: any) {

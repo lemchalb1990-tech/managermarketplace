@@ -3,6 +3,7 @@ import { ProductType, Role, SaleChannel, WorkOrderStatus, FulfillmentType } from
 import { PrismaService } from '../../prisma/prisma.service';
 import { PosService } from '../pos.service';
 import { EmailService } from '../../email/email.service';
+import { StockLedgerService } from '../../purchases/stock-ledger.service';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, ConvertWorkOrderDto, WorkOrderItemDto } from './work-orders.dto';
 
 // Categoría con la que se crean (y reutilizan) los "productos" de servicio auto-generados
@@ -17,6 +18,7 @@ export class WorkOrdersService {
     private prisma: PrismaService,
     private posService: PosService,
     private email: EmailService,
+    private ledger: StockLedgerService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -72,6 +74,10 @@ export class WorkOrdersService {
     for (const item of items) {
       if (!item.productId || !item.reservedWarehouseId) continue;
       if (delta > 0) {
+        // Primero deja cuadrado el stock por bodega del producto: si no, la fila de la reserva
+        // (existencia 0) haría creer que el producto ya tiene su stock repartido por bodega.
+        const product = await tx.product.findUnique({ where: { id: item.productId }, select: { id: true, companyId: true, warehouseId: true, stock: true } });
+        if (product) await this.ledger.seedIfEmpty(tx, product, await this.ledger.resolveWarehouseId(tx, product));
         await tx.productStock.upsert({
           where: { productId_warehouseId: { productId: item.productId, warehouseId: item.reservedWarehouseId } },
           update: { reserved: { increment: item.quantity } },

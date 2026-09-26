@@ -12,7 +12,8 @@ import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnabl
 import { DialogProvider } from './ConfirmDialog';
 
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
-type NavItem = { href: string; label: string; perm: string; roles: string[]; module: string | null; superOnly?: boolean };
+// anyPerm: el ítem se ve con cualquiera de esos permisos (además de `perm`).
+type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean };
 type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -63,6 +64,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/catalog', label: 'Catálogo', perm: 'catalog', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
       { href: '/dashboard/warehouses', label: 'Bodegas', perm: 'warehouses', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/inventario', label: 'Inventario y traspasos', perm: 'inventory', anyPerm: ['warehouses', 'transfers', 'transfers.receive'], roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
       { href: '/dashboard/purchases', label: 'Compras', perm: 'purchases', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
       { href: '/dashboard/suppliers', label: 'Proveedores', perm: 'suppliers', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
       { href: '/dashboard/rentabilidad', label: 'Rentabilidad', perm: 'rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
@@ -240,7 +242,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navGroups
       .map((g) => ({
         ...g,
-        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && can(user, n.perm, n.roles) && hasModule(user, n.module)),
+        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles))) && hasModule(user, n.module)),
       }))
       .filter((g) => g.items.length > 0);
   }, [user]);

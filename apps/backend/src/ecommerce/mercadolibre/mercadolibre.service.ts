@@ -14,6 +14,7 @@ import { SettingsService } from '../../settings/settings.service';
 import { ListingStatus } from '@prisma/client';
 import { SyncService } from '../sync/sync.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
+import { StockLedgerService } from '../../purchases/stock-ledger.service';
 import { getEffectivePrice } from '../../common/effective-price.util';
 
 const ML_API = 'https://api.mercadolibre.com';
@@ -89,6 +90,7 @@ export class MercadolibreService {
     private settings: SettingsService,
     private sync: SyncService,
     private costing: InventoryCostingService,
+    private ledger: StockLedgerService,
   ) {}
 
   // ─── Credenciales por empresa ────────────────────────────────────────────────
@@ -834,8 +836,8 @@ export class MercadolibreService {
     const newStock = typeof item.available_quantity === 'number' ? item.available_quantity : product.stock;
     const stockDelta = newStock - product.stock;
 
-    await this.prisma.$transaction([
-      this.prisma.product.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.update({
         where: { id: productId },
         data: {
           name: item.title || product.name,
@@ -845,22 +847,20 @@ export class MercadolibreService {
           // la descripción ya guardada en vez de dejarla intacta.
           mlDescription: mlDesc || (product as any).mlDescription || null,
           mlPrice: item.price != null ? item.price : product.mlPrice,
-          stock: newStock,
           mlCategoryId: item.category_id || null,
           mlFamilyName: item.family_name || null,
           mlAttributes: additionalAttrs.length ? additionalAttrs : undefined,
         },
-      }),
-      ...(stockDelta !== 0 ? [this.prisma.stockMovement.create({
-        data: {
-          type: MovementType.ADJUSTMENT,
-          quantity: stockDelta,
+      });
+      // El stock que trae ML se aplica como ajuste en la bodega del producto (kardex).
+      if (stockDelta !== 0) {
+        await this.ledger.move(tx, {
+          productId, delta: stockDelta, type: MovementType.ADJUSTMENT,
           reason: `Sincronizado desde Mercado Libre (${listing.externalId})`,
-          productId,
-          userId: user.id,
-        },
-      })] : []),
-    ]);
+          userId: user.id, reference: { type: 'ADJUSTMENT' },
+        });
+      }
+    });
 
     const pictures: Array<{ secure_url?: string; url?: string }> = Array.isArray(item.pictures) && item.pictures.length
       ? item.pictures
@@ -1795,6 +1795,7 @@ export class MercadolibreService {
       quantity,
       saleItemId,
       reason: `Venta Mercado Libre orden #${orderId}`,
+      reference: { type: 'SALE', number: `ML ${orderId}` },
     });
     if (totalCost != null) {
       await tx.saleItem.update({ where: { id: saleItemId }, data: { totalCost } });
@@ -2077,15 +2078,10 @@ export class MercadolibreService {
 
       for (const item of duplicate.items) {
         if (dropshipIds.has(item.productId)) continue;
-        await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
-        await tx.stockMovement.create({
-          data: {
-            type: MovementType.ADJUSTMENT,
-            quantity: item.quantity,
-            reason: `Repone stock por fusión de venta duplicada de ML (orden ${duplicate.externalId} unida a ${primary.externalId})`,
-            productId: item.productId,
-            userId: user.id,
-          },
+        await this.ledger.move(tx, {
+          productId: item.productId, delta: item.quantity, type: MovementType.ADJUSTMENT,
+          reason: `Repone stock por fusión de venta duplicada de ML (orden ${duplicate.externalId} unida a ${primary.externalId})`,
+          userId: user.id, reference: { type: 'ADJUSTMENT', id: duplicateSaleId },
         });
         restockedProducts++;
       }

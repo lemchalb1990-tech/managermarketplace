@@ -5,22 +5,19 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
-
-type Tab = 'purchases' | 'transfers';
+import Link from 'next/link';
+import { Modal, FormError, btnPrimary, btnSecondary } from '@/components/ui/Modal';
 
 const emptyPurchaseForm = { supplierId: '', warehouseId: '', documentNumber: '', notes: '' };
 const emptyItem = { productId: '', quantity: '1', unitCost: '' };
-const emptyTransferForm = { productId: '', fromWarehouseId: '', toWarehouseId: '', quantity: '1', reason: '' };
 
 const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
 export default function PurchasesPage() {
   const { selectedCompanyId } = useAdminCompany();
   const tz = useDashboardTimezone();
-  const [tab, setTab] = useState<Tab>('purchases');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [purchases, setPurchases] = useState<any[]>([]);
-  const [transfers, setTransfers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -32,11 +29,6 @@ export default function PurchasesPage() {
   const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [purchaseError, setPurchaseError] = useState('');
 
-  const [showTransferForm, setShowTransferForm] = useState(false);
-  const [transferForm, setTransferForm] = useState(emptyTransferForm);
-  const [transferLoading, setTransferLoading] = useState(false);
-  const [transferError, setTransferError] = useState('');
-
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
 
@@ -44,22 +36,20 @@ export default function PurchasesPage() {
     const token = getToken();
     if (!token) return;
     if (isSuperAdmin && !selectedCompanyId) {
-      setPurchases([]); setTransfers([]); setSuppliers([]); setWarehouses([]); setProducts([]);
+      setPurchases([]); setSuppliers([]); setWarehouses([]); setProducts([]);
       setLoading(false);
       return;
     }
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     setLoading(true);
     try {
-      const [p, t, s, w, prods] = await Promise.all([
+      const [p, s, w, prods] = await Promise.all([
         api.purchases.list(token, { companyId }).catch(() => ({ purchases: [] })),
-        api.stockTransfers.list(token, { companyId }).catch(() => ({ transfers: [] })),
         api.suppliers.list(token, companyId).catch(() => []),
         api.warehouses.list(token).catch(() => []),
         api.catalog.list(token, companyId).catch(() => []),
       ]);
       setPurchases(p.purchases || []);
-      setTransfers(t.transfers || []);
       setSuppliers((s || []).filter((x: any) => x.active));
       setWarehouses((w || []).filter((x: any) => x.active && (!isSuperAdmin || x.companyId === selectedCompanyId)));
       setProducts(prods || []);
@@ -117,30 +107,6 @@ export default function PurchasesPage() {
     }
   }
 
-  async function handleCreateTransfer(e: React.FormEvent) {
-    e.preventDefault();
-    setTransferError('');
-    setTransferLoading(true);
-    try {
-      const token = getToken()!;
-      await api.stockTransfers.create({
-        productId: transferForm.productId,
-        fromWarehouseId: transferForm.fromWarehouseId,
-        toWarehouseId: transferForm.toWarehouseId,
-        quantity: Number(transferForm.quantity),
-        reason: transferForm.reason || undefined,
-        companyId: isSuperAdmin ? selectedCompanyId : undefined,
-      }, token);
-      setTransferForm(emptyTransferForm);
-      setShowTransferForm(false);
-      await load();
-    } catch (err: any) {
-      setTransferError(err.message || 'Error al registrar el traspaso');
-    } finally {
-      setTransferLoading(false);
-    }
-  }
-
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -155,27 +121,20 @@ export default function PurchasesPage() {
       {isSuperAdmin && !selectedCompanyId ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-gray-400 text-sm">
           <p className="text-3xl mb-2">🏢</p>
-          <p>Selecciona una empresa arriba para ver y registrar sus compras y traspasos.</p>
+          <p>Selecciona una empresa arriba para ver y registrar sus compras.</p>
         </div>
       ) : (
       <>
-      <div className="flex items-center border-b border-gray-200 mb-6">
-        {(['purchases', 'transfers'] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`py-2.5 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}>
-            {t === 'purchases' ? 'Compras' : 'Traspasos entre bodegas'}
-          </button>
-        ))}
+      <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+        Los traspasos entre bodegas ahora se registran con documento y recepción en{' '}
+        <Link href="/dashboard/inventario?tab=traspasos" className="font-semibold underline">Inventario → Traspasos</Link>.
       </div>
 
-      {tab === 'purchases' && (
         <div>
           {isAdmin && (
             <div className="flex justify-end mb-4">
               <button
-                onClick={() => { setShowPurchaseForm(!showPurchaseForm); setPurchaseForm(emptyPurchaseForm); setItems([{ ...emptyItem }]); setPurchaseError(''); }}
+                onClick={() => { setShowPurchaseForm(true); setPurchaseForm(emptyPurchaseForm); setItems([{ ...emptyItem }]); setPurchaseError(''); }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
               >
                 + Nueva compra
@@ -184,9 +143,13 @@ export default function PurchasesPage() {
           )}
 
           {showPurchaseForm && isAdmin && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-              <h2 className="font-semibold text-gray-800 mb-4">Nueva compra</h2>
-              <form onSubmit={handleCreatePurchase} className="space-y-4">
+            <Modal title="Nueva compra" subtitle="Cada producto entra como un lote a la bodega destino y queda en el historial."
+              size="lg" onClose={() => setShowPurchaseForm(false)} onSubmit={handleCreatePurchase} busy={purchaseLoading}
+              footer={<>
+                <button type="button" onClick={() => setShowPurchaseForm(false)} disabled={purchaseLoading} className={btnSecondary}>Cancelar</button>
+                <button type="submit" disabled={purchaseLoading} className={btnPrimary}>{purchaseLoading ? 'Guardando...' : 'Registrar compra'}</button>
+              </>}>
+              <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor *</label>
@@ -251,21 +214,9 @@ export default function PurchasesPage() {
 
                 <p className="text-sm text-gray-600">Total: <span className="font-semibold text-gray-900">{fmt(purchaseTotal)}</span></p>
 
-                {purchaseError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{purchaseError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button type="submit" disabled={purchaseLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                    {purchaseLoading ? 'Guardando...' : 'Registrar compra'}
-                  </button>
-                  <button type="button" onClick={() => setShowPurchaseForm(false)}
-                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            </div>
+                <FormError message={purchaseError} />
+              </div>
+            </Modal>
           )}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -307,119 +258,7 @@ export default function PurchasesPage() {
             )}
           </div>
         </div>
-      )}
 
-      {tab === 'transfers' && (
-        <div>
-          {isAdmin && (
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => { setShowTransferForm(!showTransferForm); setTransferForm(emptyTransferForm); setTransferError(''); }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-              >
-                + Nuevo traspaso
-              </button>
-            </div>
-          )}
-
-          {showTransferForm && isAdmin && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-              <h2 className="font-semibold text-gray-800 mb-4">Nuevo traspaso</h2>
-              <form onSubmit={handleCreateTransfer} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Producto *</label>
-                    <select value={transferForm.productId} required
-                      onChange={(e) => setTransferForm((f) => ({ ...f, productId: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                      <option value="">— Selecciona un producto —</option>
-                      {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Bodega origen *</label>
-                    <select value={transferForm.fromWarehouseId} required
-                      onChange={(e) => setTransferForm((f) => ({ ...f, fromWarehouseId: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                      <option value="">— Origen —</option>
-                      {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Bodega destino *</label>
-                    <select value={transferForm.toWarehouseId} required
-                      onChange={(e) => setTransferForm((f) => ({ ...f, toWarehouseId: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                      <option value="">— Destino —</option>
-                      {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Cantidad *</label>
-                    <input type="number" min={1} value={transferForm.quantity} required
-                      onChange={(e) => setTransferForm((f) => ({ ...f, quantity: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Motivo</label>
-                    <input value={transferForm.reason}
-                      onChange={(e) => setTransferForm((f) => ({ ...f, reason: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
-                </div>
-                {transferError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{transferError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button type="submit" disabled={transferLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                    {transferLoading ? 'Guardando...' : 'Registrar traspaso'}
-                  </button>
-                  <button type="button" onClick={() => setShowTransferForm(false)}
-                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            {loading ? (
-              <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
-            ) : transfers.length === 0 ? (
-              <div className="px-4 py-12 text-center text-gray-400">
-                <div className="text-4xl mb-3">🔀</div>
-                <p className="text-sm font-medium mb-1">Sin traspasos registrados</p>
-                <p className="text-xs">Mueve stock entre bodegas conservando el costo real de cada lote.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Fecha</th>
-                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Producto</th>
-                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Origen</th>
-                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Destino</th>
-                    <th className="text-center px-4 py-3 text-gray-600 font-medium">Cantidad</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {transfers.map((t) => (
-                    <tr key={t.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">{new Date(t.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{t.product?.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{t.fromWarehouse?.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{t.toWarehouse?.name}</td>
-                      <td className="px-4 py-3 text-center text-gray-800 font-semibold">{t.quantity}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
       </>
       )}
     </div>

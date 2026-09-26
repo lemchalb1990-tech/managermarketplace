@@ -16,6 +16,7 @@ import { SettingsModule } from './settings/settings.module';
 import { BillingModule } from './billing/billing.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { PurchasesModule } from './purchases/purchases.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { OrdersModule } from './orders/orders.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { EmailModule } from './email/email.module';
@@ -48,6 +49,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
     BillingModule,
     WarehousesModule,
     PurchasesModule,
+    InventoryModule,
     OrdersModule,
     DispatchModule,
     EmailModule,

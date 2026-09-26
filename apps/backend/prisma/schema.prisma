@@ -178,6 +178,7 @@ model Company {
   suppliers          Supplier[]
   purchases          Purchase[]
   stockTransfers     StockTransfer[]
+  transferDocuments  TransferDocument[]
   clients            Client[]
   orderRequests      OrderRequest[]
   workOrders         WorkOrder[]
@@ -254,6 +255,10 @@ model User {
   routesCreated         DispatchRoute[]  @relation("RouteCreatedBy")
   purchases             Purchase[]
   stockTransfers        StockTransfer[]
+  transfersCreated      TransferDocument[] @relation("TransferCreatedBy")
+  transfersDispatched   TransferDocument[] @relation("TransferDispatchedBy")
+  transfersReceived     TransferDocument[] @relation("TransferReceivedBy")
+  transfersCancelled    TransferDocument[] @relation("TransferCancelledBy")
   orderRequestsCreated  OrderRequest[]   @relation("OrderRequestRequestedBy")
   orderRequestsReviewed OrderRequest[]   @relation("OrderRequestReviewedBy")
   workOrders            WorkOrder[]
@@ -313,6 +318,8 @@ model Warehouse {
   stockMovements StockMovement[]
   transfersFrom  StockTransfer[] @relation("TransferFrom")
   transfersTo    StockTransfer[] @relation("TransferTo")
+  transferDocsFrom TransferDocument[] @relation("TransferDocFrom")
+  transferDocsTo   TransferDocument[] @relation("TransferDocTo")
   workOrderItems WorkOrderItem[]
 
   @@map("warehouses")
@@ -379,6 +386,7 @@ model Product {
   purchaseItems      PurchaseItem[]
   productStocks      ProductStock[]
   stockTransfers     StockTransfer[]
+  transferLines      TransferDocumentLine[]
   orderRequestItems  OrderRequestItem[]
   returnItems        ReturnItem[]
   dropshipProduct    DropshipProduct?
@@ -886,6 +894,69 @@ model SaleItem {
   @@map("sale_items")
 }
 
+// Documento de traspaso entre bodegas (reemplaza al traspaso inmediato de StockTransfer, que
+// se conserva como histórico). Flujo: DRAFT → IN_TRANSIT (sale de origen) → RECEIVED /
+// RECEIVED_WITH_DIFF (entra a destino). CANCELLED desde borrador o en tránsito (vuelve a origen).
+enum TransferStatus {
+  DRAFT
+  IN_TRANSIT
+  RECEIVED
+  RECEIVED_WITH_DIFF
+  CANCELLED
+}
+
+model TransferDocument {
+  id           String         @id @default(cuid())
+  number       Int
+  status       TransferStatus @default(DRAFT)
+  notes        String?
+  cancelReason String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  dispatchedAt DateTime?
+  receivedAt   DateTime?
+  cancelledAt  DateTime?
+  // Traspaso inmediato antiguo (StockTransfer) del que se generó este documento, para no
+  // duplicarlo al convertir el histórico.
+  legacyTransferId String? @unique
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  fromWarehouseId String
+  fromWarehouse   Warehouse @relation("TransferDocFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse @relation("TransferDocTo", fields: [toWarehouseId], references: [id])
+  createdById     String?
+  createdBy       User?     @relation("TransferCreatedBy", fields: [createdById], references: [id])
+  dispatchedById  String?
+  dispatchedBy    User?     @relation("TransferDispatchedBy", fields: [dispatchedById], references: [id])
+  receivedById    String?
+  receivedBy      User?     @relation("TransferReceivedBy", fields: [receivedById], references: [id])
+  cancelledById   String?
+  cancelledBy     User?     @relation("TransferCancelledBy", fields: [cancelledById], references: [id])
+
+  lines TransferDocumentLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@map("transfer_documents")
+}
+
+model TransferDocumentLine {
+  id               String   @id @default(cuid())
+  quantity         Int
+  receivedQuantity Int?
+  // Costo unitario promedio con que salió de origen (solo con el módulo Compras activo).
+  unitCost         Decimal? @db.Decimal(10, 2)
+
+  documentId String
+  document   TransferDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product          @relation(fields: [productId], references: [id])
+
+  @@map("transfer_document_lines")
+}
+
 model StockMovement {
   id        String       @id @default(cuid())
   type      MovementType
@@ -893,6 +964,14 @@ model StockMovement {
   reason    String?
   unitCost  Decimal?     @db.Decimal(10, 2)
   createdAt DateTime     @default(now())
+  // Saldo de la bodega después del movimiento (kardex). Null en movimientos anteriores al
+  // motor de inventario por bodega.
+  balanceAfter   Int?
+  // Documento que originó el movimiento: SALE, TRANSFER, RETURN, ADJUSTMENT, PURCHASE, COUNT,
+  // INITIAL. documentNumber es el número visible (p.ej. "TR-000123").
+  referenceType  String?
+  referenceId    String?
+  documentNumber String?
 
   productId      String
   product        Product       @relation(fields: [productId], references: [id])
@@ -905,6 +984,8 @@ model StockMovement {
   warehouseId    String?
   warehouse      Warehouse?    @relation(fields: [warehouseId], references: [id])
 
+  @@index([productId, warehouseId, createdAt])
+  @@index([warehouseId, createdAt])
   @@map("stock_movements")
 }
 

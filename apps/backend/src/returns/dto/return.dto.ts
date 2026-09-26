@@ -44,6 +44,9 @@ export class ReceiveReturnDto {
   @IsArray()
   @IsString({ each: true })
   restockItemIds?: string[];
+
+  // Bodega a la que vuelve lo repuesto; si no viene, la bodega asignada a cada producto.
+  @IsOptional() @IsString() warehouseId?: string;
 }
 
 export class ScanReturnDto {

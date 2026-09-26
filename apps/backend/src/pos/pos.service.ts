@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
+import { StockLedgerService } from '../purchases/stock-ledger.service';
 import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
@@ -29,6 +30,7 @@ export class PosService {
     private email: EmailService,
     private costing: InventoryCostingService,
     private settings: SettingsService,
+    private ledger: StockLedgerService,
   ) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
@@ -144,6 +146,7 @@ export class PosService {
           quantity: item.quantity,
           saleItemId: item.id,
           reason: `Venta ${dto.channel === SaleChannel.POS ? 'POS' : dto.channel}`,
+          reference: { type: 'SALE', id: created.id },
           userId: user.id,
         });
         if (totalCost != null) {
@@ -606,21 +609,10 @@ export class PosService {
     const newStock = product.stock + dto.quantity;
     if (newStock < 0) throw new BadRequestException('El stock resultante no puede ser negativo');
 
-    await this.prisma.$transaction([
-      this.prisma.product.update({
-        where: { id: dto.productId },
-        data: { stock: newStock },
-      }),
-      this.prisma.stockMovement.create({
-        data: {
-          type: MovementType.ADJUSTMENT,
-          quantity: dto.quantity,
-          reason: dto.reason || 'Ajuste manual',
-          productId: dto.productId,
-          userId: user.id,
-        },
-      }),
-    ]);
+    await this.prisma.$transaction((tx) => this.ledger.move(tx, {
+      productId: dto.productId, warehouseId: dto.warehouseId, delta: dto.quantity, type: MovementType.ADJUSTMENT,
+      reason: dto.reason || 'Ajuste manual', userId: user.id, reference: { type: 'ADJUSTMENT' },
+    }));
 
     this.sync.syncProduct(dto.productId, newStock).catch(() => {});
 
