@@ -118,12 +118,16 @@ export default function NewInvoicePage() {
             productId: i.product?.id,
           })));
         }
+        // Venta con cliente asociado (p. ej. compra con factura en Paris): se factura a su nombre.
+        const c = s.client;
+        if (c) setClientId(c.id);
         setForm((f) => ({
           ...f,
-          razonSocial: s.customerName || f.razonSocial,
-          email: s.customerEmail || f.email,
-          address: s.address || f.address,
-          commune: s.commune || f.commune,
+          ...(c?.rut ? { dteType: 'FACTURA', rut: c.rut, giro: c.giro || f.giro } : {}),
+          razonSocial: c?.name || s.customerName || f.razonSocial,
+          email: c?.email || s.customerEmail || f.email,
+          address: c?.address || s.address || f.address,
+          commune: c?.commune || s.commune || f.commune,
         }));
       })
       .catch(() => {})

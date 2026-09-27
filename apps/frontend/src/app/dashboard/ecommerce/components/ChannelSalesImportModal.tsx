@@ -13,7 +13,7 @@ type OrderItem = {
 };
 type OrderCharges = { shippingCost: number; marketplaceFee: number | null; taxes: number | null; discount: number; netAmount: number };
 type OrderPreview = {
-  externalId: string; date: string; total: number; buyerName: string | null;
+  externalId: string; date: string; total: number; buyerName: string | null; marketplaceStatus?: string;
   importable: boolean; alreadyRegistered: boolean; items: OrderItem[];
   charges?: OrderCharges;
   breakdown?: { label: string; amount: number }[];
@@ -299,7 +299,10 @@ export function ChannelSalesImportModal({
                             <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
                               {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                             </td>
-                            <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerName || '—'}</td>
+                            <td className="px-2 py-2 text-gray-800 font-medium">
+                              {o.buyerName || '—'}
+                              {o.marketplaceStatus && <span className="block text-[11px] font-normal text-purple-700">{platformLabel}: {o.marketplaceStatus}</span>}
+                            </td>
                             <td className="px-2 py-2 text-right text-gray-700">{money(o.total)}</td>
                             {hasCharges && (
                               <>

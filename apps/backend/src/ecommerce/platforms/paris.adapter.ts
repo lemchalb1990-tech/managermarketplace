@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { SaleChannel } from '@prisma/client';
+import { FulfillmentType, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
@@ -7,6 +7,7 @@ import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinI
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
+import { normalizeRut } from '../../common/rut.util';
 
 // Paris / Cencosud Marketplace. Doc: https://developers.ecomm.cencosud.com/docs
 // La API de producción es la misma URL sin el "-stg". OJO: probado en vivo, la API Key
@@ -628,20 +629,29 @@ export class ParisAdapter implements PlatformAdapter {
 
   // ─── Importar ventas (sub-órdenes) ───────────────────────────────────────────
   // La importación manual crea Sale/SaleItem para historial y reportes, IGUAL que el modo
-  // "recuperación histórica" de Mercado Libre (sin stock ni Orden). La automática (cron) además
-  // crea la Orden y descuenta stock vía `onCreated` (ChannelOrdersService). Cada fila de "items" en Paris es UNA
-  // unidad (no trae "quantity"; si compraron 2, aparece 2 veces) — se agrupan por sku de
-  // variante antes de armar el SaleItem. El match contra el catálogo es por Listing
-  // (externalId termina en ":<sku de variante>"), no por sellerSku directo, porque el sku
-  // interno pudo quedar distinto si el producto se creó por confirmImport con colisión.
+  // "recuperación histórica" de Mercado Libre (sin stock ni Orden), salvo que se pida la Orden.
+  // La automática (cron) además crea la Orden y descuenta stock vía `onCreated`
+  // (ChannelOrdersService). Cada fila de "items" en Paris es UNA unidad (no trae "quantity";
+  // si compraron 2, aparece 2 veces) — se agrupan por sku de variante antes de armar el
+  // SaleItem. El match contra el catálogo es por Listing (externalId termina en ":<sku de
+  // variante>"); si no hay Listing, por sellerSku = Product.sku de la empresa.
+  //
+  // Verificado en vivo (2026-09-27, 600 sub-órdenes reales de "Habita2 Chile"):
+  // - /v3/sub-orders trae items, statusId, dispatchCost, carrier y `origin` (paris.cl, easy.cl,
+  //   kiosco: Cencosud vende por varios sitios), pero NO el seguimiento.
+  // - /v2/sub-orders trae shipments[] con statusId, courier, trackingNumber, fechas comprometidas
+  //   y efectivas, y el historial del courier (tracking[]), pero no `origin`. Acepta varias
+  //   sub-órdenes en `subOrderNumber` separadas por coma (repitiendo el parámetro da 500).
+  // - businessInvoice trae los datos de factura (razón social, RUT, giro, dirección, correo)
+  //   cuando originInvoiceType = "factura".
 
-  private async resolveOrderItems(connectionId: string, items: any[]) {
-    const bySku = new Map<string, { count: number; unitPrice: number; title: string }>();
+  private async resolveOrderItems(connectionId: string, companyId: string, items: any[]) {
+    const bySku = new Map<string, { count: number; unitPrice: number; title: string; sellerSku: string | null }>();
     for (const it of items || []) {
       const sku = it.sku;
       if (!sku) continue;
       const price = Number(it.priceAfterDiscounts ?? it.basePrice ?? 0);
-      const cur = bySku.get(sku) || { count: 0, unitPrice: price, title: it.name };
+      const cur = bySku.get(sku) || { count: 0, unitPrice: price, title: it.name, sellerSku: it.sellerSku || null };
       cur.count++;
       bySku.set(sku, cur);
     }
@@ -650,24 +660,27 @@ export class ParisAdapter implements PlatformAdapter {
     for (const [sku, info] of bySku) {
       const listing = await this.prisma.listing.findFirst({
         where: { connectionId, externalId: { endsWith: `:${sku}` } },
-        select: { productId: true, product: { select: { name: true, cost: true } } },
+        select: { product: { select: { id: true, name: true, cost: true } } },
       });
-      if (!listing) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null, unitCost: null }); continue; }
+      const product = listing?.product ?? (info.sellerSku ? await this.prisma.product.findFirst({
+        where: { companyId, sku: info.sellerSku },
+        select: { id: true, name: true, cost: true },
+      }) : null);
+      if (!product) { resolved = false; out.push({ productId: null, quantity: info.count, unitPrice: info.unitPrice, title: info.title, productName: null, unitCost: null }); continue; }
       out.push({
-        productId: listing.productId, quantity: info.count, unitPrice: info.unitPrice, title: info.title,
-        productName: listing.product.name, unitCost: listing.product.cost != null ? Number(listing.product.cost) : null,
+        productId: product.id, quantity: info.count, unitPrice: info.unitPrice, title: info.title,
+        productName: product.name, unitCost: product.cost != null ? Number(product.cost) : null,
       });
     }
     return { resolved, items: out };
   }
 
-  // Desglose por sub-orden según el OpenAPI oficial de Cencosud (GET /v3/sub-orders). Cada item
-  // es UNA unidad, agrupadas por sku igual que resolveOrderItems (mismo orden):
-  // - basePrice = precio de lista, priceAfterDiscounts = cobrado; ambos CON IVA. `tax` es el IVA
-  //   incluido (ejemplo oficial: tax 877 sobre taxBasis 5490 = 5490 × 0,19 / 1,19), así que el
-  //   precio sin IVA es priceAfterDiscounts − tax.
-  // - commission = comisión aplicada (el ejemplo oficial la trae en 0). Se toma como monto
-  //   sin IVA.
+  // Desglose por sub-orden (GET /v3/sub-orders). Cada item es UNA unidad, agrupadas por sku igual
+  // que resolveOrderItems (mismo orden):
+  // - basePrice = precio de lista, priceAfterDiscounts = cobrado; ambos CON IVA. El campo `tax` NO
+  //   es confiable: en datos reales a veces es el IVA incluido (× 0,19 / 1,19) y otras el 19 %
+  //   calculado encima del precio de lista — el IVA se calcula siempre desde lo cobrado.
+  // - commission = comisión aplicada (llega siempre en 0). Se toma como monto sin IVA.
   // - dispatchCost (sub-orden) y shippingCost (item) = costo de despacho del vendedor, con IVA;
   //   dispatchCost se reparte entre los productos según su precio.
   // - Unidades con cancellationReasonId o returnId (cancelada/devuelta) no suman al neto.
@@ -685,7 +698,7 @@ export class ParisAdapter implements PlatformAdapter {
     const lines: LineCalc[] = Array.from(bySku.values()).map((group) => {
       const act = group.filter((u) => !isOut(u));
       const gross = act.reduce((s, u) => s + num(u.priceAfterDiscounts ?? u.basePrice), 0);
-      const tax = act.reduce((s, u) => s + (u.tax != null ? num(u.tax) : num(u.priceAfterDiscounts ?? u.basePrice) - sinIva(num(u.priceAfterDiscounts ?? u.basePrice))), 0);
+      const revenue = sinIva(gross);
       const listGross = act.reduce((s, u) => s + num(u.basePrice ?? u.priceAfterDiscounts), 0);
       const hasCommission = act.some((u) => u.commission != null);
       const itemShipping = act.reduce((s, u) => s + num(u.shippingCost), 0);
@@ -693,8 +706,9 @@ export class ParisAdapter implements PlatformAdapter {
 
       for (const u of group) {
         const out = isOut(u) ? ' (cancelado/devuelto)' : '';
-        rows.push({ type: 'PRODUCT', name: `priceAfterDiscounts${out}`, amount: num(u.priceAfterDiscounts ?? u.basePrice), tax: num(u.tax) });
-        const d = num(u.basePrice) - num(u.priceAfterDiscounts ?? u.basePrice);
+        const paid = num(u.priceAfterDiscounts ?? u.basePrice);
+        rows.push({ type: 'PRODUCT', name: `priceAfterDiscounts${out}`, amount: paid, tax: round2(paid - sinIva(paid)) });
+        const d = num(u.basePrice) - paid;
         if (d > 0) rows.push({ type: 'DISCOUNT', name: `basePrice − priceAfterDiscounts${out}`, amount: d, tax: 0 });
         if (u.commission != null) rows.push({ type: 'COMMISSION', name: `commission${out}`, amount: num(u.commission), tax: 0 });
         if (u.shippingCost != null) rows.push({ type: 'SHIPPING', name: `shippingCost${out}`, amount: num(u.shippingCost), tax: 0 });
@@ -702,12 +716,12 @@ export class ParisAdapter implements PlatformAdapter {
       return {
         title: group[0].name,
         quantity: act.length || group.length,
-        revenue: round2(gross - tax),
+        revenue,
         discount: sinIva(Math.max(0, listGross - gross)),
         gross,
         commission: hasCommission ? round2(act.reduce((s, u) => s + num(u.commission), 0)) : null,
         shipping: -sinIva(itemShipping + dispatchShare),
-        tax: round2(tax),
+        tax: round2(gross - revenue),
         cancelled: act.length === 0,
       };
     });
@@ -720,6 +734,13 @@ export class ParisAdapter implements PlatformAdapter {
         platform: 'Paris', shippingLabel: 'Despacho a cargo del vendedor',
       }),
     };
+  }
+
+  // Sitio de Cencosud donde se hizo la compra (Paris vende también por Easy y kioscos).
+  private originLabel(origin?: string | null): string | null {
+    if (!origin) return null;
+    const o = origin.toLowerCase();
+    return o.includes('easy') ? 'Easy' : o.includes('paris') ? 'Paris.cl' : o === 'kiosco' ? 'Kiosco Paris' : origin;
   }
 
   async previewSalesImport(conn: any, companyId: string, from?: string, to?: string) {
@@ -751,16 +772,18 @@ export class ParisAdapter implements PlatformAdapter {
     const orders = [];
     for (const so of subOrders) {
       const saleId = existingById.get(so.subOrderNumber);
-      const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
+      const { resolved, items } = await this.resolveOrderItems(conn.id, companyId, so.items || []);
       const { total, ...b } = this.orderBreakdown(conn, so, items.map((i) => i.unitCost));
       // Recalcula cargos/neto (sin IVA) de ventas ya importadas con los datos de este mismo listado.
       if (saleId) await backfillSale(this.prisma, saleId, b, items.map((i) => i.productId));
+      const origin = this.originLabel(so.origin);
       orders.push({
         externalId: so.subOrderNumber,
         date: so.originOrderDate,
         total,
         ...b,
-        buyerName: so.customer?.name || null,
+        buyerName: [so.customer?.name, origin && `vía ${origin}`].filter(Boolean).join(' · ') || null,
+        marketplaceStatus: this.statusOf(so.statusId)[1],
         items: previewItems(items, b),
         importable: !saleId && resolved && items.length > 0,
         alreadyRegistered: !!saleId,
@@ -771,52 +794,110 @@ export class ParisAdapter implements PlatformAdapter {
     return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
   }
 
-  // El OpenAPI de Cencosud no enumera los estados de la sub-orden (`status` = {id, name,
-  // translate}): se clasifican por nombre. Seguimiento en shipments[] (carrier, trackingNumber,
-  // effectiveDispatchDate, effectiveArrivalDate).
-  private classifyStatus(name: string): ChannelOrderStatus | null {
-    if (/not.?deliver|fail|no.?entreg/i.test(name)) return null;
-    if (/cancel|anula/i.test(name)) return 'CANCELLED';
-    if (/deliver|entreg|recib/i.test(name)) return 'DELIVERED';
-    if (/ready|pend|creat|new|nuev|confirm|accept|prepar|list/i.test(name)) return 'PENDING';
-    if (/ship|transit|dispatch|despach|camino|enviad/i.test(name)) return 'SHIPPED';
-    return null;
+  // statusId de la sub-orden / despacho. Paris no publica el catálogo ni tiene endpoint para
+  // consultarlo: deducido en vivo cruzando cada statusId con el último evento del courier.
+  private static readonly STATUS: Record<number, [ChannelOrderStatus | null, string]> = {
+    8: ['PENDING', 'Listo para despacho'],
+    14: ['SHIPPED', 'En tránsito'],
+    24: ['SHIPPED', 'Entrega parcial'],
+    4: ['DELIVERED', 'Entregado'],
+    21: ['DELIVERED', 'Entregado'],
+    18: ['CANCELLED', 'Cancelado'],
+    22: ['CANCELLED', 'Devuelto al vendedor'],
+    72: ['CANCELLED', 'Devuelto al vendedor'],
+  };
+
+  private statusOf(statusId: any): [ChannelOrderStatus | null, string] {
+    return ParisAdapter.STATUS[Number(statusId)] ?? [null, `Estado ${statusId ?? 'desconocido'}`];
   }
 
-  private orderState(so: any): ChannelOrderState {
-    const name = String(so.status?.name || '');
-    const units: any[] = (so.items || []).filter((i: any) => i.sku);
-    const allOut = units.length > 0 && units.every((i) => i.cancellationReasonId != null);
-    const shipment = ([] as any[]).concat(so.shipments || []).find((sh) => sh?.trackingNumber || sh?.carrier) || {};
+  private shipmentsOf(soV2: any): any[] {
+    return ([] as any[]).concat(soV2?.shipments || []).filter(Boolean);
+  }
+
+  // Estado de la sub-orden. `so` puede ser de /v3 (statusId en la raíz, sin seguimiento) o de
+  // /v2 (statusId, courier y seguimiento por despacho); `soV2` agrega el seguimiento a una de /v3.
+  private orderState(so: any, soV2?: any): ChannelOrderState {
+    const shipments = this.shipmentsOf(soV2 ?? so);
+    const shipment = shipments.find((sh) => sh.trackingNumber || sh.carrier) || shipments[0] || {};
+    const statusId = so.statusId ?? shipment.statusId;
+    let [status, label] = this.statusOf(statusId);
+    // Estado no reconocido: se muestra el último evento del courier, que viene en español.
+    const events = ([] as any[]).concat(shipment.tracking || [])
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (status == null && events.length) label = events[events.length - 1].name || label;
+    const units: any[] = (so.items || shipments.flatMap((sh) => sh.items || [])).filter((i: any) => i.sku);
+    if (units.length && units.every((i) => i.cancellationReasonId != null)) status = 'CANCELLED';
     const date = (v: any) => { const d = v ? new Date(v) : null; return d && !isNaN(d.getTime()) ? d : null; };
     return {
-      status: allOut ? 'CANCELLED' : this.classifyStatus(name),
-      label: so.status?.translate || so.status?.description || name || 'Sin estado',
-      courier: shipment.carrier || null,
+      status,
+      label,
+      courier: shipment.carrier || so.carrier || null,
       trackingCode: shipment.trackingNumber ? String(shipment.trackingNumber) : null,
       shippedAt: date(shipment.effectiveDispatchDate),
       deliveredAt: date(shipment.effectiveArrivalDate),
     };
   }
 
-  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
-    const out = new Map<string, ChannelOrderState>();
-    for (const id of externalIds) {
-      try {
-        const data = await this.request(conn, `/v3/sub-orders?subOrderNumber=${encodeURIComponent(id)}`);
-        const so = (data.data || []).find((x: any) => String(x.subOrderNumber) === id);
-        if (so) out.set(id, this.orderState(so));
-      } catch (err: any) {
-        this.logger.warn(`Paris estado sub-orden ${id}: ${err.message}`);
-      }
+  private async fetchV2(conn: any, ids: string[]): Promise<Map<string, any>> {
+    const out = new Map<string, any>();
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const data = await this.request(conn, `/v2/sub-orders?limit=100&offset=0&subOrderNumber=${chunk.map(encodeURIComponent).join(',')}`);
+      for (const so of data?.data || []) out.set(String(so.subOrderNumber), so);
     }
     return out;
+  }
+
+  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
+    const out = new Map<string, ChannelOrderState>();
+    for (const [id, so] of await this.fetchV2(conn, externalIds)) out.set(id, this.orderState(so));
+    return out;
+  }
+
+  // Regiones que Paris informa como "regionN"; otras veces llegan como texto ("REGION BIO BIO").
+  private static readonly REGIONS: Record<string, string> = {
+    region1: 'Tarapacá', region2: 'Antofagasta', region3: 'Atacama', region4: 'Coquimbo', region5: 'Valparaíso',
+    region6: 'O’Higgins', region7: 'Maule', region8: 'Biobío', region9: 'La Araucanía', region10: 'Los Lagos',
+    region11: 'Aysén', region12: 'Magallanes', region13: 'Metropolitana', region14: 'Los Ríos',
+    region15: 'Arica y Parinacota', region16: 'Ñuble',
+  };
+
+  private regionName(code?: string | null): string | null {
+    if (!code) return null;
+    const known = ParisAdapter.REGIONS[code.toLowerCase()];
+    if (known) return known;
+    const text = code.replace(/^regi[oó]n\s+/i, '').toLowerCase();
+    return text.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  }
+
+  // Factura: el comprador queda como Cliente (por RUT) para emitirle el documento con sus datos.
+  private async upsertBusinessClient(tx: any, companyId: string, bi: any): Promise<string | null> {
+    const rut = normalizeRut(bi?.companyRut);
+    if (!rut || !bi?.businessName) return null;
+    const existing = await tx.client.findFirst({ where: { companyId, rut }, select: { id: true } });
+    if (existing) return existing.id;
+    const created = await tx.client.create({
+      data: {
+        companyId, rut, name: bi.businessName, giro: bi.businessArea || null, email: bi.email || null,
+        address: bi.address || null, commune: bi.comuna || null, city: this.regionName(bi.region) || null,
+      },
+    });
+    return created.id;
   }
 
   async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[], onCreated?: OnSaleCreated) {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
+
+    // Seguimiento de todas las sub-órdenes en una sola pasada (/v2 acepta varias por llamada).
+    let v2 = new Map<string, any>();
+    try {
+      v2 = await this.fetchV2(conn, externalOrderIds);
+    } catch (err: any) {
+      this.logger.warn(`Paris: no se pudo traer el seguimiento de las sub-órdenes: ${err.message}`);
+    }
 
     for (const id of externalOrderIds) {
       try {
@@ -827,12 +908,33 @@ export class ParisAdapter implements PlatformAdapter {
         const so = (data.data || []).find((x: any) => String(x.subOrderNumber) === id);
         if (!so) { errors.push(`${id}: no se encontró en Paris`); continue; }
 
-        const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
+        const { resolved, items } = await this.resolveOrderItems(conn.id, companyId, so.items || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
 
         const { total, ...b } = this.orderBreakdown(conn, so, items.map((i) => i.unitCost));
-        const addr = so.shippingAddress || {};
+        const soV2 = v2.get(id);
+        const state = this.orderState(so, soV2);
+        const shipment = this.shipmentsOf(soV2)[0] || {};
+        const addr = so.shippingAddress || shipment.shippingAddress || {};
+        const address = [addr.address1, addr.address2, addr.address3].filter(Boolean).join(', ') || null;
+        const region = this.regionName(addr.stateCode);
+        const phone = addr.phone || so.customer?.phone || null;
+        const isFactura = String(so.originInvoiceType || '').toLowerCase() === 'factura';
+        const origin = this.originLabel(so.origin);
+        const fmtDay = (v: any) => (v ? new Date(`${String(v).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CL') : null);
+        const notes = [
+          origin && `Compra en ${origin}`,
+          `Documento solicitado: ${isFactura ? 'factura' : 'boleta'}`,
+          !isFactura && so.customer?.documentNumber && `RUT comprador: ${normalizeRut(so.customer.documentNumber)}`,
+          addr.pickUpStoreId && `Retiro en tienda/punto${addr.pickUpStore?.name ? `: ${addr.pickUpStore.name}` : ''}`,
+          so.deliveryOption?.translate && `Entrega: ${so.deliveryOption.translate}`,
+          shipment.dispatchDate && `Despachar el ${fmtDay(shipment.dispatchDate)}`,
+          shipment.arrivalDate && `Llegada comprometida ${fmtDay(shipment.arrivalDate)}`,
+          state.trackingCode && `Seguimiento ${state.courier || ''} ${state.trackingCode}`.replace(/\s+/g, ' '),
+        ].filter(Boolean).join(' · ');
+
         await this.prisma.$transaction(async (tx) => {
+          const clientId = isFactura ? await this.upsertBusinessClient(tx, companyId, so.businessInvoice) : null;
           const sale = await tx.sale.create({
             data: {
               channel: SaleChannel.PARIS,
@@ -841,11 +943,16 @@ export class ParisAdapter implements PlatformAdapter {
               ...b.charges,
               companyId,
               connectionId: conn.id,
+              clientId,
               customerName: so.customer?.name || null,
               customerEmail: so.customer?.email || null,
-              customerPhone: so.customer?.phone || null,
-              address: addr.address1 || null,
+              customerPhone: phone,
+              fulfillmentType: FulfillmentType.DELIVERY,
+              shippingMethod: state.courier,
+              address,
               commune: addr.city || null,
+              city: region,
+              notes: notes || null,
               createdAt: new Date(so.originOrderDate),
               items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
             },
@@ -853,9 +960,9 @@ export class ParisAdapter implements PlatformAdapter {
           });
           if (onCreated) {
             await onCreated(tx, {
-              sale, externalId: id, state: this.orderState(so),
+              sale, externalId: id, state,
               cancelledProductIds: items.filter((_, idx) => b.lines[idx]?.cancelled).map((i) => i.productId!),
-              customer: { name: so.customer?.name, phone: so.customer?.phone, address: [addr.address1, addr.address2].filter(Boolean).join(', '), commune: addr.city, region: addr.region || addr.state },
+              customer: { name: so.customer?.name, email: so.customer?.email, phone, address, commune: addr.city, region },
             });
           }
         });

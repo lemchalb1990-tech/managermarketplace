@@ -402,6 +402,7 @@ export class PosService {
           },
         },
         invoices: { select: { id: true, dteType: true, status: true, folio: true, createdAt: true } },
+        client: { select: { id: true, name: true, rut: true, giro: true, email: true, address: true, commune: true } },
         user: { select: { id: true, name: true } },
         connection: { select: { id: true, name: true, marketplace: true } },
       },

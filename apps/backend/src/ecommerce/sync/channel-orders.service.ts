@@ -110,7 +110,7 @@ export class ChannelOrdersService {
     try {
       await this.prisma.$transaction((tx) => this.createOrderForSale(tx, {
         sale, externalId: sale.externalId!, state, cancelledProductIds: [],
-        customer: { name: sale.customerName, phone: sale.customerPhone, address: sale.address, commune: sale.commune },
+        customer: { name: sale.customerName, email: sale.customerEmail, phone: sale.customerPhone, address: sale.address, commune: sale.commune, region: sale.city },
       }, ch.platform, touched, deductStock));
     } catch (err: any) {
       // Otra solicitud creó la orden de esta venta al mismo tiempo (Order.saleId es único).
@@ -165,6 +165,7 @@ export class ChannelOrdersService {
       data: {
         status,
         customerName: created.customer.name || null,
+        customerEmail: created.customer.email || null,
         customerPhone: created.customer.phone || null,
         address: created.customer.address || null,
         commune: created.customer.commune || null,

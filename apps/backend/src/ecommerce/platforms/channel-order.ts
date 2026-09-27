@@ -22,7 +22,7 @@ export interface CreatedChannelSale {
   state: ChannelOrderState;
   // Productos cuya línea viene cancelada en el marketplace: no descuentan stock.
   cancelledProductIds: string[];
-  customer: { name?: string | null; phone?: string | null; address?: string | null; commune?: string | null; region?: string | null };
+  customer: { name?: string | null; email?: string | null; phone?: string | null; address?: string | null; commune?: string | null; region?: string | null };
 }
 
 export type OnSaleCreated = (tx: Prisma.TransactionClient, created: CreatedChannelSale) => Promise<void>;
