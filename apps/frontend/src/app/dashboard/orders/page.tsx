@@ -454,6 +454,13 @@ export default function OrdersPage() {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>
                       {cfg.label}
                     </span>
+                    {o.statusEvents?.[0] && o.sale && (
+                      <span className="block mt-1 text-[11px] text-purple-700" title="Último estado informado por el marketplace">
+                        {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}:{' '}
+                        {/* Mercado Libre guarda el código crudo en externalStatus y la traducción en el título. */}
+                        {o.statusEvents[0].source === 'MERCADO_LIBRE' ? o.statusEvents[0].title : o.statusEvents[0].externalStatus}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
                     {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}

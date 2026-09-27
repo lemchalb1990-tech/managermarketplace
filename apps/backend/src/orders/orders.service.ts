@@ -122,6 +122,13 @@ export class OrdersService {
               connection: { select: { id: true, name: true } },
             },
           },
+          // Último estado informado por el marketplace (Mercado Libre o Walmart/Ripley/Paris/Falabella).
+          statusEvents: {
+            where: { externalStatus: { not: null }, source: { in: [OrderEventSource.MERCADO_LIBRE, OrderEventSource.MARKETPLACE] } },
+            select: { source: true, title: true, externalStatus: true, occurredAt: true },
+            orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+            take: 1,
+          },
           _count: { select: { itemChecks: true, photos: true } },
         },
         orderBy: { createdAt: 'desc' },
