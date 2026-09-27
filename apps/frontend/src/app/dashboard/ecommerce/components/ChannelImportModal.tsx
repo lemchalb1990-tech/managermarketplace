@@ -38,6 +38,7 @@ export function ChannelImportModal({
 }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState('');
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -51,7 +52,7 @@ export function ChannelImportModal({
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
 
-  async function loadPreview(offset: number | undefined, append: boolean) {
+  async function loadPreview(offset: number | undefined, append: boolean): Promise<{ hasMore: boolean; nextOffset: number | null } | null> {
     if (append) setLoadingMore(true); else setLoading(true);
     setError('');
     if (!append) setPage(0);
@@ -73,8 +74,10 @@ export function ChannelImportModal({
         data.items.forEach((i) => { if (i.matchedProductId && i.skuSuspicious) next.add(i.externalId); });
         return next;
       });
+      return data;
     } catch (err: any) {
       setError(err.message || `No se pudieron obtener los productos de ${platformLabel}.`);
+      return null;
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -82,6 +85,20 @@ export function ChannelImportModal({
   }
 
   useEffect(() => { loadPreview(undefined, false); }, [connectionId]);
+
+  // Trae el resto del catálogo página por página, sin tener que presionar "Cargar más" cada vez.
+  async function loadAll() {
+    setLoadingAll(true);
+    try {
+      let offset = nextOffset;
+      while (offset != null) {
+        const data = await loadPreview(offset, true);
+        offset = data?.hasMore ? data.nextOffset : null;
+      }
+    } finally {
+      setLoadingAll(false);
+    }
+  }
 
   function toggle(externalId: string) {
     setSelected((prev) => {
@@ -205,10 +222,16 @@ export function ChannelImportModal({
                       : `No se encontraron productos en esta cuenta de ${platformLabel}.`}
                   </p>
                   {hasMore && (
-                    <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore}
-                      className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
-                      {loadingMore ? 'Buscando...' : `Seguir buscando (revisados ${alreadyImportedCount} de ${total || '?'})`}
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore || loadingAll}
+                        className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                        {loadingMore && !loadingAll ? 'Buscando...' : `Seguir buscando (revisados ${alreadyImportedCount} de ${total || '?'})`}
+                      </button>
+                      <button onClick={loadAll} disabled={loadingMore || loadingAll}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50">
+                        {loadingAll ? `Buscando todos... (${alreadyImportedCount} de ${total || '?'})` : 'Buscar en todo el catálogo'}
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -290,10 +313,14 @@ export function ChannelImportModal({
                     </div>
                   )}
                   {hasMore && (
-                    <div className="flex items-center justify-center py-3 border-t border-gray-100">
-                      <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore}
+                    <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100">
+                      <button onClick={() => loadPreview(nextOffset ?? undefined, true)} disabled={loadingMore || loadingAll}
                         className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
-                        {loadingMore ? 'Cargando...' : `Cargar más productos (${items.length + alreadyImportedCount} de ${total || '?'})`}
+                        {loadingMore && !loadingAll ? 'Cargando...' : `Cargar más productos (${items.length + alreadyImportedCount} de ${total || '?'})`}
+                      </button>
+                      <button onClick={loadAll} disabled={loadingMore || loadingAll}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50">
+                        {loadingAll ? `Cargando todos... (${items.length + alreadyImportedCount} de ${total || '?'})` : 'Cargar todos'}
                       </button>
                     </div>
                   )}

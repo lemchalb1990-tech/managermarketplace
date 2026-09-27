@@ -178,6 +178,13 @@ export class ParisAdapter implements PlatformAdapter {
       token = await this.token(conn);
       res = await doFetch(token);
     }
+    // Paris corta de vez en cuando con muchas llamadas seguidas (p. ej. "Cargar todos" del
+    // catálogo, que además pide el detalle de cada producto): se reintenta con espera creciente.
+    for (let attempt = 1; attempt < 4 && (res.status === 429 || res.status >= 500); attempt++) {
+      const retryAfter = Number(res.headers.get('retry-after'));
+      await new Promise((r) => setTimeout(r, retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** (attempt - 1)));
+      res = await doFetch(token);
+    }
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
     if (!res.ok) {
@@ -448,11 +455,15 @@ export class ParisAdapter implements PlatformAdapter {
 
   // ─── Importar catálogo existente desde Paris ─────────────────────────────────
 
+  // OJO (verificado en vivo 2026-09-27): en /v2/products/search `offset` es el NÚMERO DE PÁGINA,
+  // no la posición (offset=1 con limit=25 = productos 25-49; offset=50 ya viene vacío con 874 en
+  // total). Hacia afuera `offset` sigue siendo la posición, como en el resto de los adaptadores.
   async previewImport(conn: any, companyId: string, offset = 0): Promise<ParisImportPreview> {
-    const data = await this.request(conn, `/v2/products/search?limit=${IMPORT_PAGE_SIZE}&offset=${offset}`);
+    const pageIndex = Math.floor(offset / IMPORT_PAGE_SIZE);
+    const data = await this.request(conn, `/v2/products/search?limit=${IMPORT_PAGE_SIZE}&offset=${pageIndex}`);
     const results: any[] = data.results || [];
     const total: number = data.total ?? 0;
-    const hasMore = offset + results.length < total;
+    const hasMore = results.length > 0 && (pageIndex + 1) * IMPORT_PAGE_SIZE < total;
 
     // sellerSku no viene en /v2/products/search (solo name/family/category/channels/
     // variants) — se completa con el detalle de cada producto del lote.
@@ -502,7 +513,7 @@ export class ParisAdapter implements PlatformAdapter {
       connectionName: conn.name,
       total,
       hasMore,
-      nextOffset: hasMore ? offset + IMPORT_PAGE_SIZE : null,
+      nextOffset: hasMore ? (pageIndex + 1) * IMPORT_PAGE_SIZE : null,
       alreadyImportedCount,
       items,
     };
