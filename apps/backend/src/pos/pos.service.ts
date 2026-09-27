@@ -375,6 +375,7 @@ export class PosService {
           user: { select: { id: true, name: true } },
           invoices: { select: { id: true, dteType: true, status: true, folio: true } },
           connection: { select: { id: true, name: true, marketplace: true } },
+          order: { select: { id: true, status: true } },
         },
         orderBy: { createdAt: 'desc' },
         take,

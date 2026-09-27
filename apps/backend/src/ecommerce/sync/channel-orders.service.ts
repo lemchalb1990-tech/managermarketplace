@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { MarketplaceType, MovementType, OrderEventSource, OrderStatus, Prisma, SaleChannel } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { MarketplaceType, MovementType, OrderEventSource, OrderStatus, Prisma, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
 import { StockLedgerService } from '../../purchases/stock-ledger.service';
@@ -81,6 +81,46 @@ export class ChannelOrdersService {
       this.createOrderForSale(tx, created, ch.platform, touched, created.state.status === 'PENDING'));
     await this.pushStock(touched, ch.platform);
     return result;
+  }
+
+  // Venta importada antes (solo historial) que todavía no tiene Orden: se consulta su estado
+  // actual en el marketplace y se crea con la misma regla que la importación manual — descuenta
+  // stock solo si sigue pendiente de despacho; si está cancelada no se crea.
+  async createOrderForExistingSale(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: { items: { select: { id: true, productId: true, quantity: true } }, order: { select: { id: true } }, connection: true },
+    });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
+    if (sale.order) throw new BadRequestException('Esta venta ya tiene su orden de despacho');
+    const ch = sale.connection ? this.channelOf(sale.connection.marketplace) : null;
+    if (!ch || !sale.connection || !sale.externalId) {
+      throw new BadRequestException('Solo aplica a ventas importadas desde Walmart, Ripley, Paris o Falabella');
+    }
+
+    const state = (await ch.adapter.getOrderStates(sale.connection, [sale.externalId])).get(sale.externalId);
+    if (!state) throw new BadRequestException(`No se encontró la orden #${sale.externalId} en ${ch.platform}`);
+    if (state.status === 'CANCELLED') {
+      throw new BadRequestException(`La orden #${sale.externalId} está cancelada en ${ch.platform}: no se crea orden de despacho`);
+    }
+
+    const deductStock = state.status === 'PENDING';
+    const touched = new Set<string>();
+    try {
+      await this.prisma.$transaction((tx) => this.createOrderForSale(tx, {
+        sale, externalId: sale.externalId!, state, cancelledProductIds: [],
+        customer: { name: sale.customerName, phone: sale.customerPhone, address: sale.address, commune: sale.commune },
+      }, ch.platform, touched, deductStock));
+    } catch (err: any) {
+      // Otra solicitud creó la orden de esta venta al mismo tiempo (Order.saleId es único).
+      if (err?.code === 'P2002') throw new BadRequestException('Esta venta ya tiene su orden de despacho');
+      throw err;
+    }
+    await this.pushStock(touched, ch.platform);
+
+    const order = await this.prisma.order.findUnique({ where: { saleId }, select: { id: true, status: true } });
+    return { ...order, stockDeducted: deductStock, marketplaceStatus: state.label };
   }
 
   // ─── Orden + stock de una venta nueva ─────────────────────────────────────────

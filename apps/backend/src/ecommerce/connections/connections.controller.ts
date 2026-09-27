@@ -224,6 +224,13 @@ export class ConnectionsController {
     return this.service.previewSalesImport(id, user, from || undefined, to || undefined);
   }
 
+  // Crea la Orden de despacho de una venta ya importada que quedó solo como historial.
+  @Post('sales/:saleId/order')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  createOrderForSale(@Param('saleId') saleId: string, @CurrentUser() user: any) {
+    return this.service.createOrderForExistingSale(saleId, user);
+  }
+
   @Post(':id/sales-import/confirm')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {

@@ -13,8 +13,12 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
   MERCADO_LIBRE: 'Mercado Libre',
+  WALMART: 'Walmart', RIPLEY: 'Ripley', PARIS: 'Paris', FALABELLA: 'Falabella',
   MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
+
+// Canales cuyas ventas importadas como historial pueden crear después su Orden de despacho.
+const ORDER_CHANNELS = ['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA'];
 
 const CHANNEL_COLORS: Record<string, string> = {
   POS: 'bg-blue-100 text-blue-700',
@@ -66,6 +70,7 @@ export default function SalesPage() {
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creatingOrderId, setCreatingOrderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -113,6 +118,24 @@ export default function SalesPage() {
       await alertDialog(err.message || 'No se pudo exportar el archivo.');
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleCreateOrder(sale: any) {
+    const channel = CHANNEL_LABELS[sale.channel] || sale.channel;
+    const ok = await confirmDialog(
+      `¿Crear la orden de despacho de esta venta? Se consulta su estado actual en ${channel}: si sigue pendiente de despacho se descuenta el stock; si ya se despachó o entregó, la orden queda en ese estado sin mover stock.`,
+    );
+    if (!ok) return;
+    setCreatingOrderId(sale.id);
+    try {
+      const res = await api.connections.createOrderForSale(sale.id, token);
+      await loadSales(page);
+      await alertDialog(`Orden creada (estado en ${channel}: ${res.marketplaceStatus}). ${res.stockDeducted ? 'Se descontó el stock.' : 'No se movió stock.'}`);
+    } catch (err: any) {
+      await alertDialog(err.message || 'No se pudo crear la orden.');
+    } finally {
+      setCreatingOrderId(null);
     }
   }
 
@@ -523,6 +546,21 @@ export default function SalesPage() {
                       </div>
                     )}
                     <div className="pt-2 mt-2 border-t border-gray-200 flex items-center justify-end gap-4">
+                      {sale.order ? (
+                        <Link href={`/dashboard/orders/${sale.order.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                          Ver orden
+                        </Link>
+                      ) : ORDER_CHANNELS.includes(sale.channel) && sale.connection && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCreateOrder(sale); }}
+                          disabled={creatingOrderId === sale.id}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                        >
+                          {creatingOrderId === sale.id ? 'Creando orden...' : 'Crear orden de despacho'}
+                        </button>
+                      )}
                       <Link href={`/dashboard/billing/invoices/new?saleId=${sale.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"

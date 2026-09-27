@@ -391,6 +391,10 @@ export class ConnectionsService {
     return adapter.previewSalesImport(conn, conn.companyId, from, to);
   }
 
+  createOrderForExistingSale(saleId: string, user: any) {
+    return this.channelOrders.createOrderForExistingSale(saleId, user);
+  }
+
   async confirmSalesImport(connectionId: string, user: any, externalIds: string[], createOrders = false) {
     const conn = await this.getOwnedConnection(connectionId, user);
     this.getSalesImportAdapter(conn); // valida que la plataforma soporte importar ventas
