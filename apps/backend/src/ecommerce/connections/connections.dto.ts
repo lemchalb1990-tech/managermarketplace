@@ -57,4 +57,8 @@ export class ConfirmImportDto {
 
   @IsOptional() @IsArray() @IsString({ each: true })
   unlinkIds?: string[];
+
+  // Importación de ventas: además de la venta, crear su Orden de despacho.
+  @IsOptional() @IsBoolean()
+  createOrders?: boolean;
 }

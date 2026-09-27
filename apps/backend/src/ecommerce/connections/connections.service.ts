@@ -11,6 +11,7 @@ import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
+import { ChannelOrdersService } from '../sync/channel-orders.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 import { getEffectivePrice } from '../../common/effective-price.util';
 
@@ -35,6 +36,7 @@ export class ConnectionsService {
     private walmart: WalmartAdapter,
     private stub: StubAdapter,
     private catalog: CatalogService,
+    private channelOrders: ChannelOrdersService,
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
@@ -389,9 +391,9 @@ export class ConnectionsService {
     return adapter.previewSalesImport(conn, conn.companyId, from, to);
   }
 
-  async confirmSalesImport(connectionId: string, user: any, externalIds: string[]) {
+  async confirmSalesImport(connectionId: string, user: any, externalIds: string[], createOrders = false) {
     const conn = await this.getOwnedConnection(connectionId, user);
-    const adapter = this.getSalesImportAdapter(conn);
-    return adapter.confirmSalesImport(conn, conn.companyId, externalIds);
+    this.getSalesImportAdapter(conn); // valida que la plataforma soporte importar ventas
+    return this.channelOrders.confirmSalesImport(conn, externalIds, createOrders);
   }
 }

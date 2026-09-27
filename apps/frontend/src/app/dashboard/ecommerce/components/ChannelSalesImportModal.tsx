@@ -71,6 +71,7 @@ export function ChannelSalesImportModal({
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [createOrders, setCreateOrders] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
@@ -129,7 +130,7 @@ export function ChannelSalesImportModal({
       const token = getToken()!;
       for (const id of ids) {
         try {
-          const res = await api.connections.confirmSalesImport(connectionId, [id], token);
+          const res = await api.connections.confirmSalesImport(connectionId, [id], token, createOrders);
           combined.imported += res.imported;
           combined.skipped += res.skipped;
           combined.errors.push(...res.errors);
@@ -164,8 +165,8 @@ export function ChannelSalesImportModal({
           <div>
             <h3 className="font-semibold text-gray-900">Importar ventas de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Trae ventas ya realizadas en {platformLabel} como historial. No descuenta stock ni crea orden de despacho: eso lo hace
-              la sincronización automática con cada venta nueva.
+              Trae ventas ya realizadas en {platformLabel}. Por defecto quedan como historial, sin orden de despacho ni movimiento de
+              stock (la sincronización automática ya crea ambas cosas con cada venta nueva).
             </p>
           </div>
           {!importing && (
@@ -484,7 +485,18 @@ export function ChannelSalesImportModal({
               </button>
             </>
           ) : (
-            <>
+            <div className="w-full space-y-2">
+              <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={createOrders} disabled={importing}
+                  onChange={(e) => setCreateOrders(e.target.checked)}
+                  className="mt-0.5 rounded" />
+                <span>
+                  Crear también la Orden de despacho (aparece en Órdenes/bodega y se sigue su estado en {platformLabel}).
+                  Descuenta stock solo si la orden sigue pendiente de despacho en {platformLabel}; las ya despachadas o entregadas
+                  quedan con su orden en ese estado, sin mover stock, y las canceladas quedan solo como venta.
+                </span>
+              </label>
+              <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
               <div className="flex gap-2">
                 {!importing && (
@@ -500,7 +512,8 @@ export function ChannelSalesImportModal({
                   {importing ? `Importando... ${Math.round((importProgress.done / Math.max(importProgress.total, 1)) * 100)}%` : `Importar ${selected.size > 0 ? `(${selected.size})` : ''}`}
                 </button>
               </div>
-            </>
+              </div>
+            </div>
           )}
         </div>
       </div>

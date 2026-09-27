@@ -13,6 +13,7 @@ import { ChannelOrderState, CreatedChannelSale, OnSaleCreated } from '../platfor
 type Tx = Prisma.TransactionClient;
 
 interface ChannelSalesAdapter {
+  confirmSalesImport(conn: any, companyId: string, externalIds: string[], onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: string[] }>;
   importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }>;
   getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>>;
 }
@@ -25,7 +26,8 @@ const RANK: Record<OrderStatus, number> = {
 // Ventas nuevas de Walmart, Ripley, Paris y Falabella: igual que el webhook de Mercado Libre,
 // la venta que llega por la importación automática crea su Orden de despacho y descuenta
 // stock (el stock nuevo se empuja al resto de los canales). La importación manual desde el
-// modal sigue siendo solo historial. Después, en cada corrida, trae el estado de las órdenes
+// modal es solo historial, salvo que se pida crear también la Orden (ver confirmSalesImport).
+// Después, en cada corrida, trae el estado de las órdenes
 // abiertas desde el marketplace y lo deja en la Orden y en su historial de seguimiento.
 @Injectable()
 export class ChannelOrdersService {
@@ -66,9 +68,24 @@ export class ChannelOrdersService {
     return result;
   }
 
+  // Importación manual desde el modal. Con createOrders, además de la venta crea su Orden
+  // (mismo camino que el cron), pero solo descuenta stock si la orden sigue pendiente de
+  // despacho en el marketplace: una ya despachada o entregada queda con su Orden en ese
+  // estado, sin mover stock, para no descontar algo que salió cuando el sistema no lo sabía.
+  async confirmSalesImport(conn: any, externalIds: string[], createOrders: boolean) {
+    const ch = this.channelOf(conn.marketplace);
+    if (!ch) throw new Error(`${conn.marketplace} no soporta importación de ventas`);
+    if (!createOrders) return ch.adapter.confirmSalesImport(conn, conn.companyId, externalIds);
+    const touched = new Set<string>();
+    const result = await ch.adapter.confirmSalesImport(conn, conn.companyId, externalIds, (tx, created) =>
+      this.createOrderForSale(tx, created, ch.platform, touched, created.state.status === 'PENDING'));
+    await this.pushStock(touched, ch.platform);
+    return result;
+  }
+
   // ─── Orden + stock de una venta nueva ─────────────────────────────────────────
 
-  private async createOrderForSale(tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>) {
+  private async createOrderForSale(tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>, deductStock = true) {
     const { sale, externalId, state } = created;
     // Llegó ya cancelada: queda como venta en el historial, sin orden ni movimiento de stock.
     if (state.status === 'CANCELLED') return;
@@ -85,6 +102,8 @@ export class ChannelOrdersService {
       const product = byId.get(item.productId);
       // Dropship: el módulo de dropshipping pide al proveedor, no sale de bodega propia.
       if (!product || product.dropship || cancelled.has(item.productId)) continue;
+      if (product.warehouseId) warehouseUnits[product.warehouseId] = (warehouseUnits[product.warehouseId] || 0) + item.quantity;
+      if (!deductStock) continue;
       const totalCost = await this.costing.consumeForSale(tx, {
         companyId: sale.companyId,
         productId: item.productId,
@@ -95,7 +114,6 @@ export class ChannelOrdersService {
         reference: { type: 'SALE', id: sale.id, number: `${platform} ${externalId}` },
       });
       if (totalCost != null) await tx.saleItem.update({ where: { id: item.id }, data: { totalCost } });
-      if (product.warehouseId) warehouseUnits[product.warehouseId] = (warehouseUnits[product.warehouseId] || 0) + item.quantity;
       touched.add(item.productId);
     }
     const warehouseId = Object.entries(warehouseUnits).sort(([, a], [, b]) => b - a)[0]?.[0];
@@ -131,7 +149,9 @@ export class ChannelOrdersService {
     await tx.orderStatusEvent.create({
       data: {
         orderId: order.id, status, source: OrderEventSource.MARKETPLACE,
-        title: `Venta recibida desde ${platform}`, detail: `Orden #${externalId}`, occurredAt: new Date(),
+        title: `Venta recibida desde ${platform}`,
+        detail: deductStock ? `Orden #${externalId}` : `Orden #${externalId} · importada sin descontar stock`,
+        occurredAt: new Date(),
       },
     });
     await this.recordExternalState(tx, order.id, state, platform);

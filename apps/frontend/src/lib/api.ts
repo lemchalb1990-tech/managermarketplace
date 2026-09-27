@@ -645,9 +645,9 @@ export const api = {
           cost?: number | null; profit?: number | null;
         }[];
       }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
-    confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>
+    confirmSalesImport: (connectionId: string, externalIds: string[], token: string, createOrders?: boolean) =>
       apiFetch<{ imported: number; skipped: number; errors: string[] }>(
-        `/ecommerce/connections/${connectionId}/sales-import/confirm`, { method: 'POST', body: JSON.stringify({ externalIds }) }, token),
+        `/ecommerce/connections/${connectionId}/sales-import/confirm`, { method: 'POST', body: JSON.stringify({ externalIds, createOrders: !!createOrders }) }, token),
   },
   billing: {
     connections: {
