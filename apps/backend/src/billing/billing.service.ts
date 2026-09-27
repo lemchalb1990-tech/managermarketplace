@@ -263,20 +263,25 @@ export class BillingService {
 
   // ── Envío de la boleta/factura ya emitida a la plataforma del marketplace ──────────
   // Algunas plataformas (Falabella, Ripley confirmados en vivo) exigen que el vendedor
-  // adjunte el DTE del cliente final a la orden original. Es "mejor esfuerzo" y opcional
-  // por conexión (MarketplaceConnection.sendInvoiceToPlatform): si falla, NO revierte ni
-  // marca error en la emisión del DTE — el documento tributario real ante el SII ya se
-  // emitió, eso es lo crítico. Solo aplica cuando el Invoice viene de una venta de canal
-  // (invoice.saleId) con conexión asociada.
-  private async pushInvoiceToMarketplace(invoice: Invoice): Promise<void> {
-    if (!invoice.saleId) return;
+  // adjunte el DTE del cliente final a la orden original. Al emitir es "mejor esfuerzo" y
+  // opcional por conexión (MarketplaceConnection.sendInvoiceToPlatform): si falla, NO revierte
+  // ni marca error en la emisión del DTE — el documento tributario real ante el SII ya se
+  // emitió, eso es lo crítico. `manual` es el reenvío pedido desde la orden: no depende de ese
+  // interruptor y devuelve el error en vez de solo registrarlo. En ambos casos el resultado
+  // queda en marketplaceSentAt / marketplaceError.
+  private async pushInvoiceToMarketplace(invoice: Invoice, manual = false): Promise<void> {
+    const fail = (msg: string) => { if (manual) throw new BadRequestException(msg); };
+    if (!invoice.saleId) return fail('El documento no está asociado a una venta de marketplace');
     const sale = await this.prisma.sale.findUnique({
       where: { id: invoice.saleId },
       include: { connection: true },
     });
     const conn = sale?.connection;
-    if (!conn || !conn.sendInvoiceToPlatform) return;
-    if (conn.marketplace !== MarketplaceType.FALABELLA && conn.marketplace !== MarketplaceType.RIPLEY) return;
+    if (!sale || !conn) return fail('La venta no tiene una conexión de marketplace asociada');
+    if (!manual && !conn.sendInvoiceToPlatform) return;
+    if (conn.marketplace !== MarketplaceType.FALABELLA && conn.marketplace !== MarketplaceType.RIPLEY) {
+      return fail('Esta plataforma no recibe documentos tributarios por API (solo Falabella y Ripley)');
+    }
 
     try {
       const sourceUrl = invoice.xmlUrl || invoice.pdfUrl;
@@ -292,10 +297,22 @@ export class BillingService {
         const invoiceNumber = invoice.folio != null ? String(invoice.folio) : invoice.id;
         await this.falabella.sendInvoiceDocument(conn, sale, documentUrl, invoiceNumber);
       }
+      await this.prisma.invoice.update({ where: { id: invoice.id }, data: { marketplaceSentAt: new Date(), marketplaceError: null } });
       this.logger.log(`Documento tributario de la venta ${sale.id} enviado a ${conn.marketplace} (conexión ${conn.id})`);
     } catch (err: any) {
+      await this.prisma.invoice.update({ where: { id: invoice.id }, data: { marketplaceError: err.message } });
       this.logger.error(`No se pudo enviar el documento tributario a ${conn.marketplace} para la venta ${invoice.saleId}: ${err.message}`);
+      fail(`No se pudo enviar a ${conn.marketplace}: ${err.message}`);
     }
+  }
+
+  async resendInvoiceToMarketplace(id: string, user: any) {
+    const inv = await this.getInvoice(id, user);
+    if (inv.status !== InvoiceStatus.ISSUED && inv.status !== InvoiceStatus.ACCEPTED) {
+      throw new BadRequestException('Solo se pueden enviar documentos ya emitidos');
+    }
+    await this.pushInvoiceToMarketplace(inv, true);
+    return this.getInvoice(id, user);
   }
 
   // Falabella necesita un link público (va a buscar el archivo, no acepta bytes en el

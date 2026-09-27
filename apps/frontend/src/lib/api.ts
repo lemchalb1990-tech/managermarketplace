@@ -697,6 +697,8 @@ export const api = {
           { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
           token,
         ),
+      sendMarketplace: (id: string, token: string) =>
+        apiFetch<any>(`/billing/invoices/${id}/send-marketplace`, { method: 'POST' }, token),
       remove: (id: string, token: string) =>
         apiFetch<{ deleted: boolean }>(`/billing/invoices/${id}`, { method: 'DELETE' }, token),
       cancel: (id: string, token: string) =>

@@ -7,6 +7,7 @@ import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import OrderInvoicesCard from './OrderInvoicesCard';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -822,6 +823,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Boleta / factura de la venta */}
+          {order.sale && (
+            <OrderInvoicesCard
+              invoices={order.sale.invoices || []}
+              marketplace={order.sale.connection?.marketplace}
+              canManage={isAdmin}
+              fmtDateTime={fmtDateTime}
+              onChanged={() => { api.orders.get(id, getToken()!).then(setOrder).catch(() => {}); }}
+            />
           )}
         </div>
 

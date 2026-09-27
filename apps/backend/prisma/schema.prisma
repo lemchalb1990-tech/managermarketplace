@@ -1174,6 +1174,9 @@ model Invoice {
   externalId  String?
   issuedAt    DateTime?
   errorMsg    String?
+  // Último envío del documento a la orden del marketplace (Falabella/Ripley), automático o manual.
+  marketplaceSentAt DateTime?
+  marketplaceError  String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

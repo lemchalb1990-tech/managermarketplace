@@ -35,7 +35,16 @@ const ORDER_INCLUDE = {
     select: {
       id: true, channel: true, total: true, createdAt: true,
       externalId: true, mlPackId: true, mlShippingId: true,
-      connection: { select: { id: true, name: true } },
+      connection: { select: { id: true, name: true, marketplace: true } },
+      // Documentos tributarios de la venta (sin pdfUrl/xmlUrl, que pueden venir embebidos y
+      // pesar: la orden los pide a /billing/invoices/:id solo al abrirlos).
+      invoices: {
+        select: {
+          id: true, folio: true, dteType: true, status: true, razonSocial: true, email: true,
+          totalAmount: true, issuedAt: true, createdAt: true, marketplaceSentAt: true, marketplaceError: true,
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
     },
   },
   createdBy: { select: { id: true, name: true } },

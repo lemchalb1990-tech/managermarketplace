@@ -121,6 +121,12 @@ export class BillingController {
     return this.service.sendInvoiceByEmail(id, user, body?.email);
   }
 
+  // Reenvía el documento ya emitido a la orden del marketplace (Falabella/Ripley).
+  @Post('invoices/:id/send-marketplace')
+  resendInvoiceToMarketplace(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.resendInvoiceToMarketplace(id, user);
+  }
+
   // ── Perfil de facturación (solo administradores) ────────────────────
 
   @Get('profile')
