@@ -10,7 +10,7 @@ export const sinIva = (n: number) => round2(n / (1 + IVA_RATE));
 
 export interface SaleCharges {
   shippingCost: number;          // sin IVA; positivo = costo del vendedor, negativo = ingreso
-  marketplaceFee: number | null; // sin IVA; null si la API no la informa y no hay % configurado
+  marketplaceFee: number | null; // sin IVA; null si la API no la informa
   taxes: number | null;          // IVA débito incluido en lo cobrado al comprador
   discount: number;              // sin IVA
   netAmount: number;             // sin IVA
@@ -28,7 +28,7 @@ export interface LineCalc {
   quantity: number;
   revenue: number;           // venta del producto sin IVA, ya descontadas promociones
   discount: number;          // descuento/promoción sin IVA (informativo, ya restado de revenue)
-  gross: number;             // lo cobrado por el producto CON IVA (base del % de comisión estimado)
+  gross: number;             // lo cobrado por el producto CON IVA
   commission: number | null; // sin IVA; null si la API no la informa
   shipping: number;          // sin IVA; + cobrado al comprador a favor del vendedor, − costo del vendedor
   tax: number;               // IVA incluido en lo cobrado (producto + envío a favor)
@@ -36,7 +36,6 @@ export interface LineCalc {
 }
 
 export interface SaleLine extends LineCalc {
-  commissionEstimated: boolean;
   net: number;
   cost: number | null;   // costo sin IVA (Product.cost viene con IVA) × cantidad
   profit: number | null; // net − cost
@@ -47,18 +46,8 @@ export interface SaleBreakdown {
   breakdown: { label: string; amount: number }[];
   chargeDetail: ChargeDetailRow[];
   lines: SaleLine[];
-  commissionEstimated: boolean;
   cost: number | null;
   profit: number | null;
-}
-
-// % de comisión configurado en la conexión (campo opcional "commissionRate" de las credenciales).
-// Se usa solo cuando la API no informa la comisión o la entrega en 0 (Walmart, Paris, Falabella).
-export function commissionRateOf(conn: any): number | null {
-  const raw = conn?.credentials?.commissionRate;
-  if (raw == null || raw === '') return null;
-  const n = Number(String(raw).replace('%', '').replace(',', '.').trim());
-  return Number.isFinite(n) && n > 0 && n < 100 ? n : null;
 }
 
 // Agrupa filas por tipo + nombre sumando montos (una orden repite los mismos cargos por línea/unidad).
@@ -77,26 +66,20 @@ export function groupChargeRows(rows: ChargeDetailRow[]): ChargeDetailRow[] {
 export function buildBreakdown(opts: {
   lines: LineCalc[];
   unitCosts: (number | null | undefined)[]; // Product.cost (con IVA) de cada línea, mismo orden
-  commissionRate: number | null;
   chargeDetail: ChargeDetailRow[];
   platform: string;
   shippingLabel: string;
 }): SaleBreakdown {
-  const { lines, unitCosts, commissionRate, chargeDetail, platform, shippingLabel } = opts;
-  const active = lines.filter((l) => !l.cancelled);
-  const apiCommission = active.reduce((s, l) => s + (l.commission ?? 0), 0);
-  const noApiCommission = active.every((l) => l.commission == null) || apiCommission === 0;
-  const estimate = commissionRate != null && noApiCommission;
+  const { lines, unitCosts, chargeDetail, platform, shippingLabel } = opts;
 
   const out: SaleLine[] = lines.map((l, i) => {
     if (l.cancelled) {
-      return { ...l, commissionEstimated: false, net: 0, cost: null, profit: null };
+      return { ...l, net: 0, cost: null, profit: null };
     }
-    const commission = estimate ? round2(l.gross * commissionRate! / 100) : l.commission;
-    const net = round2(l.revenue + l.shipping - (commission ?? 0));
+    const net = round2(l.revenue + l.shipping - (l.commission ?? 0));
     const unitCost = Number(unitCosts[i] ?? 0);
     const cost = unitCost > 0 ? round2(sinIva(unitCost) * l.quantity) : null;
-    return { ...l, commission, commissionEstimated: estimate, net, cost, profit: cost != null ? round2(net - cost) : null };
+    return { ...l, net, cost, profit: cost != null ? round2(net - cost) : null };
   });
 
   const act = out.filter((l) => !l.cancelled);
@@ -111,11 +94,9 @@ export function buildBreakdown(opts: {
   const allCosts = act.length > 0 && act.every((l) => l.cost != null);
   const cost = allCosts ? sum((l) => l.cost!) : null;
 
-  const commissionLabel = estimate
-    ? `Comisión ${platform} (estimada ${commissionRate}%)`
-    : commissionKnown
-      ? `Comisión ${platform}`
-      : `Comisión ${platform} (la API no la informa — configura el % en la conexión)`;
+  const commissionLabel = commissionKnown
+    ? `Comisión ${platform}`
+    : `Comisión ${platform} (la API no la informa)`;
   const cancelledCount = out.filter((l) => l.cancelled).length;
 
   return {
@@ -135,7 +116,6 @@ export function buildBreakdown(opts: {
     ],
     chargeDetail,
     lines: out,
-    commissionEstimated: estimate,
     cost,
     profit: cost != null ? round2(netAmount - cost) : null,
   };
@@ -173,7 +153,7 @@ export function previewItems(
     return {
       title: i.title, quantity: i.quantity, unitPrice: i.unitPrice, resolved: !!i.productId, productName: i.productName,
       ...(l ? {
-        revenue: l.revenue, discount: l.discount, commission: l.commission, commissionEstimated: l.commissionEstimated,
+        revenue: l.revenue, discount: l.discount, commission: l.commission,
         shipping: l.shipping, net: l.net, cost: l.cost, profit: l.profit, cancelled: l.cancelled,
       } : {}),
     };

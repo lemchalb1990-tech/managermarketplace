@@ -636,13 +636,13 @@ export const api = {
           importable: boolean; alreadyRegistered: boolean;
           items: {
             title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null;
-            revenue?: number; discount?: number; commission?: number | null; commissionEstimated?: boolean;
+            revenue?: number; discount?: number; commission?: number | null;
             shipping?: number; net?: number; cost?: number | null; profit?: number | null; cancelled?: boolean;
           }[];
           charges?: { shippingCost: number; marketplaceFee: number | null; taxes: number | null; discount: number; netAmount: number };
           breakdown?: { label: string; amount: number }[];
           chargeDetail?: { type: string; name: string; amount: number; tax: number }[];
-          commissionEstimated?: boolean; cost?: number | null; profit?: number | null;
+          cost?: number | null; profit?: number | null;
         }[];
       }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
     confirmSalesImport: (connectionId: string, externalIds: string[], token: string) =>

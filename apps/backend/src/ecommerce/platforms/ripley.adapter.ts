@@ -3,7 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -441,7 +441,7 @@ export class RipleyAdapter implements PlatformAdapter {
       };
     });
     return buildBreakdown({
-      lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+      lines, unitCosts, chargeDetail: groupChargeRows(rows),
       platform: 'Ripley', shippingLabel: 'Envío cobrado al comprador (a favor)',
     });
   }

@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
-import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, commissionRateOf, backfillSale, previewItems } from './sale-breakdown';
+import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 
 // Walmart Chile (Líder) corre sobre la misma "Global Marketplace API" que Walmart US/CA/MX
 // (`https://marketplace.walmartapis.com`) — NO existe una API propia de Líder aparte.
@@ -366,7 +366,7 @@ export class WalmartAdapter implements PlatformAdapter {
     return {
       total,
       ...buildBreakdown({
-        lines, unitCosts, commissionRate: commissionRateOf(conn), chargeDetail: groupChargeRows(rows),
+        lines, unitCosts, chargeDetail: groupChargeRows(rows),
         platform: 'Walmart', shippingLabel: 'Envío a cargo del vendedor',
       }),
     };

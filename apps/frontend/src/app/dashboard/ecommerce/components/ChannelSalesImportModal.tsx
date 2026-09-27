@@ -8,7 +8,7 @@ import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 // Montos del desglose SIN IVA (ver backend ecommerce/platforms/sale-breakdown.ts).
 type OrderItem = {
   title: string; quantity: number; unitPrice: number; resolved: boolean; productName: string | null;
-  revenue?: number; discount?: number; commission?: number | null; commissionEstimated?: boolean;
+  revenue?: number; discount?: number; commission?: number | null;
   shipping?: number; net?: number; cost?: number | null; profit?: number | null; cancelled?: boolean;
 };
 type OrderCharges = { shippingCost: number; marketplaceFee: number | null; taxes: number | null; discount: number; netAmount: number };
@@ -18,7 +18,7 @@ type OrderPreview = {
   charges?: OrderCharges;
   breakdown?: { label: string; amount: number }[];
   chargeDetail?: ChargeDetail[];
-  commissionEstimated?: boolean; cost?: number | null; profit?: number | null;
+  cost?: number | null; profit?: number | null;
 };
 type ChargeDetail = { type: string; name: string; amount: number; tax: number };
 
@@ -155,7 +155,6 @@ export function ChannelSalesImportModal({
   const withCharges = orders.filter((o) => o.charges);
   const periodNet = withCharges.reduce((s, o) => s + o.charges!.netAmount, 0);
   const periodProfit = withCharges.every((o) => o.profit != null) ? withCharges.reduce((s, o) => s + (o.profit ?? 0), 0) : null;
-  const anyEstimated = orders.some((o) => o.commissionEstimated);
   const missingCommission = withCharges.some((o) => o.charges!.marketplaceFee == null);
 
   return (
@@ -252,10 +251,9 @@ export function ChannelSalesImportModal({
                   <div className="mx-6 mt-3 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex flex-wrap gap-x-6 gap-y-1">
                     <span>Neto sin IVA de estas ventas: <b className="text-gray-900">{money(periodNet)}</b></span>
                     <span>Ganancia (neto − costo sin IVA): <b className={profitClass(periodProfit)}>{periodProfit != null ? money(periodProfit) : 'falta costo en algún producto'}</b></span>
-                    {anyEstimated && <span className="text-amber-700">Comisión estimada con el % configurado en la conexión.</span>}
                     {missingCommission && (
                       <span className="text-amber-700">
-                        {platformLabel} no informa la comisión por API: configura el "% comisión" en la conexión para que el neto la descuente.
+                        {platformLabel} no informó la comisión de algunas ventas: su neto no la descuenta.
                       </span>
                     )}
                   </div>
@@ -363,8 +361,8 @@ export function ChannelSalesImportModal({
                                             </td>
                                             <td className="py-0.5 px-1 text-right">{money(it.revenue ?? 0)}</td>
                                             <td className="py-0.5 px-1 text-right text-red-600">{it.discount ? money(-it.discount) : '—'}</td>
-                                            <td className="py-0.5 px-1 text-right text-red-600" title={it.commissionEstimated ? 'Estimada con el % de la conexión' : undefined}>
-                                              {it.commission != null ? `${money(-it.commission)}${it.commissionEstimated ? '*' : ''}` : '?'}
+                                            <td className="py-0.5 px-1 text-right text-red-600">
+                                              {it.commission != null ? money(-it.commission) : '?'}
                                             </td>
                                             <td className={`py-0.5 px-1 text-right ${(it.shipping ?? 0) < 0 ? 'text-red-600' : ''}`}>{it.shipping ? money(it.shipping) : '—'}</td>
                                             <td className="py-0.5 px-1 text-right font-semibold text-gray-900">{money(it.net ?? 0)}</td>
@@ -376,9 +374,6 @@ export function ChannelSalesImportModal({
                                         ))}
                                       </tbody>
                                     </table>
-                                    {o.items.some((it) => it.commissionEstimated) && (
-                                      <p className="text-[11px] text-gray-400 mt-1">* Comisión estimada con el % configurado en la conexión ({platformLabel} no la informa por API).</p>
-                                    )}
                                   </div>
                                 ) : (
                                   <div className="space-y-1">
