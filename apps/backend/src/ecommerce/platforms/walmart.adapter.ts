@@ -331,8 +331,7 @@ export class WalmartAdapter implements PlatformAdapter {
   // - PRODUCT/ItemPrice = precio del producto SIN IVA (su IVA viene en `tax.taxAmount`).
   // - SHIPPING = envío a cargo del vendedor, sin IVA (coincide con "Cargos y bonificaciones" de
   //   Seller Center; al comprador se le compensa con DISCOUNT/SHIP_DISC, que no es costo del vendedor).
-  // - COMMISSION = comisión. La API la entrega en 0 en todas las órdenes (igual que Seller Center)
-  //   → se estima con el % configurado en la conexión (ver sale-breakdown.ts).
+  // - COMMISSION = comisión. La API la entrega en 0 en todas las órdenes (igual que Seller Center).
   // - DISCOUNT (≠ SHIP_DISC) = promoción sobre el producto; el IVA se calcula sobre el precio SIN
   //   descuento, así que se resta directo del ingreso sin IVA.
   // - TAX/TAX = IVA total (= suma de los `tax.taxAmount`). Total = PRODUCT + SHIPPING + TAX − SHIP_DISC.

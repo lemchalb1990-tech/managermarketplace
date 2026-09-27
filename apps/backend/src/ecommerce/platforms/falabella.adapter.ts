@@ -411,8 +411,8 @@ export class FalabellaAdapter implements PlatformAdapter {
   // campo que ya usa GetProducts/confirmImport), es decir nuestro Listing.externalId
   // directo, sin prefijo compuesto. Cuando la orden trae más de una unidad del mismo SKU,
   // Falabella devuelve un OrderItem por unidad (no un campo "quantity"), así que se agrupan
-  // por Sku igual que en Paris. Falabella no expone comisión en ninguna API: se estima con el
-  // % configurado en la conexión, o queda sin dato si no hay % (ver orderBreakdown).
+  // por Sku igual que en Paris. Falabella no expone comisión en ninguna API: queda sin dato
+  // (ver orderBreakdown).
 
   private parseMoney(v: any): number {
     return Number(String(v ?? '0').replace(/,/g, ''));
@@ -469,7 +469,7 @@ export class FalabellaAdapter implements PlatformAdapter {
   // - El documento tributario del vendedor es por PaidPrice + ShippingAmount ("Grand Total"), así
   //   que ShippingAmount (envío cobrado al comprador) es ingreso del vendedor, con IVA; y
   //   ShippingServiceCost ("costo real del servicio de envío") es costo del vendedor.
-  // - La API NO expone comisión (no hay endpoint financiero) → se estima con el % de la conexión.
+  // - La API NO expone comisión (no hay endpoint financiero) → queda sin dato.
   // - Unidades en estado canceled / returned / failed no suman al neto.
   // chargeDetail lista todos los campos monetarios de cada item, para ver qué entrega la API.
   private orderBreakdown(conn: any, o: any, items: any[], unitCosts: (number | null)[]): SaleBreakdown {

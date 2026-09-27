@@ -665,8 +665,8 @@ export class ParisAdapter implements PlatformAdapter {
   // - basePrice = precio de lista, priceAfterDiscounts = cobrado; ambos CON IVA. `tax` es el IVA
   //   incluido (ejemplo oficial: tax 877 sobre taxBasis 5490 = 5490 × 0,19 / 1,19), así que el
   //   precio sin IVA es priceAfterDiscounts − tax.
-  // - commission = comisión aplicada (el ejemplo oficial la trae en 0) → si viene en 0 se estima
-  //   con el % configurado en la conexión. Se toma como monto sin IVA.
+  // - commission = comisión aplicada (el ejemplo oficial la trae en 0). Se toma como monto
+  //   sin IVA.
   // - dispatchCost (sub-orden) y shippingCost (item) = costo de despacho del vendedor, con IVA;
   //   dispatchCost se reparte entre los productos según su precio.
   // - Unidades con cancellationReasonId o returnId (cancelada/devuelta) no suman al neto.
