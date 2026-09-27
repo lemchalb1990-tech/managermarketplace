@@ -681,8 +681,9 @@ export class ParisAdapter implements PlatformAdapter {
   //   es confiable: en datos reales a veces es el IVA incluido (× 0,19 / 1,19) y otras el 19 %
   //   calculado encima del precio de lista — el IVA se calcula siempre desde lo cobrado.
   // - commission = comisión aplicada (llega siempre en 0). Se toma como monto sin IVA.
-  // - dispatchCost (sub-orden) y shippingCost (item) = costo de despacho del vendedor, con IVA;
-  //   dispatchCost se reparte entre los productos según su precio.
+  // - dispatchCost (sub-orden) y shippingCost (item) = despacho que PAGA EL COMPRADOR (confirmado
+  //   por el usuario 2026-09-27): no es costo ni ingreso del vendedor, así que no toca el neto.
+  //   Queda en el detalle de cargos solo como referencia.
   // - Unidades con cancellationReasonId o returnId (cancelada/devuelta) no suman al neto.
   private orderBreakdown(conn: any, so: any, unitCosts: (number | null)[]): SaleBreakdown & { total: number } {
     const num = (v: any) => Number(v ?? 0);
@@ -692,7 +693,6 @@ export class ParisAdapter implements PlatformAdapter {
     for (const u of units) bySku.set(u.sku, [...(bySku.get(u.sku) || []), u]);
 
     const activeGross = units.filter((u) => !isOut(u)).reduce((s, u) => s + num(u.priceAfterDiscounts ?? u.basePrice), 0);
-    const dispatch = num(so.dispatchCost);
     const rows: ChargeDetailRow[] = [];
 
     const lines: LineCalc[] = Array.from(bySku.values()).map((group) => {
@@ -701,8 +701,6 @@ export class ParisAdapter implements PlatformAdapter {
       const revenue = sinIva(gross);
       const listGross = act.reduce((s, u) => s + num(u.basePrice ?? u.priceAfterDiscounts), 0);
       const hasCommission = act.some((u) => u.commission != null);
-      const itemShipping = act.reduce((s, u) => s + num(u.shippingCost), 0);
-      const dispatchShare = activeGross > 0 ? (dispatch * gross) / activeGross : 0;
 
       for (const u of group) {
         const out = isOut(u) ? ' (cancelado/devuelto)' : '';
@@ -711,7 +709,7 @@ export class ParisAdapter implements PlatformAdapter {
         const d = num(u.basePrice) - paid;
         if (d > 0) rows.push({ type: 'DISCOUNT', name: `basePrice − priceAfterDiscounts${out}`, amount: d, tax: 0 });
         if (u.commission != null) rows.push({ type: 'COMMISSION', name: `commission${out}`, amount: num(u.commission), tax: 0 });
-        if (u.shippingCost != null) rows.push({ type: 'SHIPPING', name: `shippingCost${out}`, amount: num(u.shippingCost), tax: 0 });
+        if (u.shippingCost != null) rows.push({ type: 'SHIPPING', name: `shippingCost (pagado por el comprador)${out}`, amount: num(u.shippingCost), tax: 0 });
       }
       return {
         title: group[0].name,
@@ -720,18 +718,18 @@ export class ParisAdapter implements PlatformAdapter {
         discount: sinIva(Math.max(0, listGross - gross)),
         gross,
         commission: hasCommission ? round2(act.reduce((s, u) => s + num(u.commission), 0)) : null,
-        shipping: -sinIva(itemShipping + dispatchShare),
+        shipping: 0,
         tax: round2(gross - revenue),
         cancelled: act.length === 0,
       };
     });
-    if (so.dispatchCost != null) rows.push({ type: 'SHIPPING', name: 'dispatchCost (sub-orden)', amount: dispatch, tax: 0 });
+    if (so.dispatchCost != null) rows.push({ type: 'SHIPPING', name: 'dispatchCost (pagado por el comprador)', amount: num(so.dispatchCost), tax: 0 });
 
     return {
       total: activeGross,
       ...buildBreakdown({
         lines, unitCosts, chargeDetail: groupChargeRows(rows),
-        platform: 'Paris', shippingLabel: 'Despacho a cargo del vendedor',
+        platform: 'Paris', shippingLabel: 'Despacho (lo paga el comprador)',
       }),
     };
   }
