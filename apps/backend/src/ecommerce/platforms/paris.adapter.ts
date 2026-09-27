@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
+import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -626,9 +627,9 @@ export class ParisAdapter implements PlatformAdapter {
   }
 
   // ─── Importar ventas (sub-órdenes) ───────────────────────────────────────────
-  // Alcance a propósito acotado: crea Sale/SaleItem para historial y reportes, IGUAL que
-  // el modo "recuperación histórica" de Mercado Libre (createDispatchOrder/skipStockEffects)
-  // — no descuenta stock ni crea Orden de despacho. Cada fila de "items" en Paris es UNA
+  // La importación manual crea Sale/SaleItem para historial y reportes, IGUAL que el modo
+  // "recuperación histórica" de Mercado Libre (sin stock ni Orden). La automática (cron) además
+  // crea la Orden y descuenta stock vía `onCreated` (ChannelOrdersService). Cada fila de "items" en Paris es UNA
   // unidad (no trae "quantity"; si compraron 2, aparece 2 veces) — se agrupan por sku de
   // variante antes de armar el SaleItem. El match contra el catálogo es por Listing
   // (externalId termina en ":<sku de variante>"), no por sellerSku directo, porque el sku
@@ -770,7 +771,49 @@ export class ParisAdapter implements PlatformAdapter {
     return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
   }
 
-  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+  // El OpenAPI de Cencosud no enumera los estados de la sub-orden (`status` = {id, name,
+  // translate}): se clasifican por nombre. Seguimiento en shipments[] (carrier, trackingNumber,
+  // effectiveDispatchDate, effectiveArrivalDate).
+  private classifyStatus(name: string): ChannelOrderStatus | null {
+    if (/not.?deliver|fail|no.?entreg/i.test(name)) return null;
+    if (/cancel|anula/i.test(name)) return 'CANCELLED';
+    if (/deliver|entreg|recib/i.test(name)) return 'DELIVERED';
+    if (/ready|pend|creat|new|nuev|confirm|accept|prepar|list/i.test(name)) return 'PENDING';
+    if (/ship|transit|dispatch|despach|camino|enviad/i.test(name)) return 'SHIPPED';
+    return null;
+  }
+
+  private orderState(so: any): ChannelOrderState {
+    const name = String(so.status?.name || '');
+    const units: any[] = (so.items || []).filter((i: any) => i.sku);
+    const allOut = units.length > 0 && units.every((i) => i.cancellationReasonId != null);
+    const shipment = ([] as any[]).concat(so.shipments || []).find((sh) => sh?.trackingNumber || sh?.carrier) || {};
+    const date = (v: any) => { const d = v ? new Date(v) : null; return d && !isNaN(d.getTime()) ? d : null; };
+    return {
+      status: allOut ? 'CANCELLED' : this.classifyStatus(name),
+      label: so.status?.translate || so.status?.description || name || 'Sin estado',
+      courier: shipment.carrier || null,
+      trackingCode: shipment.trackingNumber ? String(shipment.trackingNumber) : null,
+      shippedAt: date(shipment.effectiveDispatchDate),
+      deliveredAt: date(shipment.effectiveArrivalDate),
+    };
+  }
+
+  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
+    const out = new Map<string, ChannelOrderState>();
+    for (const id of externalIds) {
+      try {
+        const data = await this.request(conn, `/v3/sub-orders?subOrderNumber=${encodeURIComponent(id)}`);
+        const so = (data.data || []).find((x: any) => String(x.subOrderNumber) === id);
+        if (so) out.set(id, this.orderState(so));
+      } catch (err: any) {
+        this.logger.warn(`Paris estado sub-orden ${id}: ${err.message}`);
+      }
+    }
+    return out;
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[], onCreated?: OnSaleCreated) {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -781,29 +824,40 @@ export class ParisAdapter implements PlatformAdapter {
         if (existing) { skipped++; continue; }
 
         const data = await this.request(conn, `/v3/sub-orders?subOrderNumber=${encodeURIComponent(id)}`);
-        const so = (data.data || [])[0];
+        const so = (data.data || []).find((x: any) => String(x.subOrderNumber) === id);
         if (!so) { errors.push(`${id}: no se encontró en Paris`); continue; }
 
         const { resolved, items } = await this.resolveOrderItems(conn.id, so.items || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
 
         const { total, ...b } = this.orderBreakdown(conn, so, items.map((i) => i.unitCost));
-        await this.prisma.sale.create({
-          data: {
-            channel: SaleChannel.PARIS,
-            externalId: id,
-            total,
-            ...b.charges,
-            companyId,
-            connectionId: conn.id,
-            customerName: so.customer?.name || null,
-            customerEmail: so.customer?.email || null,
-            customerPhone: so.customer?.phone || null,
-            address: so.shippingAddress?.address1 || null,
-            commune: so.shippingAddress?.city || null,
-            createdAt: new Date(so.originOrderDate),
-            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
-          },
+        const addr = so.shippingAddress || {};
+        await this.prisma.$transaction(async (tx) => {
+          const sale = await tx.sale.create({
+            data: {
+              channel: SaleChannel.PARIS,
+              externalId: id,
+              total,
+              ...b.charges,
+              companyId,
+              connectionId: conn.id,
+              customerName: so.customer?.name || null,
+              customerEmail: so.customer?.email || null,
+              customerPhone: so.customer?.phone || null,
+              address: addr.address1 || null,
+              commune: addr.city || null,
+              createdAt: new Date(so.originOrderDate),
+              items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
+            },
+            include: { items: true },
+          });
+          if (onCreated) {
+            await onCreated(tx, {
+              sale, externalId: id, state: this.orderState(so),
+              cancelledProductIds: items.filter((_, idx) => b.lines[idx]?.cancelled).map((i) => i.productId!),
+              customer: { name: so.customer?.name, phone: so.customer?.phone, address: [addr.address1, addr.address2].filter(Boolean).join(', '), commune: addr.city, region: addr.region || addr.state },
+            });
+          }
         });
         imported++;
       } catch (err: any) {
@@ -819,7 +873,7 @@ export class ParisAdapter implements PlatformAdapter {
   // pueda resolver — sin preview, porque no hay usuario mirando la pantalla. Actualiza
   // lastSalesImportAt al final, igual que el auto-sync de Mercado Libre, para que el cron
   // sepa desde cuándo seguir la próxima vez.
-  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+  async importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }> {
     const from = conn.lastSalesImportAt
       ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -828,7 +882,7 @@ export class ParisAdapter implements PlatformAdapter {
     const preview = await this.previewSalesImport(conn, companyId, from);
     const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
     const res = ids.length
-      ? await this.confirmSalesImport(conn, companyId, ids)
+      ? await this.confirmSalesImport(conn, companyId, ids, onCreated)
       : { imported: 0, skipped: 0, errors: [] as string[] };
 
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });

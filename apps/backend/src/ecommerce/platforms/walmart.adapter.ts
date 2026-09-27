@@ -3,6 +3,7 @@ import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
+import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
 
 // Walmart Chile (Líder) corre sobre la misma "Global Marketplace API" que Walmart US/CA/MX
 // (`https://marketplace.walmartapis.com`) — NO existe una API propia de Líder aparte.
@@ -294,8 +295,9 @@ export class WalmartAdapter implements PlatformAdapter {
   }
 
   // ─── Importar ventas ──────────────────────────────────────────────────────────
-  // Mismo alcance que Paris/Ripley/Falabella: crea Sale/SaleItem para historial/reportes,
-  // sin descontar stock ni generar orden de despacho. Confirmado en vivo:
+  // Mismo alcance que Paris/Ripley/Falabella: la importación manual crea Sale/SaleItem para
+  // historial/reportes; la automática (cron) además pasa `onCreated`, con el que
+  // ChannelOrdersService crea la Orden de despacho y descuenta stock. Confirmado en vivo:
   // - GET /v3/orders (list) pagina con `cursor` (OJO: el `nextCursor` que devuelve YA viene
   //   URL-encoded en el JSON — hay que reusarlo tal cual en la siguiente query string, NO
   //   volver a aplicarle encodeURIComponent o queda doble-encodeado y Walmart lo rechaza).
@@ -429,7 +431,50 @@ export class WalmartAdapter implements PlatformAdapter {
     return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
   }
 
-  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+  // Estados de Walmart por línea (orderLineStatus): Created, Acknowledged, Shipped, Delivered,
+  // Cancelled. El seguimiento viene en trackingInfo de la línea despachada.
+  private orderState(o: any): ChannelOrderState {
+    const STATUS: Record<string, [ChannelOrderStatus, string]> = {
+      created: ['PENDING', 'Creada'], acknowledged: ['PENDING', 'Confirmada'], shipped: ['SHIPPED', 'Despachada'],
+      delivered: ['DELIVERED', 'Entregada'], cancelled: ['CANCELLED', 'Cancelada'],
+    };
+    const statuses: (ChannelOrderStatus | null)[] = [];
+    const labels: string[] = [];
+    let tracking: any = null;
+    for (const line of this.extractOrderLines(o)) {
+      for (const st of ([] as any[]).concat(line.orderLineStatuses?.orderLineStatus || [])) {
+        const raw = String(st?.status || '');
+        const known = STATUS[raw.toLowerCase()];
+        statuses.push(known ? known[0] : null);
+        labels.push(known ? known[1] : raw);
+        if (st?.trackingInfo) tracking = st.trackingInfo;
+      }
+    }
+    const status = combineLineStatuses(statuses);
+    const shipDate = tracking?.shipDateTime ? new Date(Number(tracking.shipDateTime) || tracking.shipDateTime) : null;
+    return {
+      status,
+      label: joinLabels(labels),
+      courier: tracking?.carrierName?.carrier || tracking?.carrierName?.otherCarrier || null,
+      trackingCode: tracking?.trackingNumber ? String(tracking.trackingNumber) : null,
+      shippedAt: shipDate && !isNaN(shipDate.getTime()) ? shipDate : null,
+    };
+  }
+
+  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
+    const out = new Map<string, ChannelOrderState>();
+    for (const id of externalIds) {
+      try {
+        const data = await this.request(conn, `/v3/orders/${encodeURIComponent(id)}`);
+        if (data?.order) out.set(id, this.orderState(data.order));
+      } catch (err: any) {
+        this.logger.warn(`Walmart estado orden ${id}: ${err.message}`);
+      }
+    }
+    return out;
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[], onCreated?: OnSaleCreated) {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -447,21 +492,33 @@ export class WalmartAdapter implements PlatformAdapter {
         const { resolved, items } = await this.resolveOrderLines(conn.id, orderLines);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
         const b = this.orderBreakdown(conn, o, orderLines, items.map((i) => i.unitCost));
+        const addr = o.shippingInfo?.postalAddress || {};
 
-        await this.prisma.sale.create({
-          data: {
-            channel: SaleChannel.WALMART,
-            externalId: id,
-            total: b.total,
-            ...b.charges,
-            companyId,
-            connectionId: conn.id,
-            customerName: o.shippingInfo?.postalAddress?.name || null,
-            address: o.shippingInfo?.postalAddress?.address1 || null,
-            commune: o.shippingInfo?.postalAddress?.city || null,
-            createdAt: new Date(Number(o.orderDate)),
-            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
-          },
+        await this.prisma.$transaction(async (tx) => {
+          const sale = await tx.sale.create({
+            data: {
+              channel: SaleChannel.WALMART,
+              externalId: id,
+              total: b.total,
+              ...b.charges,
+              companyId,
+              connectionId: conn.id,
+              customerName: addr.name || null,
+              customerPhone: o.shippingInfo?.phone || null,
+              address: addr.address1 || null,
+              commune: addr.city || null,
+              createdAt: new Date(Number(o.orderDate)),
+              items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
+            },
+            include: { items: true },
+          });
+          if (onCreated) {
+            await onCreated(tx, {
+              sale, externalId: id, state: this.orderState(o),
+              cancelledProductIds: items.filter((_, idx) => b.lines[idx]?.cancelled).map((i) => i.productId!),
+              customer: { name: addr.name, phone: o.shippingInfo?.phone, address: [addr.address1, addr.address2].filter(Boolean).join(', '), commune: addr.city, region: addr.state },
+            });
+          }
         });
         imported++;
       } catch (err: any) {
@@ -472,7 +529,7 @@ export class WalmartAdapter implements PlatformAdapter {
     return { imported, skipped, errors };
   }
 
-  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+  async importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }> {
     const from = conn.lastSalesImportAt
       ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -481,7 +538,7 @@ export class WalmartAdapter implements PlatformAdapter {
     const preview = await this.previewSalesImport(conn, companyId, from);
     const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
     const res = ids.length
-      ? await this.confirmSalesImport(conn, companyId, ids)
+      ? await this.confirmSalesImport(conn, companyId, ids, onCreated)
       : { imported: 0, skipped: 0, errors: [] as string[] };
 
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });

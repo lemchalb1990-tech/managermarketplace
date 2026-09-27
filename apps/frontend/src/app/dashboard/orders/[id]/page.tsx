@@ -289,6 +289,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
     MERCADO_LIBRE: { label: 'Mercado Libre', cls: 'bg-yellow-100 text-yellow-800' },
+    MARKETPLACE:   { label: CHANNEL_LABEL[order.sale?.channel ?? ''] || 'Marketplace', cls: 'bg-purple-50 text-purple-700' },
     MANUAL:        { label: 'Manual',        cls: 'bg-blue-50 text-blue-700' },
     SYSTEM:        { label: 'Sistema',       cls: 'bg-gray-100 text-gray-500' },
   };
@@ -837,7 +838,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 return (
                   <li key={ev.key} className="ml-4">
                     <span className={`absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                      ev.source === 'MERCADO_LIBRE' ? 'bg-yellow-400' : ev.source === 'MANUAL' ? 'bg-blue-500' : 'bg-gray-300'
+                      ev.source === 'MERCADO_LIBRE' ? 'bg-yellow-400' : ev.source === 'MARKETPLACE' ? 'bg-purple-500' : ev.source === 'MANUAL' ? 'bg-blue-500' : 'bg-gray-300'
                     }`} />
                     <p className="text-xs text-gray-400">{fmtDateTime(ev.at)}</p>
                     <p className="text-sm font-medium text-gray-800">{ev.title}</p>

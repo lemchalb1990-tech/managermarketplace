@@ -1414,6 +1414,7 @@ enum OrderEventSource {
   MANUAL        // cambio hecho por un usuario del panel
   SYSTEM        // acción automática del sistema (p.ej. ruta de despacho)
   MERCADO_LIBRE // estado informado por Mercado Libre (envío/orden)
+  MARKETPLACE   // estado informado por Walmart, Ripley, Paris o Falabella
 }
 
 // Historial de seguimiento de una orden: cambios de estado internos y eventos del envío

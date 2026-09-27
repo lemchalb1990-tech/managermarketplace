@@ -164,7 +164,8 @@ export function ChannelSalesImportModal({
           <div>
             <h3 className="font-semibold text-gray-900">Importar ventas de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Trae ventas ya realizadas en {platformLabel} como historial. No descuenta stock ni genera movimientos de inventario.
+              Trae ventas ya realizadas en {platformLabel} como historial. No descuenta stock ni crea orden de despacho: eso lo hace
+              la sincronización automática con cada venta nueva.
             </p>
           </div>
           {!importing && (

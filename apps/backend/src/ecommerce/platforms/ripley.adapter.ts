@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
+import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -375,8 +376,9 @@ export class RipleyAdapter implements PlatformAdapter {
   }
 
   // ─── Importar ventas (órdenes Mirakl) ────────────────────────────────────────
-  // Mismo alcance que Paris: crea Sale/SaleItem para historial/reportes, no descuenta
-  // stock. Mirakl SÍ trae "quantity" por línea (a diferencia de Paris) y offer_sku ES
+  // Mismo alcance que Paris: la importación manual crea Sale/SaleItem para historial/reportes;
+  // la automática (cron) además crea la Orden y descuenta stock vía `onCreated`
+  // (ChannelOrdersService). Mirakl SÍ trae "quantity" por línea (a diferencia de Paris) y offer_sku ES
   // directamente nuestro Listing.externalId (sin prefijo compuesto), así que el match es
   // más simple: comparación exacta, no "termina en".
 
@@ -495,7 +497,49 @@ export class RipleyAdapter implements PlatformAdapter {
     return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
   }
 
-  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+  // Estados de orden/línea de Mirakl (OR11). SHIPPING = aceptada, pendiente de despacho.
+  private static readonly STATES: Record<string, [ChannelOrderStatus | null, string]> = {
+    STAGING: ['PENDING', 'En validación'], WAITING_ACCEPTANCE: ['PENDING', 'Esperando aceptación'],
+    WAITING_DEBIT: ['PENDING', 'Esperando pago'], WAITING_DEBIT_PAYMENT: ['PENDING', 'Esperando pago'],
+    SHIPPING: ['PENDING', 'Por despachar'], SHIPPED: ['SHIPPED', 'Despachada'], TO_COLLECT: ['SHIPPED', 'Lista para retiro'],
+    RECEIVED: ['DELIVERED', 'Recibida'], CLOSED: ['DELIVERED', 'Cerrada'],
+    REFUSED: ['CANCELLED', 'Rechazada'], CANCELED: ['CANCELLED', 'Cancelada'],
+    INCIDENT_OPEN: [null, 'Incidente abierto'], INCIDENT_CLOSED: [null, 'Incidente cerrado'], REFUNDED: [null, 'Reembolsada'],
+  };
+
+  private orderState(o: any): ChannelOrderState {
+    const codes: string[] = (o.order_lines || []).map((l: any) => String(l.order_line_state || '')).filter(Boolean);
+    if (!codes.length && o.order_state) codes.push(String(o.order_state));
+    const known = codes.map((c) => RipleyAdapter.STATES[c] ?? [null, c] as [null, string]);
+    const date = (v: any) => { const d = v ? new Date(v) : null; return d && !isNaN(d.getTime()) ? d : null; };
+    const line = (o.order_lines || [])[0] || {};
+    return {
+      status: combineLineStatuses(known.map((k) => k[0])),
+      label: joinLabels(known.map((k) => k[1])),
+      courier: o.shipping_company || null,
+      trackingCode: o.shipping_tracking || null,
+      shippedAt: date(line.shipped_date),
+      deliveredAt: date(line.received_date),
+    };
+  }
+
+  // OR11 filtra por `order_ids` (lista separada por comas, hasta 100).
+  private async fetchOrders(conn: any, ids: string[]): Promise<any[]> {
+    const out: any[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const data = await this.request(conn, `/api/orders?order_ids=${chunk.map(encodeURIComponent).join(',')}&max=100`);
+      out.push(...(data.orders || []));
+    }
+    return out;
+  }
+
+  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
+    const orders = await this.fetchOrders(conn, externalIds);
+    return new Map(orders.map((o) => [String(o.order_id), this.orderState(o)]));
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[], onCreated?: OnSaleCreated) {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -505,28 +549,40 @@ export class RipleyAdapter implements PlatformAdapter {
         const existing = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.RIPLEY, externalId: id } });
         if (existing) { skipped++; continue; }
 
-        const data = await this.request(conn, `/api/orders?order_id=${encodeURIComponent(id)}`);
-        const o = (data.orders || [])[0];
+        const o = (await this.fetchOrders(conn, [id])).find((x) => String(x.order_id) === id);
         if (!o) { errors.push(`${id}: no se encontró en Ripley`); continue; }
 
         const { resolved, items } = await this.resolveOrderLines(conn.id, o.order_lines || []);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
         const b = this.orderBreakdown(conn, o, items.map((i) => i.unitCost));
+        const addr = o.customer?.shipping_address || {};
+        const customerName = [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null;
 
-        await this.prisma.sale.create({
-          data: {
-            channel: SaleChannel.RIPLEY,
-            externalId: id,
-            total: Number(o.total_price || 0),
-            ...b.charges,
-            companyId,
-            connectionId: conn.id,
-            customerName: [o.customer?.firstname, o.customer?.lastname].filter(Boolean).join(' ') || null,
-            address: o.customer?.shipping_address?.street_1 || null,
-            commune: o.customer?.shipping_address?.city || null,
-            createdAt: new Date(o.created_date),
-            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
-          },
+        await this.prisma.$transaction(async (tx) => {
+          const sale = await tx.sale.create({
+            data: {
+              channel: SaleChannel.RIPLEY,
+              externalId: id,
+              total: Number(o.total_price || 0),
+              ...b.charges,
+              companyId,
+              connectionId: conn.id,
+              customerName,
+              customerPhone: addr.phone || null,
+              address: addr.street_1 || null,
+              commune: addr.city || null,
+              createdAt: new Date(o.created_date),
+              items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
+            },
+            include: { items: true },
+          });
+          if (onCreated) {
+            await onCreated(tx, {
+              sale, externalId: id, state: this.orderState(o),
+              cancelledProductIds: items.filter((_, idx) => b.lines[idx]?.cancelled).map((i) => i.productId!),
+              customer: { name: customerName, phone: addr.phone, address: [addr.street_1, addr.street_2].filter(Boolean).join(', '), commune: addr.city, region: addr.state },
+            });
+          }
         });
         imported++;
       } catch (err: any) {
@@ -537,7 +593,7 @@ export class RipleyAdapter implements PlatformAdapter {
     return { imported, skipped, errors };
   }
 
-  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+  async importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }> {
     const from = conn.lastSalesImportAt
       ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -546,7 +602,7 @@ export class RipleyAdapter implements PlatformAdapter {
     const preview = await this.previewSalesImport(conn, companyId, from);
     const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
     const res = ids.length
-      ? await this.confirmSalesImport(conn, companyId, ids)
+      ? await this.confirmSalesImport(conn, companyId, ids, onCreated)
       : { imported: 0, skipped: 0, errors: [] as string[] };
 
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });

@@ -11,16 +11,18 @@ import { FalabellaAdapter } from '../platforms/falabella.adapter';
 import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { SettingsModule } from '../../settings/settings.module';
+import { PurchasesModule } from '../../purchases/purchases.module';
+import { ChannelOrdersService } from './channel-orders.service';
 
 // Módulo hoja (sin depender de CatalogModule ni EcommerceModule) para poder sincronizar
 // stock/precio hacia los marketplaces desde cualquier módulo — p.ej. CatalogModule lo
 // necesita para la fusión de productos duplicados, y si importara EcommerceModule directo
 // se formaría un ciclo (EcommerceModule ya importa CatalogModule). SettingsModule no genera
-// ese riesgo (solo depende de PrismaModule).
+// ese riesgo (solo depende de PrismaModule), y PurchasesModule tampoco (motor de stock, hoja).
 @Module({
-  imports: [SettingsModule],
+  imports: [SettingsModule, PurchasesModule],
   controllers: [SyncQueueController],
-  providers: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, WalmartAdapter, StubAdapter],
-  exports: [SyncService, SyncQueueService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, WalmartAdapter, StubAdapter],
+  providers: [SyncService, SyncQueueService, ChannelOrdersService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, WalmartAdapter, StubAdapter],
+  exports: [SyncService, SyncQueueService, ChannelOrdersService, ShopifyAdapter, WooCommerceAdapter, JumpSellerAdapter, ParisAdapter, RipleyAdapter, FalabellaAdapter, WalmartAdapter, StubAdapter],
 })
 export class SyncModule {}

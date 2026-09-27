@@ -3,10 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { MarketplaceType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
-import { ParisAdapter } from '../platforms/paris.adapter';
-import { RipleyAdapter } from '../platforms/ripley.adapter';
-import { FalabellaAdapter } from '../platforms/falabella.adapter';
-import { WalmartAdapter } from '../platforms/walmart.adapter';
+import { ChannelOrdersService } from './channel-orders.service';
 
 // Usuario sintético para llamar métodos del service que exigen "user" (por los mismos
 // checks de permisos que el resto de la app) desde un cron sin sesión real. SUPER_ADMIN
@@ -19,8 +16,8 @@ const SYSTEM_USER = { role: Role.SUPER_ADMIN } as any;
 // las plataformas. Cada empresa elige qué plataformas auto-sincronizar en
 // Company.autoSyncSalesPlatforms (lista de MarketplaceType) — mismo interruptor y mismo
 // intervalo para las tres cosas, no hay un toggle aparte para preguntas/devoluciones.
-// Hoy solo Mercado Libre está implementado; el resto se agrega sumando un caso al switch
-// de abajo (el check ya queda disponible en la UI).
+// Implementado para Mercado Libre, Paris, Ripley, Falabella y Walmart; el resto se agrega
+// sumando un caso al switch de abajo (el check ya queda disponible en la UI).
 //
 // El tick corre cada 1 minuto (la granularidad más fina soportada), pero cada conexión
 // solo se procesa si ya pasó su Company.autoSyncIntervalMinutes desde su última corrida
@@ -35,10 +32,7 @@ export class SalesImportCronService {
   constructor(
     private prisma: PrismaService,
     private mercadolibre: MercadolibreService,
-    private paris: ParisAdapter,
-    private ripley: RipleyAdapter,
-    private falabella: FalabellaAdapter,
-    private walmart: WalmartAdapter,
+    private channelOrders: ChannelOrdersService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -112,47 +106,28 @@ export class SalesImportCronService {
             }
             break;
           }
-          case MarketplaceType.PARIS: {
-            try {
-              const result = await this.paris.importRecentSales(connection, connection.companyId);
-              if (result.imported || result.errors) {
-                this.logger.log(`Auto-sync Paris ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
-              }
-            } catch (err: any) {
-              this.logger.error(`Auto-sync Paris ventas falló para conexión ${connection.id}: ${err?.message || err}`);
-            }
-            break;
-          }
-          case MarketplaceType.RIPLEY: {
-            try {
-              const result = await this.ripley.importRecentSales(connection, connection.companyId);
-              if (result.imported || result.errors) {
-                this.logger.log(`Auto-sync Ripley ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
-              }
-            } catch (err: any) {
-              this.logger.error(`Auto-sync Ripley ventas falló para conexión ${connection.id}: ${err?.message || err}`);
-            }
-            break;
-          }
-          case MarketplaceType.FALABELLA: {
-            try {
-              const result = await this.falabella.importRecentSales(connection, connection.companyId);
-              if (result.imported || result.errors) {
-                this.logger.log(`Auto-sync Falabella ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
-              }
-            } catch (err: any) {
-              this.logger.error(`Auto-sync Falabella ventas falló para conexión ${connection.id}: ${err?.message || err}`);
-            }
-            break;
-          }
+          case MarketplaceType.PARIS:
+          case MarketplaceType.RIPLEY:
+          case MarketplaceType.FALABELLA:
           case MarketplaceType.WALMART: {
+            // Ventas nuevas: crean su Orden de despacho y descuentan stock (ChannelOrdersService).
+            const label = connection.marketplace;
             try {
-              const result = await this.walmart.importRecentSales(connection, connection.companyId);
+              const result = await this.channelOrders.importRecentSales(connection);
               if (result.imported || result.errors) {
-                this.logger.log(`Auto-sync Walmart ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
+                this.logger.log(`Auto-sync ${label} ventas conexión ${connection.id}: ${JSON.stringify(result)}`);
               }
             } catch (err: any) {
-              this.logger.error(`Auto-sync Walmart ventas falló para conexión ${connection.id}: ${err?.message || err}`);
+              this.logger.error(`Auto-sync ${label} ventas falló para conexión ${connection.id}: ${err?.message || err}`);
+            }
+            // Aparte, para que un error al importar no deje sin actualizar el estado de las órdenes abiertas.
+            try {
+              const result = await this.channelOrders.syncOrderStatuses(connection);
+              if (result.updated) {
+                this.logger.log(`Auto-sync ${label} estados de orden conexión ${connection.id}: ${JSON.stringify(result)}`);
+              }
+            } catch (err: any) {
+              this.logger.error(`Auto-sync ${label} estados de orden falló para conexión ${connection.id}: ${err?.message || err}`);
             }
             break;
           }

@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
+import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 
@@ -405,8 +406,9 @@ export class FalabellaAdapter implements PlatformAdapter {
   }
 
   // ─── Importar ventas ──────────────────────────────────────────────────────────
-  // Mismo alcance que Paris/Ripley: crea Sale/SaleItem para historial/reportes, sin tocar
-  // stock. GetOrders (probado en vivo) no trae las líneas del pedido — hay que pedirlas
+  // Mismo alcance que Paris/Ripley: la importación manual crea Sale/SaleItem para historial/
+  // reportes; la automática (cron) además crea la Orden y descuenta stock vía `onCreated`
+  // (ChannelOrdersService). GetOrders (probado en vivo) no trae las líneas del pedido — hay que pedirlas
   // aparte con GetMultipleOrderItems. El "Sku" de cada OrderItem es el SellerSku (mismo
   // campo que ya usa GetProducts/confirmImport), es decir nuestro Listing.externalId
   // directo, sin prefijo compuesto. Cuando la orden trae más de una unidad del mismo SKU,
@@ -575,7 +577,37 @@ export class FalabellaAdapter implements PlatformAdapter {
     return { connectionName: conn.name, total: totalCount, truncated, alreadyImportedCount, orders };
   }
 
-  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[]) {
+  // Estado por unidad (OrderItem.Status): pending, ready_to_ship, shipped, delivered, canceled,
+  // returned, failed. El seguimiento viene en TrackingCode / ShipmentProvider del item.
+  private static readonly STATES: Record<string, [ChannelOrderStatus | null, string]> = {
+    pending: ['PENDING', 'Pendiente'], ready_to_ship: ['PENDING', 'Lista para despacho'],
+    shipped: ['SHIPPED', 'Despachada'], delivered: ['DELIVERED', 'Entregada'],
+    canceled: ['CANCELLED', 'Cancelada'], failed: ['CANCELLED', 'Entrega fallida'], returned: [null, 'Devuelta'],
+  };
+
+  private orderState(items: any[]): ChannelOrderState {
+    const units = (items || []).filter((it) => it.Sku);
+    const known = units.map((it) => {
+      const raw = String(it.Status || '').toLowerCase();
+      return FalabellaAdapter.STATES[raw] ?? [null, raw] as [null, string];
+    });
+    const tracked = units.find((it) => it.TrackingCode) || {};
+    return {
+      status: combineLineStatuses(known.map((k) => k[0])),
+      label: joinLabels(known.map((k) => k[1])),
+      courier: tracked.ShipmentProvider || null,
+      trackingCode: tracked.TrackingCode ? String(tracked.TrackingCode) : null,
+    };
+  }
+
+  async getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>> {
+    const itemsMap = await this.fetchOrderItemsMap(conn, externalIds);
+    const out = new Map<string, ChannelOrderState>();
+    for (const [id, items] of itemsMap) if (items.length) out.set(String(id), this.orderState(items));
+    return out;
+  }
+
+  async confirmSalesImport(conn: any, companyId: string, externalOrderIds: string[], onCreated?: OnSaleCreated) {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -595,21 +627,34 @@ export class FalabellaAdapter implements PlatformAdapter {
         const { resolved, items } = await this.resolveOrderItems(conn.id, rawItems);
         if (!resolved || !items.length) { errors.push(`${id}: uno o más productos no están vinculados en el catálogo`); continue; }
         const b = this.orderBreakdown(conn, o, rawItems, items.map((i) => i.unitCost));
+        const addr = o.AddressShipping || {};
+        const customerName = [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null;
 
-        await this.prisma.sale.create({
-          data: {
-            channel: SaleChannel.FALABELLA,
-            externalId: id,
-            total: this.parseMoney(o.Price),
-            ...b.charges,
-            companyId,
-            connectionId: conn.id,
-            customerName: [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || null,
-            address: o.AddressShipping?.Address1 || null,
-            commune: o.AddressShipping?.City || null,
-            createdAt: new Date(String(o.CreatedAt).replace(' ', 'T')),
-            items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
-          },
+        await this.prisma.$transaction(async (tx) => {
+          const sale = await tx.sale.create({
+            data: {
+              channel: SaleChannel.FALABELLA,
+              externalId: id,
+              total: this.parseMoney(o.Price),
+              ...b.charges,
+              companyId,
+              connectionId: conn.id,
+              customerName,
+              customerPhone: addr.Phone || null,
+              address: addr.Address1 || null,
+              commune: addr.City || null,
+              createdAt: new Date(String(o.CreatedAt).replace(' ', 'T')),
+              items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
+            },
+            include: { items: true },
+          });
+          if (onCreated) {
+            await onCreated(tx, {
+              sale, externalId: id, state: this.orderState(rawItems),
+              cancelledProductIds: items.filter((_, idx) => b.lines[idx]?.cancelled).map((i) => i.productId!),
+              customer: { name: customerName, phone: addr.Phone, address: [addr.Address1, addr.Address2].filter(Boolean).join(', '), commune: addr.City, region: addr.Region },
+            });
+          }
         });
         imported++;
       } catch (err: any) {
@@ -620,7 +665,7 @@ export class FalabellaAdapter implements PlatformAdapter {
     return { imported, skipped, errors };
   }
 
-  async importRecentSales(conn: any, companyId: string): Promise<{ imported: number; skipped: number; errors: number }> {
+  async importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }> {
     const from = conn.lastSalesImportAt
       ? new Date(new Date(conn.lastSalesImportAt).getTime() - 2 * 60 * 1000).toISOString()
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -629,7 +674,7 @@ export class FalabellaAdapter implements PlatformAdapter {
     const preview = await this.previewSalesImport(conn, companyId, from);
     const ids = preview.orders.filter((o) => o.importable).map((o) => o.externalId);
     const res = ids.length
-      ? await this.confirmSalesImport(conn, companyId, ids)
+      ? await this.confirmSalesImport(conn, companyId, ids, onCreated)
       : { imported: 0, skipped: 0, errors: [] as string[] };
 
     await this.prisma.marketplaceConnection.update({ where: { id: conn.id }, data: { lastSalesImportAt: to } });
