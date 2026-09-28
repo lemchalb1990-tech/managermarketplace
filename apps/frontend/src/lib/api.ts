@@ -1017,6 +1017,51 @@ export const api = {
       apiFetch<{ saved: number }>('/finance/budgets', { method: 'PUT', body: JSON.stringify(data) }, token),
     copyBudget: (data: { fromYear: number; toYear: number; source: 'budget' | 'actual'; percent?: number; type?: string; companyId?: string }, token: string) =>
       apiFetch<{ saved: number }>('/finance/budgets/copy', { method: 'POST', body: JSON.stringify(data) }, token),
+    uploadAttachment: (movementId: string, file: File, token: string) =>
+      apiUpload<any>(`/finance/movements/${movementId}/attachment`, file, token),
+    removeAttachment: (movementId: string, token: string) =>
+      apiFetch<any>(`/finance/movements/${movementId}/attachment`, { method: 'DELETE' }, token),
+    summary: (token: string, companyId?: string) =>
+      apiFetch<any>(`/finance/summary${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    cashflow: (months: number, token: string, companyId?: string) =>
+      apiFetch<any>(`/finance/cashflow?months=${months}${companyId ? `&companyId=${companyId}` : ''}`, {}, token),
+    bankAccounts: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/finance/bank-accounts${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    createBankAccount: (data: any, token: string) =>
+      apiFetch<any>('/finance/bank-accounts', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateBankAccount: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/finance/bank-accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    deleteBankAccount: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/finance/bank-accounts/${id}`, { method: 'DELETE' }, token),
+    parseStatement: (id: string, file: File, token: string) =>
+      apiUpload<{ rows: string[][]; totalRows: number }>(`/finance/bank-accounts/${id}/statement/parse`, file, token),
+    importStatement: (id: string, lines: { date: string; description: string; amount: number; reference?: string; balance?: number }[], token: string) =>
+      apiFetch<{ imported: number; duplicates: number; autoMatched: number }>(`/finance/bank-accounts/${id}/statement/import`, { method: 'POST', body: JSON.stringify({ lines }) }, token),
+    transactions: (id: string, params: { status?: string; from?: string; to?: string; page?: number }, token: string) => {
+      const q = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
+      return apiFetch<{ items: any[]; total: number; page: number; pages: number }>(`/finance/bank-accounts/${id}/transactions?${q}`, {}, token);
+    },
+    autoMatch: (id: string, token: string) =>
+      apiFetch<{ matched: number }>(`/finance/bank-accounts/${id}/auto-match`, { method: 'POST' }, token),
+    candidates: (lineId: string, token: string) =>
+      apiFetch<{ movements: any[]; transfers: any[] }>(`/finance/bank-transactions/${lineId}/candidates`, {}, token),
+    reconcile: (lineId: string, data: { action: 'match' | 'ignore' | 'create' | 'unmatch'; movementId?: string; transferId?: string; note?: string; accountId?: string; withIva?: boolean; description?: string }, token: string) =>
+      apiFetch<any>(`/finance/bank-transactions/${lineId}/reconcile`, { method: 'POST', body: JSON.stringify(data) }, token),
+    transfers: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/finance/transfers${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    createTransfer: (data: any, token: string) =>
+      apiFetch<any>('/finance/transfers', { method: 'POST', body: JSON.stringify(data) }, token),
+    deleteTransfer: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/finance/transfers/${id}`, { method: 'DELETE' }, token),
+    recurrings: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/finance/recurrings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    createRecurring: (data: any, token: string) =>
+      apiFetch<any>('/finance/recurrings', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateRecurring: (id: string, data: any, token: string) =>
+      apiFetch<any>(`/finance/recurrings/${id}`, { method: 'PUT', body: JSON.stringify(data) }, token),
+    deleteRecurring: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/finance/recurrings/${id}`, { method: 'DELETE' }, token),
   },
   profitability: {
     list: (token: string, companyId?: string) => {

@@ -9,6 +9,9 @@ import { PageHeader, SectionCard } from '@/components/ui';
 import { useAdminCompany } from './AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
+import { can } from '@/lib/permissions';
+import { hasModule } from '@/lib/modules';
+import FinanceSummary from './finanzas/FinanceSummary';
 
 // "1804k" (el número completo pegado a una "k" minúscula) se leía ambiguo — ¿mil ochocientos
 // cuatro, o 1804 "k" de algo? Notación compacta estándar (1,8 M / 450 k) separa el número de
@@ -321,6 +324,11 @@ export default function DashboardPage() {
           href="/dashboard/catalog?stock=critical"
         />
       </div>
+
+      {/* Finanzas del mes (solo con el módulo y el permiso de Finanzas) */}
+      {can(user, 'finance') && hasModule(user, 'finance') && (!isSuperAdmin || selectedCompanyId) && (
+        <FinanceSummary compact companyId={isSuperAdmin ? selectedCompanyId || undefined : undefined} />
+      )}
 
       {/* Fila de ventas — historial y ventas por canal a mitades iguales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">

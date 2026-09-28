@@ -197,6 +197,10 @@ model Company {
   financeAccounts    FinanceAccount[]
   financeMovements   FinanceMovement[]
   financeBudgets     FinanceBudget[]
+  financeBankAccounts     FinanceBankAccount[]
+  financeBankTransactions FinanceBankTransaction[]
+  financeTransfers        FinanceTransfer[]
+  financeRecurrings       FinanceRecurring[]
 
   @@map("companies")
 }
@@ -266,6 +270,7 @@ model User {
   orderRequestsReviewed OrderRequest[]   @relation("OrderRequestReviewedBy")
   workOrders            WorkOrder[]
   financeMovements      FinanceMovement[]
+  financeTransfers      FinanceTransfer[]
 
   @@map("users")
 }
@@ -1836,8 +1841,9 @@ model FinanceAccount {
   parent    FinanceAccount?  @relation("FinanceAccountTree", fields: [parentId], references: [id])
   children  FinanceAccount[] @relation("FinanceAccountTree")
 
-  movements FinanceMovement[]
-  budgets   FinanceBudget[]
+  movements  FinanceMovement[]
+  budgets    FinanceBudget[]
+  recurrings FinanceRecurring[]
 
   @@unique([companyId, systemKey])
   @@index([companyId, parentId])
@@ -1847,7 +1853,10 @@ model FinanceAccount {
 model FinanceMovement {
   id            String         @id @default(cuid())
   date          DateTime
+  // Monto SIN IVA (el que cuenta para el presupuesto). Lo que salió o entró de caja es
+  // amount + tax, que es lo que se concilia contra la cartola.
   amount        Decimal        @db.Decimal(14, 2)
+  tax           Decimal        @default(0) @db.Decimal(14, 2)
   description   String
   counterparty  String?
   paymentMethod PaymentMethod?
@@ -1861,9 +1870,21 @@ model FinanceMovement {
   account   FinanceAccount @relation(fields: [accountId], references: [id])
   userId    String?
   user      User?          @relation(fields: [userId], references: [id])
+  // Cuenta bancaria o caja desde donde se pagó / donde entró.
+  bankAccountId String?
+  bankAccount   FinanceBankAccount? @relation(fields: [bankAccountId], references: [id])
+  // Comprobante (PDF o imagen) servido bajo /api/uploads/finance/.
+  attachmentUrl String?
+  // Generado por un gasto recurrente: period = "YYYY-MM" evita generarlo dos veces.
+  recurringId String?
+  recurring   FinanceRecurring? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  period      String?
+  bankTransaction FinanceBankTransaction?
 
+  @@unique([recurringId, period])
   @@index([companyId, date])
   @@index([accountId, date])
+  @@index([bankAccountId, date])
   @@map("finance_movements")
 }
 
@@ -1881,4 +1902,127 @@ model FinanceBudget {
   @@unique([accountId, year, month])
   @@index([companyId, year])
   @@map("finance_budgets")
+}
+
+enum FinanceBankAccountType {
+  BANK
+  CASH
+  CREDIT_CARD
+  WALLET
+}
+
+enum FinanceBankTxStatus {
+  PENDING
+  MATCHED
+  IGNORED
+}
+
+// Cuenta bancaria, caja, tarjeta de crédito o billetera (Mercado Pago, etc.).
+model FinanceBankAccount {
+  id             String                 @id @default(cuid())
+  name           String
+  type           FinanceBankAccountType @default(BANK)
+  bankName       String?
+  accountNumber  String?
+  // Saldo a la fecha de inicio; desde ahí se suman cartola, movimientos y traspasos.
+  initialBalance Decimal                @default(0) @db.Decimal(14, 2)
+  initialDate    DateTime
+  archived       Boolean                @default(false)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  movements    FinanceMovement[]
+  transactions FinanceBankTransaction[]
+  transfersOut FinanceTransfer[]  @relation("FinanceTransferFrom")
+  transfersIn  FinanceTransfer[]  @relation("FinanceTransferTo")
+  recurrings   FinanceRecurring[]
+
+  @@index([companyId])
+  @@map("finance_bank_accounts")
+}
+
+// Línea de cartola importada. amount: + abono / − cargo (con IVA, lo que movió el banco).
+model FinanceBankTransaction {
+  id          String              @id @default(cuid())
+  date        DateTime
+  description String
+  amount      Decimal             @db.Decimal(14, 2)
+  reference   String?
+  balance     Decimal?            @db.Decimal(14, 2)
+  // Huella para no importar dos veces la misma línea al subir cartolas que se solapan.
+  fingerprint String
+  status      FinanceBankTxStatus @default(PENDING)
+  note        String?
+  createdAt   DateTime            @default(now())
+
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
+  bankAccountId String
+  bankAccount   FinanceBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  movementId    String?            @unique
+  movement      FinanceMovement?   @relation(fields: [movementId], references: [id], onDelete: SetNull)
+  transferId    String?
+  transfer      FinanceTransfer?   @relation(fields: [transferId], references: [id], onDelete: SetNull)
+
+  @@unique([bankAccountId, fingerprint])
+  @@index([bankAccountId, status, date])
+  @@map("finance_bank_transactions")
+}
+
+// Traspaso entre cuentas propias (depósito de caja al banco, pago de tarjeta...). No es
+// ingreso ni gasto: solo mueve saldo.
+model FinanceTransfer {
+  id          String   @id @default(cuid())
+  date        DateTime
+  amount      Decimal  @db.Decimal(14, 2)
+  description String?
+  createdAt   DateTime @default(now())
+
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
+  fromAccountId String
+  fromAccount   FinanceBankAccount @relation("FinanceTransferFrom", fields: [fromAccountId], references: [id])
+  toAccountId   String
+  toAccount     FinanceBankAccount @relation("FinanceTransferTo", fields: [toAccountId], references: [id])
+  userId        String?
+  user          User?              @relation(fields: [userId], references: [id])
+
+  bankTransactions FinanceBankTransaction[]
+
+  @@index([companyId, date])
+  @@map("finance_transfers")
+}
+
+// Gasto (o ingreso) que se repite: genera su movimiento solo cada período, el día indicado.
+model FinanceRecurring {
+  id             String         @id @default(cuid())
+  description    String
+  amount         Decimal        @db.Decimal(14, 2)
+  tax            Decimal        @default(0) @db.Decimal(14, 2)
+  counterparty   String?
+  paymentMethod  PaymentMethod?
+  dayOfMonth     Int
+  intervalMonths Int            @default(1)
+  startDate      DateTime
+  endDate        DateTime?
+  active         Boolean        @default(true)
+  // Último período generado ("YYYY-MM").
+  lastPeriod     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id])
+  accountId     String
+  account       FinanceAccount      @relation(fields: [accountId], references: [id])
+  bankAccountId String?
+  bankAccount   FinanceBankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  movements FinanceMovement[]
+
+  @@index([companyId, active])
+  @@map("finance_recurrings")
 }

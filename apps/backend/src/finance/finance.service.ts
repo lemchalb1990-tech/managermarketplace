@@ -3,6 +3,9 @@ import { FinanceAccountType, Prisma, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz } from '../common/timezone';
+import { mkdir, unlink, writeFile } from 'fs/promises';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { BASE_PLAN, PlanNode, SYSTEM_KEYS, salesKeyForChannel } from './finance-plan';
 import {
   CopyBudgetDto, CreateFinanceAccountDto, FinanceMovementDto, SaveBudgetsDto, UpdateFinanceAccountDto,
@@ -78,7 +81,7 @@ export class FinanceService {
   }
 
   private async getOwnedAccount(user: any, id: string) {
-    const account = await this.prisma.financeAccount.findUnique({ where: { id }, include: { _count: { select: { children: true, movements: true } } } });
+    const account = await this.prisma.financeAccount.findUnique({ where: { id }, include: { _count: { select: { children: true, movements: true, recurrings: true } } } });
     if (!account) throw new NotFoundException('Cuenta no encontrada');
     if (user.role !== Role.SUPER_ADMIN && account.companyId !== user.companyId) throw new ForbiddenException();
     return account;
@@ -132,6 +135,7 @@ export class FinanceService {
     if (account.systemKey) throw new BadRequestException('Las cuentas de la integración automática no se pueden eliminar');
     if (account._count.children > 0) throw new BadRequestException('La cuenta tiene subcuentas: elimínalas o muévelas primero');
     if (account._count.movements > 0) throw new BadRequestException('La cuenta tiene movimientos registrados: archívala en vez de eliminarla');
+    if (account._count.recurrings > 0) throw new BadRequestException('La cuenta tiene gastos recurrentes: elimínalos o cámbialos de cuenta primero');
     await this.prisma.financeAccount.delete({ where: { id } });
     return { deleted: true };
   }
@@ -139,14 +143,22 @@ export class FinanceService {
   // ─── Movimientos manuales ────────────────────────────────────────────────────
 
   // Guarda la fecha a mediodía UTC: en Chile sigue siendo el mismo día calendario.
-  private toStoredDate(date: string): Date {
+  toStoredDate(date: string): Date {
     const day = String(date).slice(0, 10);
     const d = new Date(`${day}T12:00:00.000Z`);
     if (isNaN(d.getTime())) throw new BadRequestException('Fecha inválida');
     return d;
   }
 
-  private async validateMovementAccount(companyId: string, accountId: string) {
+  async validateBankAccount(companyId: string, bankAccountId?: string | null) {
+    if (!bankAccountId) return null;
+    const bank = await this.prisma.financeBankAccount.findUnique({ where: { id: bankAccountId } });
+    if (!bank || bank.companyId !== companyId) throw new BadRequestException('Cuenta bancaria o caja inválida');
+    if (bank.archived) throw new BadRequestException('La cuenta bancaria o caja está archivada');
+    return bank;
+  }
+
+  async validateMovementAccount(companyId: string, accountId: string) {
     const account = await this.prisma.financeAccount.findUnique({ where: { id: accountId }, include: { _count: { select: { children: true } } } });
     if (!account || account.companyId !== companyId) throw new BadRequestException('Cuenta inválida');
     if (account.archived) throw new BadRequestException('La cuenta está archivada');
@@ -183,7 +195,13 @@ export class FinanceService {
     const [items, total, sum] = await Promise.all([
       this.prisma.financeMovement.findMany({
         where,
-        include: { account: { select: { id: true, name: true, code: true, type: true } }, user: { select: { id: true, name: true } } },
+        include: {
+          account: { select: { id: true, name: true, code: true, type: true } },
+          user: { select: { id: true, name: true } },
+          bankAccount: { select: { id: true, name: true } },
+          recurring: { select: { id: true, description: true } },
+          bankTransaction: { select: { id: true, date: true } },
+        },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
@@ -197,17 +215,19 @@ export class FinanceService {
   async createMovement(user: any, dto: FinanceMovementDto) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
     await this.validateMovementAccount(companyId, dto.accountId);
+    await this.validateBankAccount(companyId, dto.bankAccountId);
     const movement = await this.prisma.financeMovement.create({
       data: {
-        companyId, accountId: dto.accountId, date: this.toStoredDate(dto.date), amount: dto.amount,
+        companyId, accountId: dto.accountId, date: this.toStoredDate(dto.date), amount: dto.amount, tax: dto.tax ?? 0,
         description: dto.description.trim(), counterparty: dto.counterparty?.trim() || null,
         paymentMethod: dto.paymentMethod ?? null, reference: dto.reference?.trim() || null, userId: user.id ?? null,
+        bankAccountId: dto.bankAccountId || null,
       },
     });
     return { movement, budgetStatus: await this.budgetStatus(companyId, dto.accountId, movement.date) };
   }
 
-  private async getOwnedMovement(user: any, id: string) {
+  async getOwnedMovement(user: any, id: string) {
     const m = await this.prisma.financeMovement.findUnique({ where: { id } });
     if (!m) throw new NotFoundException('Movimiento no encontrado');
     if (user.role !== Role.SUPER_ADMIN && m.companyId !== user.companyId) throw new ForbiddenException();
@@ -217,20 +237,63 @@ export class FinanceService {
   async updateMovement(user: any, id: string, dto: FinanceMovementDto) {
     const current = await this.getOwnedMovement(user, id);
     await this.validateMovementAccount(current.companyId, dto.accountId);
+    await this.validateBankAccount(current.companyId, dto.bankAccountId);
     const movement = await this.prisma.financeMovement.update({
       where: { id },
       data: {
-        accountId: dto.accountId, date: this.toStoredDate(dto.date), amount: dto.amount, description: dto.description.trim(),
-        counterparty: dto.counterparty?.trim() || null, paymentMethod: dto.paymentMethod ?? null, reference: dto.reference?.trim() || null,
+        accountId: dto.accountId, date: this.toStoredDate(dto.date), amount: dto.amount, tax: dto.tax ?? 0,
+        description: dto.description.trim(), counterparty: dto.counterparty?.trim() || null,
+        paymentMethod: dto.paymentMethod ?? null, reference: dto.reference?.trim() || null,
+        bankAccountId: dto.bankAccountId || null,
       },
     });
     return { movement, budgetStatus: await this.budgetStatus(current.companyId, dto.accountId, movement.date) };
   }
 
   async deleteMovement(user: any, id: string) {
-    await this.getOwnedMovement(user, id);
-    await this.prisma.financeMovement.delete({ where: { id } });
+    const m = await this.getOwnedMovement(user, id);
+    await this.prisma.$transaction(async (tx) => {
+      // La línea de cartola que estaba conciliada con este movimiento vuelve a quedar pendiente.
+      await tx.financeBankTransaction.updateMany({ where: { movementId: id }, data: { status: 'PENDING', movementId: null } });
+      await tx.financeMovement.delete({ where: { id } });
+    });
+    await this.deleteAttachmentFile(m.attachmentUrl);
     return { deleted: true };
+  }
+
+  // ─── Comprobantes adjuntos ───────────────────────────────────────────────────
+  // Se guardan en uploads/finance con nombre aleatorio (no adivinable), igual que los
+  // documentos tributarios que se hospedan para Falabella.
+
+  private uploadsDir() {
+    return join(process.env.UPLOAD_DIR || join(process.cwd(), 'uploads'), 'finance');
+  }
+
+  private async deleteAttachmentFile(url: string | null) {
+    const name = url?.split('/api/uploads/finance/')[1];
+    if (name) await unlink(join(this.uploadsDir(), name)).catch(() => {});
+  }
+
+  async setAttachment(user: any, id: string, file: Express.Multer.File) {
+    const m = await this.getOwnedMovement(user, id);
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    if (file.size > 10 * 1024 * 1024) throw new BadRequestException('El archivo supera el límite de 10 MB');
+    // La extensión sale del tipo permitido, nunca del nombre que envió el usuario (un .html
+    // quedaría servido como página desde /api/uploads).
+    const EXT: Record<string, string> = { 'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+    const ext = EXT[file.mimetype];
+    if (!ext) throw new BadRequestException('Tipo de archivo no permitido: usa PDF, JPG, PNG o WebP');
+    await mkdir(this.uploadsDir(), { recursive: true });
+    const filename = `${randomUUID()}${ext}`;
+    await writeFile(join(this.uploadsDir(), filename), file.buffer);
+    await this.deleteAttachmentFile(m.attachmentUrl);
+    return this.prisma.financeMovement.update({ where: { id }, data: { attachmentUrl: `/api/uploads/finance/${filename}` } });
+  }
+
+  async removeAttachment(user: any, id: string) {
+    const m = await this.getOwnedMovement(user, id);
+    await this.deleteAttachmentFile(m.attachmentUrl);
+    return this.prisma.financeMovement.update({ where: { id }, data: { attachmentUrl: null } });
   }
 
   // ─── Integración automática ──────────────────────────────────────────────────
@@ -244,7 +307,7 @@ export class FinanceService {
   //   despacho negativo es un ingreso por envío que ya está dentro del total de la venta.
   // - Compras de mercadería: total de la compra (costos ingresados con IVA, igual que el costo
   //   de los productos) / 1,19.
-  private async automaticActuals(companyId: string, from: Date, to: Date): Promise<AutoRow[]> {
+  async automaticActuals(companyId: string, from: Date, to: Date): Promise<AutoRow[]> {
     const tz = await this.settings.getTimezone();
     // ::text evita que Postgres dude entre timezone(text) y timezone(interval) con el parámetro.
     const local = (col: Prisma.Sql) => Prisma.sql`((${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz}::text)`;
@@ -380,7 +443,7 @@ export class FinanceService {
   }
 
   // Presupuesto y real del mes de `date` para una cuenta, para avisar al registrar un gasto.
-  private async budgetStatus(companyId: string, accountId: string, date: Date) {
+  async budgetStatus(companyId: string, accountId: string, date: Date) {
     const tz = await this.settings.getTimezone();
     const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' }).format(date).split('-').map(Number);
     const from = startOfDayInTz(tz, `${y}-${String(m).padStart(2, '0')}-01`);

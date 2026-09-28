@@ -2,16 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, imgUrl } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { MONTHS, PAYMENT_LABEL, TYPE_LABEL, clp, flattenTree, monthRange, todayKey } from './finance-utils';
 
-const emptyForm = { accountId: '', date: todayKey(), amount: '', description: '', counterparty: '', paymentMethod: '', reference: '' };
+// amount = lo que se pagó; con withIva se separa en neto (presupuesto) + IVA (crédito fiscal).
+const emptyForm = { accountId: '', date: todayKey(), amount: '', withIva: false, description: '', counterparty: '', paymentMethod: '', reference: '', bankAccountId: '' };
 
 export default function MovementsTab({ companyId, version, onChanged }: { companyId?: string; version: number; onChanged: () => void }) {
   const now = new Date();
   const initial = monthRange(now.getFullYear(), now.getMonth() + 1);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [banks, setBanks] = useState<any[]>([]);
+  const [file, setFile] = useState<File | null>(null);
   const [filters, setFilters] = useState({ from: initial.from, to: initial.to, accountId: '', search: '' });
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ items: any[]; total: number; pages: number; sum: number } | null>(null);
@@ -24,6 +27,7 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
 
   useEffect(() => {
     api.finance.accounts(getToken()!, companyId).then(setAccounts).catch(() => {});
+    api.finance.bankAccounts(getToken()!, companyId).then((b) => setBanks(b.filter((x: any) => !x.archived))).catch(() => {});
   }, [companyId, version]);
 
   useEffect(() => {
@@ -51,28 +55,34 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
   }, [accounts]);
   const leafAccounts = tree.filter((a) => !a.hasChildren && !a.archived);
 
-  const openNew = () => { setForm({ ...emptyForm, date: todayKey() }); setEditing({}); };
+  const openNew = () => { setForm({ ...emptyForm, date: todayKey() }); setFile(null); setEditing({}); };
   const openEdit = (m: any) => {
+    const tax = Number(m.tax || 0);
     setForm({
-      accountId: m.accountId, date: String(m.date).slice(0, 10), amount: String(Math.round(Number(m.amount))),
+      accountId: m.accountId, date: String(m.date).slice(0, 10), amount: String(Math.round(Number(m.amount) + tax)), withIva: tax > 0,
       description: m.description, counterparty: m.counterparty || '', paymentMethod: m.paymentMethod || '', reference: m.reference || '',
+      bankAccountId: m.bankAccountId || '',
     });
+    setFile(null);
     setEditing(m);
   };
 
   async function save() {
-    const amount = Number(form.amount.replace(/[^\d]/g, ''));
-    if (!form.accountId || !amount || !form.description.trim()) {
+    const total = Number(form.amount.replace(/[^\d]/g, ''));
+    const amount = form.withIva ? Math.round(total / 1.19) : total;
+    if (!form.accountId || !total || !form.description.trim()) {
       await alertDialog('Completa la cuenta, el monto y la descripción.');
       return;
     }
     setSaving(true);
     try {
-      const payload = { ...form, amount, paymentMethod: form.paymentMethod || undefined, companyId };
+      const { withIva: _withIva, ...rest } = form;
+      const payload = { ...rest, amount, tax: total - amount, paymentMethod: form.paymentMethod || undefined, bankAccountId: form.bankAccountId || null, companyId };
       const token = getToken()!;
       const res = editing?.id
         ? await api.finance.updateMovement(editing.id, payload, token)
         : await api.finance.createMovement(payload, token);
+      if (file) await api.finance.uploadAttachment(res.movement.id, file, token);
       setEditing(null);
       onChanged();
       const st = res.budgetStatus;
@@ -86,6 +96,13 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
     } finally {
       setSaving(false);
     }
+  }
+
+  async function removeAttachment() {
+    if (!editing?.id || !(await confirmDialog('¿Quitar el comprobante adjunto?'))) return;
+    await api.finance.removeAttachment(editing.id, getToken()!).catch((e) => alertDialog(e.message));
+    setEditing({ ...editing, attachmentUrl: null });
+    onChanged();
   }
 
   async function remove(m: any) {
@@ -163,12 +180,22 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
                     {pathOf(m.accountId)}
                   </td>
                   <td className="px-3 py-2">
-                    <p className="text-gray-800">{m.description}</p>
+                    <p className="text-gray-800">
+                      {m.description}
+                      {m.recurring && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px]" title="Generado por un gasto recurrente">recurrente</span>}
+                      {m.bankTransaction && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px]" title="Conciliado con la cartola">conciliado</span>}
+                      {m.attachmentUrl && (
+                        <a href={imgUrl(m.attachmentUrl)} target="_blank" rel="noopener noreferrer" className="ml-1.5 text-[10px] text-blue-600 hover:underline">📎 comprobante</a>
+                      )}
+                    </p>
                     <p className="text-[11px] text-gray-400">
-                      {[m.counterparty, m.paymentMethod && PAYMENT_LABEL[m.paymentMethod], m.reference && `N° ${m.reference}`].filter(Boolean).join(' · ')}
+                      {[m.counterparty, m.bankAccount?.name, m.paymentMethod && PAYMENT_LABEL[m.paymentMethod], m.reference && `N° ${m.reference}`].filter(Boolean).join(' · ')}
                     </p>
                   </td>
-                  <td className="px-3 py-2 text-right font-medium text-gray-900 whitespace-nowrap">{clp(Number(m.amount))}</td>
+                  <td className="px-3 py-2 text-right font-medium text-gray-900 whitespace-nowrap">
+                    {clp(Number(m.amount))}
+                    {Number(m.tax) > 0 && <span className="block text-[10px] text-gray-400 font-normal">+ IVA {clp(Number(m.tax))}</span>}
+                  </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <button onClick={() => openEdit(m)} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Editar</button>
                     <button onClick={() => remove(m)} className="text-xs text-red-500 hover:text-red-700 font-medium">Eliminar</button>
@@ -233,10 +260,17 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
                   className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Monto sin IVA</label>
+                <label className="text-xs text-gray-500">Monto pagado</label>
                 <input value={form.amount ? Number(form.amount.replace(/[^\d]/g, '')).toLocaleString('es-CL') : ''}
                   onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d]/g, '') })}
                   placeholder="$0" className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1 text-right" />
+                <label className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-1 cursor-pointer">
+                  <input type="checkbox" checked={form.withIva} onChange={(e) => setForm({ ...form, withIva: e.target.checked })} />
+                  Incluye IVA (con factura)
+                </label>
+                {form.withIva && Number(form.amount) > 0 && (
+                  <p className="text-[11px] text-gray-400">Neto {clp(Math.round(Number(form.amount) / 1.19))} + IVA {clp(Number(form.amount) - Math.round(Number(form.amount) / 1.19))}</p>
+                )}
               </div>
             </div>
             <div>
@@ -256,13 +290,37 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
                   placeholder="Factura, boleta…" className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500">Pagado desde / depositado en</label>
+                <select value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1">
+                  <option value="">—</option>
+                  {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Medio de pago</label>
+                <select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1">
+                  <option value="">—</option>
+                  {Object.entries(PAYMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="text-xs text-gray-500">Medio de pago</label>
-              <select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1">
-                <option value="">—</option>
-                {Object.entries(PAYMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
+              <label className="text-xs text-gray-500">Comprobante (PDF o foto, opcional)</label>
+              {editing.attachmentUrl && !file ? (
+                <div className="flex items-center gap-3 text-xs mt-1">
+                  <a href={imgUrl(editing.attachmentUrl)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">📎 Ver comprobante</a>
+                  <label className="text-gray-600 cursor-pointer hover:text-gray-900">
+                    Reemplazar<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                  </label>
+                  <button onClick={removeAttachment} className="text-red-500 hover:text-red-700">Quitar</button>
+                </div>
+              ) : (
+                <input type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block text-xs mt-1" />
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setEditing(null)} disabled={saving} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>

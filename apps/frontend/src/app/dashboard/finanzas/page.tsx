@@ -2,24 +2,33 @@
 
 import { useState } from 'react';
 import { useAdminCompany } from '../AdminCompanyContext';
+import FinanceSummary from './FinanceSummary';
 import ReportTab from './ReportTab';
 import BudgetTab from './BudgetTab';
 import MovementsTab from './MovementsTab';
+import BanksTab from './BanksTab';
+import RecurringTab from './RecurringTab';
+import CashflowTab from './CashflowTab';
 import AccountsTab from './AccountsTab';
 
 const TABS = [
+  { key: 'summary', label: 'Resumen' },
   { key: 'report', label: 'Presupuesto vs. real' },
   { key: 'budget', label: 'Presupuesto' },
   { key: 'movements', label: 'Movimientos' },
+  { key: 'banks', label: 'Bancos y caja' },
+  { key: 'recurring', label: 'Recurrentes' },
+  { key: 'cashflow', label: 'Flujo de caja' },
   { key: 'accounts', label: 'Plan de cuentas' },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
+const YEAR_TABS: TabKey[] = ['report', 'budget'];
 
 export default function FinanzasPage() {
   const { isSuperAdmin, selectedCompanyId } = useAdminCompany();
   const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
-  const [tab, setTab] = useState<TabKey>('report');
+  const [tab, setTab] = useState<TabKey>('summary');
   const [year, setYear] = useState(new Date().getFullYear());
   // Cambia cuando una pestaña modifica datos, para que las demás recarguen al volver.
   const [version, setVersion] = useState(0);
@@ -31,10 +40,10 @@ export default function FinanzasPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Finanzas</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Montos sin IVA. Ventas, comisiones, despachos y compras se suman solos; el resto se registra en Movimientos.
+            Presupuesto y resultados sin IVA. Ventas, comisiones, despachos y compras se suman solos.
           </p>
         </div>
-        {tab !== 'accounts' && tab !== 'movements' && (
+        {YEAR_TABS.includes(tab) && (
           <div className="flex items-center gap-2">
             <button onClick={() => setYear((y) => y - 1)} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">←</button>
             <span className="text-sm font-semibold text-gray-800 w-12 text-center">{year}</span>
@@ -54,9 +63,13 @@ export default function FinanzasPage() {
         ))}
       </div>
 
+      {tab === 'summary' && <FinanceSummary companyId={companyId} version={version} />}
       {tab === 'report' && <ReportTab year={year} companyId={companyId} version={version} />}
       {tab === 'budget' && <BudgetTab year={year} companyId={companyId} version={version} onSaved={bump} />}
       {tab === 'movements' && <MovementsTab companyId={companyId} version={version} onChanged={bump} />}
+      {tab === 'banks' && <BanksTab companyId={companyId} version={version} onChanged={bump} />}
+      {tab === 'recurring' && <RecurringTab companyId={companyId} version={version} onChanged={bump} />}
+      {tab === 'cashflow' && <CashflowTab companyId={companyId} version={version} />}
       {tab === 'accounts' && <AccountsTab companyId={companyId} onChanged={bump} />}
     </div>
   );
