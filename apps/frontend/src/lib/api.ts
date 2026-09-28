@@ -986,6 +986,38 @@ export const api = {
     remove: (id: string, token: string) =>
       apiFetch<any>(`/clients/${id}`, { method: 'DELETE' }, token),
   },
+  finance: {
+    accounts: (token: string, companyId?: string) =>
+      apiFetch<any[]>(`/finance/accounts${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    createAccount: (data: { name: string; code?: string; parentId?: string; type?: string; companyId?: string }, token: string) =>
+      apiFetch<any>('/finance/accounts', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateAccount: (id: string, data: { name?: string; code?: string; parentId?: string | null; archived?: boolean }, token: string) =>
+      apiFetch<any>(`/finance/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    deleteAccount: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/finance/accounts/${id}`, { method: 'DELETE' }, token),
+    movements: (params: { companyId?: string; from?: string; to?: string; accountId?: string; search?: string; page?: number }, token: string) => {
+      const q = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') q.set(k, String(v)); });
+      return apiFetch<{ items: any[]; total: number; page: number; pages: number; sum: number }>(`/finance/movements?${q}`, {}, token);
+    },
+    createMovement: (data: any, token: string) =>
+      apiFetch<{ movement: any; budgetStatus: any }>('/finance/movements', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateMovement: (id: string, data: any, token: string) =>
+      apiFetch<{ movement: any; budgetStatus: any }>(`/finance/movements/${id}`, { method: 'PUT', body: JSON.stringify(data) }, token),
+    deleteMovement: (id: string, token: string) =>
+      apiFetch<{ deleted: boolean }>(`/finance/movements/${id}`, { method: 'DELETE' }, token),
+    automatic: (params: { companyId?: string; from: string; to: string }, token: string) => {
+      const q = new URLSearchParams({ from: params.from, to: params.to });
+      if (params.companyId) q.set('companyId', params.companyId);
+      return apiFetch<any[]>(`/finance/automatic?${q}`, {}, token);
+    },
+    report: (year: number, token: string, companyId?: string) =>
+      apiFetch<any>(`/finance/report?year=${year}${companyId ? `&companyId=${companyId}` : ''}`, {}, token),
+    saveBudgets: (data: { year: number; entries: { accountId: string; month: number; amount: number | null }[]; companyId?: string }, token: string) =>
+      apiFetch<{ saved: number }>('/finance/budgets', { method: 'PUT', body: JSON.stringify(data) }, token),
+    copyBudget: (data: { fromYear: number; toYear: number; source: 'budget' | 'actual'; percent?: number; type?: string; companyId?: string }, token: string) =>
+      apiFetch<{ saved: number }>('/finance/budgets/copy', { method: 'POST', body: JSON.stringify(data) }, token),
+  },
   profitability: {
     list: (token: string, companyId?: string) => {
       const q = new URLSearchParams();

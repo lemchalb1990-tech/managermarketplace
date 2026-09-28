@@ -65,6 +65,11 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
+    key: 'finanzas',
+    label: 'Finanzas',
+    items: [{ key: 'finance', label: 'Finanzas: plan de cuentas, movimientos y presupuesto' }],
+  },
+  {
     key: 'operacion',
     label: 'Operación',
     items: [
@@ -145,6 +150,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'suppliers',
     'dropshipping',
     'rentabilidad',
+    'finance',
     'warehouse.board',
     'warehouse.picking',
     'warehouse.packing',

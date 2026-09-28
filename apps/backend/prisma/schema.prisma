@@ -194,6 +194,9 @@ model Company {
   mlClaims           MlClaim[]
   productMasters     ProductMaster[]
   categories         Category[]
+  financeAccounts    FinanceAccount[]
+  financeMovements   FinanceMovement[]
+  financeBudgets     FinanceBudget[]
 
   @@map("companies")
 }
@@ -262,6 +265,7 @@ model User {
   orderRequestsCreated  OrderRequest[]   @relation("OrderRequestRequestedBy")
   orderRequestsReviewed OrderRequest[]   @relation("OrderRequestReviewedBy")
   workOrders            WorkOrder[]
+  financeMovements      FinanceMovement[]
 
   @@map("users")
 }
@@ -1801,4 +1805,80 @@ model DropshipOrderItem {
   saleItem        SaleItem?     @relation(fields: [saleItemId], references: [id])
 
   @@map("dropship_order_items")
+}
+
+// ─── Finanzas: plan de cuentas, movimientos y presupuesto mensual ─────────────
+// Todos los montos SIN IVA. El "real" de cada cuenta = movimientos manuales + lo que la
+// integración automática calcula al vuelo desde ventas, comisiones, despachos y compras
+// (cuentas con systemKey), así que nunca queda desfasado si se edita o borra una venta.
+
+enum FinanceAccountType {
+  INCOME
+  EXPENSE
+}
+
+model FinanceAccount {
+  id        String             @id @default(cuid())
+  code      String?
+  name      String
+  type      FinanceAccountType
+  // Cuentas que alimenta la integración automática (SALES_POS, MARKETPLACE_FEES...). No se
+  // pueden borrar ni cambiar de tipo; sí renombrar o mover.
+  systemKey String?
+  archived  Boolean            @default(false)
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  companyId String
+  company   Company          @relation(fields: [companyId], references: [id])
+  parentId  String?
+  parent    FinanceAccount?  @relation("FinanceAccountTree", fields: [parentId], references: [id])
+  children  FinanceAccount[] @relation("FinanceAccountTree")
+
+  movements FinanceMovement[]
+  budgets   FinanceBudget[]
+
+  @@unique([companyId, systemKey])
+  @@index([companyId, parentId])
+  @@map("finance_accounts")
+}
+
+model FinanceMovement {
+  id            String         @id @default(cuid())
+  date          DateTime
+  amount        Decimal        @db.Decimal(14, 2)
+  description   String
+  counterparty  String?
+  paymentMethod PaymentMethod?
+  reference     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id])
+  accountId String
+  account   FinanceAccount @relation(fields: [accountId], references: [id])
+  userId    String?
+  user      User?          @relation(fields: [userId], references: [id])
+
+  @@index([companyId, date])
+  @@index([accountId, date])
+  @@map("finance_movements")
+}
+
+model FinanceBudget {
+  id     String  @id @default(cuid())
+  year   Int
+  month  Int
+  amount Decimal @db.Decimal(14, 2)
+
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id])
+  accountId String
+  account   FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, year, month])
+  @@index([companyId, year])
+  @@map("finance_budgets")
 }

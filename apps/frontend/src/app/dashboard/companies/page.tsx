@@ -21,6 +21,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },
   { key: 'rentabilidad', label: 'Rentabilidad', description: 'Comparador de costo propio vs. precio de la competencia' },
+  { key: 'finance', label: 'Finanzas', description: 'Plan de cuentas, gastos e ingresos y presupuesto mensual vs. real' },
   { key: 'purchases', label: 'Compras', description: 'Compras a proveedores con costeo por lotes (FIFO)' },
   { key: 'dropshipping', label: 'Dropshipping', description: 'Productos que despacha un proveedor externo al cliente final' },
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },

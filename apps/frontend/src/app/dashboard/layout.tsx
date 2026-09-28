@@ -71,6 +71,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'finanzas',
+    label: 'Finanzas',
+    items: [
+      { href: '/dashboard/finanzas', label: 'Finanzas y presupuesto', perm: 'finance', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'finance' },
+    ],
+  },
+  {
     key: 'operacion',
     label: 'Operación',
     items: [
@@ -133,6 +140,7 @@ const ICON_PATHS: Record<string, string> = {
   ventas: 'M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0',
   canales: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7',
   catalogo: 'M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2M3 8h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2ZM9 12h6',
+  finanzas: 'M3 3v18h18M7 15l4-4 3 3 5-6',
   operacion: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Zm0 8 2 2 4-4',
   repartidores: 'M3 16V7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9M16 10h3l2 3v3h-5M7.5 19.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
   colaboradores: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-7.13a4 4 0 0 1 0 7.75',
