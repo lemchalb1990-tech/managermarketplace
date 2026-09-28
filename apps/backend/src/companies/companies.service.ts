@@ -52,7 +52,8 @@ export class CompaniesService {
 
   findAll() {
     return this.prisma.company.findMany({
-      where: { active: true },
+      // Las con baja en curso siguen visibles para que el super admin pueda revertirla.
+      where: { OR: [{ active: true }, { closureScheduledFor: { not: null } }] },
       include: { _count: { select: { users: true, products: true } } },
       orderBy: { createdAt: 'desc' },
     });

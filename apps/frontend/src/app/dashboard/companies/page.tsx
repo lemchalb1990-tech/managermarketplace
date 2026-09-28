@@ -93,6 +93,17 @@ export default function CompaniesPage() {
     }
   }
 
+  async function handleCancelClosure(id: string, name: string) {
+    if (!(await confirmDialog(`¿Revertir la baja de "${name}"? La cuenta vuelve a quedar activa, sus usuarios pueden entrar y se reactivan las conexiones que tenía.`))) return;
+    try {
+      const res = await api.companies.cancelClosure(id, getToken()!);
+      await load();
+      await alertDialog(`Baja revertida. ${res.connectionsReactivated} conexión(es) reactivada(s).`);
+    } catch (err: any) {
+      await alertDialog(err.message || 'No se pudo revertir la baja');
+    }
+  }
+
   async function handleDeleteAllListings(id: string, name: string) {
     if (!(await confirmDialog(
       `¿Eliminar TODAS las publicaciones de "${name}"?\n\n` +
@@ -420,9 +431,16 @@ export default function CompaniesPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">{c._count?.products ?? 0}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {c.active ? 'Activa' : 'Inactiva'}
-                  </span>
+                  {c.closureScheduledFor ? (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700"
+                      title={c.closureReason ? `Motivo: ${c.closureReason}` : undefined}>
+                      Baja: se borra el {new Date(c.closureScheduledFor).toLocaleDateString('es-CL')}
+                    </span>
+                  ) : (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {c.active ? 'Activa' : 'Inactiva'}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {(() => {
@@ -435,6 +453,11 @@ export default function CompaniesPage() {
                   })()}
                 </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
+                  {c.closureScheduledFor && (
+                    <button onClick={() => handleCancelClosure(c.id, c.name)} className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold">
+                      Revertir baja
+                    </button>
+                  )}
                   <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSalesPlatforms: Array.isArray(c.autoSyncSalesPlatforms) ? c.autoSyncSalesPlatforms : [], autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1 }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar

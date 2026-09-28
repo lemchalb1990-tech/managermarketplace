@@ -147,6 +147,14 @@ model Company {
   name                    String
   slug                    String   @unique
   active                  Boolean  @default(true)
+  // Baja solicitada por el administrador: la cuenta queda bloqueada y todos sus datos se
+  // borran en closureScheduledFor (30 días después) salvo que el super admin la revierta.
+  closureRequestedAt      DateTime?
+  closureScheduledFor     DateTime?
+  closureRequestedById    String?
+  closureReason           String?
+  // Conexiones que estaban activas al pedir la baja, para reactivarlas si se revierte.
+  closureMeta             Json?
   maxUsers                Int      @default(10)
   modules                 Json?
   mlClientId              String?

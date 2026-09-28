@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import AccountClosureSection from './AccountClosureSection';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
@@ -376,6 +377,8 @@ export default function SettingsPage() {
           </div>
         )}
       </form>
+
+      {getUser()?.role === 'COMPANY_ADMIN' && <AccountClosureSection />}
     </div>
   );
 }

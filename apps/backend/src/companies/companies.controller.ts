@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { CompaniesService } from './companies.service';
+import { CompanyClosureService } from './company-closure.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/create-company.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -10,7 +11,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN)
 export class CompaniesController {
-  constructor(private service: CompaniesService) {}
+  constructor(private service: CompaniesService, private closure: CompanyClosureService) {}
 
   @Post()
   create(@Body() dto: CreateCompanyDto) {
@@ -35,6 +36,12 @@ export class CompaniesController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  // Revierte una baja pedida por el administrador de la empresa (dentro de los 30 días).
+  @Post(':id/closure/cancel')
+  cancelClosure(@Param('id') id: string) {
+    return this.closure.cancelClosure(id);
   }
 
   @Post(':id/delete-listings')

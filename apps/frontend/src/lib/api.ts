@@ -226,6 +226,13 @@ export const api = {
       apiFetch<any>(`/companies/${id}`, { method: 'DELETE' }, token),
     deleteAllListings: (id: string, token: string) =>
       apiFetch<{ deleted: number }>(`/companies/${id}/delete-listings`, { method: 'POST' }, token),
+    cancelClosure: (id: string, token: string) =>
+      apiFetch<{ restored: boolean; connectionsReactivated: number }>(`/companies/${id}/closure/cancel`, { method: 'POST' }, token),
+  },
+  companyAccount: {
+    closureStatus: (token: string) => apiFetch<any>('/company-account/closure', {}, token),
+    requestClosure: (data: { companyName: string; password: string; reason?: string }, token: string) =>
+      apiFetch<{ scheduledFor: string }>('/company-account/closure', { method: 'POST', body: JSON.stringify(data) }, token),
   },
   users: {
     list: (token: string) => apiFetch<any[]>('/users', {}, token),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -18,6 +18,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
+  // Después de dar de baja la cuenta se llega acá con ?closed=<fecha de borrado>.
+  const [closedOn, setClosedOn] = useState('');
+  useEffect(() => { setClosedOn(new URLSearchParams(window.location.search).get('closed') || ''); }, []);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -104,6 +107,11 @@ export default function LoginPage() {
                   required placeholder="••••••••" className={field} />
               </div>
 
+              {closedOn && !error && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+                  La cuenta fue dada de baja. Sus datos se eliminarán definitivamente el {closedOn}.
+                </div>
+              )}
               {error && (
                 <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
               )}
