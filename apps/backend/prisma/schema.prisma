@@ -841,6 +841,9 @@ model Sale {
   // envío = un bulto físico). Se usa igual que mlPackId para consolidar cuando pack_id
   // viene vacío.
   mlShippingId    String?
+  // Otras "orders" de ML (del mismo pack/envío) ya fusionadas en esta venta, además de
+  // externalId. Evita volver a sumar sus productos cada vez que llega el webhook o corre el cron.
+  mlMergedOrderIds String[]        @default([])
   total           Decimal          @db.Decimal(10, 2)
   shippingCost    Decimal?         @db.Decimal(10, 2)
   marketplaceFee  Decimal?         @db.Decimal(10, 2)

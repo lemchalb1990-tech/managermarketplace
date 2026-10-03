@@ -1622,15 +1622,18 @@ export class MercadolibreService {
 
     const [existingSales, listings] = await Promise.all([
       this.prisma.sale.findMany({
-        where: { channel: SaleChannel.MERCADO_LIBRE, externalId: { in: orderIds } },
-        select: { externalId: true },
+        where: {
+          channel: SaleChannel.MERCADO_LIBRE,
+          OR: [{ externalId: { in: orderIds } }, { mlMergedOrderIds: { hasSome: orderIds } }],
+        },
+        select: { externalId: true, mlMergedOrderIds: true },
       }),
       this.prisma.listing.findMany({
         where: { connectionId, externalId: { in: itemIds } },
         select: { externalId: true, productId: true, product: { select: { name: true } } },
       }),
     ]);
-    const existingIds = new Set(existingSales.map((s) => s.externalId));
+    const existingIds = new Set(existingSales.flatMap((s) => [s.externalId, ...s.mlMergedOrderIds]));
     const listingByItemId = new Map(listings.map((l) => [l.externalId, l]));
 
     // Se muestran TODAS las órdenes del rango, ya estén registradas o no, para tener el
@@ -1683,7 +1686,7 @@ export class MercadolibreService {
 
     for (const orderId of externalOrderIds) {
       const existing = await this.prisma.sale.findFirst({
-        where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderId },
+        where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderId) },
       });
       if (existing) { skipped++; continue; }
 
@@ -1824,6 +1827,199 @@ export class MercadolibreService {
     this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
   }
 
+  // ─── Reparar ventas de pack duplicadas ────────────────────────────────────────
+  // Hasta oct-2026, cada vez que llegaba el webhook o corría el cron para la 2ª orden de un
+  // pack (carrito), sus productos se volvían a sumar a la venta del pack (con su descuento de
+  // stock, su línea de verificación y su monto). Esto revisa esas ventas contra lo que dice
+  // Mercado Libre (las órdenes reales del pack) y, con apply=true, quita lo duplicado:
+  // devuelve el stock descontado de más a la bodega, borra las líneas sobrantes de la venta y
+  // de la orden de despacho, corrige total/neto/comisión y registra las órdenes fusionadas.
+  // Solo se consideran ventas con algún producto repetido en sus líneas (la huella del bug).
+
+  private async packOrderIds(sale: { externalId: string | null; mlPackId: string | null; mlShippingId: string | null }, token: string): Promise<string[] | null> {
+    const headers = { Authorization: `Bearer ${token}` };
+    if (sale.mlPackId) {
+      const res = await fetch(`${ML_API}/packs/${sale.mlPackId}`, { headers });
+      if (res.ok) {
+        const pack = await res.json() as any;
+        const ids = (pack.orders || []).map((o: any) => String(o.id)).filter(Boolean);
+        if (ids.length) return ids;
+      }
+    }
+    if (sale.mlShippingId) {
+      const res = await fetch(`${ML_API}/shipments/${sale.mlShippingId}/items`, { headers });
+      if (res.ok) {
+        const items = await res.json() as any;
+        const ids = (Array.isArray(items) ? items : []).map((i: any) => i.order_id != null ? String(i.order_id) : null).filter(Boolean) as string[];
+        if (ids.length) return Array.from(new Set(ids));
+      }
+    }
+    return null;
+  }
+
+  async repairPackDuplicates(user: any, opts: { companyId?: string; apply?: boolean; saleIds?: string[] }) {
+    const sales = await this.prisma.sale.findMany({
+      where: {
+        ...this.companyFilter(user, opts.companyId),
+        channel: SaleChannel.MERCADO_LIBRE,
+        connectionId: { not: null },
+        OR: [{ mlPackId: { not: null } }, { mlShippingId: { not: null } }],
+        ...(opts.saleIds?.length ? { id: { in: opts.saleIds } } : {}),
+      },
+      include: {
+        items: { include: { product: { select: { id: true, name: true, sku: true } } }, orderBy: { id: 'asc' } },
+        order: { include: { itemChecks: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const candidates = sales.filter((s) => new Set(s.items.map((i) => i.productId)).size < s.items.length);
+
+    const report: any[] = [];
+    const touched = new Set<string>();
+    for (const sale of candidates) {
+      const entry: any = {
+        saleId: sale.id, orderId: sale.order?.id || null, mlOrderId: sale.externalId, packId: sale.mlPackId,
+        totalBefore: Number(sale.total), products: [], fixed: false,
+      };
+      report.push(entry);
+      try {
+        const token = await this.getValidToken(sale.connectionId!);
+        const orderIds = await this.packOrderIds(sale, token);
+        if (!orderIds?.length) { entry.error = 'No se pudo leer el pack en Mercado Libre: no se modifica'; continue; }
+        if (sale.externalId && !orderIds.includes(sale.externalId)) {
+          entry.error = `El pack informado por Mercado Libre no incluye la orden #${sale.externalId}: no se modifica`;
+          continue;
+        }
+
+        // Lo que realmente se vendió según ML, por producto del catálogo.
+        const expected = new Map<string, number>();
+        let total = 0, net = 0, fee = 0;
+        for (const id of orderIds) {
+          const res = await fetch(`${ML_API}/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error(`no se pudo leer la orden ${id} (HTTP ${res.status})`);
+          const order = await res.json() as any;
+          const charges = this.computeOrderCharges(order);
+          const shippingInfo = await this.getMlShippingInfo(order, token);
+          if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
+          total += Number(order.total_amount || 0);
+          net += this.computeSellerNetAmount(order, charges);
+          fee += charges.marketplaceFee;
+          for (const oi of order.order_items || []) {
+            const listing = await this.prisma.listing.findFirst({
+              where: { externalId: oi.item?.id, connectionId: sale.connectionId! },
+              select: { productId: true },
+            });
+            if (listing) expected.set(listing.productId, (expected.get(listing.productId) || 0) + (oi.quantity || 1));
+          }
+        }
+
+        // Líneas sobrantes: por producto se conservan las primeras hasta cubrir lo vendido.
+        const extraItems: typeof sale.items = [];
+        const byProduct = new Map<string, typeof sale.items>();
+        for (const it of sale.items) byProduct.set(it.productId, [...(byProduct.get(it.productId) || []), it]);
+        for (const [productId, items] of byProduct) {
+          const want = expected.get(productId) ?? items.reduce((s, i) => s + i.quantity, 0);
+          let kept = 0;
+          const extra = [];
+          for (const it of items) {
+            if (kept >= want) extra.push(it); else kept += it.quantity;
+          }
+          const have = items.reduce((s, i) => s + i.quantity, 0);
+          if (extra.length) {
+            const movements = await this.prisma.stockMovement.findMany({
+              where: { saleItemId: { in: extra.map((e) => e.id) }, type: MovementType.SALE },
+              select: { quantity: true },
+            });
+            entry.products.push({
+              productId, name: items[0].product.name, sku: items[0].product.sku,
+              registered: have, real: want, extraLines: extra.length,
+              stockToReturn: movements.reduce((s, m) => s - m.quantity, 0),
+            });
+            extraItems.push(...extra);
+          }
+        }
+        entry.totalAfter = total;
+        entry.realOrders = orderIds;
+        if (!extraItems.length) continue;
+
+        if (opts.apply) {
+          const mergedIds = orderIds.filter((id) => id !== sale.externalId);
+          await this.prisma.$transaction(async (tx) => {
+            const extraIds = extraItems.map((e) => e.id);
+            const movements = await tx.stockMovement.findMany({
+              where: { saleItemId: { in: extraIds }, type: MovementType.SALE },
+              select: { productId: true, warehouseId: true, quantity: true },
+            });
+            const back = new Map<string, { productId: string; warehouseId: string | null; qty: number }>();
+            for (const m of movements) {
+              const key = `${m.productId}|${m.warehouseId}`;
+              const cur = back.get(key) || { productId: m.productId, warehouseId: m.warehouseId, qty: 0 };
+              cur.qty += -m.quantity;
+              back.set(key, cur);
+            }
+            for (const r of back.values()) {
+              if (r.qty <= 0) continue;
+              await this.ledger.move(tx, {
+                productId: r.productId, warehouseId: r.warehouseId, delta: r.qty, type: MovementType.ADJUSTMENT,
+                reason: `Corrección: venta Mercado Libre #${sale.externalId} duplicada (pack ${sale.mlPackId || sale.mlShippingId})`,
+                userId: user.id,
+                reference: { type: 'ADJUSTMENT', id: sale.id, number: `ML ${sale.externalId}` },
+              });
+              touched.add(r.productId);
+            }
+            // El historial de movimientos se conserva; solo se desliga de las líneas que se borran.
+            await tx.stockMovement.updateMany({ where: { saleItemId: { in: extraIds } }, data: { saleItemId: null } });
+            await tx.dropshipOrderItem.updateMany({ where: { saleItemId: { in: extraIds } }, data: { saleItemId: null } });
+            await tx.saleItem.deleteMany({ where: { id: { in: extraIds } } });
+
+            // Líneas de verificación sobrantes de la orden de despacho (primero las no verificadas).
+            if (sale.order) {
+              const checksByProduct = new Map<string, typeof sale.order.itemChecks>();
+              for (const c of sale.order.itemChecks) {
+                if (!c.productId) continue;
+                checksByProduct.set(c.productId, [...(checksByProduct.get(c.productId) || []), c]);
+              }
+              const deleteIds: string[] = [];
+              for (const [productId, checks] of checksByProduct) {
+                const want = expected.get(productId);
+                if (want == null) continue;
+                const ordered = [...checks.filter((c) => c.checked), ...checks.filter((c) => !c.checked)];
+                let kept = 0;
+                for (const c of ordered) {
+                  if (kept >= want) deleteIds.push(c.id); else kept += c.expectedQty;
+                }
+              }
+              if (deleteIds.length) await tx.orderItemCheck.deleteMany({ where: { id: { in: deleteIds } } });
+            }
+
+            await tx.sale.update({
+              where: { id: sale.id },
+              data: { total, netAmount: net, marketplaceFee: fee, mlMergedOrderIds: mergedIds },
+            });
+          });
+          entry.fixed = true;
+        }
+      } catch (err: any) {
+        entry.error = err.message;
+      }
+    }
+
+    // Empuja el stock corregido al resto de los canales.
+    for (const productId of touched) {
+      const p = await this.prisma.product.findUnique({ where: { id: productId }, select: { stock: true } });
+      if (p) this.sync.syncProduct(productId, p.stock).catch((e) => this.logger.error(`Sync tras reparar pack: ${e.message}`));
+    }
+
+    const affected = report.filter((r) => r.products.length || r.error);
+    return { checked: candidates.length, affected: affected.length, applied: !!opts.apply, sales: affected };
+  }
+
+  // Una orden de ML ya registrada: es la que creó la venta (externalId) o una orden del mismo
+  // pack/envío que se fusionó en ella (mlMergedOrderIds).
+  private mlOrderMatch(orderId: string) {
+    return { OR: [{ externalId: orderId }, { mlMergedOrderIds: { has: orderId } }] };
+  }
+
   private async processOrder(
     orderId: string,
     order: any,
@@ -1887,6 +2083,12 @@ export class MercadolibreService {
         })
       : null;
 
+    // Esta misma orden ya está en la venta (es la que la creó o ya se fusionó antes): no se
+    // vuelve a sumar. Sin esto, cada webhook/cron repetía sus productos y descontaba stock.
+    if (existingPackSale && (existingPackSale.externalId === orderId || existingPackSale.mlMergedOrderIds.includes(orderId))) {
+      return 'skipped';
+    }
+
     try {
       if (existingPackSale) {
         await this.prisma.$transaction(async (tx) => {
@@ -1906,6 +2108,7 @@ export class MercadolibreService {
                 ? Number(existingPackSale.marketplaceFee) + charges.marketplaceFee : existingPackSale.marketplaceFee,
               mlPackId: existingPackSale.mlPackId ?? packId,
               mlShippingId: existingPackSale.mlShippingId ?? mlShippingId,
+              mlMergedOrderIds: { push: orderId },
             },
           });
           if (existingPackSale.order) {
@@ -2627,7 +2830,7 @@ export class MercadolibreService {
       // cambio de estado (cancelada, despachada, entregada) que hay que reflejar en la
       // Orden interna, así que igual seguimos y consultamos la orden fresca en ML.
       const existing = await this.prisma.sale.findFirst({
-        where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderId },
+        where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderId) },
       });
 
       // La orden pertenece a una cuenta de ML concreta: probamos cada conexión de ML
@@ -2726,7 +2929,7 @@ export class MercadolibreService {
     for (const orderId of orderIds) {
       try {
         const existing = await this.prisma.sale.findFirst({
-          where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderId },
+          where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderId) },
         });
         if (existing) { skipped++; continue; }
 
@@ -2976,7 +3179,7 @@ export class MercadolibreService {
     const orderExternalId = c.resource_id ? String(c.resource_id) : null;
     const sale = orderExternalId
       ? await this.prisma.sale.findFirst({
-          where: { channel: SaleChannel.MERCADO_LIBRE, externalId: orderExternalId },
+          where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderExternalId) },
           include: { items: { include: { product: true } } },
         })
       : null;

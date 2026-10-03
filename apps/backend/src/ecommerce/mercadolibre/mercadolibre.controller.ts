@@ -294,6 +294,20 @@ export class MercadolibreController {
   }
 
   // TEMPORAL: diagnóstico directo de una orden puntual (ver mercadolibre.service.ts).
+  // Revisa (y con apply=true corrige) ventas de pack con productos duplicados por el bug de
+  // fusión repetida. Sin apply solo informa qué cambiaría.
+  @Post('sales/repair-pack-duplicates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  repairPackDuplicates(
+    @Body() body: { companyId?: string; apply?: boolean; saleIds?: string[] },
+    @CurrentUser() user: any,
+  ) {
+    return this.service.repairPackDuplicates(user, {
+      companyId: body?.companyId, apply: body?.apply === true, saleIds: Array.isArray(body?.saleIds) ? body.saleIds : undefined,
+    });
+  }
+
   @Get('connections/:id/debug-order/:orderId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)

@@ -544,6 +544,15 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/claims/${externalId}/actions`, { method: 'POST', body: JSON.stringify({ action, extra }) }, token),
     syncClaims: (connectionId: string, token: string) =>
       apiFetch<{ synced: number }>(`/ecommerce/ml/connections/${connectionId}/claims/sync`, { method: 'POST' }, token),
+    repairPackDuplicates: (body: { companyId?: string; apply?: boolean; saleIds?: string[] }, token: string) =>
+      apiFetch<{
+        checked: number; affected: number; applied: boolean;
+        sales: {
+          saleId: string; orderId: string | null; mlOrderId: string | null; packId: string | null;
+          totalBefore: number; totalAfter?: number; fixed: boolean; error?: string;
+          products: { productId: string; name: string; sku: string; registered: number; real: number; extraLines: number; stockToReturn: number }[];
+        }[];
+      }>('/ecommerce/ml/sales/repair-pack-duplicates', { method: 'POST', body: JSON.stringify(body) }, token),
     syncOrderStatuses: (connectionId: string, token: string) =>
       apiFetch<{ checked: number; updated: number }>(`/ecommerce/ml/connections/${connectionId}/orders/sync`, { method: 'POST' }, token),
     reputation: (connectionId: string, token: string) =>
