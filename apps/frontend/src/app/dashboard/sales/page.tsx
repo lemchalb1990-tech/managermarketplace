@@ -316,12 +316,12 @@ export default function SalesPage() {
             />
           </div>
           <div className="flex-1 min-w-[180px]">
-            <label className="text-xs text-gray-500 block mb-1">Buscar producto o comprador</label>
+            <label className="text-xs text-gray-500 block mb-1">Buscar orden, producto o comprador</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') loadSales(1); }}
-              placeholder="Nombre de producto, SKU o comprador..."
+              placeholder="N° de orden o pack, producto, SKU o comprador..."
               className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
