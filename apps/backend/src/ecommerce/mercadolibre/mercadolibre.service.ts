@@ -86,6 +86,14 @@ export interface MlBuyerContact {
   region: string | null;
 }
 
+// Resultado de autorizar una tienda (se muestra al usuario al volver al panel).
+export interface MlAuthResult {
+  connectionName: string;
+  nickname: string | null;
+  clientId: string | null;
+  clientIdVerified: boolean;
+}
+
 // Venta de Mercado Libre sin envío de Mercado Envíos: la entrega se acuerda con el comprador.
 const ML_TO_AGREE_COURIER = 'Acordar con el comprador';
 
@@ -220,13 +228,24 @@ export class MercadolibreService {
     return `${ML_AUTH}/authorization?response_type=code&client_id=${conn.mlClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
   }
 
-  async handleCallback(code: string, state: string, fallbackName: string) {
-    const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
-    const connectionId: string = decoded.connectionId;
-    const codeVerifier: string = decoded.codeVerifier;
+  async handleCallback(code: string, state: string, fallbackName: string): Promise<MlAuthResult> {
+    let connectionId: string;
+    let codeVerifier: string;
+    try {
+      const decoded = JSON.parse(Buffer.from(state || '', 'base64url').toString());
+      connectionId = decoded.connectionId;
+      codeVerifier = decoded.codeVerifier;
+    } catch {
+      throw new BadRequestException(
+        'El enlace de autorización no es válido o está incompleto. Vuelve a presionar "Autorizar" desde el panel de Mercado Libre.',
+      );
+    }
+    if (!code) {
+      throw new BadRequestException('Mercado Libre no devolvió el código de autorización. Vuelve a presionar "Autorizar" desde el panel.');
+    }
 
     const draft = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
-    if (!draft) throw new BadRequestException('Conexión no encontrada');
+    if (!draft) throw new BadRequestException('La tienda que se estaba autorizando ya no existe en el panel. Vuelve a crearla y autorízala.');
 
     const clientId = draft.mlClientId;
     const clientSecret = draft.mlClientSecret;
@@ -246,12 +265,26 @@ export class MercadolibreService {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      this.logger.error(`ML token exchange failed [${res.status}]: ${err}`);
-      throw new BadRequestException('Error al conectar con Mercado Libre');
+      const raw = await res.text();
+      this.logger.error(`ML token exchange failed [${res.status}] conexión ${connectionId}: ${raw}`);
+      throw new BadRequestException(this.describeTokenError(raw, draft.mlClientId));
     }
 
     const tokens = await res.json() as any;
+
+    // Verificación de la aplicación: el access_token de ML lleva el Client ID de la app que lo
+    // emitió (APP_USR-<client_id>-...). Debe ser el mismo Client ID guardado en esta tienda; si
+    // no, la autorización se mezcló con la de otra tienda/app y no se guarda nada.
+    const tokenAppId = /^APP_USR-(\d+)-/.exec(String(tokens.access_token || ''))?.[1] || null;
+    const expectedAppId = String(draft.mlClientId || '').trim();
+    if (tokenAppId && expectedAppId && tokenAppId !== expectedAppId) {
+      throw new BadRequestException(
+        `La autorización se emitió para la aplicación con Client ID ${tokenAppId}, pero esta tienda ("${draft.name}") ` +
+        `usa el Client ID ${expectedAppId}. Probablemente se cruzó con la autorización de otra tienda (por ejemplo, ` +
+        'dos ventanas de autorización abiertas a la vez). No se guardó nada: cierra las otras ventanas de Mercado Libre ' +
+        'y vuelve a presionar "Autorizar" en esta tienda. Si se repite, revisa en "Editar" que el Client ID sea el de la aplicación correcta.',
+      );
+    }
 
     // Qué cuenta de Mercado Libre quedó autorizada: si el navegador tenía abierta la sesión de
     // OTRA tienda, ML autoriza esa — y esta tienda nunca recibiría sus propias ventas/preguntas.
@@ -274,7 +307,7 @@ export class MercadolibreService {
       }
     }
 
-    return this.prisma.marketplaceConnection.update({
+    await this.prisma.marketplaceConnection.update({
       where: { id: connectionId },
       data: {
         accessToken: tokens.access_token,
@@ -285,6 +318,35 @@ export class MercadolibreService {
         mlNickname: account?.nickname || null,
       },
     });
+    void fallbackName;
+    return {
+      connectionName: draft.name,
+      nickname: account?.nickname || null,
+      clientId: tokenAppId || expectedAppId || null,
+      clientIdVerified: !!tokenAppId && tokenAppId === expectedAppId,
+    };
+  }
+
+  // Mensaje entendible (con la acción a seguir) para un error del intercambio de código por token.
+  private describeTokenError(raw: string, clientId: string | null): string {
+    let err: any = {};
+    try { err = JSON.parse(raw); } catch { /* respuesta no JSON */ }
+    const code = String(err.error || '').toLowerCase();
+    const mlMessage = String(err.message || err.error_description || raw || '').slice(0, 200);
+    const detail = mlMessage ? ` Detalle de Mercado Libre: ${mlMessage}` : '';
+    if (code === 'invalid_client' || /client/i.test(mlMessage) && /invalid|secret/i.test(mlMessage)) {
+      return `El Client ID (${clientId || 'sin dato'}) o el Client Secret de esta tienda no son válidos para Mercado Libre. ` +
+        'Revisa en "Editar" que sean los de la aplicación correcta y vuelve a autorizar.' + detail;
+    }
+    if (/redirect/i.test(mlMessage)) {
+      return 'La URL de redirección configurada en la aplicación de Mercado Libre no coincide con la del panel. ' +
+        'Revisa la "Redirect URI" de la aplicación en developers.mercadolibre.cl y vuelve a autorizar.' + detail;
+    }
+    if (code === 'invalid_grant' || /code|verifier|expired/i.test(mlMessage)) {
+      return 'El código de autorización ya se usó, expiró o se generó con otra aplicación (error de sincronización). ' +
+        'Cierra esta ventana y vuelve a presionar "Autorizar" en el panel, con una sola ventana de autorización abierta.' + detail;
+    }
+    return 'Mercado Libre rechazó la autorización. Vuelve a presionar "Autorizar" en el panel.' + detail;
   }
 
   // Usuario de Mercado Libre dueño de un token (id y apodo).

@@ -7,7 +7,7 @@ import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested } from 'class-
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
-import { MercadolibreService } from './mercadolibre.service';
+import { MercadolibreService, MlAuthResult } from './mercadolibre.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -127,19 +127,29 @@ export class MercadolibreController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('name') name: string,
+    @Query('error') oauthError: string,
+    @Query('error_description') oauthErrorDescription: string,
     @Res() res: Response,
   ) {
     let ok = false;
     let detail = '';
+    let result: MlAuthResult | null = null;
     try {
-      await this.service.handleCallback(code, state, name || 'Conexión ML');
+      if (oauthError) {
+        throw new Error(
+          oauthError === 'access_denied'
+            ? 'La autorización se canceló en Mercado Libre (no se aceptaron los permisos). Vuelve a presionar "Autorizar" en el panel y acepta los permisos.'
+            : `Mercado Libre devolvió un error al autorizar: ${oauthErrorDescription || oauthError}. Vuelve a presionar "Autorizar" en el panel.`,
+        );
+      }
+      result = await this.service.handleCallback(code, state, name || 'Conexión ML');
       ok = true;
     } catch (err: any) {
       this.logger.error(`ML callback error: ${err?.message || err}`, err?.stack);
       detail = err?.message || 'No se pudo completar la conexión con Mercado Libre.';
     }
     res.set('Content-Type', 'text/html; charset=utf-8');
-    return res.status(ok ? 200 : 400).send(this.renderCallbackPage(ok, detail));
+    return res.status(ok ? 200 : 400).send(this.renderCallbackPage(ok, detail, result));
   }
 
   // ─── Etiqueta de envío ───────────────────────────────────────────────────────
@@ -191,12 +201,24 @@ export class MercadolibreController {
     return this.service.mergeDuplicateSales(dto.primarySaleId, dto.duplicateSaleId, user);
   }
 
-  private renderCallbackPage(ok: boolean, detail: string): string {
-    const panelUrl = `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre${ok ? '' : '?error=1'}`;
+  private renderCallbackPage(ok: boolean, detail: string, result: MlAuthResult | null = null): string {
+    // El resultado viaja al panel en la URL para mostrarlo allí (la ventana de autorización se
+    // abre sin vínculo con el panel, así que no puede avisarle directamente).
+    const params = new URLSearchParams(ok
+      ? {
+          mlConnected: result?.connectionName || '',
+          mlAccount: result?.nickname || '',
+          mlClientId: result?.clientId || '',
+          mlVerified: result?.clientIdVerified ? '1' : '0',
+        }
+      : { mlError: detail || 'No se pudo completar la conexión con Mercado Libre.' });
+    const panelUrl = `${primaryFrontendUrl()}/dashboard/ecommerce/mercadolibre?${params}`;
     const title = ok ? 'Cuenta conectada' : 'No se pudo conectar';
     const heading = ok ? '¡Cuenta conectada!' : 'No se pudo conectar';
     const message = ok
-      ? 'Tu cuenta de Mercado Libre quedó vinculada correctamente. Ya puedes cerrar esta pestaña.'
+      ? `La tienda "${result?.connectionName || ''}" quedó vinculada con la cuenta de Mercado Libre ` +
+        `${result?.nickname ? `"${result.nickname}"` : ''}` +
+        `${result?.clientId ? ` (Client ID ${result.clientId}${result.clientIdVerified ? ', verificado' : ''})` : ''}.`
       : (detail || 'Ocurrió un error al conectar con Mercado Libre. Vuelve a intentarlo desde el panel.');
     const color = ok ? '#16a34a' : '#dc2626';
     const icon = ok ? '&#10003;' : '&#33;';
@@ -223,21 +245,13 @@ export class MercadolibreController {
       <div class="badge">${icon}</div>
       <h1>${heading}</h1>
       <p>${esc(message)}</p>
-      <a class="btn" href="${esc(panelUrl)}">Ir al panel de Mercado Libre</a>
+      <a class="btn" href="${esc(panelUrl)}">${ok ? 'Ir al panel de Mercado Libre' : 'Volver al panel para reintentar'}</a>
     </div>
   </div>
   <script>
-    // Si se abrió como popup desde el panel, avisamos y cerramos.
-    try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ source: 'ml-oauth', ok: ${ok} }, '*');
-        setTimeout(function () { window.close(); }, 1500);
-      } else {
-        setTimeout(function () { window.location.href = ${JSON.stringify(panelUrl)}; }, 4000);
-      }
-    } catch (e) {
-      setTimeout(function () { window.location.href = ${JSON.stringify(panelUrl)}; }, 4000);
-    }
+    // Éxito: vuelve solo al panel. Error: la página queda abierta para poder leer el detalle;
+    // el botón lleva al panel con el mismo mensaje para reintentar desde ahí.
+    if (${ok}) setTimeout(function () { window.location.href = ${JSON.stringify(panelUrl)}; }, 4000);
   </script>
 </body>
 </html>`;

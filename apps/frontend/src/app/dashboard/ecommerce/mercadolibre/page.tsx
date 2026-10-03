@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -96,16 +96,36 @@ export default function MercadoLibrePage() {
     }
   }
 
+  const prevCompanyRef = useRef<string | null>(null);
+
   useEffect(() => {
     init();
-    if (searchParams.get('error')) setError('No se pudo conectar la tienda. Verifica las credenciales e intenta nuevamente.');
+    // Resultado de autorizar una tienda (lo deja la página de retorno de Mercado Libre en la URL).
+    const mlError = searchParams.get('mlError');
+    const mlConnected = searchParams.get('mlConnected');
+    if (mlError) {
+      setError(`No se pudo autorizar la tienda: ${mlError}`);
+    } else if (mlConnected) {
+      const account = searchParams.get('mlAccount');
+      const clientId = searchParams.get('mlClientId');
+      const verified = searchParams.get('mlVerified') === '1';
+      setNotice(
+        `Tienda "${mlConnected}" autorizada${account ? ` con la cuenta de Mercado Libre "${account}"` : ''}.` +
+        (clientId ? ` Client ID ${clientId} ${verified ? 'verificado: coincide con la aplicación autorizada.' : '(no se pudo verificar contra el token).'}` : ''),
+      );
+    } else if (searchParams.get('error')) {
+      setError('No se pudo conectar la tienda. Verifica las credenciales e intenta nuevamente.');
+    }
+    if (mlError || mlConnected) window.history.replaceState(null, '', window.location.pathname);
   }, [searchParams]);
 
   useEffect(() => {
     if (isSuperAdmin && selectedCompanyId) {
       loadConnections(selectedCompanyId);
       setShowConnect(false);
-      setError('');
+      // Solo al cambiar de empresa: la primera carga conserva el resultado de una autorización.
+      if (prevCompanyRef.current && prevCompanyRef.current !== selectedCompanyId) setError('');
+      prevCompanyRef.current = selectedCompanyId;
     }
   }, [selectedCompanyId, isSuperAdmin]);
 
