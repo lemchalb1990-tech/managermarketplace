@@ -530,10 +530,33 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                         )}
                         {sale.netAmount != null && (
                           <div className="flex justify-between text-xs font-semibold text-gray-700">
-                            <span>{NET_SIN_IVA_CHANNELS.has(sale.channel) ? 'Neto sin IVA' : 'Total neto recibido'}</span>
+                            <span>{NET_SIN_IVA_CHANNELS.has(sale.channel) ? 'Neto sin IVA' : 'Total neto recibido (con IVA)'}</span>
                             <span>{fmt(Number(sale.netAmount))}</span>
                           </div>
                         )}
+                        {sale.netAmount != null && !NET_SIN_IVA_CHANNELS.has(sale.channel) && sale.channel !== 'POS' && (() => {
+                          // Lo recibido incluye el 19% de IVA: se separa para ver el neto y la ganancia sin IVA.
+                          const received = Number(sale.netAmount);
+                          const netSinIva = received / 1.19;
+                          const costs = (sale.items || []).map(itemCostSinIva);
+                          const hasCosts = costs.length > 0 && costs.every((c: number | null) => c != null);
+                          const cost = hasCosts ? costs.reduce((s: number, c: number | null) => s + (c ?? 0), 0) : null;
+                          const profit = cost != null ? netSinIva - cost : null;
+                          return (
+                            <>
+                              <div className="flex justify-between text-xs text-gray-500"><span>IVA incluido (19%)</span><span>-{fmt(received - netSinIva)}</span></div>
+                              <div className="flex justify-between text-xs font-semibold text-gray-700"><span>Neto sin IVA</span><span>{fmt(netSinIva)}</span></div>
+                              {cost != null && (
+                                <>
+                                  <div className="flex justify-between text-xs text-gray-500"><span>Costo productos sin IVA</span><span>-{fmt(cost)}</span></div>
+                                  <div className={`flex justify-between text-xs font-semibold ${profit! < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                                    <span>Ganancia sin IVA</span><span>{fmt(profit!)}</span>
+                                  </div>
+                                </>
+                              )}
+                            </>
+                          );
+                        })()}
                         {sale.netAmount != null && NET_SIN_IVA_CHANNELS.has(sale.channel) && (() => {
                           const costs = (sale.items || []).map(itemCostSinIva);
                           if (!costs.length || costs.some((c: number | null) => c == null)) {

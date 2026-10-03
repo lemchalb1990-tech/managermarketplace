@@ -1,11 +1,14 @@
 'use client';
 
 // Costos de la venta de una orden: precio de cada producto, comisión del marketplace por
-// producto (tal como la informa el canal), envío, impuestos, descuentos, neto recibido, costo
-// de los productos y ganancia estimada. Mercado Libre informa sus montos CON IVA; Walmart,
-// Ripley, Paris, Falabella y JumpSeller se importan SIN IVA (ver sale-breakdown.ts).
+// producto (tal como la informa el canal), envío, impuestos, descuentos, neto recibido, IVA,
+// costo de los productos y ganancia. Mercado Libre informa sus montos CON IVA: el neto recibido
+// (lo que deposita) incluye el 19% de IVA, que se separa para llegar al neto sin IVA. Walmart,
+// Ripley, Paris, Falabella y JumpSeller ya se importan SIN IVA (ver sale-breakdown.ts).
+// Todo lo que se compara con el costo queda SIN IVA (Product.cost viene con IVA).
 
 const NET_SIN_IVA_CHANNELS = new Set(['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'JUMPSELLER']);
+const IVA_RATE = 0.19;
 
 const fmt = (n: number) => `${n < 0 ? '-' : ''}$${Math.round(Math.abs(n)).toLocaleString('es-CL')}`;
 
@@ -36,18 +39,22 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   const discount = num(sale.discount);
   const net = num(sale.netAmount);
 
-  // Costo de cada línea: el costo real por lotes si existe (totalCost) o el costo del catálogo.
-  // Product.cost viene con IVA: se descuenta el IVA solo en canales cuyo neto es sin IVA.
+  // Neto sin IVA: en los canales que informan con IVA, se separa el 19% incluido en lo recibido.
+  const netIva = net != null && !sinIva ? net - net / (1 + IVA_RATE) : null;
+  const netSinIva = net != null ? (sinIva ? net : net - (netIva ?? 0)) : null;
+
+  // Costo de cada línea SIN IVA: costo real por lotes (totalCost) o el costo del catálogo;
+  // ambos vienen con IVA.
   const lineCost = (it: any): number | null => {
-    if (it.totalCost != null) return sinIva ? Number(it.totalCost) / 1.19 : Number(it.totalCost);
+    if (it.totalCost != null) return Number(it.totalCost) / (1 + IVA_RATE);
     const c = Number(it.product?.cost ?? 0);
     if (!(c > 0)) return null;
-    return (sinIva ? c / 1.19 : c) * it.quantity;
+    return (c / (1 + IVA_RATE)) * it.quantity;
   };
   const costs = items.map(lineCost);
   const allCosts = items.length > 0 && costs.every((c) => c != null);
   const productCost = allCosts ? costs.reduce((s: number, c) => s + (c ?? 0), 0) : null;
-  const profit = net != null && productCost != null ? net - productCost : null;
+  const profit = netSinIva != null && productCost != null ? netSinIva - productCost : null;
   const hasCharges = fee != null || shipping != null || taxes != null || discount != null || net != null;
 
   return (
@@ -55,7 +62,7 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
       <div className="flex items-start justify-between gap-2 mb-3">
         <h2 className="font-semibold text-gray-800 text-sm">Costos de la venta</h2>
         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-          {sinIva ? 'montos sin IVA' : `montos como los informa ${channelLabel}`}
+          {sinIva ? 'montos sin IVA' : 'montos con IVA · ganancia sin IVA'}
         </span>
       </div>
 
@@ -87,7 +94,7 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
                     </span>
                   )}
                   <span className="flex justify-between gap-2">
-                    <span className="text-gray-500">Costo producto{sinIva ? ' s/IVA' : ''}</span>
+                    <span className="text-gray-500">Costo producto s/IVA</span>
                     <span className={`tabular-nums ${c != null ? 'text-gray-700' : 'text-gray-300'}`}>{c != null ? `-${fmt(c)}` : 'sin costo'}</span>
                   </span>
                 </div>
@@ -114,14 +121,24 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
         )}
         {discount != null && discount !== 0 && <Row label="Descuento / cupón" value={`-${fmt(discount)}`} tone="minus" />}
         {net != null && (
-          <div className="pt-1 mt-1 border-t border-dashed border-gray-200">
-            <Row label={sinIva ? 'Neto recibido sin IVA' : 'Neto recibido'} value={fmt(net)} tone="strong" />
+          <div className="pt-1 mt-1 border-t border-dashed border-gray-200 space-y-1">
+            {sinIva ? (
+              <Row label="Neto recibido sin IVA" value={fmt(net)} tone="strong" />
+            ) : (
+              <>
+                <Row label="Neto recibido (con IVA)" value={fmt(net)} tone="strong"
+                  hint={`Lo que deposita ${channelLabel}: total menos comisión y envío`} />
+                <Row label="IVA incluido (19%)" value={`-${fmt(netIva ?? 0)}`} tone="minus"
+                  hint="IVA contenido en el neto recibido: neto − neto ÷ 1,19" />
+                <Row label="Neto sin IVA" value={fmt(netSinIva ?? 0)} tone="strong" />
+              </>
+            )}
           </div>
         )}
-        {productCost != null && <Row label={`Costo de productos${sinIva ? ' sin IVA' : ''}`} value={`-${fmt(productCost)}`} tone="minus" />}
+        {productCost != null && <Row label="Costo de productos sin IVA" value={`-${fmt(productCost)}`} tone="minus" />}
         {profit != null && (
           <div className={`flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 mt-1 text-xs font-semibold ${profit < 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-            <span>Ganancia estimada</span>
+            <span>Ganancia sin IVA</span>
             <span className="tabular-nums">{fmt(profit)}</span>
           </div>
         )}
