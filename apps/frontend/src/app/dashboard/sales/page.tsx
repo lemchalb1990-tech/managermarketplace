@@ -535,16 +535,17 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                           </div>
                         )}
                         {sale.netAmount != null && !NET_SIN_IVA_CHANNELS.has(sale.channel) && sale.channel !== 'POS' && (() => {
-                          // Lo recibido incluye el 19% de IVA: se separa para ver el neto y la ganancia sin IVA.
+                          // Al neto recibido se le descuenta el IVA de la venta: Total − Total ÷ 1,19.
                           const received = Number(sale.netAmount);
-                          const netSinIva = received / 1.19;
+                          const saleIva = Number(sale.total) - Number(sale.total) / 1.19;
+                          const netSinIva = received - saleIva;
                           const costs = (sale.items || []).map(itemCostSinIva);
                           const hasCosts = costs.length > 0 && costs.every((c: number | null) => c != null);
                           const cost = hasCosts ? costs.reduce((s: number, c: number | null) => s + (c ?? 0), 0) : null;
                           const profit = cost != null ? netSinIva - cost : null;
                           return (
                             <>
-                              <div className="flex justify-between text-xs text-gray-500"><span>IVA incluido (19%)</span><span>-{fmt(received - netSinIva)}</span></div>
+                              <div className="flex justify-between text-xs text-gray-500" title="Total − Total ÷ 1,19"><span>IVA de la venta (19%)</span><span>-{fmt(saleIva)}</span></div>
                               <div className="flex justify-between text-xs font-semibold text-gray-700"><span>Neto sin IVA</span><span>{fmt(netSinIva)}</span></div>
                               {cost != null && (
                                 <>

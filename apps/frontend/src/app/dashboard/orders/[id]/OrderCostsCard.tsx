@@ -3,7 +3,8 @@
 // Costos de la venta de una orden: precio de cada producto, comisión del marketplace por
 // producto (tal como la informa el canal), envío, impuestos, descuentos, neto recibido, IVA,
 // costo de los productos y ganancia. Mercado Libre informa sus montos CON IVA: el neto recibido
-// (lo que deposita) incluye el 19% de IVA, que se separa para llegar al neto sin IVA. Walmart,
+// (lo que deposita) se lleva a sin IVA descontando el IVA de la venta, calculado sobre el total:
+// IVA = Total − Total ÷ 1,19 (débito fiscal del precio de venta). Walmart,
 // Ripley, Paris, Falabella y JumpSeller ya se importan SIN IVA (ver sale-breakdown.ts).
 // Todo lo que se compara con el costo queda SIN IVA (Product.cost viene con IVA).
 
@@ -39,8 +40,9 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   const discount = num(sale.discount);
   const net = num(sale.netAmount);
 
-  // Neto sin IVA: en los canales que informan con IVA, se separa el 19% incluido en lo recibido.
-  const netIva = net != null && !sinIva ? net - net / (1 + IVA_RATE) : null;
+  // Neto sin IVA: en los canales que informan con IVA, se descuenta del neto recibido el IVA de
+  // la venta, calculado sobre el total: IVA = Total − Total ÷ 1,19.
+  const netIva = net != null && !sinIva ? total - total / (1 + IVA_RATE) : null;
   const netSinIva = net != null ? (sinIva ? net : net - (netIva ?? 0)) : null;
 
   // Costo de cada línea SIN IVA: costo real por lotes (totalCost) o el costo del catálogo;
@@ -128,8 +130,8 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
               <>
                 <Row label="Neto recibido (con IVA)" value={fmt(net)} tone="strong"
                   hint={`Lo que deposita ${channelLabel}: total menos comisión y envío`} />
-                <Row label="IVA incluido (19%)" value={`-${fmt(netIva ?? 0)}`} tone="minus"
-                  hint="IVA contenido en el neto recibido: neto − neto ÷ 1,19" />
+                <Row label="IVA de la venta (19%)" value={`-${fmt(netIva ?? 0)}`} tone="minus"
+                  hint={`Total − Total ÷ 1,19 = ${fmt(total)} − ${fmt(total / (1 + IVA_RATE))}`} />
                 <Row label="Neto sin IVA" value={fmt(netSinIva ?? 0)} tone="strong" />
               </>
             )}
