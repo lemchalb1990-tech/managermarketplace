@@ -8,6 +8,7 @@ import { ParisAdapter } from '../platforms/paris.adapter';
 import { RipleyAdapter } from '../platforms/ripley.adapter';
 import { FalabellaAdapter } from '../platforms/falabella.adapter';
 import { WalmartAdapter } from '../platforms/walmart.adapter';
+import { JumpSellerAdapter } from '../platforms/jumpseller.adapter';
 import { ChannelOrderState, CreatedChannelSale, OnSaleCreated } from '../platforms/channel-order';
 
 type Tx = Prisma.TransactionClient;
@@ -23,7 +24,7 @@ const RANK: Record<OrderStatus, number> = {
   PENDING: 0, PREPARING: 1, READY: 2, IN_TRANSIT: 3, DELIVERED: 4, CANCELLED: 5,
 };
 
-// Ventas nuevas de Walmart, Ripley, Paris y Falabella: igual que el webhook de Mercado Libre,
+// Ventas nuevas de Walmart, Ripley, Paris, Falabella y JumpSeller: igual que el webhook de Mercado Libre,
 // la venta que llega por la importación automática crea su Orden de despacho y descuenta
 // stock (el stock nuevo se empuja al resto de los canales). La importación manual desde el
 // modal es solo historial, salvo que se pida crear también la Orden (ver confirmSalesImport).
@@ -42,6 +43,7 @@ export class ChannelOrdersService {
     private ripley: RipleyAdapter,
     private falabella: FalabellaAdapter,
     private walmart: WalmartAdapter,
+    private jumpseller: JumpSellerAdapter,
   ) {}
 
   private channelOf(marketplace: MarketplaceType): { adapter: ChannelSalesAdapter; channel: SaleChannel; platform: string } | null {
@@ -50,6 +52,7 @@ export class ChannelOrdersService {
       case MarketplaceType.RIPLEY: return { adapter: this.ripley, channel: SaleChannel.RIPLEY, platform: 'Ripley' };
       case MarketplaceType.FALABELLA: return { adapter: this.falabella, channel: SaleChannel.FALABELLA, platform: 'Falabella' };
       case MarketplaceType.WALMART: return { adapter: this.walmart, channel: SaleChannel.WALMART, platform: 'Walmart' };
+      case MarketplaceType.JUMPSELLER: return { adapter: this.jumpseller, channel: SaleChannel.JUMPSELLER, platform: 'JumpSeller' };
       default: return null;
     }
   }
@@ -96,7 +99,7 @@ export class ChannelOrdersService {
     if (sale.order) throw new BadRequestException('Esta venta ya tiene su orden de despacho');
     const ch = sale.connection ? this.channelOf(sale.connection.marketplace) : null;
     if (!ch || !sale.connection || !sale.externalId) {
-      throw new BadRequestException('Solo aplica a ventas importadas desde Walmart, Ripley, Paris o Falabella');
+      throw new BadRequestException('Solo aplica a ventas importadas desde Walmart, Ripley, Paris, Falabella o JumpSeller');
     }
 
     const state = (await ch.adapter.getOrderStates(sale.connection, [sale.externalId])).get(sale.externalId);

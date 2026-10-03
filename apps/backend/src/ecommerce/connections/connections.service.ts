@@ -292,9 +292,11 @@ export class ConnectionsService {
   }
 
   // Adapter con soporte de "traer catálogo ya publicado" (previewImport/confirmImport) —
-  // superconjunto de getListingAdapter: Walmart importa catálogo/ventas pero no publica.
-  private getCatalogImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter {
+  // superconjunto de getListingAdapter: Walmart importa catálogo/ventas pero no publica, y
+  // JumpSeller publica con el flujo genérico (sin homologación por producto).
+  private getCatalogImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter | JumpSellerAdapter {
     if (conn.marketplace === MarketplaceType.WALMART) return this.walmart;
+    if (conn.marketplace === MarketplaceType.JUMPSELLER) return this.jumpseller;
     return this.getListingAdapter(conn);
   }
 
@@ -377,11 +379,12 @@ export class ConnectionsService {
   }
 
   // ─── Importar ventas (historial) ──────────────────────────────────────────────
-  private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter {
+  private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter | JumpSellerAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
     if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
     if (conn.marketplace === MarketplaceType.FALABELLA) return this.falabella;
     if (conn.marketplace === MarketplaceType.WALMART) return this.walmart;
+    if (conn.marketplace === MarketplaceType.JUMPSELLER) return this.jumpseller;
     throw new BadRequestException('Esta plataforma todavía no soporta importar ventas');
   }
 
@@ -399,5 +402,12 @@ export class ConnectionsService {
     const conn = await this.getOwnedConnection(connectionId, user);
     this.getSalesImportAdapter(conn); // valida que la plataforma soporte importar ventas
     return this.channelOrders.confirmSalesImport(conn, externalIds, createOrders);
+  }
+
+  // Revisa ahora (sin esperar al cron) el estado en la plataforma de las órdenes abiertas.
+  async syncOrderStatuses(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.getSalesImportAdapter(conn);
+    return this.channelOrders.syncOrderStatuses(conn);
   }
 }

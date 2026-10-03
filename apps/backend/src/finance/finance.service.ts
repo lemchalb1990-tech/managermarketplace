@@ -17,9 +17,9 @@ const sinIva = (n: number) => round2(n / (1 + IVA));
 const months = () => Array.from({ length: 12 }, () => 0);
 
 // Canales cuya comisión y despacho quedan en la venta. Mercado Libre los guarda CON IVA (tal
-// como los informa su API); Walmart, Ripley, Paris y Falabella ya SIN IVA (sale-breakdown.ts).
+// como los informa su API); Walmart, Ripley, Paris, Falabella y JumpSeller ya SIN IVA (sale-breakdown.ts).
 const FEE_CHANNELS_WITH_IVA: string[] = [SaleChannel.MERCADO_LIBRE];
-const FEE_CHANNELS_NET: string[] = [SaleChannel.WALMART, SaleChannel.RIPLEY, SaleChannel.PARIS, SaleChannel.FALABELLA];
+const FEE_CHANNELS_NET: string[] = [SaleChannel.WALMART, SaleChannel.RIPLEY, SaleChannel.PARIS, SaleChannel.FALABELLA, SaleChannel.JUMPSELLER];
 
 type AutoRow = { systemKey: string; year: number; month: number; amount: number };
 

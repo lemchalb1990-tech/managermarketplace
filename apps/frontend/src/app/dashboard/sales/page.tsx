@@ -18,7 +18,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 // Canales cuyas ventas importadas como historial pueden crear después su Orden de despacho.
-const ORDER_CHANNELS = ['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA'];
+const ORDER_CHANNELS = ['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'JUMPSELLER'];
 
 const CHANNEL_COLORS: Record<string, string> = {
   POS: 'bg-blue-100 text-blue-700',
@@ -39,7 +39,7 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 };
 
 // Canales cuyo desglose importado (Sale.netAmount / SaleItem.netAmount) está SIN IVA.
-const NET_SIN_IVA_CHANNELS = new Set(['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA']);
+const NET_SIN_IVA_CHANNELS = new Set(['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'JUMPSELLER']);
 
 // Costo sin IVA de una línea: Product.cost viene con IVA (mismo supuesto que Rentabilidad).
 function itemCostSinIva(item: any): number | null {

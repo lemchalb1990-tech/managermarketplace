@@ -16,7 +16,7 @@ const SYSTEM_USER = { role: Role.SUPER_ADMIN } as any;
 // las plataformas. Cada empresa elige qué plataformas auto-sincronizar en
 // Company.autoSyncSalesPlatforms (lista de MarketplaceType) — mismo interruptor y mismo
 // intervalo para las tres cosas, no hay un toggle aparte para preguntas/devoluciones.
-// Implementado para Mercado Libre, Paris, Ripley, Falabella y Walmart; el resto se agrega
+// Implementado para Mercado Libre, Paris, Ripley, Falabella, Walmart y JumpSeller; el resto se agrega
 // sumando un caso al switch de abajo (el check ya queda disponible en la UI).
 //
 // El tick corre cada 1 minuto (la granularidad más fina soportada), pero cada conexión
@@ -46,7 +46,11 @@ export class SalesImportCronService {
       const connections = await this.prisma.marketplaceConnection.findMany({
         where: {
           active: true,
-          accessToken: { not: '' },
+          // Solo Mercado Libre usa accessToken (OAuth); el resto guarda credenciales y lo deja vacío.
+          OR: [
+            { marketplace: { not: MarketplaceType.MERCADO_LIBRE } },
+            { accessToken: { not: '' } },
+          ],
           company: { active: true },
         },
         include: {
@@ -109,7 +113,8 @@ export class SalesImportCronService {
           case MarketplaceType.PARIS:
           case MarketplaceType.RIPLEY:
           case MarketplaceType.FALABELLA:
-          case MarketplaceType.WALMART: {
+          case MarketplaceType.WALMART:
+          case MarketplaceType.JUMPSELLER: {
             // Ventas nuevas: crean su Orden de despacho y descuentan stock (ChannelOrdersService).
             const label = connection.marketplace;
             try {
@@ -132,7 +137,7 @@ export class SalesImportCronService {
             break;
           }
           default: {
-            // SHOPIFY, WOOCOMMERCE, HITES, JUMPSELLER:
+            // SHOPIFY, WOOCOMMERCE, HITES:
             // el auto-sync aún no está implementado. El check queda activo y esta rama se
             // activará sola cuando se agregue el importador de la plataforma.
             const key = `${connection.marketplace}`;

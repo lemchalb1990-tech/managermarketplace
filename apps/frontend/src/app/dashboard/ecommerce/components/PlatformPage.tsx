@@ -43,6 +43,12 @@ export interface PlatformConfig {
   // plataforma (algunas, como Falabella y Ripley, exigen adjuntar el documento tributario
   // del cliente final a la orden original). Ver BillingService.pushInvoiceToMarketplace.
   supportsInvoicePush?: boolean;
+  // Habilita el botón "Órdenes": revisa ahora (sin esperar al auto-sync) el estado de despacho
+  // en la plataforma de las órdenes abiertas y lo refleja en la Orden interna.
+  supportsOrderSync?: boolean;
+  // Muestra las acciones por conexión como botones con los mismos nombres que Mercado Libre
+  // (Publicaciones / Ventas / Órdenes) en vez de los links de texto.
+  mlStyleActions?: boolean;
   helpText?: string;
 }
 
@@ -75,6 +81,8 @@ export default function PlatformPage({ config }: Props) {
   const [importingConn, setImportingConn] = useState<{ id: string; name: string } | null>(null);
   const [salesImportConn, setSalesImportConn] = useState<{ id: string; name: string } | null>(null);
   const [invoicePushSavingId, setInvoicePushSavingId] = useState<string | null>(null);
+  const [syncingOrdersId, setSyncingOrdersId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : currentUser?.companyId;
@@ -219,6 +227,21 @@ export default function PlatformPage({ config }: Props) {
     }
   }
 
+  async function handleSyncOrders(id: string) {
+    setSyncingOrdersId(id);
+    setError('');
+    setNotice('');
+    try {
+      const token = getToken()!;
+      const res = await api.connections.syncOrderStatuses(id, token);
+      setNotice(`${res.checked} orden(es) revisada(s), ${res.updated} actualizada(s).`);
+    } catch (err: any) {
+      setError(err.message || 'No se pudo sincronizar el estado de las órdenes.');
+    } finally {
+      setSyncingOrdersId(null);
+    }
+  }
+
   const showContent = !isSuperAdmin || selectedCompanyId;
 
   return (
@@ -261,6 +284,10 @@ export default function PlatformPage({ config }: Props) {
 
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          )}
+
+          {notice && (
+            <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{notice}</div>
           )}
 
           {showForm && (
@@ -345,7 +372,7 @@ export default function PlatformPage({ config }: Props) {
                         </button>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-right flex gap-3 justify-end">
+                    <td className="px-4 py-3 text-right flex flex-wrap items-center gap-3 justify-end">
                       {isSuperAdmin && (
                         <button onClick={() => openEdit(c)} disabled={editLoading}
                           className="text-xs text-indigo-500 hover:text-indigo-700 font-medium disabled:opacity-50">
@@ -354,14 +381,27 @@ export default function PlatformPage({ config }: Props) {
                       )}
                       {config.supportsImport && c.active && (
                         <button onClick={() => setImportingConn({ id: c.id, name: c.name })}
-                          className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                          Importar catálogo
+                          className={config.mlStyleActions
+                            ? 'px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                            : 'text-xs text-blue-500 hover:text-blue-700 font-medium'}>
+                          {config.mlStyleActions ? 'Publicaciones' : 'Importar catálogo'}
                         </button>
                       )}
                       {config.supportsSalesImport && c.active && (
                         <button onClick={() => setSalesImportConn({ id: c.id, name: c.name })}
-                          className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                          Importar ventas
+                          className={config.mlStyleActions
+                            ? 'px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
+                            : 'text-xs text-blue-500 hover:text-blue-700 font-medium'}>
+                          {config.mlStyleActions ? 'Ventas' : 'Importar ventas'}
+                        </button>
+                      )}
+                      {config.supportsOrderSync && c.active && (
+                        <button onClick={() => handleSyncOrders(c.id)} disabled={syncingOrdersId === c.id}
+                          title={`Revisa el estado real en ${config.name} de las órdenes activas y lo refleja acá (cancelada/en camino/entregada)`}
+                          className={config.mlStyleActions
+                            ? 'px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50'
+                            : 'text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50'}>
+                          {syncingOrdersId === c.id ? 'Sincronizando...' : 'Órdenes'}
                         </button>
                       )}
                       <button onClick={() => handleTest(c.id)} disabled={testingId === c.id}

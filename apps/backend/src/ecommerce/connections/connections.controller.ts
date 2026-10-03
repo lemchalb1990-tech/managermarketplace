@@ -231,6 +231,12 @@ export class ConnectionsController {
     return this.service.createOrderForExistingSale(saleId, user);
   }
 
+  @Post(':id/orders/sync')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  syncOrderStatuses(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.syncOrderStatuses(id, user);
+  }
+
   @Post(':id/sales-import/confirm')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   confirmSalesImport(@Param('id') id: string, @Body() dto: ConfirmImportDto, @CurrentUser() user: any) {

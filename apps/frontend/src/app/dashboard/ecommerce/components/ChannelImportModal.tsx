@@ -13,6 +13,22 @@ type PreviewItem = {
   skuSuspicious?: boolean;
   matchedProductId: string | null;
   matchedProductName: string | null;
+  // Solo los canales que los exponen en el listado (hoy JumpSeller), igual que Mercado Libre.
+  price?: number;
+  stock?: number;
+  permalink?: string | null;
+  status?: string;
+};
+
+const statusLabel: Record<string, string> = {
+  available: 'Disponible',
+  'not-available': 'No disponible',
+  disabled: 'Desactivado',
+};
+const statusColor: Record<string, string> = {
+  available: 'bg-green-100 text-green-700',
+  'not-available': 'bg-amber-100 text-amber-700',
+  disabled: 'bg-gray-200 text-gray-600',
 };
 
 const PAGE_SIZE = 20;
@@ -20,8 +36,8 @@ const IMPORT_BATCH_SIZE = 10;
 
 // Trae y "unifica" el catálogo que ya existe publicado en el canal con el catálogo interno —
 // mismo patrón que el import de Mercado Libre (ver ecommerce/mercadolibre/components/ImportModal.tsx),
-// adaptado a paginación por offset (estos canales no usan scroll_id) y sin precio/stock en el
-// preview. Genérico a propósito: lo usan tanto Paris como Ripley (y cualquier plataforma
+// adaptado a paginación por offset (estos canales no usan scroll_id). Precio, stock, estado y
+// link se muestran solo si el canal los entrega en el preview. Genérico a propósito: lo usan tanto Paris como Ripley (y cualquier plataforma
 // futura con supportsImport) contra los mismos endpoints /import/preview y /import/confirm.
 export function ChannelImportModal({
   connectionId,
@@ -158,6 +174,7 @@ export function ChannelImportModal({
   const matchCount = items.filter((i) => i.matchedProductId && !unlinked.has(i.externalId)).length;
   const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const hasDetails = items.some((i) => i.price !== undefined);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -251,7 +268,10 @@ export function ChannelImportModal({
                             onChange={toggleAll} />
                         </th>
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">Producto</th>
+                        {hasDetails && <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>}
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">SKU</th>
+                        {hasDetails && <th className="px-2 py-2 text-right text-gray-600 font-medium">Precio</th>}
+                        {hasDetails && <th className="px-2 py-2 text-right text-gray-600 font-medium">Stock</th>}
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">Acción</th>
                       </tr>
                     </thead>
@@ -264,9 +284,23 @@ export function ChannelImportModal({
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-2">
                               {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
-                              <span className="text-gray-800 line-clamp-1">{item.title}</span>
+                              {item.permalink ? (
+                                <a href={item.permalink} target="_blank" rel="noreferrer"
+                                  className="text-gray-800 hover:text-blue-600 line-clamp-1">{item.title}</a>
+                              ) : (
+                                <span className="text-gray-800 line-clamp-1">{item.title}</span>
+                              )}
                             </div>
                           </td>
+                          {hasDetails && (
+                            <td className="px-2 py-2">
+                              {item.status && (
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusColor[item.status] || 'bg-gray-100 text-gray-600'}`}>
+                                  {statusLabel[item.status] || item.status}
+                                </span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-2 py-2 font-mono text-xs text-gray-500">
                             {item.sku ? (
                               <span className="flex items-center gap-1">
@@ -277,6 +311,12 @@ export function ChannelImportModal({
                               </span>
                             ) : <span className="italic text-gray-400">se generará automáticamente</span>}
                           </td>
+                          {hasDetails && (
+                            <td className="px-2 py-2 text-right text-gray-700">
+                              {item.price != null ? `$${Math.round(item.price).toLocaleString('es-CL')}` : '—'}
+                            </td>
+                          )}
+                          {hasDetails && <td className="px-2 py-2 text-right text-gray-700">{item.stock ?? '—'}</td>}
                           <td className="px-2 py-2">
                             {item.matchedProductId && item.skuSuspicious ? (
                               <span className="text-xs text-amber-600" title={`El SKU "${item.sku}" se repite en otros productos de este lote — se ignora la coincidencia y se crea como nuevo.`}>

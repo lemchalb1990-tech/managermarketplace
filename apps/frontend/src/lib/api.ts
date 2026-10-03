@@ -652,6 +652,9 @@ export const api = {
           cost?: number | null; profit?: number | null;
         }[];
       }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
+    syncOrderStatuses: (connectionId: string, token: string) =>
+      apiFetch<{ checked: number; updated: number }>(
+        `/ecommerce/connections/${connectionId}/orders/sync`, { method: 'POST' }, token),
     createOrderForSale: (saleId: string, token: string) =>
       apiFetch<{ id: string; status: string; stockDeducted: boolean; marketplaceStatus: string }>(
         `/ecommerce/connections/sales/${saleId}/order`, { method: 'POST' }, token),
