@@ -857,6 +857,8 @@ model Sale {
   paymentMethod   PaymentMethod?
   notes           String?
   customerName    String?
+  // Seudónimo (nickname) del comprador en el marketplace (Mercado Libre), aparte del nombre real.
+  buyerNickname   String?
   customerEmail   String?
   customerPhone   String?
   fulfillmentType FulfillmentType?

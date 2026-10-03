@@ -16,7 +16,9 @@ export interface LabelDetailItem {
 
 export interface LabelDetailOrder {
   orderNumber: string;
-  packId?: string | null;
+  // "Pack" cuando el número principal es el del carrito de ML; por defecto "Orden".
+  numberLabel?: string;
+  packId?: string | null; // línea secundaria (p. ej. las órdenes que forman el pack)
   storeName?: string | null;
   customerName?: string | null;
   commune?: string | null;
@@ -106,11 +108,11 @@ async function drawDetailPages(
   const header = (continued: boolean) => {
     page.drawText(safe(continued ? 'DETALLE DEL PEDIDO (cont.)' : 'DETALLE DEL PEDIDO'), { x: margin, y: y - fs(11), size: fs(11), font: fonts.bold });
     y -= fs(16);
-    page.drawText(safe(`Orden #${order.orderNumber}`), { x: margin, y: y - fs(9), size: fs(9), font: fonts.bold });
+    page.drawText(safe(`${order.numberLabel || 'Orden'} #${order.orderNumber}`), { x: margin, y: y - fs(9), size: fs(9), font: fonts.bold });
     y -= fs(12);
     if (continued) return;
     const lines = [
-      order.packId ? `Pack ${order.packId}` : null,
+      order.packId || null,
       order.storeName ? `Tienda: ${order.storeName}` : null,
       [order.customerName, order.commune].filter(Boolean).join(' - ') || null,
       [order.courier, order.trackingCode && `Seguimiento ${order.trackingCode}`].filter(Boolean).join(' - ') || null,

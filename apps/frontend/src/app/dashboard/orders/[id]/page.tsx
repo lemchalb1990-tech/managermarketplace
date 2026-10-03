@@ -276,9 +276,15 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   const allChecked = totalItems > 0 && checkedCount === totalItems;
   const hasPhotos = order.photos.length > 0;
   const isDelivery = order.fulfillmentType === 'DELIVERY';
-  const shortId = order.sale && order.sale.channel !== 'POS' && order.sale.externalId
-    ? order.sale.externalId
-    : order.id.slice(-6).toUpperCase();
+  // En un carrito de Mercado Libre el número de la venta es el del pack (el que muestra ML);
+  // las órdenes que lo forman quedan como dato secundario.
+  const isPack = !!order.sale?.mlPackId;
+  const shortId = isPack
+    ? order.sale.mlPackId
+    : order.sale && order.sale.channel !== 'POS' && order.sale.externalId
+      ? order.sale.externalId
+      : order.id.slice(-6).toUpperCase();
+  const packOrderIds: string[] = isPack ? [order.sale.externalId, ...(order.sale.mlMergedOrderIds || [])].filter(Boolean) : [];
 
   const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
   // Venta de ML sin Mercado Envíos ("acordar con el vendedor"): no hay etiqueta ni seguimiento
@@ -350,7 +356,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-x-2 gap-y-0.5 flex-wrap min-w-0">
           <a href="/dashboard/orders" className="hover:text-blue-600">Detalle de orden</a>
           <span className="text-gray-300 font-normal">/</span>
-          <span className="font-mono break-all">N° {shortId}</span>
+          <span className="font-mono break-all">{isPack ? 'Pack' : 'N°'} {shortId}</span>
         </h1>
         {isSuperAdmin && selectedCompanyId && (
           <button
@@ -388,7 +394,12 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                 </span>
               )}
             </div>
-            <p className="font-mono text-gray-400 text-xs">Orden #{shortId}</p>
+            <p className="font-mono text-gray-400 text-xs break-all">
+              {isPack ? `Pack #${shortId}` : `Orden #${shortId}`}
+              {isPack && packOrderIds.length > 0 && (
+                <span className="block font-sans">Órden(es) ML: {packOrderIds.join(', ')}</span>
+              )}
+            </p>
             {order.createdBy && (
               <p className="text-xs text-gray-400 mt-0.5">Creado por {order.createdBy.name}</p>
             )}
@@ -833,6 +844,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
               <div className="space-y-2 text-sm">
                 {[
                   { label: 'Nombre', value: order.customerName },
+                  ...(order.sale?.buyerNickname ? [{ label: isMlOrder ? 'Usuario ML' : 'Usuario', value: order.sale.buyerNickname }] : []),
                   { label: 'Teléfono', value: order.customerPhone },
                   { label: 'Email', value: order.customerEmail },
                   ...(isDelivery ? [
@@ -892,6 +904,12 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                   <div className="flex gap-2">
                     <span className="text-gray-400 w-20 shrink-0">Tienda</span>
                     <span className="text-gray-800 font-medium">{order.sale.connection.name}</span>
+                  </div>
+                )}
+                {order.sale.buyerNickname && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Comprador</span>
+                    <span className="text-gray-800 font-medium break-all">{order.sale.buyerNickname}</span>
                   </div>
                 )}
                 {order.sale.externalId && (

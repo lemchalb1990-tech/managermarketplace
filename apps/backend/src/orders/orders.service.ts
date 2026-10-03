@@ -42,7 +42,7 @@ const ORDER_INCLUDE = {
   sale: {
     select: {
       id: true, channel: true, total: true, createdAt: true,
-      externalId: true, mlPackId: true, mlShippingId: true,
+      externalId: true, mlPackId: true, mlShippingId: true, mlMergedOrderIds: true, buyerNickname: true,
       // Costos de la venta (tarjeta "Costos" del detalle): cargos del marketplace y productos.
       shippingCost: true, marketplaceFee: true, taxes: true, discount: true, netAmount: true, shippingMethod: true,
       items: {
@@ -137,7 +137,7 @@ export class OrdersService {
           warehouse: { select: { id: true, name: true } },
           sale: {
             select: {
-              id: true, channel: true, total: true, externalId: true, mlShippingId: true,
+              id: true, channel: true, total: true, externalId: true, mlShippingId: true, mlPackId: true, mlMergedOrderIds: true,
               connection: { select: { id: true, name: true } },
             },
           },

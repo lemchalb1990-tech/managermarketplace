@@ -1959,6 +1959,7 @@ export class MercadolibreService {
           companyId: conn.companyId,
           connectionId: conn.id,
           customerName: order.buyer?.nickname || null,
+          buyerNickname: order.buyer?.nickname || null,
           createdAt: new Date(order.date_created),
           items: { create: resolvedItems },
         },
@@ -2570,6 +2571,7 @@ export class MercadolibreService {
         netAmount: net,
         shippingMethod: shippingInfo.method || amounts.shippingMethod,
         customerName,
+        buyerNickname: main.buyer?.nickname || sale.buyerNickname,
         customerPhone,
         customerEmail: contact.email || sale.customerEmail,
         mlPackId: main.pack_id != null ? String(main.pack_id) : sale.mlPackId,
@@ -2891,6 +2893,7 @@ export class MercadolibreService {
               companyId: companyId as string,
               connectionId: resolvedItems[0].listing.connectionId,
               customerName: buyerContact?.name || order.buyer?.nickname || null,
+              buyerNickname: order.buyer?.nickname || null,
               customerEmail: buyerContact?.email || null,
               customerPhone: buyerContact?.phone || null,
               // Sin esto, Prisma usa @default(now()) — la venta queda con la fecha en que se
@@ -3219,13 +3222,17 @@ export class MercadolibreService {
           orderBy: { productName: 'asc' },
           include: { product: { select: { images: { select: { url: true }, orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1 } } } },
         },
-        sale: { select: { externalId: true, mlPackId: true, connection: { select: { name: true } } } },
+        sale: { select: { externalId: true, mlPackId: true, mlMergedOrderIds: true, connection: { select: { name: true } } } },
       },
     });
     if (!order) return null;
     return {
-      orderNumber: order.sale?.externalId || order.id.slice(-6).toUpperCase(),
-      packId: order.sale?.mlPackId,
+      // En un carrito, el número que muestra Mercado Libre en la venta es el del pack.
+      orderNumber: order.sale?.mlPackId || order.sale?.externalId || order.id.slice(-6).toUpperCase(),
+      numberLabel: order.sale?.mlPackId ? 'Pack' : 'Orden',
+      packId: order.sale?.mlPackId
+        ? `Orden(es) ML: ${[order.sale.externalId, ...(order.sale.mlMergedOrderIds || [])].filter(Boolean).join(', ')}`
+        : null,
       storeName: order.sale?.connection?.name,
       customerName: order.customerName,
       commune: order.commune,
@@ -3358,6 +3365,9 @@ export class MercadolibreService {
         },
         include: { order: true },
       });
+    }
+    if (sale && !sale.buyerNickname && mlOrder.buyer?.nickname) {
+      await this.prisma.sale.update({ where: { id: sale.id }, data: { buyerNickname: String(mlOrder.buyer.nickname) } }).catch(() => {});
     }
     const order = sale?.order;
     if (!order) return false;

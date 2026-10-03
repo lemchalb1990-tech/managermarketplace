@@ -259,7 +259,13 @@ export default function OrdersPage() {
   }
 
   const shortId = (id: string) => id.slice(-6).toUpperCase();
-  const orderNumber = (o: any) => (o.sale && o.sale.channel !== 'POS' && o.sale.externalId ? o.sale.externalId : shortId(o.id));
+  // Carrito de ML: el número de la venta es el del pack (el que muestra Mercado Libre).
+  const orderNumber = (o: any) => (o.sale?.mlPackId
+    ? o.sale.mlPackId
+    : o.sale && o.sale.channel !== 'POS' && o.sale.externalId ? o.sale.externalId : shortId(o.id));
+  const packHint = (o: any) => (o.sale?.mlPackId
+    ? `Pack · orden(es) ${[o.sale.externalId, ...(o.sale.mlMergedOrderIds || [])].filter(Boolean).join(', ')}`
+    : undefined);
   // Mercado Libre guarda el código crudo en externalStatus y la traducción en el título.
   const marketplaceStatus = (o: any) => (o.statusEvents[0].source === 'MERCADO_LIBRE' ? o.statusEvents[0].title : o.statusEvents[0].externalStatus);
 
@@ -498,7 +504,10 @@ export default function OrdersPage() {
                       <input type="checkbox" className="mt-0.5 w-4 h-4 shrink-0" aria-label="Seleccionar orden"
                         checked={selectedIds.has(o.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(o.id)} />
                     )}
-                    <p className="flex-1 min-w-0 font-mono text-xs font-bold text-gray-700 break-all">#{orderNumber(o)}</p>
+                    <p className="flex-1 min-w-0 font-mono text-xs font-bold text-gray-700 break-all" title={packHint(o)}>
+                      #{orderNumber(o)}
+                      {o.sale?.mlPackId && <span className="ml-1 font-sans font-medium text-[10px] px-1 py-0.5 rounded bg-sky-100 text-sky-700">pack</span>}
+                    </p>
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
                   </div>
                   <p className="mt-1 text-sm font-medium text-gray-900">
@@ -597,7 +606,10 @@ export default function OrdersPage() {
                           <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
                         )}
                       </td>
-                      <td className="px-3 py-3 font-mono text-xs font-bold text-gray-700 whitespace-nowrap">#{orderNumber(o)}</td>
+                      <td className="px-3 py-3 font-mono text-xs font-bold text-gray-700 whitespace-nowrap" title={packHint(o)}>
+                        #{orderNumber(o)}
+                        {o.sale?.mlPackId && <span className="block font-sans font-medium text-[10px] text-sky-700">pack</span>}
+                      </td>
                       <td className="px-3 py-3">
                         <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
                         {o.sale?.channel === 'MERCADO_LIBRE' && !o.sale?.mlShippingId && (
