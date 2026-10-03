@@ -74,7 +74,7 @@ interface MlShippingAddress {
 
 // Datos del comprador cuando la venta NO usa Mercado Envíos ("acordar con el vendedor"): no hay
 // receiver_address, así que se arman desde la orden (buyer) y su información de facturación.
-interface MlBuyerContact {
+export interface MlBuyerContact {
   name: string | null;
   phone: string | null;
   email: string | null;
