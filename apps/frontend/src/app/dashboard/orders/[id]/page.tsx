@@ -9,6 +9,7 @@ import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
+import OrderCostsCard from './OrderCostsCard';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -925,6 +926,11 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Costos de la venta (solo administradores: muestra comisiones, costos y ganancia) */}
+          {order.sale && isAdmin && (
+            <OrderCostsCard sale={order.sale} channelLabel={CHANNEL_LABEL[order.sale.channel] || order.sale.channel} />
           )}
 
           {/* Boleta / factura de la venta */}
