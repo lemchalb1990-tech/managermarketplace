@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { ImportProgress } from '@/components/ImportProgress';
@@ -52,6 +52,9 @@ export function ImportModal({
 }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
+  // "Detener" durante "Cargar todos": se revisa entre un lote y el siguiente.
+  const stopAllRef = useRef(false);
   const [error, setError] = useState('');
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -64,6 +67,52 @@ export function ImportModal({
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
+
+  type PreviewBatch = Awaited<ReturnType<typeof api.marketplace.previewImport>>;
+
+  function applyBatch(data: PreviewBatch, replace: boolean) {
+    setItems((prev) => replace ? data.items : [...prev, ...data.items]);
+    setTotal(data.total);
+    setHasMore(data.hasMore);
+    setNextScrollId(data.nextScrollId);
+    setAlreadyImportedCount((prev) => (replace ? 0 : prev) + data.alreadyImportedCount);
+    setSelected((prev) => {
+      const next = replace ? new Set<string>() : new Set(prev);
+      data.items.forEach((i) => next.add(i.externalId));
+      return next;
+    });
+    // SKU genérico/repetido en el lote: por seguridad nunca se preselecciona el
+    // vínculo a un producto existente, aunque haya coincidido por SKU.
+    setUnlinked((prev) => {
+      const next = replace ? new Set<string>() : new Set(prev);
+      data.items.forEach((i: PreviewItem) => { if (i.matchedProductId && i.skuSuspicious) next.add(i.externalId); });
+      return next;
+    });
+  }
+
+  // Trae todas las publicaciones restantes de la cuenta, lote por lote, sin tener que
+  // presionar "Cargar más" cada vez.
+  async function loadAll() {
+    if (!nextScrollId) return;
+    setLoadingAll(true);
+    setError('');
+    stopAllRef.current = false;
+    try {
+      const token = getToken()!;
+      let cursor: string | null = nextScrollId;
+      let more = hasMore;
+      while (more && cursor && !stopAllRef.current) {
+        const data = await api.marketplace.previewImport(connectionId, cursor, token);
+        applyBatch(data, false);
+        cursor = data.nextScrollId;
+        more = data.hasMore;
+      }
+    } catch (err: any) {
+      setError(err.message || 'No se pudieron obtener las publicaciones de Mercado Libre.');
+    } finally {
+      setLoadingAll(false);
+    }
+  }
 
   async function loadPreview(scrollId: string | null, append: boolean) {
     if (append) setLoadingMore(true); else setLoading(true);
@@ -82,24 +131,7 @@ export function ImportModal({
       while (more && !newItemsFound && attempts < MAX_ATTEMPTS_PER_CLICK) {
         attempts++;
         const data = await api.marketplace.previewImport(connectionId, cursor, token);
-        const replace = isFreshSearch && firstIteration;
-        setItems((prev) => replace ? data.items : [...prev, ...data.items]);
-        setTotal(data.total);
-        setHasMore(data.hasMore);
-        setNextScrollId(data.nextScrollId);
-        setAlreadyImportedCount((prev) => (replace ? 0 : prev) + data.alreadyImportedCount);
-        setSelected((prev) => {
-          const next = replace ? new Set<string>() : new Set(prev);
-          data.items.forEach((i) => next.add(i.externalId));
-          return next;
-        });
-        // SKU genérico/repetido en el lote: por seguridad nunca se preselecciona el
-        // vínculo a un producto existente, aunque haya coincidido por SKU.
-        setUnlinked((prev) => {
-          const next = replace ? new Set<string>() : new Set(prev);
-          data.items.forEach((i: PreviewItem) => { if (i.matchedProductId && i.skuSuspicious) next.add(i.externalId); });
-          return next;
-        });
+        applyBatch(data, isFreshSearch && firstIteration);
         cursor = data.nextScrollId;
         more = data.hasMore;
         newItemsFound = data.items.length > 0;
@@ -239,10 +271,23 @@ export function ImportModal({
                       : 'No se encontraron publicaciones activas en esta cuenta de Mercado Libre.'}
                   </p>
                   {hasMore && (
-                    <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore}
-                      className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
-                      {loadingMore ? 'Buscando...' : `Seguir buscando (revisadas ${alreadyImportedCount} de ${total || '?'})`}
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore || loadingAll}
+                        className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
+                        {loadingMore ? 'Buscando...' : `Seguir buscando (revisadas ${alreadyImportedCount} de ${total || '?'})`}
+                      </button>
+                      {loadingAll ? (
+                      <button onClick={() => { stopAllRef.current = true; }}
+                        className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-50">
+                        Detener ({items.length + alreadyImportedCount} de {total || '?'})
+                      </button>
+                    ) : (
+                      <button onClick={loadAll} disabled={loadingMore}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50">
+                        Cargar todos
+                      </button>
+                    )}
+                    </div>
                   )}
                 </div>
               ) : (
@@ -356,11 +401,22 @@ export function ImportModal({
                     </div>
                   )}
                   {hasMore && (
-                    <div className="flex items-center justify-center py-3 border-t border-gray-100">
-                      <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore}
+                    <div className="flex flex-wrap items-center justify-center gap-2 py-3 border-t border-gray-100">
+                      <button onClick={() => loadPreview(nextScrollId, true)} disabled={loadingMore || loadingAll}
                         className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100 disabled:opacity-50">
                         {loadingMore ? 'Cargando...' : `Cargar más publicaciones (${items.length + alreadyImportedCount} de ${total || '?'})`}
                       </button>
+                      {loadingAll ? (
+                      <button onClick={() => { stopAllRef.current = true; }}
+                        className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-50">
+                        Detener ({items.length + alreadyImportedCount} de {total || '?'})
+                      </button>
+                    ) : (
+                      <button onClick={loadAll} disabled={loadingMore}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50">
+                        Cargar todos
+                      </button>
+                    )}
                     </div>
                   )}
                 </>
