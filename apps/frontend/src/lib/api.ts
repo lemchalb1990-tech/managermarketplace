@@ -454,7 +454,7 @@ export const api = {
     // Vuelve a leer la venta en ML y SOBRESCRIBE sus datos y los de su orden (o la recrea).
     reimportSale: (saleId: string, token: string) =>
       apiFetch<{
-        saleId: string; orderId: string | null; orderRecreated: boolean; toAgree: boolean;
+        saleId: string; orderId: string | null; orderRecreated: boolean; storeChangedTo: string | null; toAgree: boolean;
         before: { customerName: string | null; total: number; netAmount: number | null };
         after: { customerName: string | null; total: number; netAmount: number };
         itemsMatch: boolean; itemsWarning: string | null;
@@ -553,6 +553,18 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/claims/${externalId}/actions`, { method: 'POST', body: JSON.stringify({ action, extra }) }, token),
     syncClaims: (connectionId: string, token: string) =>
       apiFetch<{ synced: number }>(`/ecommerce/ml/connections/${connectionId}/claims/sync`, { method: 'POST' }, token),
+    connectionsForTransfer: (token: string, companyId?: string) =>
+      apiFetch<{ id: string; name: string; active: boolean; authorized: boolean; mlNickname: string | null;
+        counts: { sales: number; listings: number; mlQuestions: number; mlClaims: number } }[]>(
+        `/ecommerce/ml/connections-for-transfer${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    transferConnectionData: (fromId: string, toId: string, apply: boolean, token: string) =>
+      apiFetch<{
+        from: string; to: string; toAccount: string | null; applied: boolean;
+        sales: { total: number; move: number; notVerified: string[] };
+        listings: { total: number; move: number; alreadyInDestination: number; conflicts: string[]; notFromThisAccount: number };
+        questions: { total: number; move: number };
+        claims: { total: number; move: number };
+      }>(`/ecommerce/ml/connections/${fromId}/transfer-to/${toId}`, { method: 'POST', body: JSON.stringify({ apply }) }, token),
     repairPackDuplicates: (body: { companyId?: string; apply?: boolean; saleIds?: string[] }, token: string) =>
       apiFetch<{
         checked: number; affected: number; applied: boolean;

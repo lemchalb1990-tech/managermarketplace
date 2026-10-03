@@ -2224,6 +2224,143 @@ export class MercadolibreService {
     return { checked: candidates.length, affected: affected.length, applied: !!opts.apply, sales: affected };
   }
 
+  // ─── Reasignar datos de una tienda conectada con la cuenta equivocada ─────────
+  // Si una tienda se autorizó con la cuenta de ML de OTRA tienda, todo lo que sincronizó
+  // (ventas con su orden, publicaciones, precios por canal, preguntas, reclamos) pertenece a esa
+  // otra cuenta. Esto lo pasa a la tienda correcta, verificando CADA registro contra ML con el
+  // token de la tienda destino (la orden/el ítem debe ser de esa cuenta); lo que no se pueda
+  // verificar se deja donde está y se informa. Sin apply solo informa qué movería.
+
+  async listMlConnectionsForTransfer(user: any, companyId?: string) {
+    const rows = await this.prisma.marketplaceConnection.findMany({
+      where: { marketplace: MarketplaceType.MERCADO_LIBRE, ...this.companyFilter(user, companyId) },
+      select: {
+        id: true, name: true, active: true, mlNickname: true, accessToken: true, createdAt: true,
+        _count: { select: { sales: true, listings: true, mlQuestions: true, mlClaims: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(({ accessToken, _count, ...r }) => ({ ...r, authorized: !!accessToken, counts: _count }));
+  }
+
+  async transferConnectionData(fromId: string, toId: string, user: any, apply = false) {
+    if (fromId === toId) throw new BadRequestException('Elige dos tiendas distintas.');
+    const [from, to] = await Promise.all([
+      this.prisma.marketplaceConnection.findUnique({ where: { id: fromId } }),
+      this.prisma.marketplaceConnection.findUnique({ where: { id: toId } }),
+    ]);
+    if (!from || !to) throw new NotFoundException('Tienda no encontrada');
+    if (from.marketplace !== MarketplaceType.MERCADO_LIBRE || to.marketplace !== MarketplaceType.MERCADO_LIBRE) {
+      throw new BadRequestException('Solo aplica a tiendas de Mercado Libre.');
+    }
+    if (from.companyId !== to.companyId) throw new BadRequestException('Las dos tiendas deben ser de la misma empresa.');
+    if (user.role !== Role.SUPER_ADMIN && from.companyId !== user.companyId) throw new ForbiddenException();
+    if (!to.accessToken || !to.active) throw new BadRequestException(`La tienda destino "${to.name}" debe estar activa y autorizada.`);
+
+    const token = await this.getValidToken(to.id);
+    const account = await this.fetchMlAccount(token);
+    if (!account) throw new BadRequestException(`No se pudo identificar la cuenta de Mercado Libre de "${to.name}".`);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // Ítems (MLC...) que pertenecen a la cuenta destino, consultados de a 20.
+    const ownedItems = new Set<string>();
+    const checkItems = async (ids: string[]) => {
+      const pending = [...new Set(ids.filter(Boolean))].filter((id) => !ownedItems.has(id));
+      for (let i = 0; i < pending.length; i += 20) {
+        const chunk = pending.slice(i, i + 20);
+        const res = await fetch(`${ML_API}/items?ids=${chunk.join(',')}&attributes=id,seller_id`, { headers }).catch(() => null);
+        if (!res?.ok) continue;
+        const rows = await res.json() as any[];
+        for (const r of rows || []) {
+          if (r?.code === 200 && String(r.body?.seller_id) === account.id) ownedItems.add(String(r.body.id));
+        }
+      }
+    };
+    const orderOwned = new Map<string, boolean>();
+    const checkOrder = async (id: string) => {
+      if (orderOwned.has(id)) return orderOwned.get(id)!;
+      const res = await fetch(`${ML_API}/orders/${id}`, { headers }).catch(() => null);
+      const ok = !!res?.ok && String(((await res!.json()) as any)?.seller?.id) === account.id;
+      orderOwned.set(id, ok);
+      return ok;
+    };
+
+    // Ventas
+    const sales = await this.prisma.sale.findMany({
+      where: { connectionId: from.id }, select: { id: true, externalId: true, createdAt: true, order: { select: { id: true } } },
+    });
+    const salesToMove: string[] = [];
+    const salesSkipped: string[] = [];
+    for (const s of sales) {
+      if (s.externalId && await checkOrder(s.externalId)) salesToMove.push(s.id); else salesSkipped.push(s.externalId || s.id);
+    }
+
+    // Publicaciones
+    const listings = await this.prisma.listing.findMany({
+      where: { connectionId: from.id },
+      select: { id: true, productId: true, externalId: true, product: { select: { name: true } } },
+    });
+    await checkItems(listings.map((l) => l.externalId || ''));
+    const toListings = await this.prisma.listing.findMany({ where: { connectionId: to.id }, select: { productId: true, externalId: true } });
+    const toByProduct = new Map(toListings.map((l) => [l.productId, l.externalId]));
+    const toByItem = new Map(toListings.filter((l) => l.externalId).map((l) => [l.externalId!, l.productId]));
+    const listingsToMove: string[] = [];
+    const listingsDuplicated: string[] = []; // la tienda destino ya tiene ese mismo vínculo
+    const listingConflicts: string[] = [];
+    let listingsNotOwned = 0;
+    for (const l of listings) {
+      if (!l.externalId || !ownedItems.has(l.externalId)) { listingsNotOwned++; continue; }
+      const sameProductItem = toByProduct.get(l.productId);
+      const sameItemProduct = toByItem.get(l.externalId);
+      if (sameProductItem === l.externalId) listingsDuplicated.push(l.id);
+      else if (sameProductItem || (sameItemProduct && sameItemProduct !== l.productId)) {
+        listingConflicts.push(`${l.product.name} (${l.externalId})`);
+      } else listingsToMove.push(l.id);
+    }
+    const movedProductIds = listings.filter((l) => listingsToMove.includes(l.id)).map((l) => l.productId);
+
+    // Preguntas y reclamos
+    const questions = await this.prisma.mlQuestion.findMany({ where: { connectionId: from.id }, select: { id: true, itemId: true } });
+    await checkItems(questions.map((q) => q.itemId));
+    const questionsToMove = questions.filter((q) => ownedItems.has(q.itemId)).map((q) => q.id);
+    const claims = await this.prisma.mlClaim.findMany({ where: { connectionId: from.id }, select: { id: true, saleId: true, orderExternalId: true } });
+    const movedSaleIds = new Set(salesToMove);
+    const claimsToMove: string[] = [];
+    for (const c of claims) {
+      if ((c.saleId && movedSaleIds.has(c.saleId)) || (c.orderExternalId && await checkOrder(c.orderExternalId))) claimsToMove.push(c.id);
+    }
+
+    const summary = {
+      from: from.name, to: to.name, toAccount: account.nickname,
+      sales: { total: sales.length, move: salesToMove.length, notVerified: salesSkipped },
+      listings: {
+        total: listings.length, move: listingsToMove.length, alreadyInDestination: listingsDuplicated.length,
+        conflicts: listingConflicts, notFromThisAccount: listingsNotOwned,
+      },
+      questions: { total: questions.length, move: questionsToMove.length },
+      claims: { total: claims.length, move: claimsToMove.length },
+      applied: false,
+    };
+    if (!apply) return summary;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (salesToMove.length) await tx.sale.updateMany({ where: { id: { in: salesToMove } }, data: { connectionId: to.id } });
+      if (listingsToMove.length) await tx.listing.updateMany({ where: { id: { in: listingsToMove } }, data: { connectionId: to.id } });
+      if (listingsDuplicated.length) await tx.listing.deleteMany({ where: { id: { in: listingsDuplicated } } });
+      // Precio por canal de los productos movidos: pasa a la tienda destino si allí no tenía uno.
+      for (const productId of movedProductIds) {
+        const exists = await tx.channelPrice.findUnique({ where: { productId_connectionId: { productId, connectionId: to.id } } });
+        if (exists) await tx.channelPrice.deleteMany({ where: { productId, connectionId: from.id } });
+        else await tx.channelPrice.updateMany({ where: { productId, connectionId: from.id }, data: { connectionId: to.id } });
+      }
+      await tx.syncQueueItem.deleteMany({ where: { connectionId: from.id, productId: { in: movedProductIds } } });
+      if (questionsToMove.length) await tx.mlQuestion.updateMany({ where: { id: { in: questionsToMove } }, data: { connectionId: to.id } });
+      if (claimsToMove.length) await tx.mlClaim.updateMany({ where: { id: { in: claimsToMove } }, data: { connectionId: to.id } });
+    });
+    this.logger.log(`Reasignación ML ${from.name} → ${to.name}: ${JSON.stringify({ ...summary, applied: true })}`);
+    return { ...summary, applied: true };
+  }
+
   // ─── Reimportar una venta desde Mercado Libre ────────────────────────────────
   // Una venta de ML no se puede borrar y volver a importar (ya movió stock, puede tener factura y
   // la orden tiene historial). En cambio, se vuelven a leer de ML la(s) orden(es) de la venta y se
@@ -2241,7 +2378,33 @@ export class MercadolibreService {
       throw new BadRequestException('Solo aplica a ventas de Mercado Libre con su tienda asociada.');
     }
 
-    const token = await this.getValidToken(sale.connectionId);
+    // Tienda dueña de la venta: la que la tiene asignada si su cuenta de ML puede leer la orden y
+    // es la vendedora; si no (p. ej. se importó mientras la tienda estaba conectada con la cuenta
+    // de OTRA tienda), la tienda activa de la empresa cuya cuenta sí es la vendedora.
+    let ownerConnectionId = sale.connectionId;
+    let token = await this.getValidToken(sale.connectionId).catch(() => '');
+    const isSeller = async (connId: string, tk: string) => {
+      if (!tk) return false;
+      const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connId }, select: { mlUserId: true, active: true } });
+      const res = await fetch(`${ML_API}/orders/${sale.externalId}`, { headers: { Authorization: `Bearer ${tk}` } }).catch(() => null);
+      if (!res?.ok) return false;
+      const sellerId = String(((await res.json()) as any)?.seller?.id || '');
+      return !!conn?.active && (!conn.mlUserId || conn.mlUserId === sellerId);
+    };
+    if (!(await isSeller(sale.connectionId, token))) {
+      const candidates = await this.prisma.marketplaceConnection.findMany({
+        where: { companyId: sale.companyId, marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' }, id: { not: sale.connectionId } },
+        select: { id: true },
+      });
+      for (const c of candidates) {
+        const tk = await this.getValidToken(c.id).catch(() => '');
+        if (await isSeller(c.id, tk)) { ownerConnectionId = c.id; token = tk; break; }
+      }
+      if (ownerConnectionId === sale.connectionId && !token) {
+        throw new BadRequestException('Ninguna tienda activa de la empresa puede leer esta venta en Mercado Libre.');
+      }
+    }
+    const storeChanged = ownerConnectionId !== sale.connectionId;
     const orderIds = [sale.externalId, ...sale.mlMergedOrderIds];
     const mlOrders: any[] = [];
     for (const id of orderIds) {
@@ -2284,7 +2447,7 @@ export class MercadolibreService {
     for (const o of mlOrders) {
       for (const oi of o.order_items || []) {
         const listing = await this.prisma.listing.findFirst({
-          where: { externalId: oi.item?.id, connectionId: sale.connectionId }, select: { productId: true },
+          where: { externalId: oi.item?.id, connectionId: { in: [ownerConnectionId, sale.connectionId] } }, select: { productId: true },
         });
         const key = listing?.productId || `ml:${oi.item?.title}`;
         mlQty.set(key, (mlQty.get(key) || 0) + (oi.quantity || 1));
@@ -2310,8 +2473,12 @@ export class MercadolibreService {
         customerEmail: contact.email || sale.customerEmail,
         mlPackId: main.pack_id != null ? String(main.pack_id) : sale.mlPackId,
         mlShippingId: main.shipping?.id != null ? String(main.shipping.id) : sale.mlShippingId,
+        ...(storeChanged ? { connectionId: ownerConnectionId } : {}),
       },
     });
+    const storeName = storeChanged
+      ? (await this.prisma.marketplaceConnection.findUnique({ where: { id: ownerConnectionId }, select: { name: true } }))?.name || null
+      : null;
 
     let orderId = sale.order?.id || null;
     let orderRecreated = false;
@@ -2337,7 +2504,7 @@ export class MercadolibreService {
       await this.prisma.orderStatusEvent.create({
         data: {
           orderId, source: OrderEventSource.MERCADO_LIBRE, title: 'Datos reimportados desde Mercado Libre',
-          detail: `Cliente, envío y montos actualizados · venta #${sale.externalId}`, occurredAt: new Date(),
+          detail: `Cliente, envío y montos actualizados · venta #${sale.externalId}${storeName ? ` · tienda corregida a "${storeName}"` : ''}`, occurredAt: new Date(),
         },
       });
       await this.syncInternalOrderFromMl(main, token).catch(() => false);
@@ -2351,6 +2518,7 @@ export class MercadolibreService {
       saleId: sale.id,
       orderId,
       orderRecreated,
+      storeChangedTo: storeName,
       toAgree,
       before,
       after: { customerName, total, netAmount: net },

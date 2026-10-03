@@ -311,6 +311,25 @@ export class MercadolibreController {
   }
 
   // TEMPORAL: diagnóstico directo de una orden puntual (ver mercadolibre.service.ts).
+  // Tiendas de ML de la empresa (incluidas las desconectadas) para reasignar datos entre ellas.
+  @Get('connections-for-transfer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  listConnectionsForTransfer(@Query('companyId') companyId: string, @CurrentUser() user: any) {
+    return this.service.listMlConnectionsForTransfer(user, companyId || undefined);
+  }
+
+  // Pasa a la tienda correcta lo que se sincronizó con la cuenta equivocada (sin apply: solo informa).
+  @Post('connections/:fromId/transfer-to/:toId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  transferConnectionData(
+    @Param('fromId') fromId: string, @Param('toId') toId: string,
+    @Body() body: { apply?: boolean }, @CurrentUser() user: any,
+  ) {
+    return this.service.transferConnectionData(fromId, toId, user, body?.apply === true);
+  }
+
   // Vuelve a leer la venta en Mercado Libre y sobrescribe sus datos y los de su orden.
   @Post('sales/:saleId/reimport')
   @UseGuards(JwtAuthGuard, RolesGuard)

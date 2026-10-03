@@ -160,7 +160,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       const token = getToken()!;
       const res = await api.marketplace.reimportSale(order.sale.id, token);
       await load();
-      await alertDialog(`Reimportada desde Mercado Libre.\nCliente: ${res.before.customerName || '—'} → ${res.after.customerName || '—'}\nTotal: $${Math.round(res.before.total).toLocaleString('es-CL')} → $${Math.round(res.after.total).toLocaleString('es-CL')}${res.orderRecreated ? '\nSe recreó la orden de despacho.' : ''}${res.itemsWarning ? `\n\n⚠ ${res.itemsWarning}` : ''}`);
+      await alertDialog(`Reimportada desde Mercado Libre.\nCliente: ${res.before.customerName || '—'} → ${res.after.customerName || '—'}\nTotal: $${Math.round(res.before.total).toLocaleString('es-CL')} → $${Math.round(res.after.total).toLocaleString('es-CL')}${res.storeChangedTo ? `
+Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreated ? '\nSe recreó la orden de despacho.' : ''}${res.itemsWarning ? `\n\n⚠ ${res.itemsWarning}` : ''}`);
     } catch (err: any) {
       setLabelError(err.message || 'No se pudo reimportar desde Mercado Libre.');
     } finally {

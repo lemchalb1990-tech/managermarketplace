@@ -35,6 +35,43 @@ export default function MercadoLibrePage() {
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState('');
 
+  // Mover a la tienda correcta lo sincronizado con la cuenta de ML equivocada.
+  const [transferConns, setTransferConns] = useState<Awaited<ReturnType<typeof api.marketplace.connectionsForTransfer>>>([]);
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferReport, setTransferReport] = useState<Awaited<ReturnType<typeof api.marketplace.transferConnectionData>> | null>(null);
+  const [transferError, setTransferError] = useState('');
+
+  async function loadTransferConns() {
+    try {
+      setTransferConns(await api.marketplace.connectionsForTransfer(getToken()!, activeCompanyId || undefined));
+    } catch { /* la tarjeta queda vacía */ }
+  }
+
+  async function handleTransfer(apply: boolean) {
+    if (!transferFrom || !transferTo) return;
+    if (apply) {
+      const r = transferReport;
+      const ok = await confirmDialog(
+        `¿Mover de "${r?.from}" a "${r?.to}" ${r?.sales.move ?? 0} venta(s), ${r?.listings.move ?? 0} publicación(es), ` +
+        `${r?.questions.move ?? 0} pregunta(s) y ${r?.claims.move ?? 0} reclamo(s)? Solo se mueve lo verificado en Mercado Libre como de la cuenta destino. No se puede deshacer.`,
+        { danger: true },
+      );
+      if (!ok) return;
+    }
+    setTransferLoading(true);
+    setTransferError('');
+    try {
+      setTransferReport(await api.marketplace.transferConnectionData(transferFrom, transferTo, apply, getToken()!));
+      if (apply) await loadTransferConns();
+    } catch (err: any) {
+      setTransferError(err.message || 'No se pudo revisar la reasignación.');
+    } finally {
+      setTransferLoading(false);
+    }
+  }
+
   // Ventas de pack (carrito) con productos sumados de más por el bug de fusión repetida.
   const [repairLoading, setRepairLoading] = useState(false);
   const [repairReport, setRepairReport] = useState<Awaited<ReturnType<typeof api.marketplace.repairPackDuplicates>> | null>(null);
@@ -97,6 +134,11 @@ export default function MercadoLibrePage() {
   }
 
   const prevCompanyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (connections.length) loadTransferConns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connections.length, activeCompanyId]);
 
   useEffect(() => {
     init();
@@ -580,7 +622,73 @@ export default function MercadoLibrePage() {
 
       {isSuperAdmin && connections.length > 0 && (
         <>
-        <div className="mt-8 bg-white border border-amber-200 rounded-xl p-4 space-y-2">
+        <div className="mt-8 bg-white border border-violet-200 rounded-xl p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-gray-800">Mover datos a la tienda correcta</p>
+            <p className="text-xs text-gray-500">
+              Si una tienda estuvo conectada con la cuenta de Mercado Libre de otra, lo que sincronizó (ventas con su orden,
+              publicaciones, preguntas y reclamos) es de esa otra tienda. Cada registro se verifica en Mercado Libre con la
+              cuenta destino; lo que no sea de esa cuenta no se mueve. &quot;Revisar&quot; no cambia nada.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Desde (tienda con datos equivocados)</label>
+              <select value={transferFrom} onChange={(e) => { setTransferFrom(e.target.value); setTransferReport(null); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="">— Selecciona —</option>
+                {transferConns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.active ? '' : ' (desconectada)'}{c.mlNickname ? ` · ${c.mlNickname}` : ''} — {c.counts.sales} ventas, {c.counts.listings} publ.
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className="hidden sm:block pb-2 text-gray-400">→</span>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Hacia (tienda dueña de la cuenta)</label>
+              <select value={transferTo} onChange={(e) => { setTransferTo(e.target.value); setTransferReport(null); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="">— Selecciona —</option>
+                {transferConns.filter((c) => c.active && c.authorized && c.id !== transferFrom).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}{c.mlNickname ? ` · ${c.mlNickname}` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => handleTransfer(false)} disabled={transferLoading || !transferFrom || !transferTo}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                {transferLoading ? 'Revisando...' : 'Revisar'}
+              </button>
+              {transferReport && !transferReport.applied && (transferReport.sales.move + transferReport.listings.move + transferReport.listings.alreadyInDestination + transferReport.questions.move + transferReport.claims.move) > 0 && (
+                <button onClick={() => handleTransfer(true)} disabled={transferLoading}
+                  className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+                  Mover
+                </button>
+              )}
+            </div>
+          </div>
+          {transferError && <p className="text-xs text-red-600">{transferError}</p>}
+          {transferReport && (
+            <div className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+              <p className="font-medium">
+                {transferReport.applied ? '✓ Movido' : 'Se movería'} de &quot;{transferReport.from}&quot; a &quot;{transferReport.to}&quot;
+                {transferReport.toAccount && ` (cuenta ${transferReport.toAccount})`}:
+              </p>
+              <p>Ventas (con su orden): {transferReport.sales.move} de {transferReport.sales.total}
+                {transferReport.sales.notVerified.length > 0 && ` · no son de esa cuenta: ${transferReport.sales.notVerified.join(', ')}`}</p>
+              <p>Publicaciones: {transferReport.listings.move} de {transferReport.listings.total}
+                {transferReport.listings.alreadyInDestination > 0 && ` · ${transferReport.listings.alreadyInDestination} ya estaban vinculadas en la tienda destino (se quita el duplicado)`}
+                {transferReport.listings.notFromThisAccount > 0 && ` · ${transferReport.listings.notFromThisAccount} no son de esa cuenta`}</p>
+              {transferReport.listings.conflicts.length > 0 && (
+                <p className="text-amber-700">Sin mover por conflicto (el producto o la publicación ya está vinculada distinto en la tienda destino): {transferReport.listings.conflicts.join('; ')}</p>
+              )}
+              <p>Preguntas: {transferReport.questions.move} de {transferReport.questions.total} · Reclamos: {transferReport.claims.move} de {transferReport.claims.total}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 bg-white border border-amber-200 rounded-xl p-4 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-medium text-gray-800 mr-auto">Ventas de carrito (pack) con productos duplicados</p>
               <button onClick={() => handleRepairPacks(false)} disabled={repairLoading}
