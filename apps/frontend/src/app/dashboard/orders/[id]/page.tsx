@@ -8,6 +8,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import OrderInvoicesCard from './OrderInvoicesCard';
+import ImageViewer from './ImageViewer';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -39,6 +40,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [statusError, setStatusError] = useState('');
 
   const [checkLoading, setCheckLoading] = useState<Record<string, boolean>>({});
+  // Visor a pantalla completa (fotos del producto o del pedido).
+  const [viewer, setViewer] = useState<{ images: string[]; index: number; title?: string } | null>(null);
   const [checkQty, setCheckQty] = useState<Record<string, number>>({});
   const [checkNote, setCheckNote] = useState<Record<string, string>>({});
 
@@ -499,11 +502,36 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         : 'border-gray-200 bg-white'
                     }`}>
                       <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
-                          item.checked ? (hasDiscrepancy ? 'bg-amber-400 text-white' : 'bg-green-500 text-white') : 'bg-gray-200 text-gray-400'
-                        }`}>
-                          {item.checked ? (hasDiscrepancy ? '!' : '✓') : ''}
-                        </div>
+                        {(() => {
+                          const images: string[] = (item.product?.images || []).map((im: any) => imgUrl(im.url));
+                          const badge = (
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                              item.checked ? (hasDiscrepancy ? 'bg-amber-400 text-white' : 'bg-green-500 text-white') : 'bg-gray-200 text-gray-400'
+                            }`}>
+                              {item.checked ? (hasDiscrepancy ? '!' : '✓') : ''}
+                            </span>
+                          );
+                          if (!images.length) {
+                            return (
+                              <div className="relative w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xl" title="Producto sin foto">
+                                📦
+                                <span className="absolute -top-1.5 -left-1.5">{badge}</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <button type="button" onClick={() => setViewer({ images, index: 0, title: item.productName })}
+                              title="Ver foto en grande" aria-label={`Ver foto de ${item.productName}`}
+                              className="relative w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg bg-white border border-gray-200 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={images[0]} alt={item.productName} loading="lazy" className="w-full h-full object-cover rounded-lg" />
+                              <span className="absolute -top-1.5 -left-1.5">{badge}</span>
+                              {images.length > 1 && (
+                                <span className="absolute bottom-0.5 right-0.5 px-1 rounded bg-black/60 text-white text-[10px] leading-4">+{images.length - 1}</span>
+                              )}
+                            </button>
+                          );
+                        })()}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 text-sm break-words">{item.productName}</p>
                           <p className="text-xs text-gray-400 font-mono break-all">{item.productSku}</p>
@@ -583,11 +611,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                   {order.photos.map((photo: any) => (
                     <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200">
-                      <img src={imgUrl(photo.url)} alt="Foto pedido" className="w-full h-full object-cover" />
+                      <button type="button" aria-label="Ver foto en grande" className="w-full h-full"
+                        onClick={() => setViewer({ images: order.photos.map((ph: any) => imgUrl(ph.url)), index: order.photos.findIndex((ph: any) => ph.id === photo.id), title: 'Fotos del pedido' })}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imgUrl(photo.url)} alt="Foto pedido" className="w-full h-full object-cover" />
+                      </button>
                       {order.status !== 'DELIVERED' && isAdmin && (
-                        <div className="absolute inset-0 flex items-start justify-end p-1.5 sm:p-0 sm:items-center sm:justify-center sm:bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-1.5 sm:items-end sm:justify-end sm:bg-black/20 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleDeletePhoto(photo.id)}
-                            className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-medium shadow">
+                            className="pointer-events-auto text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-medium shadow">
                             Eliminar
                           </button>
                         </div>
@@ -874,6 +906,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       </div>
+
+      {viewer && (
+        <ImageViewer images={viewer.images} startIndex={viewer.index} title={viewer.title} onClose={() => setViewer(null)} />
+      )}
     </div>
   );
 }
