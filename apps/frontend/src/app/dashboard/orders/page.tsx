@@ -4,11 +4,12 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
-import { api, openBase64Pdf } from '@/lib/api';
+import { api, imgUrl, openBase64Pdf } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { onActivity } from '@/lib/activityBus';
+import ImageViewer from './[id]/ImageViewer';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -29,6 +30,46 @@ const CHANNEL_LABEL: Record<string, string> = {
   WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella',
   PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
+
+type Viewer = { images: string[]; index: number; title?: string } | null;
+
+// Productos de una orden: foto (clic = ampliar), nombre, SKU y cantidad. Se muestran todos.
+function OrderProducts({ items, compact, onOpenImage }: { items: any[]; compact?: boolean; onOpenImage: (v: Viewer) => void }) {
+  if (!items.length) return <p className="text-xs text-gray-400">Sin productos</p>;
+  const size = compact ? 'w-9 h-9' : 'w-12 h-12';
+  return (
+    <ul className={compact ? 'space-y-1.5' : 'space-y-2'}>
+      {items.map((it) => {
+        const url = it.product?.images?.[0]?.url ? imgUrl(it.product.images[0].url) : null;
+        const discrepancy = it.checked && it.checkedQty != null && it.checkedQty !== it.expectedQty;
+        return (
+          <li key={it.id} className="flex items-center gap-2">
+            {url ? (
+              <button type="button" aria-label={`Ver foto de ${it.productName}`} title="Ver foto en grande"
+                onClick={(e) => { e.stopPropagation(); onOpenImage({ images: [url], index: 0, title: it.productName }); }}
+                className={`relative ${size} shrink-0 rounded-md border border-gray-200 bg-white overflow-hidden hover:border-blue-400`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+              </button>
+            ) : (
+              <span className={`${size} shrink-0 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300`} title="Producto sin foto">📦</span>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className={`text-gray-800 leading-snug ${compact ? 'text-xs line-clamp-1' : 'text-sm line-clamp-2'}`} title={it.productName}>
+                {it.checked && <span className={discrepancy ? 'text-amber-500' : 'text-green-600'}>{discrepancy ? '! ' : '✓ '}</span>}
+                {it.productName}
+              </p>
+              <p className="text-[11px] text-gray-400 font-mono truncate">{it.productSku}</p>
+            </div>
+            <span className={`shrink-0 font-bold text-gray-800 ${compact ? 'text-xs' : 'text-sm'} ${it.expectedQty > 1 ? 'px-1.5 rounded bg-amber-100 text-amber-800' : ''}`}>
+              ×{it.expectedQty}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 const STATUS_TABS = [
   { key: '', label: 'Todas' },
@@ -77,6 +118,8 @@ export default function OrdersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkPrinting, setBulkPrinting] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  const [printingId, setPrintingId] = useState('');
+  const [viewer, setViewer] = useState<Viewer>(null);
 
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
   // CompanyGate ya obliga a Super Admin a elegir empresa (y remonta esta página al
@@ -210,18 +253,43 @@ export default function OrdersPage() {
   }
 
   const shortId = (id: string) => id.slice(-6).toUpperCase();
+  const orderNumber = (o: any) => (o.sale && o.sale.channel !== 'POS' && o.sale.externalId ? o.sale.externalId : shortId(o.id));
+  // Mercado Libre guarda el código crudo en externalStatus y la traducción en el título.
+  const marketplaceStatus = (o: any) => (o.statusEvents[0].source === 'MERCADO_LIBRE' ? o.statusEvents[0].title : o.statusEvents[0].externalStatus);
+
+  // Etiqueta rápida (mismas reglas que el detalle): imprimir si está pendiente, reimprimir en preparación/lista.
+  function labelAction(o: any): { text: string; primary: boolean } | null {
+    if (!isAdmin || o.sale?.channel !== 'MERCADO_LIBRE') return null;
+    if (o.status === 'PENDING') return { text: 'Imprimir etiqueta', primary: true };
+    if (o.status === 'PREPARING' || o.status === 'READY') return { text: 'Reimprimir etiqueta', primary: false };
+    return null;
+  }
+
+  async function handlePrintOne(id: string) {
+    setPrintingId(id);
+    setBulkError('');
+    try {
+      const token = getToken()!;
+      await api.marketplace.printLabel(id, token);
+      await load(page, statusFilter);
+    } catch (err: any) {
+      setBulkError(err.message || 'No se pudo obtener la etiqueta de Mercado Libre.');
+    } finally {
+      setPrintingId('');
+    }
+  }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+        <div className="min-w-0">
           <h1 className="text-[1.375rem] font-bold text-gray-900">Órdenes</h1>
           <p className="text-gray-500 text-xs mt-0.5">Gestiona la preparación y despacho de pedidos.</p>
         </div>
         {isAdmin && (
           <button
             onClick={() => { setShowCreate(!showCreate); setCreateError(''); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+            className="shrink-0 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
           >
             + Nueva orden
           </button>
@@ -355,10 +423,10 @@ export default function OrdersPage() {
       )}
 
       {/* Status tabs */}
-      <div className="flex gap-1 mb-4 flex-wrap">
+      <div className="flex items-center gap-1 mb-4 overflow-x-auto sm:flex-wrap -mx-1 px-1 pb-1">
         {STATUS_TABS.map((t) => (
           <button key={t.key} onClick={() => changeTab(t.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors ${
               statusFilter === t.key
                 ? 'bg-blue-600 text-white'
                 : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -366,14 +434,14 @@ export default function OrdersPage() {
             {t.label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-gray-400 self-center">{total} órdenes</span>
+        <span className="ml-auto pl-2 shrink-0 text-xs text-gray-400 self-center">{total} órdenes</span>
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">
           <span className="text-xs text-amber-800">{selectedIds.size} orden(es) de Mercado Libre seleccionada(s)</span>
           <button onClick={handleBulkPrint} disabled={bulkPrinting}
-            className="ml-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+            className="ml-auto px-3 py-2 md:py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
             {bulkPrinting ? 'Imprimiendo...' : `Imprimir etiquetas (${selectedIds.size})`}
           </button>
           <button onClick={() => setSelectedIds(new Set())} className="text-xs text-amber-700 hover:text-amber-900 underline">
@@ -385,112 +453,192 @@ export default function OrdersPage() {
         <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{bulkError}</div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-4 py-3 w-8" onClick={(e) => e.stopPropagation()}>
-                <input type="checkbox"
-                  checked={mlOrdersOnPage.length > 0 && mlOrdersOnPage.every((o) => selectedIds.has(o.id))}
-                  onChange={toggleSelectAll} disabled={mlOrdersOnPage.length === 0} />
-              </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium"># Orden</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Cliente</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Canal</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Bodega</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Fecha</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
-                  <p className="text-sm mb-1">Sin órdenes</p>
-                  {isAdmin && <p className="text-xs">Crea la primera orden con el botón "+ Nueva orden"</p>}
-                </td>
-              </tr>
-            ) : orders.map((o) => {
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+      ) : orders.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-12 text-center text-gray-400">
+          <p className="text-sm mb-1">Sin órdenes</p>
+          {isAdmin && <p className="text-xs">Crea la primera orden con el botón &quot;+ Nueva orden&quot;</p>}
+        </div>
+      ) : (
+        <>
+          {/* Celular / tablet: una tarjeta por orden con todos sus productos */}
+          <div className="md:hidden space-y-3">
+            {mlOrdersOnPage.length > 0 && (
+              <label className="flex items-center gap-2 px-1 text-xs text-gray-600">
+                <input type="checkbox" className="w-4 h-4"
+                  checked={mlOrdersOnPage.every((o) => selectedIds.has(o.id))}
+                  onChange={toggleSelectAll} />
+                Seleccionar órdenes de Mercado Libre de esta página
+              </label>
+            )}
+            {orders.map((o) => {
               const cfg = STATUS_CONFIG[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-500' };
+              const units = (o.itemChecks || []).reduce((s: number, i: any) => s + (i.expectedQty || 0), 0);
+              const label = labelAction(o);
               return (
-                <tr key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
-                  className="hover:bg-gray-50 cursor-pointer">
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <div key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
+                  className={`bg-white rounded-xl border p-3 cursor-pointer active:bg-gray-50 ${selectedIds.has(o.id) ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'}`}>
+                  <div className="flex items-start gap-2">
                     {o.sale?.channel === 'MERCADO_LIBRE' && (
-                      <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
+                      <input type="checkbox" className="mt-0.5 w-4 h-4 shrink-0" aria-label="Seleccionar orden"
+                        checked={selectedIds.has(o.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(o.id)} />
                     )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs font-bold text-gray-700">
-                    #{o.sale && o.sale.channel !== 'POS' && o.sale.externalId ? o.sale.externalId : shortId(o.id)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      o.fulfillmentType === 'DELIVERY' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {FULFILLMENT_LABEL[o.fulfillmentType]}
+                    <p className="flex-1 min-w-0 font-mono text-xs font-bold text-gray-700 break-all">#{orderNumber(o)}</p>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
+                  </div>
+                  <p className="mt-1 text-sm font-medium text-gray-900">
+                    {o.customerName || <span className="text-gray-400">Sin cliente</span>}
+                    {o.commune && <span className="font-normal text-gray-500"> · {o.commune}</span>}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {o.sale ? `${CHANNEL_LABEL[o.sale.channel] || o.sale.channel}${o.sale.connection?.name ? ` · ${o.sale.connection.name}` : ''}` : 'Manual'}
+                    {' · '}{FULFILLMENT_LABEL[o.fulfillmentType]}
+                    {o.courier && ` · ${o.courier}`}
+                    {o.warehouse?.name && ` · ${o.warehouse.name}`}
+                  </p>
+
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <OrderProducts items={o.itemChecks || []} onOpenImage={setViewer} />
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
+                    <span className="text-gray-500">
+                      {(o.itemChecks || []).length} producto(s) · {units} un.
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
-                    {o.sale ? (
-                      <>
-                        {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}
-                        {o.sale.connection?.name && (
-                          <span className="block text-[11px] text-gray-400">{o.sale.connection.name}</span>
-                        )}
-                      </>
-                    ) : 'Manual'}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
-                    {o.warehouse?.name || <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
+                    {o.sale?.total != null && (
+                      <span className="font-semibold text-gray-800">${Number(o.sale.total).toLocaleString('es-CL')}</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-400">
+                    <span>{new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}</span>
                     {o.statusEvents?.[0] && o.sale && (
-                      <span className="block mt-1 text-[11px] text-purple-700" title="Último estado informado por el marketplace">
-                        {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}:{' '}
-                        {/* Mercado Libre guarda el código crudo en externalStatus y la traducción en el título. */}
-                        {o.statusEvents[0].source === 'MERCADO_LIBRE' ? o.statusEvents[0].title : o.statusEvents[0].externalStatus}
+                      <span className="text-purple-700 truncate">
+                        {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}: {marketplaceStatus(o)}
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-400">
-                    {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
-                  </td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-3 justify-end">
-                      <Link href={`/dashboard/orders/${o.id}`}
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                        Ver →
-                      </Link>
+                  </div>
+
+                  {(label || currentUser?.role === 'SUPER_ADMIN') && (
+                    <div className="mt-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      {label && (
+                        <button onClick={() => handlePrintOne(o.id)} disabled={printingId === o.id}
+                          className={`flex-1 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 ${
+                            label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
+                          }`}>
+                          {printingId === o.id ? 'Obteniendo etiqueta...' : label.text}
+                        </button>
+                      )}
                       {currentUser?.role === 'SUPER_ADMIN' && (
-                        <button
-                          onClick={() => handleDelete(o.id)}
-                          disabled={deletingId === o.id}
-                          className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
-                        >
-                          {deletingId === o.id ? 'Eliminando...' : 'Eliminar'}
+                        <button onClick={() => handleDelete(o.id)} disabled={deletingId === o.id}
+                          className="px-3 py-2 rounded-lg text-sm text-red-500 border border-red-200 hover:bg-red-50 disabled:opacity-50">
+                          {deletingId === o.id ? '...' : 'Eliminar'}
                         </button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  )}
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Computador: tabla con columna de productos */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox"
+                      checked={mlOrdersOnPage.length > 0 && mlOrdersOnPage.every((o) => selectedIds.has(o.id))}
+                      onChange={toggleSelectAll} disabled={mlOrdersOnPage.length === 0} />
+                  </th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium"># Orden</th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Cliente</th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium min-w-[16rem]">Productos</th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Canal</th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Estado</th>
+                  <th className="text-right px-3 py-3 text-gray-600 font-medium">Total</th>
+                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Fecha</th>
+                  <th className="px-3 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orders.map((o) => {
+                  const cfg = STATUS_CONFIG[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-500' };
+                  const label = labelAction(o);
+                  return (
+                    <tr key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
+                      className={`hover:bg-gray-50 cursor-pointer align-top ${selectedIds.has(o.id) ? 'bg-amber-50/60' : ''}`}>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        {o.sale?.channel === 'MERCADO_LIBRE' && (
+                          <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
+                        )}
+                      </td>
+                      <td className="px-3 py-3 font-mono text-xs font-bold text-gray-700 whitespace-nowrap">#{orderNumber(o)}</td>
+                      <td className="px-3 py-3">
+                        <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {FULFILLMENT_LABEL[o.fulfillmentType]}{o.commune ? ` · ${o.commune}` : ''}
+                          {o.warehouse?.name && ` · ${o.warehouse.name}`}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <OrderProducts items={o.itemChecks || []} onOpenImage={setViewer} compact />
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-500">
+                        {o.sale ? (
+                          <>
+                            {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}
+                            {o.sale.connection?.name && <span className="block text-[11px] text-gray-400">{o.sale.connection.name}</span>}
+                          </>
+                        ) : 'Manual'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.color}`}>{cfg.label}</span>
+                        {o.statusEvents?.[0] && o.sale && (
+                          <span className="block mt-1 text-[11px] text-purple-700" title="Último estado informado por el marketplace">
+                            {CHANNEL_LABEL[o.sale.channel] || o.sale.channel}: {marketplaceStatus(o)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-800 font-medium text-right whitespace-nowrap">
+                        {o.sale?.total != null ? `$${Number(o.sale.total).toLocaleString('es-CL')}` : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(o.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
+                      </td>
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-col items-end gap-1.5">
+                          {label && (
+                            <button onClick={() => handlePrintOne(o.id)} disabled={printingId === o.id}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-50 ${
+                                label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
+                              }`}>
+                              {printingId === o.id ? 'Obteniendo...' : label.text}
+                            </button>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <Link href={`/dashboard/orders/${o.id}`} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Ver →</Link>
+                            {currentUser?.role === 'SUPER_ADMIN' && (
+                              <button onClick={() => handleDelete(o.id)} disabled={deletingId === o.id}
+                                className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                                {deletingId === o.id ? 'Eliminando...' : 'Eliminar'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {pages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-2">
+        <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
           <button disabled={page <= 1} onClick={() => load(page - 1)}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">
             ← Anterior
@@ -501,6 +649,11 @@ export default function OrdersPage() {
             Siguiente →
           </button>
         </div>
+      )}
+      {selectedIds.size > 0 && <div className="h-20 md:hidden" aria-hidden />}
+
+      {viewer && (
+        <ImageViewer images={viewer.images} startIndex={viewer.index} title={viewer.title} onClose={() => setViewer(null)} />
       )}
     </div>
   );

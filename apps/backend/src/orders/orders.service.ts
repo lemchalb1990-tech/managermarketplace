@@ -135,6 +135,15 @@ export class OrdersService {
             orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
             take: 1,
           },
+          // Todos los productos de la orden con su foto principal, para verlos en el listado sin
+          // entrar a cada orden (preparación y etiqueta rápida).
+          itemChecks: {
+            select: {
+              id: true, productName: true, productSku: true, expectedQty: true, checked: true, checkedQty: true,
+              product: { select: { images: { select: { url: true }, orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1 } } },
+            },
+            orderBy: { productName: 'asc' },
+          },
           _count: { select: { itemChecks: true, photos: true } },
         },
         orderBy: { createdAt: 'desc' },
