@@ -906,6 +906,9 @@ model SaleItem {
   totalCost Decimal? @db.Decimal(10, 2)
   // Neto sin IVA de la línea en ventas importadas de marketplaces (venta − comisión ± envío).
   netAmount Decimal? @db.Decimal(10, 2)
+  // Comisión del marketplace por esta línea, tal como la informa (Mercado Libre: sale_fee por
+  // unidad × cantidad, con IVA). Permite ver el cargo de cada producto de la venta.
+  marketplaceFee Decimal? @db.Decimal(10, 2)
 
   saleId    String
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)

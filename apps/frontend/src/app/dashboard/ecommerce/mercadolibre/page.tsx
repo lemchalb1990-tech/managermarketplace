@@ -72,6 +72,27 @@ export default function MercadoLibrePage() {
     }
   }
 
+  // Montos de ventas de carrito: el envío compartido se restaba una vez por orden del pack.
+  const [amountsLoading, setAmountsLoading] = useState(false);
+  const [amountsReport, setAmountsReport] = useState<Awaited<ReturnType<typeof api.marketplace.recalculatePackAmounts>> | null>(null);
+  const [amountsError, setAmountsError] = useState('');
+
+  async function handleRecalculateAmounts(apply: boolean) {
+    if (apply) {
+      const n = amountsReport?.sales.filter((x) => x.after && !x.error).length || 0;
+      if (!(await confirmDialog(`¿Corregir los montos de ${n} venta(s) de carrito con los valores de Mercado Libre (total, comisión, envío y neto) y guardar la comisión de cada producto? No se puede deshacer.`, { danger: true }))) return;
+    }
+    setAmountsLoading(true);
+    setAmountsError('');
+    try {
+      setAmountsReport(await api.marketplace.recalculatePackAmounts({ companyId: activeCompanyId || undefined, apply }, getToken()!));
+    } catch (err: any) {
+      setAmountsError(err.message || 'No se pudo revisar los montos.');
+    } finally {
+      setAmountsLoading(false);
+    }
+  }
+
   // Ventas de pack (carrito) con productos sumados de más por el bug de fusión repetida.
   const [repairLoading, setRepairLoading] = useState(false);
   const [repairReport, setRepairReport] = useState<Awaited<ReturnType<typeof api.marketplace.repairPackDuplicates>> | null>(null);
@@ -684,6 +705,53 @@ export default function MercadoLibrePage() {
                 <p className="text-amber-700">Sin mover por conflicto (el producto o la publicación ya está vinculada distinto en la tienda destino): {transferReport.listings.conflicts.join('; ')}</p>
               )}
               <p>Preguntas: {transferReport.questions.move} de {transferReport.questions.total} · Reclamos: {transferReport.claims.move} de {transferReport.claims.total}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 bg-white border border-sky-200 rounded-xl p-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-gray-800 mr-auto">Montos de ventas de carrito (comisión y envío)</p>
+            <button onClick={() => handleRecalculateAmounts(false)} disabled={amountsLoading}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              {amountsLoading ? 'Revisando...' : 'Revisar'}
+            </button>
+            {amountsReport && !amountsReport.applied && amountsReport.sales.some((x) => x.after && !x.error) && (
+              <button onClick={() => handleRecalculateAmounts(true)} disabled={amountsLoading}
+                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+                Corregir
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Compara cada venta de carrito con los valores de Mercado Libre (comisión por producto y costo del envío, que en un
+            carrito es uno solo) y corrige total, comisión, envío y neto. &quot;Revisar&quot; no cambia nada.
+          </p>
+          {amountsError && <p className="text-xs text-red-600">{amountsError}</p>}
+          {amountsReport && (
+            <div className="text-xs space-y-1.5">
+              <p className="text-gray-600">
+                {amountsReport.applied ? 'Corregidas' : 'Revisadas'}: {amountsReport.checked} venta(s) de carrito · {amountsReport.affected} con diferencias.
+              </p>
+              {amountsReport.sales.map((x) => (
+                <div key={x.saleId} className="border border-gray-200 rounded-lg p-2">
+                  <div className="flex flex-wrap gap-x-3">
+                    {x.orderId ? (
+                      <a href={`/dashboard/orders/${x.orderId}`} className="font-medium text-blue-600 hover:underline">Orden #{x.mlOrderId}</a>
+                    ) : <span className="font-medium">Orden #{x.mlOrderId}</span>}
+                    {x.packId && <span className="text-gray-400">pack {x.packId}</span>}
+                    {x.fixed && <span className="text-green-700 font-medium">✓ Corregida</span>}
+                    {x.error && <span className="text-red-600">{x.error}</span>}
+                  </div>
+                  {x.after && (
+                    <p className="text-gray-600 mt-0.5">
+                      Comisión ${Math.round(x.before.fee ?? 0).toLocaleString('es-CL')} → ${Math.round(x.after.fee).toLocaleString('es-CL')}
+                      {' · '}Envío ${Math.round(x.before.shipping ?? 0).toLocaleString('es-CL')} → ${Math.round(x.after.shipping).toLocaleString('es-CL')}
+                      {' · '}Neto ${Math.round(x.before.net ?? 0).toLocaleString('es-CL')} → <b>${Math.round(x.after.net).toLocaleString('es-CL')}</b>
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

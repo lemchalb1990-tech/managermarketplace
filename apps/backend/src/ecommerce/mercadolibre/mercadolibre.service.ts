@@ -2037,6 +2037,117 @@ export class MercadolibreService {
     this.logger.log(`ML orden ${orderId}: producto=${listing.productId} stock=${product.stock}→${newStock}`);
   }
 
+  // Montos de una venta formada por una o varias órdenes de ML (un carrito): total, comisión y
+  // neto con la misma regla de la importación, pero contando el costo de cada ENVÍO una sola vez
+  // (las órdenes de un carrito comparten envío). Incluye la comisión por producto del catálogo.
+  private async computeMlSaleAmounts(mlOrders: any[], token: string, connectionId: string) {
+    let total = 0, fee = 0, net = 0, shippingCost = 0, taxes = 0, coupon = 0;
+    let shippingMethod: string | null = null;
+    const seenShipments = new Set<string>();
+    const feeByProduct = new Map<string, number>();
+    for (const o of mlOrders) {
+      const c = this.computeOrderCharges(o);
+      const si = await this.getMlShippingInfo(o, token);
+      if (si.sellerCost != null) c.shippingCost = si.sellerCost;
+      shippingMethod = shippingMethod || si.method;
+      const shipKey = o.shipping?.id != null ? String(o.shipping.id) : `order:${o.id}`;
+      const firstOfShipment = !seenShipments.has(shipKey);
+      seenShipments.add(shipKey);
+      const shipping = firstOfShipment ? c.shippingCost : 0;
+      total += Number(o.total_amount || 0);
+      fee += c.marketplaceFee;
+      taxes += c.taxes;
+      coupon += c.coupon;
+      shippingCost += shipping;
+      net += this.computeSellerNetAmount(o, { ...c, shippingCost: shipping });
+      for (const oi of o.order_items || []) {
+        if (oi.sale_fee == null) continue;
+        const listing = await this.prisma.listing.findFirst({ where: { externalId: oi.item?.id, connectionId }, select: { productId: true } });
+        if (!listing) continue;
+        feeByProduct.set(listing.productId, (feeByProduct.get(listing.productId) || 0) + Math.round(Number(oi.sale_fee) * (oi.quantity || 1)));
+      }
+    }
+    return { total, fee, net, shippingCost, taxes, coupon, shippingMethod, feeByProduct };
+  }
+
+  // Reparte la comisión de cada producto entre sus líneas de venta (por cantidad).
+  private async applyItemFees(client: any, saleId: string, feeByProduct: Map<string, number>) {
+    const items = await client.saleItem.findMany({ where: { saleId }, select: { id: true, productId: true, quantity: true } });
+    const qtyByProduct = new Map<string, number>();
+    for (const i of items) qtyByProduct.set(i.productId, (qtyByProduct.get(i.productId) || 0) + i.quantity);
+    for (const i of items) {
+      const fee = feeByProduct.get(i.productId);
+      if (fee == null) continue;
+      await client.saleItem.update({ where: { id: i.id }, data: { marketplaceFee: Math.round((fee * i.quantity) / (qtyByProduct.get(i.productId) || 1)) } });
+    }
+  }
+
+  // ─── Recalcular montos de ventas de carrito ───────────────────────────────────
+  // Hasta oct-2026 el envío de un carrito se restaba una vez por cada orden del pack (neto más
+  // bajo de lo real) y no se guardaba la comisión por producto. Revisa las ventas de carrito
+  // contra ML y, con apply=true, corrige total/comisión/envío/neto y la comisión de cada línea.
+  async recalculatePackAmounts(user: any, opts: { companyId?: string; apply?: boolean }) {
+    const sales = await this.prisma.sale.findMany({
+      where: {
+        ...this.companyFilter(user, opts.companyId),
+        channel: SaleChannel.MERCADO_LIBRE,
+        connectionId: { not: null },
+        OR: [{ mlPackId: { not: null } }, { mlMergedOrderIds: { isEmpty: false } }],
+      },
+      select: {
+        id: true, externalId: true, mlPackId: true, mlShippingId: true, mlMergedOrderIds: true, connectionId: true,
+        total: true, netAmount: true, marketplaceFee: true, shippingCost: true, order: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const report: any[] = [];
+    for (const sale of sales) {
+      const entry: any = {
+        saleId: sale.id, orderId: sale.order?.id || null, mlOrderId: sale.externalId, packId: sale.mlPackId,
+        before: { total: Number(sale.total), fee: sale.marketplaceFee != null ? Number(sale.marketplaceFee) : null, shipping: sale.shippingCost != null ? Number(sale.shippingCost) : null, net: sale.netAmount != null ? Number(sale.netAmount) : null },
+        fixed: false,
+      };
+      try {
+        const token = await this.getValidToken(sale.connectionId!);
+        const ids = (await this.packOrderIds(sale, token)) || [sale.externalId!, ...sale.mlMergedOrderIds];
+        if (sale.externalId && !ids.includes(sale.externalId)) { entry.error = 'El pack de Mercado Libre no incluye la orden principal: no se modifica'; report.push(entry); continue; }
+        const mlOrders: any[] = [];
+        for (const id of ids) {
+          const res = await fetch(`${ML_API}/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error(`no se pudo leer la orden ${id} (HTTP ${res.status})`);
+          mlOrders.push(await res.json());
+        }
+        const a = await this.computeMlSaleAmounts(mlOrders, token, sale.connectionId!);
+        entry.after = { total: a.total, fee: a.fee, shipping: a.shippingCost, net: a.net };
+        entry.orders = ids;
+        const changed = Math.round(entry.before.total) !== Math.round(a.total)
+          || Math.round(entry.before.net ?? -1) !== Math.round(a.net)
+          || Math.round(entry.before.fee ?? -1) !== Math.round(a.fee)
+          || Math.round(entry.before.shipping ?? -1) !== Math.round(a.shippingCost);
+        if (!changed) continue;
+        report.push(entry);
+        if (opts.apply) {
+          await this.prisma.$transaction(async (tx) => {
+            await tx.sale.update({
+              where: { id: sale.id },
+              data: {
+                total: a.total, marketplaceFee: a.fee, shippingCost: a.shippingCost, netAmount: a.net,
+                mlMergedOrderIds: ids.filter((id) => id !== sale.externalId),
+              },
+            });
+            await this.applyItemFees(tx, sale.id, a.feeByProduct);
+          });
+          entry.fixed = true;
+        }
+      } catch (err: any) {
+        entry.error = err.message;
+        report.push(entry);
+      }
+    }
+    return { checked: sales.length, affected: report.length, applied: !!opts.apply, sales: report };
+  }
+
   // ─── Reparar ventas de pack duplicadas ────────────────────────────────────────
   // Hasta oct-2026, cada vez que llegaba el webhook o corría el cron para la 2ª orden de un
   // pack (carrito), sus productos se volvían a sumar a la venta del pack (con su descuento de
@@ -2103,17 +2214,15 @@ export class MercadolibreService {
 
         // Lo que realmente se vendió según ML, por producto del catálogo.
         const expected = new Map<string, number>();
-        let total = 0, net = 0, fee = 0;
+        const packOrders: any[] = [];
         for (const id of orderIds) {
           const res = await fetch(`${ML_API}/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
           if (!res.ok) throw new Error(`no se pudo leer la orden ${id} (HTTP ${res.status})`);
-          const order = await res.json() as any;
-          const charges = this.computeOrderCharges(order);
-          const shippingInfo = await this.getMlShippingInfo(order, token);
-          if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
-          total += Number(order.total_amount || 0);
-          net += this.computeSellerNetAmount(order, charges);
-          fee += charges.marketplaceFee;
+          packOrders.push(await res.json());
+        }
+        const amounts = await this.computeMlSaleAmounts(packOrders, token, sale.connectionId!);
+        const { total, net, fee } = amounts;
+        for (const order of packOrders) {
           for (const oi of order.order_items || []) {
             const listing = await this.prisma.listing.findFirst({
               where: { externalId: oi.item?.id, connectionId: sale.connectionId! },
@@ -2204,8 +2313,9 @@ export class MercadolibreService {
 
             await tx.sale.update({
               where: { id: sale.id },
-              data: { total, netAmount: net, marketplaceFee: fee, mlMergedOrderIds: mergedIds },
+              data: { total, netAmount: net, marketplaceFee: fee, shippingCost: amounts.shippingCost, mlMergedOrderIds: mergedIds },
             });
+            await this.applyItemFees(tx, sale.id, amounts.feeByProduct);
           });
           entry.fixed = true;
         }
@@ -2419,21 +2529,11 @@ export class MercadolibreService {
     }
     const main = mlOrders[0];
 
-    // Montos con la misma regla que la importación original (processOrder).
-    const charges = this.computeOrderCharges(main);
+    // Montos con la regla de la importación, contando el envío compartido del carrito una vez.
+    const amounts = await this.computeMlSaleAmounts(mlOrders, token, ownerConnectionId);
+    const { total, net, fee } = amounts;
+    const charges = { shippingCost: amounts.shippingCost, taxes: amounts.taxes, coupon: amounts.coupon };
     const shippingInfo = await this.getMlShippingInfo(main, token);
-    if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
-    let total = Number(main.total_amount || 0);
-    let net = this.computeSellerNetAmount(main, charges);
-    let fee = charges.marketplaceFee;
-    for (const o of mlOrders.slice(1)) {
-      const c = this.computeOrderCharges(o);
-      const si = await this.getMlShippingInfo(o, token);
-      if (si.sellerCost != null) c.shippingCost = si.sellerCost;
-      total += Number(o.total_amount || 0);
-      net += this.computeSellerNetAmount(o, c);
-      fee += c.marketplaceFee;
-    }
 
     const toAgree = this.isMlToAgree(main);
     const contact = await this.getMlBuyerContact(main, token);
@@ -2467,7 +2567,7 @@ export class MercadolibreService {
         taxes: charges.taxes,
         discount: charges.coupon,
         netAmount: net,
-        shippingMethod: shippingInfo.method,
+        shippingMethod: shippingInfo.method || amounts.shippingMethod,
         customerName,
         customerPhone,
         customerEmail: contact.email || sale.customerEmail,
@@ -2476,6 +2576,7 @@ export class MercadolibreService {
         ...(storeChanged ? { connectionId: ownerConnectionId } : {}),
       },
     });
+    await this.applyItemFees(this.prisma, sale.id, amounts.feeByProduct);
     const storeName = storeChanged
       ? (await this.prisma.marketplaceConnection.findUnique({ where: { id: ownerConnectionId }, select: { name: true } }))?.name || null
       : null;
@@ -2659,7 +2760,7 @@ export class MercadolibreService {
     const mlShippingId = order.shipping?.id != null ? String(order.shipping.id) : null;
 
     let companyId: string | null = companyIdHint || null;
-    const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number }> = [];
+    const resolvedItems: Array<{ listing: any; quantity: number; unitPrice: number; fee: number | null }> = [];
 
     for (const orderItem of order.order_items || []) {
       const itemId = orderItem.item?.id;
@@ -2682,7 +2783,9 @@ export class MercadolibreService {
       if (companyIdHint && listing.connection.companyId !== companyIdHint) continue;
 
       companyId = companyId || listing.connection.companyId;
-      resolvedItems.push({ listing, quantity, unitPrice });
+      // sale_fee de ML es por unidad: la comisión de la línea es sale_fee × cantidad.
+      const fee = orderItem.sale_fee != null ? Math.round(Number(orderItem.sale_fee) * quantity) : null;
+      resolvedItems.push({ listing, quantity, unitPrice, fee });
     }
 
     if (!resolvedItems.length || !companyId) return 'skipped';
@@ -2720,13 +2823,18 @@ export class MercadolibreService {
       return 'skipped';
     }
 
+    // Un carrito comparte UN envío: su costo ya se descontó del neto con la primera orden del
+    // pack, así que esta orden suma su neto sin volver a restar el envío.
+    const sameShipment = !!existingPackSale && !!mlShippingId && existingPackSale.mlShippingId === mlShippingId;
+    const mergedNet = sameShipment ? this.computeSellerNetAmount(order, { ...charges, shippingCost: 0 }) : charges.totalPaid;
+
     try {
       if (existingPackSale) {
         await this.prisma.$transaction(async (tx) => {
           const newSaleItems = [];
-          for (const { listing, quantity, unitPrice } of resolvedItems) {
+          for (const { listing, quantity, unitPrice, fee } of resolvedItems) {
             newSaleItems.push(await tx.saleItem.create({
-              data: { saleId: existingPackSale.id, productId: listing.productId, quantity, unitPrice },
+              data: { saleId: existingPackSale.id, productId: listing.productId, quantity, unitPrice, marketplaceFee: fee },
             }));
           }
           await tx.sale.update({
@@ -2734,7 +2842,7 @@ export class MercadolibreService {
             data: {
               total: Number(existingPackSale.total) + orderTotal,
               netAmount: existingPackSale.netAmount != null
-                ? Number(existingPackSale.netAmount) + charges.totalPaid : charges.totalPaid,
+                ? Number(existingPackSale.netAmount) + mergedNet : mergedNet,
               marketplaceFee: existingPackSale.marketplaceFee != null && charges.marketplaceFee != null
                 ? Number(existingPackSale.marketplaceFee) + charges.marketplaceFee : existingPackSale.marketplaceFee,
               mlPackId: existingPackSale.mlPackId ?? packId,
@@ -2788,10 +2896,11 @@ export class MercadolibreService {
               // corrió el webhook/importación en vez de la fecha real de la compra en ML.
               createdAt: new Date(order.date_created),
               items: {
-                create: resolvedItems.map(({ listing, quantity, unitPrice }) => ({
+                create: resolvedItems.map(({ listing, quantity, unitPrice, fee }) => ({
                   productId: listing.productId,
                   quantity,
                   unitPrice,
+                  marketplaceFee: fee,
                 })),
               },
             },

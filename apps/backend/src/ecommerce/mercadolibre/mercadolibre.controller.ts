@@ -338,6 +338,15 @@ export class MercadolibreController {
     return this.service.reimportSaleFromMl(saleId, user);
   }
 
+  // Revisa (y con apply=true corrige) montos de ventas de carrito (envío restado una vez por
+  // orden del pack) y completa la comisión por producto. Sin apply solo informa.
+  @Post('sales/recalculate-pack-amounts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  recalculatePackAmounts(@Body() body: { companyId?: string; apply?: boolean }, @CurrentUser() user: any) {
+    return this.service.recalculatePackAmounts(user, { companyId: body?.companyId, apply: body?.apply === true });
+  }
+
   // Revisa (y con apply=true corrige) ventas de pack con productos duplicados por el bug de
   // fusión repetida. Sin apply solo informa qué cambiaría.
   @Post('sales/repair-pack-duplicates')

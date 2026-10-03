@@ -565,6 +565,15 @@ export const api = {
         questions: { total: number; move: number };
         claims: { total: number; move: number };
       }>(`/ecommerce/ml/connections/${fromId}/transfer-to/${toId}`, { method: 'POST', body: JSON.stringify({ apply }) }, token),
+    recalculatePackAmounts: (body: { companyId?: string; apply?: boolean }, token: string) =>
+      apiFetch<{
+        checked: number; affected: number; applied: boolean;
+        sales: {
+          saleId: string; orderId: string | null; mlOrderId: string | null; packId: string | null; fixed: boolean; error?: string;
+          before: { total: number; fee: number | null; shipping: number | null; net: number | null };
+          after?: { total: number; fee: number; shipping: number; net: number };
+        }[];
+      }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
     repairPackDuplicates: (body: { companyId?: string; apply?: boolean; saleIds?: string[] }, token: string) =>
       apiFetch<{
         checked: number; affected: number; applied: boolean;

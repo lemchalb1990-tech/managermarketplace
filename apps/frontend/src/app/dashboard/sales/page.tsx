@@ -463,6 +463,12 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                           </span>
                           <span className="flex flex-col items-end shrink-0">
                             <span className="text-gray-600 font-medium">{fmt(Number(item.unitPrice) * item.quantity)}</span>
+                            {item.marketplaceFee != null && (
+                              <span className="text-[11px] text-red-500" title="Comisión informada por el marketplace para este producto">
+                                comisión {CHANNEL_LABELS[sale.channel] || 'marketplace'} -{fmt(Number(item.marketplaceFee))}
+                                {Number(item.unitPrice) * item.quantity > 0 && ` (${Math.round((Number(item.marketplaceFee) / (Number(item.unitPrice) * item.quantity)) * 100)}%)`}
+                              </span>
+                            )}
                             {item.netAmount != null && (() => {
                               const cost = itemCostSinIva(item);
                               const profit = cost != null ? Number(item.netAmount) - cost : null;
