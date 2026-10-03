@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, IVA_RATE, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated } from './channel-order';
+import { getEffectivePrice } from '../../common/effective-price.util';
 
 // Doc oficial: https://github.com/jumpseller/api-docs (spec OpenAPI en
 // https://api.jumpseller.com/swagger.json). Confirmado en vivo (tienda "Altiroshopping"):
@@ -112,6 +113,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
   }
 
   async publishProduct(conn: any, product: any): Promise<PublishResult> {
+    const price = await getEffectivePrice(this.prisma, product.id, conn.id, Number(product.price));
     const data = await this.request(conn, '/products.json', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -119,7 +121,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
         product: {
           name: product.name,
           description: product.description || '',
-          price: Number(product.price),
+          price,
           stock: product.stock,
           sku: product.sku,
           status: 'available',
@@ -450,6 +452,15 @@ export class JumpSellerAdapter implements PlatformAdapter {
           update: listingData,
           create: { productId: product.id, connectionId: conn.id, ...listingData },
         });
+        // "Precio venta JumpSeller": el precio de la tienda queda como precio propio de esta
+        // conexión, sin tocar el precio de venta general de un producto que ya existía.
+        if (r.price > 0) {
+          await this.prisma.channelPrice.upsert({
+            where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
+            update: { price: r.price },
+            create: { productId: product.id, connectionId: conn.id, price: r.price },
+          });
+        }
       } catch (err: any) {
         errors.push(`${externalId}: ${err.message}`);
       }

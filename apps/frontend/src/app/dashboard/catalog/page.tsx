@@ -1303,10 +1303,23 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
 type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'falabella' | 'stock';
 
+// Tiendas web con su propio "Precio de venta" (ChannelPrice por conexión): al importar se
+// llena con el precio de la tienda y la sincronización usa ese precio en esa plataforma.
+const WEB_PRICE_PLATFORMS: Record<string, string> = {
+  JUMPSELLER: 'JumpSeller', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
+};
+
+function channelPriceMap(product: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const cp of product?.channelPrices || []) out[cp.connectionId] = String(Number(cp.price));
+  return out;
+}
+
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
   stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '',
   packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '',
+  channelPrices: {} as Record<string, string>,
 };
 
 const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
@@ -1404,6 +1417,13 @@ export default function CatalogPage() {
   const parisConnections = genericConnections.filter((c) => c.marketplace === 'PARIS' && c.active);
   const ripleyConnections = genericConnections.filter((c) => c.marketplace === 'RIPLEY' && c.active);
   const falabellaConnections = genericConnections.filter((c) => c.marketplace === 'FALABELLA' && c.active);
+  const webPriceConnections = genericConnections.filter((c) => c.active && WEB_PRICE_PLATFORMS[c.marketplace]);
+  // "Precio venta JumpSeller" (y el nombre de la conexión si hay más de una de esa plataforma).
+  const webPriceLabel = (c: any) => {
+    const platform = WEB_PRICE_PLATFORMS[c.marketplace];
+    const several = webPriceConnections.filter((o) => o.marketplace === c.marketplace).length > 1;
+    return `Precio venta ${platform}${several ? ` · ${c.name}` : ''}`;
+  };
 
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
@@ -1650,6 +1670,7 @@ export default function CatalogPage() {
       editForm.mlCategoryId !== orig.mlCategoryId ||
       editForm.mlDescription !== orig.mlDescription ||
       JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
+      JSON.stringify(editForm.channelPrices || {}) !== orig.channelPrices ||
       editForm.warehouseId !== orig.warehouseId;
     setIsDirty(dirty);
   }, [editForm]);
@@ -1699,6 +1720,7 @@ export default function CatalogPage() {
       packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
+      channelPrices: channelPriceMap(product),
     });
     setTab('edit');
     setEditError('');
@@ -1724,6 +1746,7 @@ export default function CatalogPage() {
       packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
+      channelPrices: JSON.stringify(channelPriceMap(product)),
     };
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
@@ -1751,6 +1774,16 @@ export default function CatalogPage() {
     setSelected(refreshed);
     setProducts(ps => ps.map(p => p.id === refreshed.id ? refreshed : p));
     return refreshed;
+  }
+
+  // Guarda los precios por tienda web que cambiaron (vacío = sin precio propio, usa el de venta).
+  async function saveWebChannelPrices(productId: string, prices: Record<string, string>, before: Record<string, string>, token: string) {
+    for (const c of webPriceConnections) {
+      const value = (prices[c.id] || '').trim();
+      if (value === (before[c.id] || '')) continue;
+      if (value === '') await api.catalog.removeChannelPrice(productId, c.id, token);
+      else await api.catalog.setChannelPrice(productId, c.id, parseFloat(value), token);
+    }
   }
 
   // Guarda los cambios de la pestaña "Información" de un producto ya existente, sin cerrar
@@ -1784,6 +1817,7 @@ export default function CatalogPage() {
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
       };
       await api.catalog.update(selected.id, payload, token);
+      await saveWebChannelPrices(selected.id, editForm.channelPrices || {}, channelPriceMap(selected), token);
       await refreshSelected(selected.id);
       setIsDirty(false);
       return true;
@@ -1833,6 +1867,7 @@ export default function CatalogPage() {
         ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
       };
       const created = await api.catalog.create(payload, token);
+      await saveWebChannelPrices(created.id, editForm.channelPrices || {}, {}, token);
       const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
       await loadProducts(1);
 
@@ -2703,6 +2738,11 @@ export default function CatalogPage() {
                   Precio ML{sortIndicator('mlPrice')}
                 </th>
               )}
+              {webPriceConnections.map((c) => (
+                <th key={c.id} className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">
+                  {webPriceLabel(c).replace('Precio venta ', 'Precio ')}
+                </th>
+              ))}
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('stock')}>
                 Stock{sortIndicator('stock')}
@@ -2773,6 +2813,14 @@ export default function CatalogPage() {
                       {p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : <span className="text-gray-300">—</span>}
                     </td>
                   )}
+                  {webPriceConnections.map((c) => {
+                    const cp = p.channelPrices?.find((x: any) => x.connectionId === c.id);
+                    return (
+                      <td key={c.id} className={`${cellPad} text-gray-700`}>
+                        {cp ? fmtCLP(Number(cp.price)) : <span className="text-gray-300">—</span>}
+                      </td>
+                    );
+                  })}
                   <td className={cellPad}>
                     <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
                       {p.stock}
@@ -2803,10 +2851,10 @@ export default function CatalogPage() {
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0)} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
             )}
           </tbody>
         </table>
@@ -2984,6 +3032,15 @@ export default function CatalogPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                     </div>
                   )}
+                  {webPriceConnections.map((c) => (
+                    <div key={c.id}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{webPriceLabel(c)}</label>
+                      <input type="number" step="0.01" min="0" value={editForm.channelPrices?.[c.id] || ''}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, channelPrices: { ...(f.channelPrices || {}), [c.id]: e.target.value } }))}
+                        placeholder="Igual al de venta directa si se deja vacío"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                  ))}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Costo
