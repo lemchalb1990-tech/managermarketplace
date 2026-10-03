@@ -1545,7 +1545,8 @@ export class MercadolibreService {
 
   private computeOrderCharges(order: any) {
     const payment = (order.payments || [])[0] || {};
-    const itemFees = (order.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0), 0);
+    // Respaldo si el pago no trae marketplace_fee: sale_fee de ML es por unidad (× cantidad).
+    const itemFees = (order.order_items || []).reduce((sum: number, oi: any) => sum + Number(oi.sale_fee || 0) * (oi.quantity || 1), 0);
     return {
       shippingCost: Math.round(Number(payment.shipping_cost || order.shipping?.cost || 0)),
       marketplaceFee: Math.round(Number(payment.marketplace_fee || itemFees || 0)),
