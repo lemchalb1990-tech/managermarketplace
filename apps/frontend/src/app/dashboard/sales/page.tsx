@@ -18,7 +18,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 // Canales cuyas ventas importadas como historial pueden crear después su Orden de despacho.
-const ORDER_CHANNELS = ['WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'JUMPSELLER'];
+const ORDER_CHANNELS = ['MERCADO_LIBRE', 'WALMART', 'RIPLEY', 'PARIS', 'FALABELLA', 'JUMPSELLER'];
 
 const CHANNEL_COLORS: Record<string, string> = {
   POS: 'bg-blue-100 text-blue-700',
@@ -123,8 +123,9 @@ export default function SalesPage() {
 
   async function handleCreateOrder(sale: any) {
     const channel = CHANNEL_LABELS[sale.channel] || sale.channel;
-    const ok = await confirmDialog(
-      `¿Crear la orden de despacho de esta venta? Se consulta su estado actual en ${channel}: si sigue pendiente de despacho se descuenta el stock; si ya se despachó o entregó, la orden queda en ese estado sin mover stock.`,
+    const ok = await confirmDialog(sale.channel === 'MERCADO_LIBRE'
+      ? '¿Crear la orden de despacho de esta venta? Se recrea con los datos actuales de Mercado Libre (cliente, envío y productos) y su estado de envío. El stock solo se descuenta si esta venta nunca lo descontó y el envío sigue pendiente.'
+      : `¿Crear la orden de despacho de esta venta? Se consulta su estado actual en ${channel}: si sigue pendiente de despacho se descuenta el stock; si ya se despachó o entregó, la orden queda en ese estado sin mover stock.`,
     );
     if (!ok) return;
     setCreatingOrderId(sale.id);

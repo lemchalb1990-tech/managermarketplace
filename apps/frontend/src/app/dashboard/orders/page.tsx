@@ -171,7 +171,7 @@ export default function OrdersPage() {
   }, [search]);
 
   async function handleDelete(id: string) {
-    if (!(await confirmDialog('¿Eliminar esta orden por completo? Esta acción no se puede deshacer.', { danger: true }))) return;
+    if (!(await confirmDialog('¿Eliminar esta orden de despacho? La venta se conserva (no se puede reimportar): para volver a crear su orden usa Ventas → "Crear orden de despacho". Esta acción no se puede deshacer.', { danger: true }))) return;
     setDeletingId(id);
     try {
       const token = getToken()!;

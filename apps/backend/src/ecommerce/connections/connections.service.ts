@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
-import { MarketplaceType, ListingStatus, Role } from '@prisma/client';
+import { MarketplaceType, ListingStatus, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
 import { WooCommerceAdapter } from '../platforms/woocommerce.adapter';
@@ -12,6 +12,7 @@ import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
 import { ChannelOrdersService } from '../sync/channel-orders.service';
+import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 import { getEffectivePrice } from '../../common/effective-price.util';
 
@@ -37,6 +38,7 @@ export class ConnectionsService {
     private stub: StubAdapter,
     private catalog: CatalogService,
     private channelOrders: ChannelOrdersService,
+    private mercadolibre: MercadolibreService,
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
@@ -394,7 +396,10 @@ export class ConnectionsService {
     return adapter.previewSalesImport(conn, conn.companyId, from, to);
   }
 
-  createOrderForExistingSale(saleId: string, user: any) {
+  // Mercado Libre tiene su propio flujo (cliente, envío y etiqueta de Mercado Envíos).
+  async createOrderForExistingSale(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({ where: { id: saleId }, select: { channel: true } });
+    if (sale?.channel === SaleChannel.MERCADO_LIBRE) return this.mercadolibre.createOrderForExistingSale(saleId, user);
     return this.channelOrders.createOrderForExistingSale(saleId, user);
   }
 

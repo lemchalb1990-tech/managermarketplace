@@ -2224,6 +2224,118 @@ export class MercadolibreService {
     return { checked: candidates.length, affected: affected.length, applied: !!opts.apply, sales: affected };
   }
 
+  // ─── Recrear la orden de despacho de una venta ya registrada ─────────────────
+  // Caso típico: se eliminó la orden (Órdenes → Eliminar) para "reimportarla", pero la venta
+  // sigue registrada y la importación la salta. Reimportar duplicaría la venta y el descuento de
+  // stock; en cambio se recrea solo la orden con los datos actuales de ML (cliente, envío,
+  // productos) y luego se sincroniza su estado/historial. El stock se descuenta solo si esta
+  // venta nunca lo descontó y el envío sigue pendiente.
+  async createOrderForExistingSale(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        items: { include: { product: { select: { id: true, name: true, sku: true, warehouseId: true } } } },
+        order: { select: { id: true } },
+      },
+    });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
+    if (sale.channel !== SaleChannel.MERCADO_LIBRE || !sale.externalId || !sale.connectionId) {
+      throw new BadRequestException('Solo aplica a ventas de Mercado Libre con su tienda asociada.');
+    }
+    if (sale.order) throw new BadRequestException('Esta venta ya tiene su orden de despacho.');
+
+    const token = await this.getValidToken(sale.connectionId);
+    const orderRes = await fetch(`${ML_API}/orders/${sale.externalId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!orderRes.ok) {
+      throw new BadRequestException(`No se pudo consultar la orden #${sale.externalId} en Mercado Libre (HTTP ${orderRes.status}).`);
+    }
+    const mlOrder = await orderRes.json() as any;
+    if (mlOrder.status === 'cancelled') {
+      throw new BadRequestException(`La orden #${sale.externalId} está cancelada en Mercado Libre: no se crea orden de despacho.`);
+    }
+
+    const shippingInfo = await this.getMlShippingInfo(mlOrder, token);
+    const toAgree = this.isMlToAgree(mlOrder);
+    const buyerContact = toAgree || this.isMaskedMlValue(shippingInfo.address?.receiverName)
+      ? await this.getMlBuyerContact(mlOrder, token) : null;
+
+    // ¿Esta venta ya descontó stock alguna vez? (si vino del webhook/cron, sí; si fue importada
+    // como historial, no). Solo se descuenta ahora si nunca lo hizo y el envío no ha salido.
+    const itemIds = sale.items.map((i) => i.id);
+    const alreadyMoved = await this.prisma.stockMovement.count({ where: { saleItemId: { in: itemIds }, type: MovementType.SALE } });
+    let shipmentStatus: string | null = null;
+    if (mlOrder.shipping?.id) {
+      const sr = await fetch(`${ML_API}/shipments/${mlOrder.shipping.id}`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      if (sr?.ok) shipmentStatus = ((await sr.json()) as any)?.status || null;
+    }
+    const notShippedYet = !shipmentStatus || ['pending', 'handling', 'ready_to_ship'].includes(shipmentStatus);
+    const deductStock = alreadyMoved === 0 && notShippedYet;
+
+    const warehouseCounts: Record<string, number> = {};
+    for (const i of sale.items) {
+      if (i.product.warehouseId) warehouseCounts[i.product.warehouseId] = (warehouseCounts[i.product.warehouseId] || 0) + i.quantity;
+    }
+    const warehouseId = Object.entries(warehouseCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          status: OrderStatus.PENDING,
+          fulfillmentType: FulfillmentType.DELIVERY,
+          customerName: (!this.isMaskedMlValue(shippingInfo.address?.receiverName) ? shippingInfo.address!.receiverName : null)
+            || buyerContact?.name || sale.customerName || mlOrder.buyer?.nickname || null,
+          customerPhone: (!this.isMaskedMlValue(shippingInfo.address?.receiverPhone) ? shippingInfo.address!.receiverPhone : null)
+            || buyerContact?.phone || sale.customerPhone || null,
+          customerEmail: buyerContact?.email || sale.customerEmail || null,
+          address: shippingInfo.address?.addressLine || buyerContact?.address || null,
+          commune: shippingInfo.address?.commune || buyerContact?.commune || null,
+          region: shippingInfo.address?.region || buyerContact?.region || null,
+          courier: toAgree ? ML_TO_AGREE_COURIER : shippingInfo.method,
+          trackingCode: shippingInfo.trackingCode,
+          notes: toAgree && buyerContact ? this.mlToAgreeNote(mlOrder, buyerContact) : undefined,
+          companyId: sale.companyId,
+          saleId: sale.id,
+          warehouseId: warehouseId || undefined,
+          itemChecks: {
+            create: sale.items.map((i) => ({
+              productId: i.productId, productName: i.product.name, productSku: i.product.sku, expectedQty: i.quantity,
+            })),
+          },
+        },
+      });
+      await tx.orderStatusEvent.create({
+        data: {
+          orderId: order.id, status: OrderStatus.PENDING, source: OrderEventSource.MERCADO_LIBRE,
+          title: 'Orden de despacho recreada desde Mercado Libre',
+          detail: deductStock ? `Orden #${sale.externalId} · se descontó el stock` : `Orden #${sale.externalId} · sin mover stock`,
+          occurredAt: new Date(),
+        },
+      });
+      if (deductStock) {
+        for (const item of sale.items) {
+          const listing = await tx.listing.findFirst({
+            where: { productId: item.productId, connectionId: sale.connectionId! },
+            include: { product: true, connection: true },
+          });
+          if (listing) await this.applyItemStockEffects(tx, sale.companyId, sale.externalId!, listing, item.quantity, item.id);
+        }
+      }
+      return order;
+    });
+
+    // Estado del envío (en camino/entregada/cancelada) e historial de seguimiento desde ML.
+    await this.syncInternalOrderFromMl(mlOrder, token).catch((err) =>
+      this.logger.warn(`Recrear orden ${created.id}: no se pudo sincronizar el estado con ML: ${err?.message || err}`));
+
+    const order = await this.prisma.order.findUnique({ where: { id: created.id }, select: { id: true, status: true } });
+    return {
+      ...order,
+      stockDeducted: deductStock,
+      marketplaceStatus: shipmentStatus || mlOrder.status || 'sin envío',
+    };
+  }
+
   // Una orden de ML ya registrada: es la que creó la venta (externalId) o una orden del mismo
   // pack/envío que se fusionó en ella (mlMergedOrderIds).
   private mlOrderMatch(orderId: string) {
