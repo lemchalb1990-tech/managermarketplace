@@ -351,6 +351,11 @@ export class PosService {
         { customerName: { contains: term, mode: 'insensitive' } },
         { items: { some: { product: { name: { contains: term, mode: 'insensitive' } } } } },
         { items: { some: { product: { sku: { contains: term, mode: 'insensitive' } } } } },
+        // Número de orden del marketplace, pack (carrito), órdenes fusionadas al pack o envío.
+        { externalId: { contains: term, mode: 'insensitive' } },
+        { mlPackId: { contains: term } },
+        { mlShippingId: { contains: term } },
+        { mlMergedOrderIds: { has: term } },
       ];
     }
 

@@ -116,6 +116,9 @@ export class OrdersService {
         { id: { contains: search, mode: 'insensitive' } },
         { trackingCode: { contains: search, mode: 'insensitive' } },
         { sale: { externalId: { contains: search, mode: 'insensitive' } } },
+        { sale: { mlPackId: { contains: search } } },
+        { sale: { mlShippingId: { contains: search } } },
+        { sale: { mlMergedOrderIds: { has: search } } },
       ];
     }
 
