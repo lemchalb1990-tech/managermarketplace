@@ -149,6 +149,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  const [reimporting, setReimporting] = useState(false);
+
+  async function handleReimportFromMl() {
+    if (!order?.sale?.id) return;
+    if (!(await confirmDialog('¿Reimportar esta venta desde Mercado Libre? Se vuelven a leer sus datos y se SOBRESCRIBEN el cliente, la dirección y el envío, los montos y la comisión (también lo editado a mano en la orden). Se conservan el stock, los productos verificados, la factura y el historial.', { danger: true }))) return;
+    setReimporting(true);
+    setLabelError('');
+    try {
+      const token = getToken()!;
+      const res = await api.marketplace.reimportSale(order.sale.id, token);
+      await load();
+      await alertDialog(`Reimportada desde Mercado Libre.\nCliente: ${res.before.customerName || '—'} → ${res.after.customerName || '—'}\nTotal: $${Math.round(res.before.total).toLocaleString('es-CL')} → $${Math.round(res.after.total).toLocaleString('es-CL')}${res.orderRecreated ? '\nSe recreó la orden de despacho.' : ''}${res.itemsWarning ? `\n\n⚠ ${res.itemsWarning}` : ''}`);
+    } catch (err: any) {
+      setLabelError(err.message || 'No se pudo reimportar desde Mercado Libre.');
+    } finally {
+      setReimporting(false);
+    }
+  }
+
   async function handleCheck(item: any) {
     const qty = checkQty[item.id] ?? item.expectedQty;
     setCheckLoading((l) => ({ ...l, [item.id]: true }));
@@ -847,10 +866,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold text-gray-800 text-sm">Venta de origen</h2>
                 {isMlOrder && isAdmin && (
-                  <button onClick={handleRefreshFromMl} disabled={labelLoading}
-                    className="px-2 py-1.5 -my-1.5 -mr-2 text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
-                    {labelLoading ? 'Actualizando...' : 'Actualizar desde ML'}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={handleRefreshFromMl} disabled={labelLoading || reimporting}
+                      title="Completa solo los datos vacíos (no pisa lo editado a mano)"
+                      className="px-2 py-1.5 -my-1.5 text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+                      {labelLoading ? 'Actualizando...' : 'Actualizar desde ML'}
+                    </button>
+                    <button onClick={handleReimportFromMl} disabled={labelLoading || reimporting}
+                      title="Vuelve a leer la venta en Mercado Libre y sobrescribe cliente, envío y montos"
+                      className="px-2 py-1.5 -my-1.5 -mr-2 text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
+                      {reimporting ? 'Reimportando...' : 'Reimportar desde ML'}
+                    </button>
+                  </div>
                 )}
               </div>
               {labelError && <p className="text-xs text-red-600 mb-2">{labelError}</p>}

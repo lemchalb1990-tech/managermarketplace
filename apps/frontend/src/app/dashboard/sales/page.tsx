@@ -71,6 +71,7 @@ export default function SalesPage() {
   const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creatingOrderId, setCreatingOrderId] = useState<string | null>(null);
+  const [reimportingId, setReimportingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -137,6 +138,20 @@ export default function SalesPage() {
       await alertDialog(err.message || 'No se pudo crear la orden.');
     } finally {
       setCreatingOrderId(null);
+    }
+  }
+
+  async function handleReimportSale(sale: any) {
+    if (!(await confirmDialog('¿Reimportar esta venta desde Mercado Libre? Se vuelven a leer sus datos y se SOBRESCRIBEN el cliente, la dirección y el envío, los montos y la comisión (también lo editado a mano en la orden). Se conservan el stock, los productos verificados, la factura y el historial.', { danger: true }))) return;
+    setReimportingId(sale.id);
+    try {
+      const res = await api.marketplace.reimportSale(sale.id, token);
+      await loadSales(page);
+      await alertDialog(`Reimportada desde Mercado Libre.\nCliente: ${res.before.customerName || '—'} → ${res.after.customerName || '—'}\nTotal: $${Math.round(res.before.total).toLocaleString('es-CL')} → $${Math.round(res.after.total).toLocaleString('es-CL')}${res.orderRecreated ? '\nSe recreó la orden de despacho.' : ''}${res.itemsWarning ? `\n\n⚠ ${res.itemsWarning}` : ''}`);
+    } catch (err: any) {
+      await alertDialog(err.message || 'No se pudo reimportar desde Mercado Libre.');
+    } finally {
+      setReimportingId(null);
     }
   }
 
@@ -560,6 +575,16 @@ export default function SalesPage() {
                           className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
                         >
                           {creatingOrderId === sale.id ? 'Creando orden...' : 'Crear orden de despacho'}
+                        </button>
+                      )}
+                      {sale.channel === 'MERCADO_LIBRE' && sale.connection && sale.externalId && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleReimportSale(sale); }}
+                          disabled={reimportingId === sale.id}
+                          title="Vuelve a leer la venta en Mercado Libre y sobrescribe cliente, envío y montos"
+                          className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50"
+                        >
+                          {reimportingId === sale.id ? 'Reimportando...' : 'Reimportar desde ML'}
                         </button>
                       )}
                       <Link href={`/dashboard/billing/invoices/new?saleId=${sale.id}`}

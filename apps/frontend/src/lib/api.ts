@@ -451,6 +451,14 @@ export const api = {
     // withDetail: "etiqueta con detalle" (la etiqueta + una página con los productos del pedido).
     printLabel: (orderId: string, token: string, withDetail = false) =>
       apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label${withDetail ? '?detail=1' : ''}`, token),
+    // Vuelve a leer la venta en ML y SOBRESCRIBE sus datos y los de su orden (o la recrea).
+    reimportSale: (saleId: string, token: string) =>
+      apiFetch<{
+        saleId: string; orderId: string | null; orderRecreated: boolean; toAgree: boolean;
+        before: { customerName: string | null; total: number; netAmount: number | null };
+        after: { customerName: string | null; total: number; netAmount: number };
+        itemsMatch: boolean; itemsWarning: string | null;
+      }>(`/ecommerce/ml/sales/${saleId}/reimport`, { method: 'POST' }, token),
     refreshOrder: (orderId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/orders/${orderId}/refresh`, { method: 'POST' }, token),
     printLabelsBulk: (orderIds: string[], token: string, withDetail = false) =>

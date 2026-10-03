@@ -2224,6 +2224,142 @@ export class MercadolibreService {
     return { checked: candidates.length, affected: affected.length, applied: !!opts.apply, sales: affected };
   }
 
+  // ─── Reimportar una venta desde Mercado Libre ────────────────────────────────
+  // Una venta de ML no se puede borrar y volver a importar (ya movió stock, puede tener factura y
+  // la orden tiene historial). En cambio, se vuelven a leer de ML la(s) orden(es) de la venta y se
+  // SOBRESCRIBEN sus datos: cliente, dirección y envío, montos/comisión/neto, y lo mismo en la
+  // orden de despacho (o se recrea si se había eliminado). Stock, productos verificados, factura
+  // e historial se conservan; si los productos/cantidades no calzan con ML solo se informa.
+  async reimportSaleFromMl(saleId: string, user: any) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: { items: { include: { product: { select: { name: true } } } }, order: { select: { id: true } } },
+    });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && sale.companyId !== user.companyId) throw new ForbiddenException();
+    if (sale.channel !== SaleChannel.MERCADO_LIBRE || !sale.externalId || !sale.connectionId) {
+      throw new BadRequestException('Solo aplica a ventas de Mercado Libre con su tienda asociada.');
+    }
+
+    const token = await this.getValidToken(sale.connectionId);
+    const orderIds = [sale.externalId, ...sale.mlMergedOrderIds];
+    const mlOrders: any[] = [];
+    for (const id of orderIds) {
+      const res = await fetch(`${ML_API}/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        throw new BadRequestException(
+          `No se pudo leer la orden #${id} en Mercado Libre (HTTP ${res.status})` +
+          (res.status === 403 ? ': la tienda no tiene acceso a esa orden (¿está conectada con la cuenta correcta?).' : '.'),
+        );
+      }
+      mlOrders.push(await res.json());
+    }
+    const main = mlOrders[0];
+
+    // Montos con la misma regla que la importación original (processOrder).
+    const charges = this.computeOrderCharges(main);
+    const shippingInfo = await this.getMlShippingInfo(main, token);
+    if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
+    let total = Number(main.total_amount || 0);
+    let net = this.computeSellerNetAmount(main, charges);
+    let fee = charges.marketplaceFee;
+    for (const o of mlOrders.slice(1)) {
+      const c = this.computeOrderCharges(o);
+      const si = await this.getMlShippingInfo(o, token);
+      if (si.sellerCost != null) c.shippingCost = si.sellerCost;
+      total += Number(o.total_amount || 0);
+      net += this.computeSellerNetAmount(o, c);
+      fee += c.marketplaceFee;
+    }
+
+    const toAgree = this.isMlToAgree(main);
+    const contact = await this.getMlBuyerContact(main, token);
+    const receiverName = !this.isMaskedMlValue(shippingInfo.address?.receiverName) ? shippingInfo.address!.receiverName : null;
+    const receiverPhone = !this.isMaskedMlValue(shippingInfo.address?.receiverPhone) ? shippingInfo.address!.receiverPhone : null;
+    const customerName = receiverName || contact.name || main.buyer?.nickname || null;
+    const customerPhone = receiverPhone || contact.phone || null;
+
+    // Productos: solo se compara (cambiarlos movería stock); el detalle va en la respuesta.
+    const mlQty = new Map<string, number>();
+    for (const o of mlOrders) {
+      for (const oi of o.order_items || []) {
+        const listing = await this.prisma.listing.findFirst({
+          where: { externalId: oi.item?.id, connectionId: sale.connectionId }, select: { productId: true },
+        });
+        const key = listing?.productId || `ml:${oi.item?.title}`;
+        mlQty.set(key, (mlQty.get(key) || 0) + (oi.quantity || 1));
+      }
+    }
+    const saleQty = new Map<string, number>();
+    for (const i of sale.items) saleQty.set(i.productId, (saleQty.get(i.productId) || 0) + i.quantity);
+    const itemsMatch = mlQty.size === saleQty.size && [...mlQty].every(([k, q]) => saleQty.get(k) === q);
+
+    const before = { customerName: sale.customerName, total: Number(sale.total), netAmount: sale.netAmount != null ? Number(sale.netAmount) : null };
+    await this.prisma.sale.update({
+      where: { id: sale.id },
+      data: {
+        total,
+        shippingCost: charges.shippingCost,
+        marketplaceFee: fee,
+        taxes: charges.taxes,
+        discount: charges.coupon,
+        netAmount: net,
+        shippingMethod: shippingInfo.method,
+        customerName,
+        customerPhone,
+        customerEmail: contact.email || sale.customerEmail,
+        mlPackId: main.pack_id != null ? String(main.pack_id) : sale.mlPackId,
+        mlShippingId: main.shipping?.id != null ? String(main.shipping.id) : sale.mlShippingId,
+      },
+    });
+
+    let orderId = sale.order?.id || null;
+    let orderRecreated = false;
+    if (orderId) {
+      const current = await this.prisma.order.findUnique({ where: { id: orderId }, select: { notes: true } });
+      // La nota de "a acordar" se regenera; el resto de las notas internas se conserva.
+      const otherNotes = (current?.notes || '').split('\n').filter((l) => l && !l.startsWith('Entrega a acordar') && !/^(RUT|DNI|CI|Documento|[A-Z]{2,5}): /.test(l));
+      const notes = [...otherNotes, ...(toAgree ? [this.mlToAgreeNote(main, contact)] : [])].join('\n') || null;
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          customerName,
+          customerPhone,
+          customerEmail: contact.email || null,
+          address: shippingInfo.address?.addressLine || contact.address || null,
+          commune: shippingInfo.address?.commune || contact.commune || null,
+          region: shippingInfo.address?.region || contact.region || null,
+          courier: toAgree ? ML_TO_AGREE_COURIER : shippingInfo.method,
+          trackingCode: shippingInfo.trackingCode,
+          notes,
+        },
+      });
+      await this.prisma.orderStatusEvent.create({
+        data: {
+          orderId, source: OrderEventSource.MERCADO_LIBRE, title: 'Datos reimportados desde Mercado Libre',
+          detail: `Cliente, envío y montos actualizados · venta #${sale.externalId}`, occurredAt: new Date(),
+        },
+      });
+      await this.syncInternalOrderFromMl(main, token).catch(() => false);
+    } else {
+      const created = await this.createOrderForExistingSale(sale.id, user);
+      orderId = created.id || null;
+      orderRecreated = true;
+    }
+
+    return {
+      saleId: sale.id,
+      orderId,
+      orderRecreated,
+      toAgree,
+      before,
+      after: { customerName, total, netAmount: net },
+      itemsMatch,
+      itemsWarning: itemsMatch ? null
+        : 'Los productos o cantidades de la venta no coinciden con Mercado Libre. No se cambiaron (moverían stock): revísalos o usa la revisión de ventas de carrito duplicadas.',
+    };
+  }
+
   // ─── Recrear la orden de despacho de una venta ya registrada ─────────────────
   // Caso típico: se eliminó la orden (Órdenes → Eliminar) para "reimportarla", pero la venta
   // sigue registrada y la importación la salta. Reimportar duplicaría la venta y el descuento de

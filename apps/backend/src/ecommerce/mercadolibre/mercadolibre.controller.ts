@@ -311,6 +311,14 @@ export class MercadolibreController {
   }
 
   // TEMPORAL: diagnóstico directo de una orden puntual (ver mercadolibre.service.ts).
+  // Vuelve a leer la venta en Mercado Libre y sobrescribe sus datos y los de su orden.
+  @Post('sales/:saleId/reimport')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  reimportSale(@Param('saleId') saleId: string, @CurrentUser() user: any) {
+    return this.service.reimportSaleFromMl(saleId, user);
+  }
+
   // Revisa (y con apply=true corrige) ventas de pack con productos duplicados por el bug de
   // fusión repetida. Sin apply solo informa qué cambiaría.
   @Post('sales/repair-pack-duplicates')
