@@ -1,3 +1,4 @@
+import { buildLabelsPdf, LabelDetailOrder } from './label-detail';
 import {
   Injectable, Logger, BadRequestException, NotFoundException,
   InternalServerErrorException, ForbiddenException,
@@ -2609,17 +2610,54 @@ export class MercadolibreService {
     return updated;
   }
 
-  async printShippingLabel(orderId: string, user: any): Promise<Buffer> {
-    const { order, shippingId, token, shipment } = await this.resolvePrintableShipment(orderId, user);
-
-    const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${shippingId}&response_type=pdf`, {
+  // PDF de la etiqueta de Mercado Envíos de uno o varios envíos (una sola cuenta/token).
+  private async fetchLabelPdf(shippingIds: string, token: string): Promise<Buffer> {
+    const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${shippingIds}&response_type=pdf`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!labelRes.ok) {
       const text = await labelRes.text().catch(() => '');
       throw new BadRequestException(`Mercado Libre no entregó la etiqueta (HTTP ${labelRes.status}). ${text.slice(0, 200)}`);
     }
-    const buffer = Buffer.from(await labelRes.arrayBuffer());
+    return Buffer.from(await labelRes.arrayBuffer());
+  }
+
+  // Datos de la página "detalle del pedido" que acompaña a la etiqueta (ver label-detail.ts).
+  private async loadLabelDetail(orderId: string): Promise<LabelDetailOrder | null> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        itemChecks: {
+          orderBy: { productName: 'asc' },
+          include: { product: { select: { images: { select: { url: true }, orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1 } } } },
+        },
+        sale: { select: { externalId: true, mlPackId: true, connection: { select: { name: true } } } },
+      },
+    });
+    if (!order) return null;
+    return {
+      orderNumber: order.sale?.externalId || order.id.slice(-6).toUpperCase(),
+      packId: order.sale?.mlPackId,
+      storeName: order.sale?.connection?.name,
+      customerName: order.customerName,
+      commune: order.commune,
+      courier: order.courier,
+      trackingCode: order.trackingCode,
+      notes: order.notes,
+      items: order.itemChecks.map((i) => ({
+        name: i.productName, sku: i.productSku, quantity: i.expectedQty, imageUrl: i.product?.images?.[0]?.url || null,
+      })),
+    };
+  }
+
+  // withDetail: después de la etiqueta agrega una página con los productos del pedido.
+  async printShippingLabel(orderId: string, user: any, withDetail = false): Promise<Buffer> {
+    const { order, shippingId, token, shipment } = await this.resolvePrintableShipment(orderId, user);
+
+    const label = await this.fetchLabelPdf(String(shippingId), token);
+    const buffer = withDetail
+      ? await buildLabelsPdf([{ label, detail: await this.loadLabelDetail(order.id) }])
+      : label;
 
     await this.advanceAfterLabelPrint(order, shipment);
 
@@ -2632,6 +2670,7 @@ export class MercadolibreService {
   async printShippingLabelsBulk(
     orderIds: string[],
     user: any,
+    withDetail = false,
   ): Promise<{ pdfs: { connectionName: string; buffer: Buffer }[]; printed: string[]; errors: { orderId: string; message: string }[] }> {
     if (orderIds.length > 50) throw new BadRequestException('Máximo 50 órdenes por impresión masiva.');
 
@@ -2665,19 +2704,34 @@ export class MercadolibreService {
     const pdfs: { connectionName: string; buffer: Buffer }[] = [];
 
     for (const [connectionId, items] of byConnection) {
-      const ids = items.map((i) => i.shippingId).join(',');
-      const labelRes = await fetch(`${ML_API}/shipment_labels?shipment_ids=${ids}&response_type=pdf`, {
-        headers: { Authorization: `Bearer ${items[0].token}` },
-      });
-      if (!labelRes.ok) {
-        const text = await labelRes.text().catch(() => '');
-        for (const i of items) errors.push({ orderId: i.orderId, message: `Mercado Libre no entregó la etiqueta (HTTP ${labelRes.status}). ${text.slice(0, 150)}` });
-        continue;
-      }
-      const buffer = Buffer.from(await labelRes.arrayBuffer());
       const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId }, select: { name: true } });
+      let buffer: Buffer;
+      let ok = items;
+      if (!withDetail) {
+        try {
+          buffer = await this.fetchLabelPdf(items.map((i) => i.shippingId).join(','), items[0].token);
+        } catch (err: any) {
+          for (const i of items) errors.push({ orderId: i.orderId, message: err?.message || 'Mercado Libre no entregó la etiqueta' });
+          continue;
+        }
+      } else {
+        // Con detalle: una etiqueta por envío para intercalar su página de productos a continuación
+        // (del PDF combinado de ML no se puede saber qué página es de qué orden).
+        const entries: { label: Buffer; detail: LabelDetailOrder | null }[] = [];
+        ok = [];
+        for (const i of items) {
+          try {
+            entries.push({ label: await this.fetchLabelPdf(String(i.shippingId), i.token), detail: await this.loadLabelDetail(i.order.id) });
+            ok.push(i);
+          } catch (err: any) {
+            errors.push({ orderId: i.orderId, message: err?.message || 'Mercado Libre no entregó la etiqueta' });
+          }
+        }
+        if (!entries.length) continue;
+        buffer = await buildLabelsPdf(entries);
+      }
       pdfs.push({ connectionName: conn?.name || 'Mercado Libre', buffer });
-      for (const i of items) {
+      for (const i of ok) {
         await this.advanceAfterLabelPrint(i.order, i.shipment);
         printed.push(i.orderId);
       }

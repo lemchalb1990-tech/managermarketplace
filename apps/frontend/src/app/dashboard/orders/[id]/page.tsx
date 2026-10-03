@@ -116,17 +116,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  async function handlePrintLabel() {
+  // Qué etiqueta se está obteniendo: 'pack' = de embalaje, 'detail' = con detalle de productos.
+  const [labelMode, setLabelMode] = useState<'pack' | 'detail' | null>(null);
+
+  async function handlePrintLabel(withDetail = false) {
     setLabelError('');
     setLabelLoading(true);
+    setLabelMode(withDetail ? 'detail' : 'pack');
     try {
       const token = getToken()!;
-      await api.marketplace.printLabel(id, token);
+      await api.marketplace.printLabel(id, token, withDetail);
       await load();
     } catch (err: any) {
       setLabelError(err.message || 'No se pudo obtener la etiqueta de Mercado Libre.');
     } finally {
       setLabelLoading(false);
+      setLabelMode(null);
     }
   }
 
@@ -382,24 +387,39 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto sm:shrink-0 border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
             {isAdmin && mlShipped && order.status === 'PENDING' && (
               <div className="flex flex-col items-stretch sm:items-end gap-1">
-                <button
-                  onClick={handlePrintLabel}
-                  disabled={labelLoading}
-                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
-                >
-                  {labelLoading ? 'Obteniendo etiqueta...' : 'Imprimir etiqueta de envío'} →
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => handlePrintLabel(false)}
+                    disabled={labelLoading}
+                    title="Solo la etiqueta de Mercado Envíos para pegar en el paquete"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+                  >
+                    {labelMode === 'pack' ? 'Obteniendo etiqueta...' : '🏷 Etiqueta de embalaje'}
+                  </button>
+                  <button
+                    onClick={() => handlePrintLabel(true)}
+                    disabled={labelLoading}
+                    title="La etiqueta + una página con los productos del pedido (foto, nombre, SKU y cantidad)"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                  >
+                    {labelMode === 'detail' ? 'Generando...' : '📋 Etiqueta con detalle'}
+                  </button>
+                </div>
                 {labelError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>}
               </div>
             )}
             {isAdmin && mlShipped && ['PREPARING', 'READY'].includes(order.status) && (
-              <button
-                onClick={handlePrintLabel}
-                disabled={labelLoading}
-                className="py-2 sm:py-0 rounded-lg border border-amber-200 sm:border-0 text-sm sm:text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
-              >
-                {labelLoading ? 'Obteniendo etiqueta...' : 'Reimprimir etiqueta de envío'}
-              </button>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:justify-end text-sm sm:text-xs">
+                <span className="text-gray-500">Reimprimir:</span>
+                <button onClick={() => handlePrintLabel(false)} disabled={labelLoading}
+                  className="py-2 sm:py-0 text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50">
+                  {labelMode === 'pack' ? 'Obteniendo...' : 'Etiqueta de embalaje'}
+                </button>
+                <button onClick={() => handlePrintLabel(true)} disabled={labelLoading}
+                  className="py-2 sm:py-0 text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50">
+                  {labelMode === 'detail' ? 'Generando...' : 'Etiqueta con detalle'}
+                </button>
+              </div>
             )}
             {isAdmin && mlShipped && ['PREPARING', 'READY'].includes(order.status) && labelError && (
               <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>

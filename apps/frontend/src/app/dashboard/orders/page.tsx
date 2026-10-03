@@ -118,7 +118,9 @@ export default function OrdersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkPrinting, setBulkPrinting] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  // Etiqueta en curso: `${orderId}:pack` (embalaje) o `${orderId}:detail` (con detalle).
   const [printingId, setPrintingId] = useState('');
+  const [bulkMode, setBulkMode] = useState<'pack' | 'detail' | null>(null);
   const [viewer, setViewer] = useState<Viewer>(null);
 
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
@@ -205,13 +207,14 @@ export default function OrdersPage() {
     setSelectedIds(allSelected ? new Set() : new Set(allIds));
   }
 
-  async function handleBulkPrint() {
+  async function handleBulkPrint(withDetail = false) {
     if (selectedIds.size === 0) return;
     setBulkPrinting(true);
+    setBulkMode(withDetail ? 'detail' : 'pack');
     setBulkError('');
     try {
       const token = getToken()!;
-      const res = await api.marketplace.printLabelsBulk(Array.from(selectedIds), token);
+      const res = await api.marketplace.printLabelsBulk(Array.from(selectedIds), token, withDetail);
       res.pdfs.forEach((p) => openBase64Pdf(p.base64));
       const parts = [`${res.printed.length} etiqueta(s) impresa(s)`];
       if (res.errors.length) parts.push(`${res.errors.length} con error: ${res.errors.map((e) => e.message).join('; ')}`);
@@ -222,6 +225,7 @@ export default function OrdersPage() {
       setBulkError(err.message || 'No se pudieron imprimir las etiquetas.');
     } finally {
       setBulkPrinting(false);
+      setBulkMode(null);
     }
   }
 
@@ -260,19 +264,19 @@ export default function OrdersPage() {
   const marketplaceStatus = (o: any) => (o.statusEvents[0].source === 'MERCADO_LIBRE' ? o.statusEvents[0].title : o.statusEvents[0].externalStatus);
 
   // Etiqueta rápida (mismas reglas que el detalle): imprimir si está pendiente, reimprimir en preparación/lista.
-  function labelAction(o: any): { text: string; primary: boolean } | null {
+  function labelAction(o: any): { primary: boolean } | null {
     if (!isAdmin || !hasMlLabel(o)) return null;
-    if (o.status === 'PENDING') return { text: 'Imprimir etiqueta', primary: true };
-    if (o.status === 'PREPARING' || o.status === 'READY') return { text: 'Reimprimir etiqueta', primary: false };
+    if (o.status === 'PENDING') return { primary: true };
+    if (o.status === 'PREPARING' || o.status === 'READY') return { primary: false };
     return null;
   }
 
-  async function handlePrintOne(id: string) {
-    setPrintingId(id);
+  async function handlePrintOne(id: string, withDetail = false) {
+    setPrintingId(`${id}:${withDetail ? 'detail' : 'pack'}`);
     setBulkError('');
     try {
       const token = getToken()!;
-      await api.marketplace.printLabel(id, token);
+      await api.marketplace.printLabel(id, token, withDetail);
       await load(page, statusFilter);
     } catch (err: any) {
       setBulkError(err.message || 'No se pudo obtener la etiqueta de Mercado Libre.');
@@ -442,10 +446,18 @@ export default function OrdersPage() {
       {selectedIds.size > 0 && (
         <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">
           <span className="text-xs text-amber-800">{selectedIds.size} orden(es) de Mercado Libre seleccionada(s)</span>
-          <button onClick={handleBulkPrint} disabled={bulkPrinting}
-            className="ml-auto px-3 py-2 md:py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
-            {bulkPrinting ? 'Imprimiendo...' : `Imprimir etiquetas (${selectedIds.size})`}
-          </button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <button onClick={() => handleBulkPrint(false)} disabled={bulkPrinting}
+              title="Solo las etiquetas de Mercado Envíos"
+              className="px-3 py-2 md:py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+              {bulkMode === 'pack' ? 'Imprimiendo...' : `🏷 Etiquetas de embalaje (${selectedIds.size})`}
+            </button>
+            <button onClick={() => handleBulkPrint(true)} disabled={bulkPrinting}
+              title="Cada etiqueta seguida de una página con los productos del pedido"
+              className="px-3 py-2 md:py-1.5 border-2 border-amber-500 text-amber-800 bg-white hover:bg-amber-50 rounded-lg text-xs font-semibold disabled:opacity-50">
+              {bulkMode === 'detail' ? 'Generando...' : `📋 Etiquetas con detalle (${selectedIds.size})`}
+            </button>
+          </div>
           <button onClick={() => setSelectedIds(new Set())} className="text-xs text-amber-700 hover:text-amber-900 underline">
             Quitar selección
           </button>
@@ -527,12 +539,18 @@ export default function OrdersPage() {
                   {(label || currentUser?.role === 'SUPER_ADMIN') && (
                     <div className="mt-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
                       {label && (
-                        <button onClick={() => handlePrintOne(o.id)} disabled={printingId === o.id}
-                          className={`flex-1 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 ${
-                            label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
-                          }`}>
-                          {printingId === o.id ? 'Obteniendo etiqueta...' : label.text}
-                        </button>
+                        <>
+                          <button onClick={() => handlePrintOne(o.id, false)} disabled={!!printingId}
+                            className={`flex-1 py-2 rounded-lg text-xs font-semibold disabled:opacity-50 ${
+                              label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
+                            }`}>
+                            {printingId === `${o.id}:pack` ? 'Obteniendo...' : `🏷 ${label.primary ? '' : 'Reimprimir '}Embalaje`}
+                          </button>
+                          <button onClick={() => handlePrintOne(o.id, true)} disabled={!!printingId}
+                            className="flex-1 py-2 rounded-lg text-xs font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-50">
+                            {printingId === `${o.id}:detail` ? 'Generando...' : `📋 ${label.primary ? '' : 'Reimprimir '}Con detalle`}
+                          </button>
+                        </>
                       )}
                       {currentUser?.role === 'SUPER_ADMIN' && (
                         <button onClick={() => handleDelete(o.id)} disabled={deletingId === o.id}
@@ -619,12 +637,21 @@ export default function OrdersPage() {
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-end gap-1.5">
                           {label && (
-                            <button onClick={() => handlePrintOne(o.id)} disabled={printingId === o.id}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-50 ${
-                                label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
-                              }`}>
-                              {printingId === o.id ? 'Obteniendo...' : label.text}
-                            </button>
+                            <div className="flex flex-col items-stretch gap-1">
+                              <span className="text-[10px] text-gray-400 text-right">{label.primary ? 'Imprimir etiqueta' : 'Reimprimir etiqueta'}</span>
+                              <button onClick={() => handlePrintOne(o.id, false)} disabled={!!printingId}
+                                title="Solo la etiqueta de Mercado Envíos"
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-50 ${
+                                  label.primary ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'
+                                }`}>
+                                {printingId === `${o.id}:pack` ? 'Obteniendo...' : '🏷 Embalaje'}
+                              </button>
+                              <button onClick={() => handlePrintOne(o.id, true)} disabled={!!printingId}
+                                title="La etiqueta + una página con los productos del pedido"
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-50">
+                                {printingId === `${o.id}:detail` ? 'Generando...' : '📋 Con detalle'}
+                              </button>
+                            </div>
                           )}
                           <div className="flex items-center gap-3">
                             <Link href={`/dashboard/orders/${o.id}`} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Ver →</Link>

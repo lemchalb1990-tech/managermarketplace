@@ -3,7 +3,7 @@ import {
   UseGuards, Res, Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -22,6 +22,8 @@ class SaveCredentialsDto {
 
 class PrintLabelsBulkDto {
   @IsArray() @IsString({ each: true }) orderIds: string[];
+  // true = "etiqueta con detalle": cada etiqueta seguida de una página con los productos.
+  @IsOptional() @IsBoolean() withDetail?: boolean;
 }
 
 class MergeDuplicateSalesDto {
@@ -154,10 +156,11 @@ export class MercadolibreController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   async printShippingLabel(
     @Param('orderId') orderId: string,
+    @Query('detail') detail: string,
     @CurrentUser() user: any,
     @Res() res: Response,
   ) {
-    const buffer = await this.service.printShippingLabel(orderId, user);
+    const buffer = await this.service.printShippingLabel(orderId, user, detail === '1' || detail === 'true');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="etiqueta-envio.pdf"');
     res.send(buffer);
@@ -170,7 +173,7 @@ export class MercadolibreController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   async printShippingLabelsBulk(@Body() dto: PrintLabelsBulkDto, @CurrentUser() user: any) {
-    const { pdfs, printed, errors } = await this.service.printShippingLabelsBulk(dto.orderIds, user);
+    const { pdfs, printed, errors } = await this.service.printShippingLabelsBulk(dto.orderIds, user, !!dto.withDetail);
     return {
       pdfs: pdfs.map((p) => ({ connectionName: p.connectionName, base64: p.buffer.toString('base64') })),
       printed,

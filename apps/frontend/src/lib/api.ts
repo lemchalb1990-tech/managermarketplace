@@ -448,16 +448,17 @@ export const api = {
         `/ecommerce/ml/connections/${id}/refresh`, { method: 'POST' }, token),
     debugOrder: (connectionId: string, orderId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/connections/${connectionId}/debug-order/${orderId}`, {}, token),
-    printLabel: (orderId: string, token: string) =>
-      apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label`, token),
+    // withDetail: "etiqueta con detalle" (la etiqueta + una página con los productos del pedido).
+    printLabel: (orderId: string, token: string, withDetail = false) =>
+      apiOpenPdf(`/ecommerce/ml/orders/${orderId}/label${withDetail ? '?detail=1' : ''}`, token),
     refreshOrder: (orderId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/orders/${orderId}/refresh`, { method: 'POST' }, token),
-    printLabelsBulk: (orderIds: string[], token: string) =>
+    printLabelsBulk: (orderIds: string[], token: string, withDetail = false) =>
       apiFetch<{
         pdfs: { connectionName: string; base64: string }[];
         printed: string[];
         errors: { orderId: string; message: string }[];
-      }>('/ecommerce/ml/orders/print-labels-bulk', { method: 'POST', body: JSON.stringify({ orderIds }) }, token),
+      }>('/ecommerce/ml/orders/print-labels-bulk', { method: 'POST', body: JSON.stringify({ orderIds, withDetail }) }, token),
     publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[]) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',
