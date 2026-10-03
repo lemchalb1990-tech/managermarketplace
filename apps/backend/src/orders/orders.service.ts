@@ -124,7 +124,7 @@ export class OrdersService {
           warehouse: { select: { id: true, name: true } },
           sale: {
             select: {
-              id: true, channel: true, total: true, externalId: true,
+              id: true, channel: true, total: true, externalId: true, mlShippingId: true,
               connection: { select: { id: true, name: true } },
             },
           },
@@ -269,7 +269,10 @@ export class OrdersService {
       );
     }
 
-    if (order.sale?.channel === 'MERCADO_LIBRE') {
+    // Venta de ML con entrega "a acordar con el vendedor": no hay envío de Mercado Envíos, así que
+    // ML nunca informará despacho ni entrega — esos pasos los gestiona el panel como cualquier orden.
+    const mlToAgree = order.sale?.channel === 'MERCADO_LIBRE' && !order.sale?.mlShippingId;
+    if (order.sale?.channel === 'MERCADO_LIBRE' && !mlToAgree) {
       if (ML_MANAGED_STATUSES.includes(dto.status)) {
         throw new BadRequestException(
           'En ventas de Mercado Libre el despacho y la entrega los actualiza Mercado Libre según el estado del envío.',

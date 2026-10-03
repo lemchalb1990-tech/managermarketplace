@@ -72,6 +72,22 @@ interface MlShippingAddress {
   receiverPhone: string | null;
 }
 
+// Datos del comprador cuando la venta NO usa Mercado Envíos ("acordar con el vendedor"): no hay
+// receiver_address, así que se arman desde la orden (buyer) y su información de facturación.
+interface MlBuyerContact {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  docType: string | null;
+  docNumber: string | null;
+  address: string | null;
+  commune: string | null;
+  region: string | null;
+}
+
+// Venta de Mercado Libre sin envío de Mercado Envíos: la entrega se acuerda con el comprador.
+const ML_TO_AGREE_COURIER = 'Acordar con el comprador';
+
 type MlListingType = 'PRODUCTO' | 'VEHICULO' | 'INMUEBLE' | 'SERVICIO';
 const CLASSIFIED_ROOT_IDS: Record<Exclude<MlListingType, 'PRODUCTO'>, string> = {
   VEHICULO: 'MLC1743',
@@ -558,6 +574,68 @@ export class MercadolibreService {
   // si fuera el dato real, ni al crear la orden ni al refrescarla después.
   private isMaskedMlValue(v: string | null | undefined): boolean {
     return !v || /^x+$/i.test(v.trim());
+  }
+
+  // Sin shipping.id = la venta no usa Mercado Envíos: la entrega se acuerda con el comprador.
+  private isMlToAgree(order: any): boolean {
+    return order?.shipping?.id == null;
+  }
+
+  // Nombre, teléfono, RUT y dirección del comprador sin depender del envío. Fuentes, de más a
+  // menos confiable: la información de facturación de la orden (GET /orders/{id}/billing_info,
+  // formato v2 con x-version: 2 y, si no, el v1 con additional_info) y el buyer de la orden.
+  private async getMlBuyerContact(order: any, token: string): Promise<MlBuyerContact> {
+    const out: MlBuyerContact = { name: null, phone: null, email: null, docType: null, docNumber: null, address: null, commune: null, region: null };
+    const clean = (v: any) => {
+      const t = v == null ? '' : String(v).trim();
+      return t && !this.isMaskedMlValue(t) ? t : null;
+    };
+    const buyer = order.buyer || {};
+
+    for (const version of ['2', null] as const) {
+      try {
+        const res = await fetch(`${ML_API}/orders/${order.id}/billing_info`, {
+          headers: { Authorization: `Bearer ${token}`, ...(version ? { 'x-version': version } : {}) },
+        });
+        if (!res.ok) continue;
+        const data = await res.json() as any;
+        const bi = data?.buyer?.billing_info || data?.billing_info || data;
+        // v2: { name, last_name, identification: { type, number }, address: { street_name, ... } }
+        // v1: { doc_type, doc_number, additional_info: [{ type: 'FIRST_NAME', value }, ...] }
+        const extra: Record<string, string> = {};
+        for (const it of bi?.additional_info || []) if (it?.type) extra[String(it.type).toUpperCase()] = it.value;
+        const addr = bi?.address || {};
+        const name = [clean(bi?.name) ?? clean(extra.FIRST_NAME), clean(bi?.last_name) ?? clean(extra.LAST_NAME)].filter(Boolean).join(' ')
+          || clean(extra.BUSINESS_NAME);
+        out.name = out.name || name || null;
+        out.docType = out.docType || clean(bi?.identification?.type) || clean(bi?.doc_type);
+        out.docNumber = out.docNumber || clean(bi?.identification?.number) || clean(bi?.doc_number);
+        const street = [clean(addr.street_name) ?? clean(extra.STREET_NAME), clean(addr.street_number) ?? clean(extra.STREET_NUMBER)].filter(Boolean).join(' ');
+        const comment = clean(addr.comment) ?? clean(extra.COMMENT);
+        out.address = out.address || [street, comment].filter(Boolean).join(', ') || null;
+        out.commune = out.commune || clean(addr.city_name) || clean(addr.neighborhood) || clean(extra.CITY_NAME) || null;
+        out.region = out.region || clean(addr.state?.name) || clean(addr.state_name) || clean(extra.STATE_NAME) || null;
+        if (out.name && out.docNumber) break;
+      } catch {
+        /* se intenta con el otro formato / con el buyer de la orden */
+      }
+    }
+
+    out.name = out.name || [clean(buyer.first_name), clean(buyer.last_name)].filter(Boolean).join(' ') || null;
+    const phone = buyer.phone;
+    const phoneText = phone ? [clean(phone.area_code), clean(phone.number)].filter(Boolean).join(' ') : '';
+    out.phone = phoneText || null;
+    out.email = clean(buyer.email);
+    return out;
+  }
+
+  // Nota de gestión para una venta a acordar: cómo coordinar y el documento del comprador.
+  private mlToAgreeNote(order: any, contact: MlBuyerContact): string {
+    const parts = [
+      `Entrega a acordar con el comprador (sin Mercado Envíos): coordínala por la mensajería de Mercado Libre — comprador ${order.buyer?.nickname || ''}.`.replace(' — comprador .', '.'),
+      contact.docNumber ? `${contact.docType || 'Documento'}: ${contact.docNumber}` : null,
+    ];
+    return parts.filter(Boolean).join('\n');
   }
 
   // Texto que ve el comprador cuando escribió la descripción con el editor enriquecido
@@ -1393,7 +1471,14 @@ export class MercadolibreService {
 
     const billing = await this.findBillingDetailsForOrder(orderId, order.date_created, token);
 
+    // Datos del comprador sin envío ("acordar con el vendedor"): lo que se usaría para la orden.
+    const buyerContact = await this.getMlBuyerContact(order, token);
+
     return {
+      to_agree: this.isMlToAgree(order),
+      buyer: { id: order.buyer?.id, nickname: order.buyer?.nickname, first_name: order.buyer?.first_name, last_name: order.buyer?.last_name },
+      buyer_contact: buyerContact,
+      order_tags: order.tags,
       order_total_amount: order.total_amount,
       order_date_created: order.date_created,
       order_items: (order.order_items || []).map((oi: any) => ({ title: oi.item?.title, sale_fee: oi.sale_fee, unit_price: oi.unit_price })),
@@ -2065,6 +2150,11 @@ export class MercadolibreService {
     const shippingInfo = await this.getMlShippingInfo(order, token);
     if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
     charges.totalPaid = this.computeSellerNetAmount(order, charges);
+    // Sin envío (o con el nombre del receptor enmascarado) los datos del cliente salen del
+    // comprador y su facturación.
+    const toAgree = this.isMlToAgree(order);
+    const buyerContact = toAgree || this.isMaskedMlValue(shippingInfo.address?.receiverName)
+      ? await this.getMlBuyerContact(order, token) : null;
 
     // Carrito de compras de ML: si otro ítem de este mismo pack (o del mismo envío — ML no
     // siempre informa pack_id aunque comparta shipping.id con otra orden) ya generó la
@@ -2150,7 +2240,9 @@ export class MercadolibreService {
               shippingMethod: shippingInfo.method,
               companyId: companyId as string,
               connectionId: resolvedItems[0].listing.connectionId,
-              customerName: order.buyer?.nickname || null,
+              customerName: buyerContact?.name || order.buyer?.nickname || null,
+              customerEmail: buyerContact?.email || null,
+              customerPhone: buyerContact?.phone || null,
               // Sin esto, Prisma usa @default(now()) — la venta queda con la fecha en que se
               // corrió el webhook/importación en vez de la fecha real de la compra en ML.
               createdAt: new Date(order.date_created),
@@ -2180,17 +2272,21 @@ export class MercadolibreService {
               // A diferencia de POS (nace directo en Preparando), una venta de ML sí tiene
               // una espera real antes de empezar a prepararla: falta imprimir la etiqueta de
               // Mercado Envíos, que es lo que finalmente la deja Lista para el transportista.
+              // Sin Mercado Envíos ("acordar con el vendedor") no hay etiqueta: los datos salen
+              // del comprador/facturación y el avance lo gestiona el panel.
               status: OrderStatus.PENDING,
               fulfillmentType: FulfillmentType.DELIVERY,
-              customerName: !this.isMaskedMlValue(shippingInfo.address?.receiverName)
-                ? shippingInfo.address!.receiverName : (order.buyer?.nickname || null),
-              customerPhone: !this.isMaskedMlValue(shippingInfo.address?.receiverPhone)
-                ? shippingInfo.address!.receiverPhone : null,
-              address: shippingInfo.address?.addressLine || null,
-              commune: shippingInfo.address?.commune || null,
-              region: shippingInfo.address?.region || null,
-              courier: shippingInfo.method,
+              customerName: (!this.isMaskedMlValue(shippingInfo.address?.receiverName) ? shippingInfo.address!.receiverName : null)
+                || buyerContact?.name || order.buyer?.nickname || null,
+              customerPhone: (!this.isMaskedMlValue(shippingInfo.address?.receiverPhone) ? shippingInfo.address!.receiverPhone : null)
+                || buyerContact?.phone || null,
+              customerEmail: buyerContact?.email || null,
+              address: shippingInfo.address?.addressLine || buyerContact?.address || null,
+              commune: shippingInfo.address?.commune || buyerContact?.commune || null,
+              region: shippingInfo.address?.region || buyerContact?.region || null,
+              courier: toAgree ? ML_TO_AGREE_COURIER : shippingInfo.method,
               trackingCode: shippingInfo.trackingCode,
+              notes: toAgree && buyerContact ? this.mlToAgreeNote(order, buyerContact) : undefined,
               companyId: companyId as string,
               saleId: sale.id,
               warehouseId: autoWarehouseId || undefined,
@@ -2406,9 +2502,34 @@ export class MercadolibreService {
     const receiverName = shippingInfo.address?.receiverName;
     const receiverPhone = shippingInfo.address?.receiverPhone;
 
+    // Venta a acordar (sin envío): nombre real, RUT y dirección de facturación del comprador.
+    // Solo completa lo vacío o el apodo de ML que quedó como nombre; no pisa lo editado a mano.
+    const toAgree = this.isMlToAgree(mlOrder);
+    const contact = toAgree || this.isMaskedMlValue(receiverName) ? await this.getMlBuyerContact(mlOrder, token) : null;
+    const current = await this.prisma.order.findUnique({
+      where: { id: order.id },
+      select: { customerName: true, customerPhone: true, customerEmail: true, address: true, commune: true, region: true, courier: true, notes: true },
+    });
+    const nameIsNickname = !current?.customerName || current.customerName === mlOrder.buyer?.nickname;
+    const contactData: any = {};
+    if (contact) {
+      if (contact.name && nameIsNickname) contactData.customerName = contact.name;
+      if (contact.phone && !current?.customerPhone) contactData.customerPhone = contact.phone;
+      if (contact.email && !current?.customerEmail) contactData.customerEmail = contact.email;
+      if (contact.address && !current?.address) contactData.address = contact.address;
+      if (contact.commune && !current?.commune) contactData.commune = contact.commune;
+      if (contact.region && !current?.region) contactData.region = contact.region;
+    }
+    if (toAgree) {
+      if (!current?.courier) contactData.courier = ML_TO_AGREE_COURIER;
+      const note = this.mlToAgreeNote(mlOrder, contact || { name: null, phone: null, email: null, docType: null, docNumber: null, address: null, commune: null, region: null });
+      if (!current?.notes?.includes('Entrega a acordar')) contactData.notes = [current?.notes, note].filter(Boolean).join('\n');
+    }
+
     const updated = await this.prisma.order.update({
       where: { id: order.id },
       data: {
+        ...contactData,
         ...(shippingInfo.method ? { courier: shippingInfo.method } : {}),
         ...(shippingInfo.trackingCode ? { trackingCode: shippingInfo.trackingCode } : {}),
         ...(shippingInfo.address?.region ? { region: shippingInfo.address.region } : {}),

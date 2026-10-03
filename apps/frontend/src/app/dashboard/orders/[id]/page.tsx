@@ -253,6 +253,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     : order.id.slice(-6).toUpperCase();
 
   const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
+  // Venta de ML sin Mercado Envíos ("acordar con el vendedor"): no hay etiqueta ni seguimiento
+  // de ML, así que el avance (preparación, despacho, entrega) se gestiona desde el panel.
+  const mlToAgree = isMlOrder && !order.sale?.mlShippingId;
+  const mlShipped = isMlOrder && !mlToAgree;
   const nextAction: Record<string, { label: string; next: string; disabled?: boolean; reason?: string }> = {
     PENDING: { label: 'Comenzar preparación', next: 'PREPARING' },
     PREPARING: {
@@ -271,8 +275,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   };
   // En Mercado Libre: Pendiente se resuelve imprimiendo la etiqueta, y el despacho ("En
   // camino") y la entrega los informa ML según el envío — el panel no los cambia a mano.
-  const mlManagesNext = isMlOrder && ['READY', 'IN_TRANSIT'].includes(order.status);
-  const action = isMlOrder && (order.status === 'PENDING' || mlManagesNext) ? undefined : nextAction[order.status];
+  const mlManagesNext = mlShipped && ['READY', 'IN_TRANSIT'].includes(order.status);
+  const action = mlShipped && (order.status === 'PENDING' || mlManagesNext) ? undefined : nextAction[order.status];
   const isDone = order.status === 'DELIVERED' || order.status === 'CANCELLED';
 
   const fmtDateTime = (d: string | Date) =>
@@ -341,6 +345,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               }`}>
                 {isDelivery ? '🚚 Despacho' : '🏬 Retiro'}
               </span>
+              {mlToAgree && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700"
+                  title="Venta sin Mercado Envíos: la entrega se acuerda con el comprador">
+                  🤝 Acordar con el comprador
+                </span>
+              )}
               {order.sale && (
                 <span className="text-xs text-gray-400">
                   Canal: {CHANNEL_LABEL[order.sale.channel] || order.sale.channel}
@@ -366,7 +376,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto sm:shrink-0 border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
-            {isAdmin && isMlOrder && order.status === 'PENDING' && (
+            {isAdmin && mlShipped && order.status === 'PENDING' && (
               <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <button
                   onClick={handlePrintLabel}
@@ -378,7 +388,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 {labelError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>}
               </div>
             )}
-            {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && (
+            {isAdmin && mlShipped && ['PREPARING', 'READY'].includes(order.status) && (
               <button
                 onClick={handlePrintLabel}
                 disabled={labelLoading}
@@ -387,7 +397,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 {labelLoading ? 'Obteniendo etiqueta...' : 'Reimprimir etiqueta de envío'}
               </button>
             )}
-            {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && labelError && (
+            {isAdmin && mlShipped && ['PREPARING', 'READY'].includes(order.status) && labelError && (
               <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>
             )}
             {action && isAdmin && (
@@ -409,9 +419,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
             )}
-            {isMlOrder && !isDone && (
+            {mlShipped && !isDone && (
               <p className="text-xs text-gray-500 sm:max-w-[16rem] sm:text-right">
                 El despacho y la entrega los actualiza Mercado Libre según el estado del envío.
+              </p>
+            )}
+            {mlToAgree && !isDone && (
+              <p className="text-xs text-gray-600 sm:max-w-[16rem] sm:text-right">
+                Entrega a acordar con el comprador: coordina por la{' '}
+                <a href={`https://www.mercadolibre.cl/ventas/${order.sale.externalId}/detalle`} target="_blank" rel="noreferrer"
+                  className="text-blue-600 hover:underline">mensajería de Mercado Libre</a>{' '}
+                y avanza la orden desde aquí.
               </p>
             )}
             {!isDone && order.status !== 'CANCELLED' && isAdmin && (

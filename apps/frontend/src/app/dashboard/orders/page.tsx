@@ -195,7 +195,9 @@ export default function OrdersPage() {
     });
   }
 
-  const mlOrdersOnPage = orders.filter((o) => o.sale?.channel === 'MERCADO_LIBRE');
+  // Solo las ventas con Mercado Envíos tienen etiqueta (las "a acordar" no).
+  const hasMlLabel = (o: any) => o.sale?.channel === 'MERCADO_LIBRE' && !!o.sale?.mlShippingId;
+  const mlOrdersOnPage = orders.filter(hasMlLabel);
 
   function toggleSelectAll() {
     const allIds = mlOrdersOnPage.map((o) => o.id);
@@ -259,7 +261,7 @@ export default function OrdersPage() {
 
   // Etiqueta rápida (mismas reglas que el detalle): imprimir si está pendiente, reimprimir en preparación/lista.
   function labelAction(o: any): { text: string; primary: boolean } | null {
-    if (!isAdmin || o.sale?.channel !== 'MERCADO_LIBRE') return null;
+    if (!isAdmin || !hasMlLabel(o)) return null;
     if (o.status === 'PENDING') return { text: 'Imprimir etiqueta', primary: true };
     if (o.status === 'PREPARING' || o.status === 'READY') return { text: 'Reimprimir etiqueta', primary: false };
     return null;
@@ -480,7 +482,7 @@ export default function OrdersPage() {
                 <div key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
                   className={`bg-white rounded-xl border p-3 cursor-pointer active:bg-gray-50 ${selectedIds.has(o.id) ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'}`}>
                   <div className="flex items-start gap-2">
-                    {o.sale?.channel === 'MERCADO_LIBRE' && (
+                    {hasMlLabel(o) && (
                       <input type="checkbox" className="mt-0.5 w-4 h-4 shrink-0" aria-label="Seleccionar orden"
                         checked={selectedIds.has(o.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(o.id)} />
                     )}
@@ -495,6 +497,9 @@ export default function OrdersPage() {
                     {o.sale ? `${CHANNEL_LABEL[o.sale.channel] || o.sale.channel}${o.sale.connection?.name ? ` · ${o.sale.connection.name}` : ''}` : 'Manual'}
                     {' · '}{FULFILLMENT_LABEL[o.fulfillmentType]}
                     {o.courier && ` · ${o.courier}`}
+                    {o.sale?.channel === 'MERCADO_LIBRE' && !o.sale?.mlShippingId && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium">🤝 Acordar</span>
+                    )}
                     {o.warehouse?.name && ` · ${o.warehouse.name}`}
                   </p>
 
@@ -570,13 +575,17 @@ export default function OrdersPage() {
                     <tr key={o.id} onClick={() => router.push(`/dashboard/orders/${o.id}`)}
                       className={`hover:bg-gray-50 cursor-pointer align-top ${selectedIds.has(o.id) ? 'bg-amber-50/60' : ''}`}>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        {o.sale?.channel === 'MERCADO_LIBRE' && (
+                        {hasMlLabel(o) && (
                           <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
                         )}
                       </td>
                       <td className="px-3 py-3 font-mono text-xs font-bold text-gray-700 whitespace-nowrap">#{orderNumber(o)}</td>
                       <td className="px-3 py-3">
                         <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
+                        {o.sale?.channel === 'MERCADO_LIBRE' && !o.sale?.mlShippingId && (
+                          <span className="inline-block my-0.5 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[11px] font-medium"
+                            title="Venta sin Mercado Envíos: la entrega se acuerda con el comprador">🤝 Acordar entrega</span>
+                        )}
                         <p className="text-[11px] text-gray-400">
                           {FULFILLMENT_LABEL[o.fulfillmentType]}{o.commune ? ` · ${o.commune}` : ''}
                           {o.warehouse?.name && ` · ${o.warehouse.name}`}
