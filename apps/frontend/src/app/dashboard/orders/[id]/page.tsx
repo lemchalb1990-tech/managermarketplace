@@ -521,7 +521,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     }`}>
                       <div className="flex items-start gap-3">
                         {(() => {
-                          const images: string[] = (item.product?.images || []).map((im: any) => imgUrl(im.url));
+                          // Solo la foto principal del producto (también al ampliarla).
+                          const images: string[] = (item.product?.images || []).slice(0, 1).map((im: any) => imgUrl(im.url));
                           const badge = (
                             <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
                               item.checked ? (hasDiscrepancy ? 'bg-amber-400 text-white' : 'bg-green-500 text-white') : 'bg-gray-200 text-gray-400'
@@ -544,9 +545,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={images[0]} alt={item.productName} loading="lazy" className="w-full h-full object-cover rounded-lg" />
                               <span className="absolute -top-1.5 -left-1.5">{badge}</span>
-                              {images.length > 1 && (
-                                <span className="absolute bottom-0.5 right-0.5 px-1 rounded bg-black/60 text-white text-[10px] leading-4">+{images.length - 1}</span>
-                              )}
                             </button>
                           );
                         })()}

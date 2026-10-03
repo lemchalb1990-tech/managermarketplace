@@ -27,8 +27,8 @@ const ORDER_INCLUDE = {
       product: {
         select: {
           id: true, name: true, sku: true,
-          // Fotos para identificar el producto al preparar la orden (la principal primero).
-          images: { select: { url: true }, orderBy: [{ isPrimary: 'desc' as const }, { order: 'asc' as const }], take: 8 },
+          // Solo la foto principal: es la que se muestra (y amplía) al preparar la orden.
+          images: { select: { url: true }, orderBy: [{ isPrimary: 'desc' as const }, { order: 'asc' as const }], take: 1 },
         },
       },
       checkedBy: { select: { id: true, name: true } },
