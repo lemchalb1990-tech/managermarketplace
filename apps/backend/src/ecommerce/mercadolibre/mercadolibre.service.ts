@@ -251,6 +251,28 @@ export class MercadolibreService {
     }
 
     const tokens = await res.json() as any;
+
+    // Qué cuenta de Mercado Libre quedó autorizada: si el navegador tenía abierta la sesión de
+    // OTRA tienda, ML autoriza esa — y esta tienda nunca recibiría sus propias ventas/preguntas.
+    const account = await this.fetchMlAccount(tokens.access_token);
+    const mlUserId = account?.id || (tokens.user_id != null ? String(tokens.user_id) : null);
+    if (mlUserId) {
+      const other = await this.prisma.marketplaceConnection.findFirst({
+        where: {
+          marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' },
+          mlUserId, id: { not: connectionId },
+        },
+        select: { name: true, companyId: true },
+      });
+      if (other) {
+        const where = other.companyId === draft.companyId ? `en la tienda "${other.name}"` : 'en otra empresa';
+        throw new BadRequestException(
+          `La cuenta de Mercado Libre "${account?.nickname || mlUserId}" ya está conectada ${where}. ` +
+          'Cierra sesión en Mercado Libre (o abre una ventana de incógnito), inicia sesión con la cuenta de esta tienda y vuelve a autorizar.',
+        );
+      }
+    }
+
     return this.prisma.marketplaceConnection.update({
       where: { id: connectionId },
       data: {
@@ -258,8 +280,22 @@ export class MercadolibreService {
         refreshToken: tokens.refresh_token,
         expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
         active: true,
+        mlUserId,
+        mlNickname: account?.nickname || null,
       },
     });
+  }
+
+  // Usuario de Mercado Libre dueño de un token (id y apodo).
+  private async fetchMlAccount(accessToken: string): Promise<{ id: string; nickname: string | null } | null> {
+    try {
+      const res = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) return null;
+      const me = await res.json() as any;
+      return me?.id != null ? { id: String(me.id), nickname: me.nickname || null } : null;
+    } catch {
+      return null;
+    }
   }
 
   // ─── Token management ────────────────────────────────────────────────────────
@@ -335,12 +371,38 @@ export class MercadolibreService {
       where,
       select: {
         id: true, name: true, marketplace: true, mlClientId: true, active: true, accessToken: true,
-        expiresAt: true, createdAt: true,
+        expiresAt: true, createdAt: true, mlUserId: true, mlNickname: true,
         company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map(({ accessToken, ...rest }) => ({ ...rest, authorized: !!accessToken }));
+
+    // Conexiones autorizadas antes de guardar la cuenta: se completa una vez.
+    for (const row of rows) {
+      if (!row.accessToken || row.mlUserId) continue;
+      try {
+        const token = await this.getValidToken(row.id);
+        const account = await this.fetchMlAccount(token);
+        if (account) {
+          await this.prisma.marketplaceConnection.update({
+            where: { id: row.id }, data: { mlUserId: account.id, mlNickname: account.nickname },
+          });
+          row.mlUserId = account.id;
+          row.mlNickname = account.nickname;
+        }
+      } catch (err: any) {
+        this.logger.warn(`No se pudo identificar la cuenta ML de la conexión ${row.id}: ${err?.message || err}`);
+      }
+    }
+
+    return rows.map(({ accessToken, ...rest }) => ({
+      ...rest,
+      authorized: !!accessToken,
+      // Otras tiendas activas autorizadas con la misma cuenta de Mercado Libre.
+      sharedAccountWith: rest.mlUserId && rest.active
+        ? rows.filter((o) => o.id !== rest.id && o.active && o.accessToken && o.mlUserId === rest.mlUserId).map((o) => o.name)
+        : [],
+    }));
   }
 
   async removeConnection(id: string, user: any) {
@@ -3009,8 +3071,11 @@ export class MercadolibreService {
     const token = await this.getValidToken(connectionId);
 
     const to = new Date();
+    // Traslape amplio: ML a veces tarda varios minutos en mostrar una orden nueva en
+    // /orders/search; con solo 2 min de traslape esa orden quedaba fuera de toda ventana y no
+    // se importaba nunca. Las ya registradas se saltan en la base, sin pedirlas a ML.
     const from = connection.lastSalesImportAt
-      ? new Date(connection.lastSalesImportAt.getTime() - 2 * 60 * 1000)
+      ? new Date(connection.lastSalesImportAt.getTime() - 60 * 60 * 1000)
       : new Date(to.getTime() - 60 * 60 * 1000);
 
     const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });

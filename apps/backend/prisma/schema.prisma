@@ -289,6 +289,10 @@ model MarketplaceConnection {
   marketplace       MarketplaceType
   mlClientId        String?
   mlClientSecret    String?
+  // Cuenta de Mercado Libre autorizada en esta conexión (user_id y apodo). Sirve para detectar
+  // dos tiendas autorizadas con la MISMA cuenta (la otra tienda nunca recibiría sus ventas).
+  mlUserId          String?
+  mlNickname        String?
   accessToken       String          @default("")
   refreshToken      String?
   expiresAt         DateTime?

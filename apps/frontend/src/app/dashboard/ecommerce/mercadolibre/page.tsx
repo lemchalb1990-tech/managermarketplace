@@ -390,11 +390,29 @@ export default function MercadoLibrePage() {
                       <div className="min-w-0">
                         <p className="font-medium text-gray-900 truncate">{c.name}</p>
                         <p className="font-mono text-xs text-gray-400 truncate">{c.mlClientId || '—'}</p>
+                        {c.authorized && (
+                          <p className="text-xs text-gray-600 truncate" title="Cuenta de Mercado Libre autorizada en esta tienda">
+                            Cuenta ML: <strong>{c.mlNickname || c.mlUserId || 'sin identificar'}</strong>
+                          </p>
+                        )}
                       </div>
                       <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}`}>
                         {statusLabel}
                       </span>
                     </div>
+
+                    {c.sharedAccountWith?.length > 0 && (
+                      <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 space-y-1.5">
+                        <p>
+                          <strong>Misma cuenta de Mercado Libre que {c.sharedAccountWith.map((n: string) => `"${n}"`).join(', ')}.</strong>{' '}
+                          Una de estas tiendas está conectada con la cuenta equivocada y no recibe sus propias ventas, órdenes ni preguntas.
+                        </p>
+                        <p className="text-red-600">
+                          Para corregirla: cierra sesión en Mercado Libre (o usa una ventana de incógnito), inicia sesión con la cuenta
+                          correcta de la tienda y presiona &quot;Reconectar cuenta&quot; en la tienda equivocada.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span>
@@ -450,6 +468,12 @@ export default function MercadoLibrePage() {
                             disabled={refreshingId === c.id}
                             className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
                             {refreshingId === c.id ? 'Renovando...' : 'Renovar token'}
+                          </button>
+                          <button onClick={() => handleAuthorize(c.id)}
+                            disabled={authorizingId === c.id}
+                            title="Vuelve a autorizar la tienda con la cuenta de Mercado Libre que tengas abierta en el navegador"
+                            className={`text-xs font-medium disabled:opacity-50 ${c.sharedAccountWith?.length ? 'text-red-600 hover:text-red-800' : 'text-gray-500 hover:text-gray-700'}`}>
+                            {authorizingId === c.id ? 'Abriendo...' : 'Reconectar cuenta'}
                           </button>
                         </>
                       )}
