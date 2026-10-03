@@ -1387,6 +1387,7 @@ export default function CatalogPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
   const [listingStatusFilter, setListingStatusFilter] = useState('');
+  const [channelFilter, setChannelFilter] = useState('');
   const [stockFilter, setStockFilter] = useState(() => searchParams.get('stock') === 'critical' ? 'critical' : '');
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>(() => {
     if (typeof window === 'undefined') return 'list';
@@ -1417,6 +1418,9 @@ export default function CatalogPage() {
   const parisConnections = genericConnections.filter((c) => c.marketplace === 'PARIS' && c.active);
   const ripleyConnections = genericConnections.filter((c) => c.marketplace === 'RIPLEY' && c.active);
   const falabellaConnections = genericConnections.filter((c) => c.marketplace === 'FALABELLA' && c.active);
+  // Canales con al menos una conexión activa (las de Mercado Libre vienen sin "marketplace").
+  const activeChannels = Array.from(new Set(activeConnections.map((c) => c.marketplace || 'MERCADO_LIBRE')))
+    .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b));
   const webPriceConnections = genericConnections.filter((c) => c.active && WEB_PRICE_PLATFORMS[c.marketplace]);
   // "Precio venta JumpSeller" (y el nombre de la conexión si hay más de una de esa plataforma).
   const webPriceLabel = (c: any) => {
@@ -1475,6 +1479,7 @@ export default function CatalogPage() {
         type: typeFilter || undefined,
         active: activeFilter || undefined,
         listingStatus: listingStatusFilter || undefined,
+        channel: channelFilter || undefined,
         stockFilter: stockFilter || undefined,
         companyId: superAdmin ? selectedCompanyId : undefined,
         sortBy: (sortOverride?.sortBy ?? sortBy) || undefined,
@@ -2528,6 +2533,21 @@ export default function CatalogPage() {
             <option value="false">Inactivos</option>
           </select>
         </div>
+        {activeChannels.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Canal</label>
+            <select
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+            >
+              <option value="">Todos</option>
+              {activeChannels.map((ch) => (
+                <option key={ch} value={ch}>{MARKETPLACE_LABELS[ch] || ch}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {activeConnections.length > 0 && (
           <div>
             <label className="text-xs text-gray-500 block mb-1">Publicación</label>
@@ -2563,7 +2583,7 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setStockFilter(''); }}
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar

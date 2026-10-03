@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { MovementType, Prisma, ProductType, Role } from '@prisma/client';
+import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } from './dto/product.dto';
@@ -111,7 +111,7 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
 
     const where: any = {};
@@ -133,14 +133,22 @@ export class CatalogService {
     }
     // "Publicación": estado real guardado del Listing (igual criterio que el color de los
     // chips en el catálogo), independiente del stock o del flag "Activo" del producto.
+    // "Canal" (MarketplaceType) acota ambos a las publicaciones de conexiones activas de ese
+    // canal: con "Sin publicar" muestra lo que todavía no está en ese canal.
+    if (query.channel && !(Object.values(MarketplaceType) as string[]).includes(query.channel)) {
+      throw new BadRequestException('Canal inválido');
+    }
+    const channelWhere = query.channel ? { connection: { marketplace: query.channel as MarketplaceType, active: true } } : {};
     if (query.listingStatus === 'ACTIVE') {
-      andConditions.push({ listings: { some: { status: 'ACTIVE' } } });
+      andConditions.push({ listings: { some: { ...channelWhere, status: 'ACTIVE' } } });
     } else if (query.listingStatus === 'PAUSED') {
-      andConditions.push({ listings: { some: { status: 'PAUSED' } } });
+      andConditions.push({ listings: { some: { ...channelWhere, status: 'PAUSED' } } });
     } else if (query.listingStatus === 'ERROR_CLOSED') {
-      andConditions.push({ listings: { some: { status: { in: ['DRAFT', 'ERROR', 'CLOSED'] } } } });
+      andConditions.push({ listings: { some: { ...channelWhere, status: { in: ['DRAFT', 'ERROR', 'CLOSED'] } } } });
     } else if (query.listingStatus === 'NONE') {
-      andConditions.push({ listings: { none: {} } });
+      andConditions.push({ listings: { none: channelWhere } });
+    } else if (query.channel) {
+      andConditions.push({ listings: { some: channelWhere } });
     }
     if (andConditions.length) where.AND = andConditions;
 

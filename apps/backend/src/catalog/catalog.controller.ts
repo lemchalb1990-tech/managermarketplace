@@ -49,6 +49,7 @@ export class CatalogController {
     @Query('type') type?: string,
     @Query('active') active?: string,
     @Query('listingStatus') listingStatus?: string,
+    @Query('channel') channel?: string,
     @Query('companyId') companyId?: string,
     @Query('inStock') inStock?: string,
     @Query('stockFilter') stockFilter?: string,
@@ -56,7 +57,7 @@ export class CatalogController {
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, companyId, inStock, stockFilter, pageSize, sortBy, sortDir });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir });
   }
 
   @Get('products/categories')
