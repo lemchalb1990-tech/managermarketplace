@@ -535,60 +535,61 @@ export default function MercadoLibrePage() {
       )}
 
       {isSuperAdmin && connections.length > 0 && (
-        <div className="mt-8 border-t border-gray-200 pt-4">
+        <>
+        <div className="mt-8 bg-white border border-amber-200 rounded-xl p-4 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-gray-800 mr-auto">Ventas de carrito (pack) con productos duplicados</p>
+              <button onClick={() => handleRepairPacks(false)} disabled={repairLoading}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                {repairLoading ? 'Revisando...' : 'Revisar'}
+              </button>
+              {repairReport && !repairReport.applied && repairReport.sales.some((x) => x.products.length && !x.error) && (
+                <button onClick={() => handleRepairPacks(true)} disabled={repairLoading}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+                  Corregir
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Compara cada venta de carrito con lo que informa Mercado Libre. "Revisar" no cambia nada.
+            </p>
+            {repairError && <p className="text-xs text-red-600">{repairError}</p>}
+            {repairReport && (
+              <div className="text-xs space-y-2">
+                <p className="text-gray-600">
+                  {repairReport.applied ? 'Corregidas' : 'Revisadas'}: {repairReport.checked} venta(s) con productos repetidos · {repairReport.affected} con diferencias.
+                </p>
+                {repairReport.sales.map((x) => (
+                  <div key={x.saleId} className="border border-gray-200 rounded-lg p-2">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {x.orderId ? (
+                        <a href={`/dashboard/orders/${x.orderId}`} className="font-medium text-blue-600 hover:underline">Orden #{x.mlOrderId}</a>
+                      ) : <span className="font-medium">Orden #{x.mlOrderId}</span>}
+                      {x.totalAfter != null && (
+                        <span className="text-gray-600">
+                          Total ${Math.round(x.totalBefore).toLocaleString('es-CL')} → ${Math.round(x.totalAfter).toLocaleString('es-CL')}
+                        </span>
+                      )}
+                      {x.fixed && <span className="text-green-700 font-medium">✓ Corregida</span>}
+                      {x.error && <span className="text-red-600">{x.error}</span>}
+                    </div>
+                    {x.products.map((pr) => (
+                      <p key={pr.productId} className="text-gray-600 mt-0.5">
+                        {pr.name} ({pr.sku}): registradas {pr.registered}, reales {pr.real} — se devuelven {pr.stockToReturn} un. a bodega
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+        <div className="mt-6 border-t border-gray-200 pt-4">
           <button onClick={() => setShowDebug(!showDebug)}
             className="text-xs text-gray-400 hover:text-gray-600">
             {showDebug ? '▲ Ocultar' : '▼ Consultar'} diagnóstico de una orden puntual
           </button>
           {showDebug && (
             <div className="mt-3 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-              <div className="border-b border-gray-100 pb-3 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-gray-800 mr-auto">Ventas de carrito (pack) con productos duplicados</p>
-                  <button onClick={() => handleRepairPacks(false)} disabled={repairLoading}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                    {repairLoading ? 'Revisando...' : 'Revisar'}
-                  </button>
-                  {repairReport && !repairReport.applied && repairReport.sales.some((x) => x.products.length && !x.error) && (
-                    <button onClick={() => handleRepairPacks(true)} disabled={repairLoading}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
-                      Corregir
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500">
-                  Compara cada venta de carrito con lo que informa Mercado Libre. "Revisar" no cambia nada.
-                </p>
-                {repairError && <p className="text-xs text-red-600">{repairError}</p>}
-                {repairReport && (
-                  <div className="text-xs space-y-2">
-                    <p className="text-gray-600">
-                      {repairReport.applied ? 'Corregidas' : 'Revisadas'}: {repairReport.checked} venta(s) con productos repetidos · {repairReport.affected} con diferencias.
-                    </p>
-                    {repairReport.sales.map((x) => (
-                      <div key={x.saleId} className="border border-gray-200 rounded-lg p-2">
-                        <div className="flex flex-wrap gap-x-3 gap-y-1">
-                          {x.orderId ? (
-                            <a href={`/dashboard/orders/${x.orderId}`} className="font-medium text-blue-600 hover:underline">Orden #{x.mlOrderId}</a>
-                          ) : <span className="font-medium">Orden #{x.mlOrderId}</span>}
-                          {x.totalAfter != null && (
-                            <span className="text-gray-600">
-                              Total ${Math.round(x.totalBefore).toLocaleString('es-CL')} → ${Math.round(x.totalAfter).toLocaleString('es-CL')}
-                            </span>
-                          )}
-                          {x.fixed && <span className="text-green-700 font-medium">✓ Corregida</span>}
-                          {x.error && <span className="text-red-600">{x.error}</span>}
-                        </div>
-                        {x.products.map((pr) => (
-                          <p key={pr.productId} className="text-gray-600 mt-0.5">
-                            {pr.name} ({pr.sku}): registradas {pr.registered}, reales {pr.real} — se devuelven {pr.stockToReturn} un. a bodega
-                          </p>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
               <div className="flex flex-wrap gap-2 items-end">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Tienda</label>
@@ -619,6 +620,7 @@ export default function MercadoLibrePage() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
