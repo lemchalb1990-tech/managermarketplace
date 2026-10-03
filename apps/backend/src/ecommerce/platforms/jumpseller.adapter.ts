@@ -15,7 +15,8 @@ const IMPORT_PAGE_SIZE = 50;
 const ORDERS_PAGE_SIZE = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const storeUrlCache = new Map<string, string | null>();
+const storeInfoCache = new Map<string, { url: string | null; weightUnit: string }>();
+const NAME_MATCH_THRESHOLD = 0.9;
 
 // Un producto de Jumpseller puede tener variantes (talla/color...), cada una con su propio
 // SKU, stock y precio. En el catálogo interno cada variante es un producto aparte, así que
@@ -38,6 +39,20 @@ function stripHtml(html?: string | null): string | undefined {
   return text || undefined;
 }
 
+// Nombre comparable: minúsculas, sin tildes ni signos, espacios simples.
+function normalizeName(name?: string | null): string {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Coeficiente de Dice entre dos conjuntos de palabras (1 = mismas palabras).
+function dice(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let common = 0;
+  for (const t of a) if (b.has(t)) common++;
+  return (2 * common) / (a.size + b.size);
+}
+
 export interface JumpSellerImportItem {
   externalId: string;
   title: string;
@@ -46,10 +61,13 @@ export interface JumpSellerImportItem {
   skuSuspicious: boolean;
   matchedProductId: string | null;
   matchedProductName: string | null;
+  matchType: 'sku' | 'name' | null;
   price: number;
   stock: number;
   permalink: string | null;
   status: string;
+  group: string | null; // nombre del producto padre si es una variante
+  attributes: { name: string; value: string }[];
 }
 
 @Injectable()
@@ -138,46 +156,81 @@ export class JumpSellerAdapter implements PlatformAdapter {
   }
 
   // ─── Importar catálogo existente desde Jumpseller ─────────────────────────────
+  // Se importan productos disponibles y desactivados por igual (el modal permite filtrar por
+  // estado); el estado de Jumpseller queda en channelAttributes.status y el sync de stock/precio
+  // no lo toca, así que un producto desactivado sigue desactivado en la tienda.
+  //
+  // Variantes: cada variante es un Product propio (su stock/SKU/precio) y todas quedan
+  // agrupadas bajo un ProductMaster (masterSku "JS-{id}") con sus VariantAttribute
+  // (Talla, Color...). Listing.variationId guarda el id de la variante, igual que ML.
+  //
+  // Emparejamiento con el catálogo: por SKU y, como la tienda real no usa SKU, por nombre
+  // normalizado (sin tildes, mayúsculas ni signos). Solo se sugiere si hay UN candidato claro.
 
   // Un producto de la API → una fila por variante (o una sola si no tiene variantes).
   private expandProduct(p: any) {
     const images: string[] = (p.images || []).slice().sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0)).map((i: any) => i.url).filter(Boolean);
-    const category = Array.isArray(p.categories) && p.categories.length ? p.categories[p.categories.length - 1]?.name : null;
-    const base = {
-      name: p.name as string,
-      description: stripHtml(p.description),
-      category: category || null,
-      permalink: p.permalink ? String(p.permalink) : null,
-      status: String(p.status || 'available'),
-    };
+    const categories: { id: number; name: string }[] = (p.categories || []).map((c: any) => ({ id: c.id, name: c.name }));
     const variants: any[] = Array.isArray(p.variants) ? p.variants : [];
+    const channel = {
+      jumpsellerProductId: p.id,
+      status: String(p.status || 'available'),
+      pageTitle: (p.page_title as string) || null,
+      metaDescription: (p.meta_description as string) || null,
+      categories,
+      brand: (p.brand as string) || null,
+      featured: !!p.featured,
+      weight: p.weight != null ? Number(p.weight) : null,
+      length: p.length != null ? Number(p.length) : null,
+      width: p.width != null ? Number(p.width) : null,
+      height: p.height != null ? Number(p.height) : null,
+    };
+    const base = {
+      jsProductId: String(p.id),
+      baseName: p.name as string,
+      descriptionHtml: (p.description as string) || null,
+      description: stripHtml(p.description),
+      category: categories.length ? categories[categories.length - 1].name : null,
+      permalink: p.permalink ? String(p.permalink) : null,
+      status: channel.status,
+      hasVariants: variants.length > 0,
+      productImages: images,
+      channel,
+    };
     if (!variants.length) {
       return [{
-        ...base, externalId: variantKey(p.id), sku: p.sku || null, price: Number(p.price ?? 0),
+        ...base, name: p.name as string, externalId: variantKey(p.id), variantId: null as string | null,
+        attributes: [] as { name: string; value: string }[], sku: (p.sku as string) || null, price: Number(p.price ?? 0),
         stock: p.stock_unlimited ? 0 : Number(p.stock ?? 0), cost: p.cost_per_item != null ? Number(p.cost_per_item) : null,
         images,
       }];
     }
     return variants.map((v) => {
-      const opts = (v.options || []).map((o: any) => o.value).filter(Boolean).join(' / ');
+      const attributes: { name: string; value: string }[] = (v.options || [])
+        .filter((o: any) => o.name && o.value).map((o: any) => ({ name: String(o.name), value: String(o.value) }));
+      const opts = attributes.map((a) => a.value).join(' / ');
       return {
-        ...base, name: opts ? `${p.name} - ${opts}` : p.name, externalId: variantKey(p.id, v.id),
-        sku: v.sku || null, price: Number(v.price ?? p.price ?? 0),
+        ...base, name: opts ? `${p.name} - ${opts}` : (p.name as string), externalId: variantKey(p.id, v.id), variantId: String(v.id) as string | null,
+        attributes, sku: (v.sku as string) || null, price: Number(v.price ?? p.price ?? 0),
         stock: v.stock_unlimited ? 0 : Number(v.stock ?? 0),
         cost: v.cost_per_item != null ? Number(v.cost_per_item) : (p.cost_per_item != null ? Number(p.cost_per_item) : null),
-        images: v.image?.url ? [v.image.url, ...images.filter((u) => u !== v.image.url)] : images,
+        images: v.image?.url ? [v.image.url as string, ...images.filter((u) => u !== v.image.url)] : images,
       };
     });
   }
 
-  // URL pública de la tienda (de /store/info.json), para armar el link de cada producto.
-  private async storeUrl(conn: any): Promise<string | null> {
-    const cached = storeUrlCache.get(conn.id);
-    if (cached !== undefined) return cached;
+  // URL pública y unidad de peso de la tienda (de /store/info.json).
+  private async storeInfo(conn: any): Promise<{ url: string | null; weightUnit: string }> {
+    const cached = storeInfoCache.get(conn.id);
+    if (cached) return cached;
     const data = await this.request(conn, '/store/info.json').catch(() => null);
-    const url = (data?.store || data)?.url ? String((data?.store || data).url).replace(/\/$/, '') : null;
-    storeUrlCache.set(conn.id, url);
-    return url;
+    const store = data?.store || data || {};
+    const info = {
+      url: store.url ? String(store.url).replace(/\/$/, '') : null,
+      weightUnit: String(store.weight_unit || 'kg').toLowerCase(),
+    };
+    storeInfoCache.set(conn.id, info);
+    return info;
   }
 
   private productUrl(storeUrl: string | null, permalink: string | null): string | null {
@@ -186,40 +239,80 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return storeUrl ? `${/^https?:\/\//.test(storeUrl) ? storeUrl : `https://${storeUrl}`}/${permalink}` : null;
   }
 
+  // Productos del catálogo que todavía no tienen publicación en esta conexión, indexados por
+  // SKU y por nombre normalizado. Un nombre repetido en el catálogo no sirve para emparejar.
+  private async buildMatcher(conn: any, companyId: string) {
+    const products = await this.prisma.product.findMany({
+      where: { companyId, listings: { none: { connectionId: conn.id } } },
+      select: { id: true, name: true, sku: true },
+    });
+    const bySku = new Map(products.map((p) => [p.sku.trim().toLowerCase(), p]));
+    const tokenized = products.map((p) => {
+      const key = normalizeName(p.name);
+      return { p, key, tokens: new Set(key.split(' ')) };
+    });
+    const byName = new Map<string, typeof products>();
+    for (const t of tokenized) {
+      if (!t.key) continue;
+      byName.set(t.key, [...(byName.get(t.key) || []), t.p]);
+    }
+    return (row: { sku: string | null; name: string }): { product: { id: string; name: string }; type: 'sku' | 'name' } | null => {
+      if (row.sku) {
+        const p = bySku.get(row.sku.trim().toLowerCase());
+        if (p) return { product: p, type: 'sku' };
+      }
+      const key = normalizeName(row.name);
+      if (!key) return null;
+      const exact = byName.get(key);
+      if (exact?.length === 1) return { product: exact[0], type: 'name' };
+      if (exact && exact.length > 1) return null;
+      // Mismas palabras en otro orden o con alguna de diferencia (ej. "Talla M Negro" vs "M / Negro").
+      const tokens = new Set(key.split(' '));
+      if (tokens.size < 3) return null;
+      const close = tokenized.filter((t) => dice(tokens, t.tokens) >= NAME_MATCH_THRESHOLD);
+      return close.length === 1 ? { product: close[0].p, type: 'name' } : null;
+    };
+  }
+
   async previewImport(conn: any, companyId: string, offset = 0) {
     const page = Math.floor(offset / IMPORT_PAGE_SIZE) + 1;
-    const [list, count, storeUrl] = await Promise.all([
+    const [list, count, store, match] = await Promise.all([
       this.request(conn, `/products.json?limit=${IMPORT_PAGE_SIZE}&page=${page}`),
       this.request(conn, '/products/count.json').catch(() => null),
-      this.storeUrl(conn),
+      this.storeInfo(conn),
+      this.buildMatcher(conn, companyId),
     ]);
     const products: any[] = (Array.isArray(list) ? list : []).map((r: any) => r?.product || r);
     const rows = products.flatMap((p) => this.expandProduct(p));
     const totalProducts = Number(count?.count ?? 0) || offset + products.length;
     const hasMore = products.length === IMPORT_PAGE_SIZE && offset + products.length < totalProducts;
 
-    const skus = rows.map((r) => r.sku).filter(Boolean) as string[];
     const skuCounts = new Map<string, number>();
-    for (const sku of skus) skuCounts.set(sku, (skuCounts.get(sku) || 0) + 1);
+    for (const r of rows) if (r.sku) skuCounts.set(r.sku, (skuCounts.get(r.sku) || 0) + 1);
 
-    const [existingProducts, existingListings] = await Promise.all([
-      this.prisma.product.findMany({ where: { companyId, sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
-      this.prisma.listing.findMany({ where: { connectionId: conn.id }, select: { externalId: true } }),
-    ]);
-    const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
+    const existingListings = await this.prisma.listing.findMany({ where: { connectionId: conn.id }, select: { externalId: true } });
     const linkedIds = new Set(existingListings.map((l) => l.externalId).filter(Boolean));
 
-    const items: JumpSellerImportItem[] = rows
-      .filter((r) => !linkedIds.has(r.externalId))
-      .map((r) => {
-        const skuSuspicious = !!r.sku && (skuCounts.get(r.sku) || 0) > 1;
-        const matched = r.sku ? productBySku.get(r.sku) : undefined;
-        return {
-          externalId: r.externalId, title: r.name, thumbnail: r.images[0] || null, sku: r.sku, skuSuspicious,
-          matchedProductId: matched?.id || null, matchedProductName: matched?.name || null,
-          price: r.price, stock: r.stock, permalink: this.productUrl(storeUrl, r.permalink), status: r.status,
-        };
-      });
+    // Dos filas de este lote no pueden vincularse al mismo producto del catálogo.
+    const claimed = new Map<string, number>();
+    const pending = rows.filter((r) => !linkedIds.has(r.externalId)).map((r) => {
+      const m = match(r);
+      if (m) claimed.set(m.product.id, (claimed.get(m.product.id) || 0) + 1);
+      return { r, m };
+    });
+
+    const items: JumpSellerImportItem[] = pending.map(({ r, m }) => {
+      const usable = m && claimed.get(m.product.id) === 1 ? m : null;
+      return {
+        externalId: r.externalId, title: r.name, thumbnail: r.images[0] || null, sku: r.sku,
+        skuSuspicious: !!r.sku && (skuCounts.get(r.sku) || 0) > 1,
+        matchedProductId: usable?.product.id || null, matchedProductName: usable?.product.name || null,
+        matchType: usable?.type || null,
+        price: r.price, stock: r.stock, permalink: this.productUrl(store.url, r.permalink), status: r.status,
+        group: r.hasVariants ? r.baseName : null,
+        attributes: r.attributes,
+      };
+    });
 
     return {
       connectionName: conn.name, total: totalProducts, hasMore,
@@ -239,6 +332,33 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return sku;
   }
 
+  // Producto Maestro que agrupa las variantes de un producto de Jumpseller (uno por producto,
+  // reutilizado si sus variantes se importan en lotes distintos).
+  private async ensureMaster(companyId: string, r: ReturnType<JumpSellerAdapter['expandProduct']>[number]) {
+    const masterSku = `JS-${r.jsProductId}`;
+    const existing = await this.prisma.productMaster.findUnique({ where: { masterSku_companyId: { masterSku, companyId } } });
+    if (existing) return existing.id;
+    const master = await this.prisma.productMaster.create({
+      data: {
+        masterSku, name: r.baseName, brand: r.channel.brand || undefined, status: 'ACTIVE', companyId,
+        content: {
+          create: {
+            seoTitle: r.channel.pageTitle || undefined,
+            metaDescription: r.channel.metaDescription || undefined,
+            description: r.description,
+          },
+        },
+        channelContent: { create: { platform: 'jumpseller', title: r.baseName, description: r.descriptionHtml || undefined } },
+        images: {
+          create: r.productImages.map((url, i) => ({
+            url, filename: url.split('/').pop()?.split('?')[0] || `jumpseller-${i}.jpg`, isPrimary: i === 0, order: i,
+          })),
+        },
+      },
+    });
+    return master.id;
+  }
+
   async confirmImport(conn: any, companyId: string, externalIds: string[], unlinkIds: string[] = []) {
     const unlinkSet = new Set(unlinkIds);
     let imported = 0, linked = 0, skipped = 0;
@@ -247,6 +367,10 @@ export class JumpSellerAdapter implements PlatformAdapter {
     const preexistingListings = await this.prisma.listing.findMany({ where: { connectionId: conn.id }, select: { productId: true, externalId: true } });
     const linkedProductIds = new Set(preexistingListings.map((l) => l.productId));
     const linkedIds = new Set(preexistingListings.map((l) => l.externalId).filter(Boolean));
+    const [store, match] = await Promise.all([this.storeInfo(conn), this.buildMatcher(conn, companyId)]);
+    const toGrams = (w: number | null) => (w && w > 0
+      ? round2(store.weightUnit === 'lb' ? w * 453.592 : store.weightUnit === 'g' ? w : w * 1000)
+      : null);
     // Varias variantes del mismo producto vienen en una sola respuesta: se pide una vez.
     const productCache = new Map<string, any>();
 
@@ -264,18 +388,28 @@ export class JumpSellerAdapter implements PlatformAdapter {
         if (!r) { errors.push(`${externalId}: no se encontró en JumpSeller`); continue; }
 
         const forceNew = unlinkSet.has(externalId);
-        const sku = (!forceNew && r.sku) || (await this.nextSku(companyId));
+        const m = forceNew ? null : match(r);
+        let product = m && !linkedProductIds.has(m.product.id)
+          ? await this.prisma.product.findUnique({ where: { id: m.product.id } })
+          : null;
 
-        let product = forceNew ? null : await this.prisma.product.findUnique({ where: { sku_companyId: { sku, companyId } } });
-        if (product && linkedProductIds.has(product.id)) { skipped++; continue; }
+        const masterId = r.hasVariants ? await this.ensureMaster(companyId, r) : null;
 
         if (!product) {
+          const skuTaken = r.sku ? await this.prisma.product.findUnique({ where: { sku_companyId: { sku: r.sku, companyId } } }) : null;
+          const sku = r.sku && !skuTaken ? r.sku : await this.nextSku(companyId);
           product = await this.prisma.product.create({
             data: {
               sku, name: r.name, price: r.price || 0, stock: Math.max(0, Math.round(r.stock)),
               description: r.description, category: r.category || undefined,
               ...(r.cost != null && r.cost > 0 ? { cost: r.cost } : {}),
+              packageWeight: toGrams(r.channel.weight) ?? undefined,
+              packageLength: r.channel.length || undefined,
+              packageWidth: r.channel.width || undefined,
+              packageHeight: r.channel.height || undefined,
+              productMasterId: masterId || undefined,
               companyId,
+              ...(r.attributes.length ? { variantAttributes: { create: r.attributes } } : {}),
             },
           });
           if (r.images.length) {
@@ -288,16 +422,33 @@ export class JumpSellerAdapter implements PlatformAdapter {
           }
           imported++;
         } else {
+          // Vinculado a uno existente: se suma al grupo solo si no pertenece ya a otro maestro.
+          if (masterId && !product.productMasterId) {
+            await this.prisma.product.update({ where: { id: product.id }, data: { productMasterId: masterId } });
+            const hasAttrs = await this.prisma.variantAttribute.count({ where: { productId: product.id } });
+            if (!hasAttrs && r.attributes.length) {
+              await this.prisma.variantAttribute.createMany({ data: r.attributes.map((a) => ({ ...a, productId: product!.id })) });
+            }
+          }
           linked++;
         }
         linkedProductIds.add(product.id);
         linkedIds.add(externalId);
 
-        const externalUrl = this.productUrl(await this.storeUrl(conn), r.permalink) || undefined;
+        const listingData = {
+          externalId,
+          variationId: r.variantId,
+          externalUrl: this.productUrl(store.url, r.permalink) || undefined,
+          status: 'ACTIVE' as any,
+          syncedAt: new Date(),
+          title: r.name,
+          description: r.descriptionHtml,
+          channelAttributes: { ...r.channel, variantId: r.variantId, attributes: r.attributes } as any,
+        };
         await this.prisma.listing.upsert({
           where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
-          update: { externalId, externalUrl, status: 'ACTIVE' as any, syncedAt: new Date(), title: r.name },
-          create: { productId: product.id, connectionId: conn.id, externalId, externalUrl, status: 'ACTIVE' as any, syncedAt: new Date(), title: r.name },
+          update: listingData,
+          create: { productId: product.id, connectionId: conn.id, ...listingData },
         });
       } catch (err: any) {
         errors.push(`${externalId}: ${err.message}`);

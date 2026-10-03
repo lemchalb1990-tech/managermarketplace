@@ -630,7 +630,12 @@ export const api = {
       apiFetch<{
         connectionName: string; total: number; hasMore: boolean; nextOffset: number | null;
         alreadyImportedCount: number;
-        items: { externalId: string; title: string; thumbnail: string | null; sku: string | null; skuSuspicious: boolean; matchedProductId: string | null; matchedProductName: string | null }[];
+        items: {
+          externalId: string; title: string; thumbnail: string | null; sku: string | null; skuSuspicious: boolean;
+          matchedProductId: string | null; matchedProductName: string | null; matchType?: 'sku' | 'name' | null;
+          price?: number; stock?: number; permalink?: string | null; status?: string;
+          group?: string | null; attributes?: { name: string; value: string }[];
+        }[];
       }>(`/ecommerce/connections/${connectionId}/import/preview${offset ? `?offset=${offset}` : ''}`, {}, token),
     confirmImport: (connectionId: string, externalIds: string[], unlinkIds: string[], token: string) =>
       apiFetch<{ imported: number; linked: number; skipped: number; errors: string[] }>(

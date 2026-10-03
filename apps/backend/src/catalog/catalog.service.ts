@@ -192,6 +192,8 @@ export class CatalogService {
           listings: { include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } } },
           channelPrices: { select: { price: true, connectionId: true } },
           warehouse: { select: { id: true, name: true } },
+          productMaster: { select: { id: true, name: true, masterSku: true } },
+          variantAttributes: { select: { name: true, value: true } },
           _count: { select: { purchaseItems: true } },
         },
         orderBy,
@@ -554,6 +556,11 @@ export class CatalogService {
       warehouseId: pick('warehouseId'),
       dropship: pick('dropship'),
     };
+    // Grupo de variantes (Producto Maestro): si el sobreviviente no pertenece a ninguno, hereda
+    // el del primer producto unificado que sí (con sus atributos Talla/Color...).
+    const masterFrom = byId.get(survivorId)!.productMasterId ? null : products.find((p) => p.productMasterId) || null;
+    if (masterFrom) data.productMasterId = masterFrom.productMasterId;
+
     // Un servicio no tiene stock propio ni bodega (misma regla que aplica al editar a mano).
     if (data.type === ProductType.SERVICIO) {
       data.stock = 0;
@@ -603,6 +610,10 @@ export class CatalogService {
         await tx.productImage.updateMany({ where: { productId: imagesFrom }, data: { productId: survivorId } });
       } else if (!imagesFrom) {
         await tx.productImage.deleteMany({ where: { productId: { in: ids } } });
+      }
+
+      if (masterFrom && (await tx.variantAttribute.count({ where: { productId: survivorId } })) === 0) {
+        await tx.variantAttribute.updateMany({ where: { productId: masterFrom.id }, data: { productId: survivorId } });
       }
 
       // Recién ahora se puede borrar a los perdedores: ya no les queda ningún registro

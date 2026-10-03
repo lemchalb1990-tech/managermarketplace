@@ -2635,6 +2635,16 @@ export default function CatalogPage() {
                 </div>
                 <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>
+                {p.productMaster && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSearch(p.productMaster.name); }}
+                    title="Ver todas las variantes de este producto"
+                    className="mb-1 block text-left text-xs font-normal text-indigo-600 hover:text-indigo-800">
+                    Variante de {p.productMaster.name}
+                    {p.variantAttributes?.length > 0 && (
+                      <span className="text-gray-500"> · {p.variantAttributes.map((a: any) => `${a.name}: ${a.value}`).join(' · ')}</span>
+                    )}
+                  </button>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span>
                   <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>
@@ -2743,6 +2753,16 @@ export default function CatalogPage() {
                         Inactivo
                       </span>
                     )}
+                    {p.productMaster && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSearch(p.productMaster.name); }}
+                    title="Ver todas las variantes de este producto"
+                    className="mt-0.5 block text-left text-xs font-normal text-indigo-600 hover:text-indigo-800">
+                    Variante de {p.productMaster.name}
+                    {p.variantAttributes?.length > 0 && (
+                      <span className="text-gray-500"> · {p.variantAttributes.map((a: any) => `${a.name}: ${a.value}`).join(' · ')}</span>
+                    )}
+                  </button>
+                )}
                   </td>
                   <td className={`${cellPad} text-gray-500`}>
                     {p.cost != null ? fmtCLP(Number(p.cost)) : '—'}

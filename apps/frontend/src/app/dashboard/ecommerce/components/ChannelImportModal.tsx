@@ -18,6 +18,11 @@ type PreviewItem = {
   stock?: number;
   permalink?: string | null;
   status?: string;
+  // Cómo se encontró el producto existente: por SKU o por nombre (canales sin SKU, ej. JumpSeller).
+  matchType?: 'sku' | 'name' | null;
+  // Variante de un producto con talla/color...: nombre del producto padre y sus atributos.
+  group?: string | null;
+  attributes?: { name: string; value: string }[];
 };
 
 const statusLabel: Record<string, string> = {
@@ -67,6 +72,9 @@ export function ChannelImportModal({
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
+  // Filtro por estado en el canal (solo si el canal lo informa): al cambiarlo, quedan
+  // seleccionados exactamente los productos de ese estado.
+  const [statusFilter, setStatusFilter] = useState('');
 
   async function loadPreview(offset: number | undefined, append: boolean): Promise<{ hasMore: boolean; nextOffset: number | null } | null> {
     if (append) setLoadingMore(true); else setLoading(true);
@@ -82,7 +90,7 @@ export function ChannelImportModal({
       setAlreadyImportedCount((prev) => (append ? prev : 0) + data.alreadyImportedCount);
       setSelected((prev) => {
         const next = append ? new Set(prev) : new Set<string>();
-        data.items.forEach((i) => next.add(i.externalId));
+        data.items.forEach((i) => { if (!statusFilter || i.status === statusFilter) next.add(i.externalId); });
         return next;
       });
       setUnlinked((prev) => {
@@ -124,8 +132,14 @@ export function ChannelImportModal({
     });
   }
 
+  function changeStatusFilter(value: string) {
+    setStatusFilter(value);
+    setPage(0);
+    setSelected(new Set(items.filter((i) => !value || i.status === value).map((i) => i.externalId)));
+  }
+
   function toggleAll() {
-    const allIds = items.map((i) => i.externalId);
+    const allIds = visibleItems.map((i) => i.externalId);
     const allSelected = allIds.every((id) => selected.has(id));
     setSelected(allSelected ? new Set() : new Set(allIds));
   }
@@ -170,11 +184,17 @@ export function ChannelImportModal({
     }
   }
 
-  const newCount = items.filter((i) => !i.matchedProductId || unlinked.has(i.externalId)).length;
-  const matchCount = items.filter((i) => i.matchedProductId && !unlinked.has(i.externalId)).length;
-  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const pagedItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const visibleItems = statusFilter ? items.filter((i) => i.status === statusFilter) : items;
+  const newCount = visibleItems.filter((i) => !i.matchedProductId || unlinked.has(i.externalId)).length;
+  const matched = visibleItems.filter((i) => i.matchedProductId && !unlinked.has(i.externalId));
+  const nameMatchCount = matched.filter((i) => i.matchType === 'name').length;
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE));
+  const pagedItems = visibleItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   const hasDetails = items.some((i) => i.price !== undefined);
+  const statusCounts = items.reduce<Record<string, number>>((acc, i) => {
+    if (i.status) acc[i.status] = (acc[i.status] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -253,9 +273,25 @@ export function ChannelImportModal({
                 </div>
               ) : (
                 <>
+                  {Object.keys(statusCounts).length > 1 && (
+                    <div className="mx-6 mt-4 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-gray-500 mr-1">Estado en {platformLabel}:</span>
+                      {[['', `Todos (${items.length})`], ...Object.entries(statusCounts).map(([k, n]) => [k, `${statusLabel[k] || k} (${n})`])].map(([value, label]) => (
+                        <button key={value} type="button" onClick={() => changeStatusFilter(value)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                            statusFilter === value ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="mx-6 mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
                     <span>{newCount} nuevos</span>
-                    <span>{matchCount} coinciden por SKU con productos existentes</span>
+                    <span>
+                      {matched.length} coinciden con productos existentes
+                      {nameMatchCount > 0 && ` (${matched.length - nameMatchCount} por SKU, ${nameMatchCount} por nombre)`}
+                    </span>
                     {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importados (no se muestran)</span>}
                   </div>
                   <div className="overflow-x-auto">
@@ -264,7 +300,7 @@ export function ChannelImportModal({
                       <tr>
                         <th className="px-4 py-2 text-left">
                           <input type="checkbox"
-                            checked={items.length > 0 && items.every((i) => selected.has(i.externalId))}
+                            checked={visibleItems.length > 0 && visibleItems.every((i) => selected.has(i.externalId))}
                             onChange={toggleAll} />
                         </th>
                         <th className="px-2 py-2 text-left text-gray-600 font-medium">Producto</th>
@@ -284,12 +320,20 @@ export function ChannelImportModal({
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-2">
                               {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
-                              {item.permalink ? (
-                                <a href={item.permalink} target="_blank" rel="noreferrer"
-                                  className="text-gray-800 hover:text-blue-600 line-clamp-1">{item.title}</a>
-                              ) : (
-                                <span className="text-gray-800 line-clamp-1">{item.title}</span>
-                              )}
+                              <div className="min-w-0">
+                                {item.permalink ? (
+                                  <a href={item.permalink} target="_blank" rel="noreferrer"
+                                    className="text-gray-800 hover:text-blue-600 line-clamp-1">{item.title}</a>
+                                ) : (
+                                  <span className="text-gray-800 line-clamp-1">{item.title}</span>
+                                )}
+                                {item.group && (
+                                  <p className="text-xs text-indigo-600 line-clamp-1" title="Se agrupa con sus otras variantes en un mismo producto maestro">
+                                    Variante de {item.group}
+                                    {item.attributes?.length ? <span className="text-gray-500"> · {item.attributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</span> : null}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </td>
                           {hasDetails && (
@@ -330,7 +374,10 @@ export function ChannelImportModal({
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-blue-600">Vincular a "{item.matchedProductName}"</span>
+                                  <span className="text-xs text-blue-600">
+                                    Vincular a "{item.matchedProductName}"
+                                    {item.matchType === 'name' && <span className="text-gray-400"> (por nombre)</span>}
+                                  </span>
                                   <button type="button" onClick={() => toggleLink(item.externalId)} className="text-xs text-red-400 hover:text-red-600 underline">quitar vínculo</button>
                                 </div>
                               )
