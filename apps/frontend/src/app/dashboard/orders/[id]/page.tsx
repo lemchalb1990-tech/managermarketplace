@@ -310,10 +310,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     <div className="max-w-7xl">
       {/* Título + empresa gestionada en la misma línea */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2 flex-wrap">
+        <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-x-2 gap-y-0.5 flex-wrap min-w-0">
           <a href="/dashboard/orders" className="hover:text-blue-600">Detalle de orden</a>
           <span className="text-gray-300 font-normal">/</span>
-          <span className="font-mono">N° {shortId}</span>
+          <span className="font-mono break-all">N° {shortId}</span>
         </h1>
         {isSuperAdmin && selectedCompanyId && (
           <button
@@ -328,8 +328,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Header */}
-      <div className={`bg-white rounded-2xl border-2 ${cfg.border} p-5 mb-6`}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className={`bg-white rounded-2xl border-2 ${cfg.border} p-4 sm:p-5 mb-4 sm:mb-6`}>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
@@ -350,7 +350,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <p className="text-xs text-gray-400 mt-0.5">Creado por {order.createdBy.name}</p>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-3 mt-4">
               {summary.map(({ label, value, mono }) => (
                 <div key={label} className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
@@ -362,38 +362,38 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto sm:shrink-0 border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
             {isAdmin && isMlOrder && order.status === 'PENDING' && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <button
                   onClick={handlePrintLabel}
                   disabled={labelLoading}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
                 >
                   {labelLoading ? 'Obteniendo etiqueta...' : 'Imprimir etiqueta de envío'} →
                 </button>
-                {labelError && <p className="text-xs text-red-600 max-w-xs text-right">{labelError}</p>}
+                {labelError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>}
               </div>
             )}
             {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && (
               <button
                 onClick={handlePrintLabel}
                 disabled={labelLoading}
-                className="text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
+                className="py-2 sm:py-0 rounded-lg border border-amber-200 sm:border-0 text-sm sm:text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
               >
                 {labelLoading ? 'Obteniendo etiqueta...' : 'Reimprimir etiqueta de envío'}
               </button>
             )}
             {isAdmin && isMlOrder && ['PREPARING', 'READY'].includes(order.status) && labelError && (
-              <p className="text-xs text-red-600 max-w-xs text-right">{labelError}</p>
+              <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>
             )}
             {action && isAdmin && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <button
                   onClick={() => handleStatus(action.next)}
                   disabled={statusLoading || !!action.disabled}
                   title={action.disabled ? action.reason : undefined}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  className={`w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                     action.disabled
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -407,14 +407,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
             {isMlOrder && !isDone && (
-              <p className="text-xs text-gray-500 max-w-[16rem] text-right">
+              <p className="text-xs text-gray-500 sm:max-w-[16rem] sm:text-right">
                 El despacho y la entrega los actualiza Mercado Libre según el estado del envío.
               </p>
             )}
             {!isDone && order.status !== 'CANCELLED' && isAdmin && (
               <button
                 onClick={() => handleStatus('CANCELLED')}
-                className="text-xs text-red-400 hover:text-red-600 font-medium"
+                className="py-2 sm:py-0 text-sm sm:text-xs text-red-400 hover:text-red-600 font-medium"
               >
                 Cancelar orden
               </button>
@@ -427,17 +427,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   )) handleStatus('PREPARING');
                 }}
                 disabled={statusLoading}
-                className="text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
+                className="py-2 sm:py-0 text-sm sm:text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
               >
                 ← Volver a preparación
               </button>
             )}
-            {statusError && <p className="text-xs text-red-600 max-w-xs text-right">{statusError}</p>}
+            {statusError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{statusError}</p>}
             {currentUser?.role === 'SUPER_ADMIN' && (
               <button
                 onClick={handleDeleteOrder}
                 disabled={deleting}
-                className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
+                className="py-2 sm:py-0 text-sm sm:text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
               >
                 {deleting ? 'Eliminando...' : 'Eliminar orden'}
               </button>
@@ -446,12 +446,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
 
         {/* Columna 1 — productos y fotos del pedido */}
-        <div className="space-y-6 min-w-0">
+        <div className="space-y-4 sm:space-y-6 min-w-0">
           {/* Verificación de productos */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">
                 Productos
@@ -463,7 +463,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </h2>
               {order.status === 'PREPARING' && totalItems > 0 && !allChecked && isAdmin && (
                 <button onClick={handleCheckAll}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  className="shrink-0 px-2 py-1.5 -my-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
                   Marcar todo OK
                 </button>
               )}
@@ -505,8 +505,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                           {item.checked ? (hasDiscrepancy ? '!' : '✓') : ''}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 text-sm">{item.productName}</p>
-                          <p className="text-xs text-gray-400 font-mono">{item.productSku}</p>
+                          <p className="font-medium text-gray-900 text-sm break-words">{item.productName}</p>
+                          <p className="text-xs text-gray-400 font-mono break-all">{item.productSku}</p>
                           {item.checked && (
                             <p className={`text-xs mt-0.5 ${hasDiscrepancy ? 'text-amber-700 font-medium' : 'text-green-700'}`}>
                               {hasDiscrepancy
@@ -527,29 +527,31 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       {isPreparing && isAdmin && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                           {!item.checked ? (
-                            <div className="flex gap-2 items-center">
+                            <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                               <input
                                 type="number"
+                                inputMode="numeric"
                                 min={0}
+                                aria-label="Cantidad verificada"
                                 value={checkQty[item.id] ?? item.expectedQty}
                                 onChange={(e) => setCheckQty((q) => ({ ...q, [item.id]: Number(e.target.value) }))}
-                                className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-xs text-center"
+                                className="w-20 sm:w-16 px-2 py-2 sm:py-1 border border-gray-300 rounded-lg text-sm sm:text-xs text-center"
                               />
+                              <button onClick={() => handleCheck(item)} disabled={busy}
+                                className="flex-1 sm:flex-none sm:order-last px-3 py-2 sm:py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm sm:text-xs font-semibold disabled:opacity-50">
+                                {busy ? '...' : 'OK ✓'}
+                              </button>
                               <input
                                 type="text"
                                 placeholder="Nota opcional..."
                                 value={checkNote[item.id] || ''}
                                 onChange={(e) => setCheckNote((n) => ({ ...n, [item.id]: e.target.value }))}
-                                className="flex-1 px-2 py-1 border border-gray-300 rounded-lg text-xs"
+                                className="w-full sm:w-auto sm:flex-1 px-2 py-2 sm:py-1 border border-gray-300 rounded-lg text-sm sm:text-xs"
                               />
-                              <button onClick={() => handleCheck(item)} disabled={busy}
-                                className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
-                                {busy ? '...' : 'OK ✓'}
-                              </button>
                             </div>
                           ) : (
                             <button onClick={() => handleUncheck(item)} disabled={busy}
-                              className="text-xs text-gray-400 hover:text-red-500 font-medium">
+                              className="py-1 text-xs text-gray-400 hover:text-red-500 font-medium">
                               {busy ? '...' : 'Desmarcar'}
                             </button>
                           )}
@@ -564,7 +566,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
           {/* Fotos del pedido */}
           {(order.status === 'READY' || order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-gray-800">
                   Fotos del pedido
@@ -583,9 +585,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200">
                       <img src={imgUrl(photo.url)} alt="Foto pedido" className="w-full h-full object-cover" />
                       {order.status !== 'DELIVERED' && isAdmin && (
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="absolute inset-0 flex items-start justify-end p-1.5 sm:p-0 sm:items-center sm:justify-center sm:bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleDeletePhoto(photo.id)}
-                            className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-medium">
+                            className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-medium shadow">
                             Eliminar
                           </button>
                         </div>
@@ -627,15 +629,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {/* Columna 2 — datos de despacho y venta de origen */}
-        <div className="space-y-6 min-w-0">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="space-y-4 sm:space-y-6 min-w-0">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">
                 {isDelivery ? 'Datos de despacho' : 'Datos del cliente'}
               </h2>
               {!isDone && isAdmin && !editShipment && (
                 <button onClick={() => setEditShipment(true)}
-                  className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                  className="px-2 py-1.5 -my-1.5 -mr-2 text-xs text-blue-500 hover:text-blue-700 font-medium">
                   Editar
                 </button>
               )}
@@ -725,11 +727,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 {shipError && <p className="text-xs text-red-600">{shipError}</p>}
                 <div className="flex gap-2">
                   <button type="submit" disabled={shipLoading}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+                    className="flex-1 sm:flex-none px-3 py-2 sm:py-1.5 bg-blue-600 text-white rounded-lg text-sm sm:text-xs font-semibold disabled:opacity-50">
                     {shipLoading ? 'Guardando...' : 'Guardar'}
                   </button>
                   <button type="button" onClick={() => setEditShipment(false)}
-                    className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs">
+                    className="flex-1 sm:flex-none px-3 py-2 sm:py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm sm:text-xs">
                     Cancelar
                   </button>
                 </div>
@@ -769,12 +771,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
           {/* Info de venta origen */}
           {order.sale && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold text-gray-800 text-sm">Venta de origen</h2>
                 {isMlOrder && isAdmin && (
                   <button onClick={handleRefreshFromMl} disabled={labelLoading}
-                    className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+                    className="px-2 py-1.5 -my-1.5 -mr-2 text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
                     {labelLoading ? 'Actualizando...' : 'Actualizar desde ML'}
                   </button>
                 )}
@@ -794,19 +796,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 {order.sale.externalId && (
                   <div className="flex gap-2">
                     <span className="text-gray-400 w-20 shrink-0">Order ID</span>
-                    <span className="text-gray-800 font-mono">{order.sale.externalId}</span>
+                    <span className="text-gray-800 font-mono break-all">{order.sale.externalId}</span>
                   </div>
                 )}
                 {order.sale.mlPackId && (
                   <div className="flex gap-2">
                     <span className="text-gray-400 w-20 shrink-0">Pack ID</span>
-                    <span className="text-gray-800 font-mono">{order.sale.mlPackId}</span>
+                    <span className="text-gray-800 font-mono break-all">{order.sale.mlPackId}</span>
                   </div>
                 )}
                 {order.sale.mlShippingId && (
                   <div className="flex gap-2">
                     <span className="text-gray-400 w-20 shrink-0">Shipment ID</span>
-                    <span className="text-gray-800 font-mono">{order.sale.mlShippingId}</span>
+                    <span className="text-gray-800 font-mono break-all">{order.sale.mlShippingId}</span>
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -839,7 +841,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* Columna 3 — historial de la orden */}
         <div className="min-w-0">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">Historial de la orden</h2>
             </div>

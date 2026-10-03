@@ -85,7 +85,7 @@ export default function OrderInvoicesCard({ invoices, marketplace, canManage, fm
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+    <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
       <h2 className="font-semibold text-gray-800 text-sm mb-3">Boleta / factura</h2>
       {!invoices.length ? (
         <p className="text-xs text-gray-400">La venta todavía no tiene documento tributario emitido.</p>
