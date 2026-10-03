@@ -57,6 +57,16 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   const allCosts = items.length > 0 && costs.every((c) => c != null);
   const productCost = allCosts ? costs.reduce((s: number, c) => s + (c ?? 0), 0) : null;
   const profit = netSinIva != null && productCost != null ? netSinIva - productCost : null;
+
+  // IVA a pagar de esta venta = IVA débito (venta) − IVA crédito (comisión, envío y compra de
+  // los productos, que también traen IVA). Canales con IVA (Mercado Libre): el IVA va incluido
+  // en cada monto (monto − monto ÷ 1,19). Canales sin IVA: se aplica 19% sobre el monto sin IVA.
+  const ivaOf = (amount: number) => (sinIva ? amount * IVA_RATE : amount - amount / (1 + IVA_RATE));
+  const ivaDebit = sinIva ? (taxes != null && taxes > 0 ? taxes : total - total / (1 + IVA_RATE)) : total - total / (1 + IVA_RATE);
+  const ivaFee = fee != null && fee > 0 ? ivaOf(fee) : 0;
+  const ivaShipping = shipping != null && shipping > 0 ? ivaOf(shipping) : 0;
+  const ivaCost = productCost != null ? productCost * IVA_RATE : null; // productCost ya está sin IVA
+  const ivaToPay = ivaDebit - ivaFee - ivaShipping - (ivaCost ?? 0);
   const hasCharges = fee != null || shipping != null || taxes != null || discount != null || net != null;
 
   return (
@@ -144,6 +154,26 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
             <span className="tabular-nums">{fmt(profit)}</span>
           </div>
         )}
+        {/* IVA a pagar de acuerdo a las operaciones de la venta */}
+        <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">IVA de la operación</p>
+          <Row label="IVA débito (venta)" value={fmt(ivaDebit)}
+            hint={sinIva ? 'IVA informado en la venta' : `Total − Total ÷ 1,19 = ${fmt(total)} − ${fmt(total / (1 + IVA_RATE))}`} />
+          {ivaFee > 0 && <Row label={`IVA crédito comisión ${channelLabel}`} value={`-${fmt(ivaFee)}`} tone="minus"
+            hint={sinIva ? 'Comisión sin IVA × 19%' : 'Comisión − Comisión ÷ 1,19'} />}
+          {ivaShipping > 0 && <Row label="IVA crédito envío" value={`-${fmt(ivaShipping)}`} tone="minus"
+            hint={sinIva ? 'Envío sin IVA × 19%' : 'Envío − Envío ÷ 1,19'} />}
+          {ivaCost != null && <Row label="IVA crédito compra de productos" value={`-${fmt(ivaCost)}`} tone="minus"
+            hint="Costo sin IVA × 19% (IVA de la factura de compra)" />}
+          <div className={`flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 mt-1 text-xs font-semibold ${ivaToPay < 0 ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-800'}`}>
+            <span>{ivaToPay < 0 ? 'IVA a favor' : 'IVA a pagar'}</span>
+            <span className="tabular-nums">{fmt(Math.abs(ivaToPay))}</span>
+          </div>
+          {ivaCost == null && items.length > 0 && (
+            <p className="text-[11px] text-gray-400">Sin costo de productos: el IVA a pagar no descuenta el IVA de la compra.</p>
+          )}
+        </div>
+
         {!hasCharges && (
           <p className="text-[11px] text-gray-400">Esta venta no tiene cargos del marketplace registrados.</p>
         )}
