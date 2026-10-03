@@ -21,6 +21,8 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED:  [],
 };
 
+const VERIFIABLE_STATUSES: OrderStatus[] = [OrderStatus.PENDING, OrderStatus.PREPARING];
+
 const ORDER_INCLUDE = {
   itemChecks: {
     include: {
@@ -355,8 +357,10 @@ export class OrdersService {
 
   async checkItem(orderId: string, itemId: string, dto: CheckItemDto, user: any) {
     const order = await this.findOne(orderId, user);
-    if (order.status !== OrderStatus.PREPARING) {
-      throw new BadRequestException('Solo se pueden verificar ítems cuando la orden está en preparación');
+    // Se puede verificar desde que llega la orden (Pendiente) — p. ej. una venta de ML cuya
+    // etiqueta aún no se imprime — hasta que se marca Lista.
+    if (!VERIFIABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException('Solo se pueden verificar ítems cuando la orden está pendiente o en preparación');
     }
     const item = order.itemChecks.find((i: any) => i.id === itemId);
     if (!item) throw new NotFoundException('Ítem no encontrado');
@@ -383,8 +387,8 @@ export class OrdersService {
 
   async uncheckItem(orderId: string, itemId: string, user: any) {
     const order = await this.findOne(orderId, user);
-    if (order.status !== OrderStatus.PREPARING) {
-      throw new BadRequestException('Solo se pueden modificar verificaciones en preparación');
+    if (!VERIFIABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException('Solo se pueden modificar verificaciones con la orden pendiente o en preparación');
     }
     const item = order.itemChecks.find((i: any) => i.id === itemId);
     if (!item) throw new NotFoundException('Ítem no encontrado');

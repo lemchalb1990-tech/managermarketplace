@@ -177,12 +177,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   async function handleCheckAll() {
     if (!order) return;
     const unchecked = order.itemChecks.filter((i: any) => !i.checked);
+    let error = '';
     for (const item of unchecked) {
       const qty = checkQty[item.id] ?? item.expectedQty;
       const token = getToken()!;
-      await api.orders.checkItem(id, item.id, { checkedQty: qty }, token).catch(() => {});
+      await api.orders.checkItem(id, item.id, { checkedQty: qty }, token).catch((err: any) => { error = err.message; });
     }
     await load();
+    if (error) await alertDialog(error);
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -278,6 +280,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const mlManagesNext = mlShipped && ['READY', 'IN_TRANSIT'].includes(order.status);
   const action = mlShipped && (order.status === 'PENDING' || mlManagesNext) ? undefined : nextAction[order.status];
   const isDone = order.status === 'DELIVERED' || order.status === 'CANCELLED';
+  // Los productos se pueden verificar desde que llega la orden hasta que se marca Lista.
+  const canVerify = isAdmin && ['PENDING', 'PREPARING'].includes(order.status);
 
   const fmtDateTime = (d: string | Date) =>
     new Date(d).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz });
@@ -482,7 +486,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   </span>
                 )}
               </h2>
-              {order.status === 'PREPARING' && totalItems > 0 && !allChecked && isAdmin && (
+              {canVerify && totalItems > 0 && !allChecked && (
                 <button onClick={handleCheckAll}
                   className="shrink-0 px-2 py-1.5 -my-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
                   Marcar todo OK
@@ -490,7 +494,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
 
-            {totalItems > 0 && order.status === 'PREPARING' && (
+            {totalItems > 0 && canVerify && (
               <div className="mb-4">
                 <div className="flex justify-between text-xs text-gray-400 mb-1">
                   <span>Progreso de verificación</span>
@@ -511,7 +515,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <div className="space-y-2">
                 {order.itemChecks.map((item: any) => {
                   const busy = checkLoading[item.id];
-                  const isPreparing = order.status === 'PREPARING';
+                  const isPreparing = canVerify;
                   const hasDiscrepancy = item.checked && item.checkedQty !== item.expectedQty;
                   return (
                     <div key={item.id} className={`rounded-xl border p-3 transition-colors ${
