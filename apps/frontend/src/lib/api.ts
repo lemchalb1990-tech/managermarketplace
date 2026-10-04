@@ -700,6 +700,9 @@ export const api = {
     walmartImagesDiagnostic: (connectionId: string, sku: string, token: string) =>
       apiFetch<{ images: string[]; attempts: { source: string; ok: boolean; info: string; images: number }[] }>(
         `/ecommerce/connections/${connectionId}/walmart/images-diagnostic?sku=${encodeURIComponent(sku)}`, {}, token),
+    walmartThumbnail: (connectionId: string, sku: string, token: string) =>
+      apiFetch<{ url: string | null; count: number }>(
+        `/ecommerce/connections/${connectionId}/walmart/thumbnail?sku=${encodeURIComponent(sku)}`, {}, token),
     walmartFetchImages: (connectionId: string, token: string) =>
       apiFetch<{ checked: number; updated: number; withoutImages: number; pending: boolean }>(
         `/ecommerce/connections/${connectionId}/walmart/fetch-images`, { method: 'POST' }, token),

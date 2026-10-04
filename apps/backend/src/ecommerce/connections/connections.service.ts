@@ -387,6 +387,14 @@ export class ConnectionsService {
     return this.walmart.findItemImages(conn, sku);
   }
 
+  // Miniatura para la vista previa de importación (primera fuente con fotos).
+  async walmartThumbnail(connectionId: string, user: any, sku: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
+    const { images } = await this.walmart.findItemImages(conn, sku, undefined, 'first');
+    return { url: images[0] || null, count: images.length };
+  }
+
   async walmartFetchMissingImages(connectionId: string, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
     this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');

@@ -248,11 +248,13 @@ export class WalmartAdapter implements PlatformAdapter {
   }
 
   // Intenta cada fuente y devuelve las URLs encontradas (y, para el diagnóstico, qué respondió cada una).
-  async findItemImages(conn: any, sku: string, raw?: any): Promise<{ images: string[]; attempts: { source: string; ok: boolean; info: string; images: number }[] }> {
+  // mode 'first': se detiene en la primera fuente con fotos (miniatura de la vista previa).
+  // mode 'all': junta las fotos de todas las fuentes, sin repetir (al importar).
+  async findItemImages(conn: any, sku: string, raw?: any, mode: 'first' | 'all' = 'all'): Promise<{ images: string[]; attempts: { source: string; ok: boolean; info: string; images: number }[] }> {
     const attempts: { source: string; ok: boolean; info: string; images: number }[] = [];
     const found = new Set<string>();
     const tryCall = async (source: string, fn: () => Promise<any>, pick?: (data: any) => any) => {
-      if (found.size) return;
+      if (mode === 'first' && found.size) return;
       try {
         const data = await fn();
         const target = pick ? pick(data) : data;
@@ -291,10 +293,17 @@ export class WalmartAdapter implements PlatformAdapter {
     } else {
       attempts.push({ source: 'búsqueda por GTIN/UPC', ok: false, info: 'el ítem no informa GTIN/UPC', images: 0 });
     }
-    if (item?.productName) {
+    // Por nombre solo si nada de lo anterior trajo fotos: podría devolver otro producto parecido.
+    if (!found.size && item?.productName) {
       await tryCall('GET /v3/items/walmart/search?query=', () => this.request(conn, `/v3/items/walmart/search?query=${encodeURIComponent(item.productName)}`), matches);
     }
-    return { images: [...found].slice(0, 10), attempts };
+    // Sin repetir la misma foto en distinto tamaño/parámetros (misma URL sin query string).
+    const unique = new Map<string, string>();
+    for (const u of found) {
+      const key = u.split('?')[0].toLowerCase();
+      if (!unique.has(key)) unique.set(key, u);
+    }
+    return { images: [...unique.values()], attempts };
   }
 
   // Completa las fotos de productos ya importados de esta conexión que no tienen ninguna.

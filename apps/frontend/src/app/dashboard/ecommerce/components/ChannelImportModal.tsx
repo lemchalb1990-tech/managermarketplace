@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { ImportProgress } from '@/components/ImportProgress';
@@ -48,12 +48,15 @@ export function ChannelImportModal({
   connectionId,
   connectionName,
   platformLabel,
+  loadThumbnail,
   onClose,
   onImported,
 }: {
   connectionId: string;
   connectionName: string;
   platformLabel: string;
+  // Canales cuyo listado no trae foto (Walmart): se busca una por publicación, de a pocas.
+  loadThumbnail?: (externalId: string) => Promise<string | null>;
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -75,6 +78,9 @@ export function ChannelImportModal({
   // Filtro por estado en el canal (solo si el canal lo informa): al cambiarlo, quedan
   // seleccionados exactamente los productos de ese estado.
   const [statusFilter, setStatusFilter] = useState('');
+  // Miniaturas buscadas aparte (externalId → url; null = sin foto en el canal).
+  const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
+  const requestedThumbs = useRef<Set<string>>(new Set());
 
   async function loadPreview(offset: number | undefined, append: boolean): Promise<{ hasMore: boolean; nextOffset: number | null } | null> {
     if (append) setLoadingMore(true); else setLoading(true);
@@ -123,6 +129,28 @@ export function ChannelImportModal({
       setLoadingAll(false);
     }
   }
+
+  // Busca la foto de cada publicación visible que no la trae, 4 a la vez.
+  useEffect(() => {
+    if (!loadThumbnail) return;
+    const pending = pagedItems.filter((i) => !i.thumbnail && !requestedThumbs.current.has(i.externalId)).map((i) => i.externalId);
+    if (!pending.length) return;
+    pending.forEach((id) => requestedThumbs.current.add(id));
+    let cancelled = false;
+    (async () => {
+      const queue = [...pending];
+      const worker = async () => {
+        while (queue.length && !cancelled) {
+          const id = queue.shift()!;
+          const url = await loadThumbnail(id).catch(() => null);
+          if (!cancelled) setThumbs((t) => ({ ...t, [id]: url }));
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, statusFilter, items.length, loadThumbnail]);
 
   function toggle(externalId: string) {
     setSelected((prev) => {
@@ -319,7 +347,14 @@ export function ChannelImportModal({
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-2">
-                              {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
+                              {(() => {
+                                const src = item.thumbnail || thumbs[item.externalId];
+                                if (src) return <img src={src} alt="" className="w-10 h-10 rounded object-cover shrink-0 border border-gray-100" />;
+                                if (loadThumbnail && !(item.externalId in thumbs)) {
+                                  return <span className="w-10 h-10 rounded bg-gray-100 animate-pulse shrink-0" title="Buscando foto..." />;
+                                }
+                                return loadThumbnail ? <span className="w-10 h-10 rounded bg-gray-50 border border-gray-100 shrink-0 flex items-center justify-center text-gray-300 text-sm" title="Sin foto en el canal">📦</span> : null;
+                              })()}
                               <div className="min-w-0">
                                 {item.permalink ? (
                                   <a href={item.permalink} target="_blank" rel="noreferrer"

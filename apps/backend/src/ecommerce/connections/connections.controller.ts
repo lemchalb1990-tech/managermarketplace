@@ -238,6 +238,12 @@ export class ConnectionsController {
     return this.service.walmartImageDiagnostic(id, user, sku);
   }
 
+  @Get(':id/walmart/thumbnail')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  walmartThumbnail(@Param('id') id: string, @Query('sku') sku: string, @CurrentUser() user: any) {
+    return this.service.walmartThumbnail(id, user, sku);
+  }
+
   @Post(':id/walmart/fetch-images')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   walmartFetchMissingImages(@Param('id') id: string, @CurrentUser() user: any) {

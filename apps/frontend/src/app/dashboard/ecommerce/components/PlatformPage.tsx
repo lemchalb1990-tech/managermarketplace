@@ -525,6 +525,9 @@ export default function PlatformPage({ config }: Props) {
           connectionId={importingConn.id}
           connectionName={importingConn.name}
           platformLabel={config.name}
+          loadThumbnail={config.supportsImageFetch
+            ? async (sku) => (await api.connections.walmartThumbnail(importingConn.id, sku, getToken()!)).url
+            : undefined}
           onClose={() => setImportingConn(null)}
           onImported={() => {}}
         />
