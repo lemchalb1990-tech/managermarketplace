@@ -280,8 +280,10 @@ export class WalmartAdapter implements PlatformAdapter {
     const gtin = item?.gtin || item?.upc || item?.ean || null;
     const matches = (d: any) => {
       const list: any[] = d?.items || d?.ItemResponse || d?.payload || (Array.isArray(d) ? d : []);
-      const same = list.filter((x: any) => [x?.gtin, x?.upc, x?.ean, x?.sku].map(String).includes(String(gtin || sku)));
-      return same.length ? same : list.slice(0, 1);
+      const norm = (v: any) => String(v ?? '').replace(/^0+/, '');
+      const target = norm(gtin || sku);
+      // Solo el ítem con el MISMO código (sin ceros a la izquierda): nunca "el primero que aparezca".
+      return list.filter((x: any) => [x?.gtin, x?.upc, x?.ean, ...(x?.standardUpc || [])].map(norm).includes(target));
     };
     if (gtin) {
       await tryCall('GET /v3/items/walmart/search?gtin=', () => this.request(conn, `/v3/items/walmart/search?gtin=${encodeURIComponent(gtin)}`), matches);
@@ -293,10 +295,9 @@ export class WalmartAdapter implements PlatformAdapter {
     } else {
       attempts.push({ source: 'búsqueda por GTIN/UPC', ok: false, info: 'el ítem no informa GTIN/UPC', images: 0 });
     }
-    // Por nombre solo si nada de lo anterior trajo fotos: podría devolver otro producto parecido.
-    if (!found.size && item?.productName) {
-      await tryCall('GET /v3/items/walmart/search?query=', () => this.request(conn, `/v3/items/walmart/search?query=${encodeURIComponent(item.productName)}`), matches);
-    }
+    // Sin búsqueda por nombre: el catálogo de /v3/items/walmart/search es el de Walmart EE.UU.
+    // (verificado con la cuenta de Chile), así que por nombre devolvía fotos de OTRO producto.
+    // Solo se acepta la coincidencia exacta por GTIN/UPC, que es el mismo producto.
     // Sin repetir la misma foto en distinto tamaño/parámetros (misma URL sin query string).
     const unique = new Map<string, string>();
     for (const u of found) {
