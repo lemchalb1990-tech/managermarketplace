@@ -49,6 +49,9 @@ export interface PlatformConfig {
   // Muestra las acciones por conexión como botones con los mismos nombres que Mercado Libre
   // (Publicaciones / Ventas / Órdenes) en vez de los links de texto.
   mlStyleActions?: boolean;
+  // Botón "Traer fotos": completa las fotos de los productos importados que no tienen
+  // (hoy Walmart, cuyo listado de publicaciones no trae imágenes).
+  supportsImageFetch?: boolean;
   helpText?: string;
 }
 
@@ -227,6 +230,26 @@ export default function PlatformPage({ config }: Props) {
     }
   }
 
+  const [fetchingImagesId, setFetchingImagesId] = useState<string | null>(null);
+
+  async function handleFetchImages(id: string) {
+    setFetchingImagesId(id);
+    setError('');
+    setNotice('');
+    try {
+      const res = await api.connections.walmartFetchImages(id, getToken()!);
+      setNotice(
+        `${res.checked} producto(s) sin fotos revisados: ${res.updated} con fotos nuevas` +
+        (res.withoutImages ? `, ${res.withoutImages} sin fotos disponibles en ${config.name}` : '') +
+        (res.pending ? '. Quedan más: presiona de nuevo para continuar.' : '.'),
+      );
+    } catch (err: any) {
+      setError(err.message || 'No se pudieron traer las fotos.');
+    } finally {
+      setFetchingImagesId(null);
+    }
+  }
+
   async function handleSyncOrders(id: string) {
     setSyncingOrdersId(id);
     setError('');
@@ -393,6 +416,13 @@ export default function PlatformPage({ config }: Props) {
                             ? 'px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                             : 'text-xs text-blue-500 hover:text-blue-700 font-medium'}>
                           {config.mlStyleActions ? 'Ventas' : 'Importar ventas'}
+                        </button>
+                      )}
+                      {config.supportsImageFetch && c.active && (
+                        <button onClick={() => handleFetchImages(c.id)} disabled={fetchingImagesId === c.id}
+                          title="Busca en Walmart las fotos de los productos importados que no tienen"
+                          className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+                          {fetchingImagesId === c.id ? 'Buscando fotos...' : 'Traer fotos'}
                         </button>
                       )}
                       {config.supportsOrderSync && c.active && (

@@ -380,6 +380,19 @@ export class ConnectionsService {
     return adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
   }
 
+  // ─── Walmart: fotos (el listado de Walmart no trae imágenes) ───────────────────
+  async walmartImageDiagnostic(connectionId: string, user: any, sku: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
+    return this.walmart.findItemImages(conn, sku);
+  }
+
+  async walmartFetchMissingImages(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
+    return this.walmart.fetchMissingImages(conn);
+  }
+
   // ─── Importar ventas (historial) ──────────────────────────────────────────────
   private getSalesImportAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter | JumpSellerAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;

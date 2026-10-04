@@ -228,6 +228,101 @@ export class WalmartAdapter implements PlatformAdapter {
     };
   }
 
+  // ─── Fotos del ítem ───────────────────────────────────────────────────────────
+  // GET /v3/items (listado) no trae imágenes. Se buscan, en orden, en: el detalle del ítem
+  // (/v3/items/{sku}, con y sin includeDetails) y la búsqueda en el catálogo de Walmart por
+  // GTIN/UPC (GET y POST /v3/items/walmart/search, como en Walmart US/MX/CA). De cada respuesta
+  // se toman las URLs de imagen que aparezcan (claves con "image" o URLs .jpg/.png/.webp).
+
+  private collectImageUrls(node: any, out: Set<string>, keyHint = '', depth = 0): void {
+    if (node == null || depth > 8) return;
+    if (typeof node === 'string') {
+      const v = node.trim();
+      if (/^https?:\/\//i.test(v) && (/image|img/i.test(keyHint) || /\.(jpe?g|png|webp)(\?|$)/i.test(v))) out.add(v);
+      return;
+    }
+    if (Array.isArray(node)) { for (const n of node) this.collectImageUrls(n, out, keyHint, depth + 1); return; }
+    if (typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) this.collectImageUrls(v, out, `${keyHint} ${k}`, depth + 1);
+    }
+  }
+
+  // Intenta cada fuente y devuelve las URLs encontradas (y, para el diagnóstico, qué respondió cada una).
+  async findItemImages(conn: any, sku: string, raw?: any): Promise<{ images: string[]; attempts: { source: string; ok: boolean; info: string; images: number }[] }> {
+    const attempts: { source: string; ok: boolean; info: string; images: number }[] = [];
+    const found = new Set<string>();
+    const tryCall = async (source: string, fn: () => Promise<any>, pick?: (data: any) => any) => {
+      if (found.size) return;
+      try {
+        const data = await fn();
+        const target = pick ? pick(data) : data;
+        const local = new Set<string>();
+        this.collectImageUrls(target, local);
+        local.forEach((u) => found.add(u));
+        const keys = data && typeof data === 'object' ? Object.keys(Array.isArray(data) ? data[0] || {} : data).slice(0, 12).join(',') : String(data).slice(0, 80);
+        attempts.push({ source, ok: true, info: `claves: ${keys}`, images: local.size });
+      } catch (err: any) {
+        attempts.push({ source, ok: false, info: String(err?.message || err).slice(0, 200), images: 0 });
+      }
+    };
+
+    const enc = encodeURIComponent(sku);
+    let item = raw;
+    await tryCall('GET /v3/items/{sku}', async () => {
+      const d = await this.request(conn, `/v3/items/${enc}`);
+      item = item || (Array.isArray(d?.ItemResponse) ? d.ItemResponse[0] : d);
+      return d;
+    });
+    await tryCall('GET /v3/items/{sku}?includeDetails=true', () => this.request(conn, `/v3/items/${enc}?productIdType=SKU&includeDetails=true`));
+
+    const gtin = item?.gtin || item?.upc || item?.ean || null;
+    const matches = (d: any) => {
+      const list: any[] = d?.items || d?.ItemResponse || d?.payload || (Array.isArray(d) ? d : []);
+      const same = list.filter((x: any) => [x?.gtin, x?.upc, x?.ean, x?.sku].map(String).includes(String(gtin || sku)));
+      return same.length ? same : list.slice(0, 1);
+    };
+    if (gtin) {
+      await tryCall('GET /v3/items/walmart/search?gtin=', () => this.request(conn, `/v3/items/walmart/search?gtin=${encodeURIComponent(gtin)}`), matches);
+      await tryCall('GET /v3/items/walmart/search?upc=', () => this.request(conn, `/v3/items/walmart/search?upc=${encodeURIComponent(gtin)}`), matches);
+      await tryCall('POST /v3/items/walmart/search (gtin)', () => this.request(conn, '/v3/items/walmart/search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: { field: 'gtin', value: gtin } }),
+      }), matches);
+    } else {
+      attempts.push({ source: 'búsqueda por GTIN/UPC', ok: false, info: 'el ítem no informa GTIN/UPC', images: 0 });
+    }
+    if (item?.productName) {
+      await tryCall('GET /v3/items/walmart/search?query=', () => this.request(conn, `/v3/items/walmart/search?query=${encodeURIComponent(item.productName)}`), matches);
+    }
+    return { images: [...found].slice(0, 10), attempts };
+  }
+
+  // Completa las fotos de productos ya importados de esta conexión que no tienen ninguna.
+  async fetchMissingImages(conn: any, limit = 200) {
+    const listings = await this.prisma.listing.findMany({
+      where: { connectionId: conn.id, externalId: { not: null }, product: { images: { none: {} } } },
+      select: { externalId: true, productId: true },
+      take: limit,
+    });
+    let updated = 0;
+    const withoutImages: string[] = [];
+    for (const l of listings) {
+      const { images } = await this.findItemImages(conn, l.externalId!).catch(() => ({ images: [] as string[] }));
+      if (!images.length) { withoutImages.push(l.externalId!); continue; }
+      await this.saveProductImages(l.productId, images);
+      updated++;
+    }
+    return { checked: listings.length, updated, withoutImages: withoutImages.length, pending: listings.length === limit };
+  }
+
+  private async saveProductImages(productId: string, urls: string[]) {
+    await this.prisma.productImage.createMany({
+      data: urls.map((url, i) => ({
+        productId, url, filename: url.split('/').pop()?.split('?')[0] || `walmart-${i}.jpg`, isPrimary: i === 0, order: i,
+      })),
+    });
+  }
+
   private async nextSku(companyId: string): Promise<string> {
     let n = (await this.prisma.product.count({ where: { companyId } })) + 1;
     let sku = `SKU-${String(n).padStart(6, '0')}`;
@@ -273,6 +368,9 @@ export class WalmartAdapter implements PlatformAdapter {
               stock: Math.max(0, Math.round(stock)), category: r.category || undefined, companyId,
             },
           });
+          // Fotos: el listado no las trae; se buscan en el detalle / catálogo de Walmart.
+          const { images } = await this.findItemImages(conn, externalId, raw).catch(() => ({ images: [] as string[] }));
+          if (images.length) await this.saveProductImages(product.id, images);
           imported++;
         } else {
           linked++;

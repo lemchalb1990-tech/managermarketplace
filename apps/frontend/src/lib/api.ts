@@ -697,6 +697,12 @@ export const api = {
           cost?: number | null; profit?: number | null;
         }[];
       }>(`/ecommerce/connections/${connectionId}/sales-import/preview?from=${from}&to=${to}`, {}, token),
+    walmartImagesDiagnostic: (connectionId: string, sku: string, token: string) =>
+      apiFetch<{ images: string[]; attempts: { source: string; ok: boolean; info: string; images: number }[] }>(
+        `/ecommerce/connections/${connectionId}/walmart/images-diagnostic?sku=${encodeURIComponent(sku)}`, {}, token),
+    walmartFetchImages: (connectionId: string, token: string) =>
+      apiFetch<{ checked: number; updated: number; withoutImages: number; pending: boolean }>(
+        `/ecommerce/connections/${connectionId}/walmart/fetch-images`, { method: 'POST' }, token),
     syncOrderStatuses: (connectionId: string, token: string) =>
       apiFetch<{ checked: number; updated: number }>(
         `/ecommerce/connections/${connectionId}/orders/sync`, { method: 'POST' }, token),

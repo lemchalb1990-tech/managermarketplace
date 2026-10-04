@@ -231,6 +231,19 @@ export class ConnectionsController {
     return this.service.createOrderForExistingSale(saleId, user);
   }
 
+  // Walmart: qué fuente entrega las fotos de un ítem (diagnóstico) y completar las faltantes.
+  @Get(':id/walmart/images-diagnostic')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  walmartImageDiagnostic(@Param('id') id: string, @Query('sku') sku: string, @CurrentUser() user: any) {
+    return this.service.walmartImageDiagnostic(id, user, sku);
+  }
+
+  @Post(':id/walmart/fetch-images')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  walmartFetchMissingImages(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.walmartFetchMissingImages(id, user);
+  }
+
   @Post(':id/orders/sync')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   syncOrderStatuses(@Param('id') id: string, @CurrentUser() user: any) {
