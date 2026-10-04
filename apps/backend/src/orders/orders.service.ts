@@ -1,3 +1,4 @@
+import { displayMlEventTitle } from '../ecommerce/mercadolibre/ml-shipment-labels';
 import {
   Injectable, NotFoundException, ForbiddenException,
   BadRequestException, ConflictException, Logger,
@@ -144,7 +145,7 @@ export class OrdersService {
           // Último estado informado por el marketplace (Mercado Libre o Walmart/Ripley/Paris/Falabella).
           statusEvents: {
             where: { externalStatus: { not: null }, source: { in: [OrderEventSource.MERCADO_LIBRE, OrderEventSource.MARKETPLACE] } },
-            select: { source: true, title: true, externalStatus: true, occurredAt: true },
+            select: { source: true, title: true, externalStatus: true, externalSubstatus: true, occurredAt: true },
             orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
             take: 1,
           },
@@ -166,6 +167,7 @@ export class OrdersService {
       this.prisma.order.count({ where }),
     ]);
 
+    for (const o of orders) for (const ev of o.statusEvents) ev.title = displayMlEventTitle(ev);
     return { orders, total, page, pages: Math.ceil(total / PAGE_SIZE) };
   }
 
@@ -173,6 +175,8 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE });
     if (!order) throw new NotFoundException('Orden no encontrada');
     this.guard(order, user);
+    // Hitos de Mercado Libre con su texto en español (también los guardados con el código en inglés).
+    for (const ev of order.statusEvents) ev.title = displayMlEventTitle(ev);
     return order;
   }
 

@@ -1,3 +1,4 @@
+import { mlShipmentLabel } from './ml-shipment-labels';
 import { buildLabelsPdf, LabelDetailOrder } from './label-detail';
 import {
   Injectable, Logger, BadRequestException, NotFoundException,
@@ -3534,36 +3535,7 @@ export class MercadolibreService {
   }
 
   private mlShipmentLabel(status: string, substatus: string | null): string {
-    const SUB: Record<string, string> = {
-      ready_to_print: 'Etiqueta lista para imprimir',
-      printed: 'Etiqueta impresa',
-      picked_up: 'Retirado por el transportista',
-      dropped_off: 'Dejado en punto de despacho',
-      in_hub: 'En centro de distribución',
-      in_packing_list: 'En lista de despacho',
-      authorized_by_carrier: 'Autorizado por el transportista',
-      out_for_delivery: 'En reparto',
-      receiver_absent: 'Destinatario ausente',
-      not_visited: 'No visitado',
-      bad_address: 'Dirección incorrecta',
-      returning_to_sender: 'Volviendo al vendedor',
-      delayed: 'Envío demorado',
-      waiting_for_withdrawal: 'Esperando retiro en sucursal',
-    };
-    const STATUS: Record<string, string> = {
-      pending: 'Envío pendiente',
-      handling: 'Pago acreditado, envío en preparación',
-      ready_to_ship: 'Listo para despachar',
-      shipped: 'Despachado — en camino',
-      first_visit: 'Primera visita del transportista',
-      not_delivered: 'No entregado',
-      delivered: 'Entregado',
-      returned: 'Devuelto al vendedor',
-      cancelled: 'Envío cancelado',
-    };
-    if (substatus && SUB[substatus]) return SUB[substatus];
-    const base = STATUS[status] || `Estado ML: ${status}`;
-    return substatus ? `${base} (${substatus})` : base;
+    return mlShipmentLabel(status, substatus);
   }
 
   // Webhook del tópico "shipments": ML avisa por acá los cambios del envío (etiqueta
