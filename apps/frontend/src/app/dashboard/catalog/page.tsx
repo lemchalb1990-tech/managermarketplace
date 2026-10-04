@@ -2308,9 +2308,9 @@ export default function CatalogPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Catálogo de productos</h1>
-      </div>
+      {isSuperAdmin && !selectedCompanyId && (
+        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-3">Catálogo de productos</h1>
+      )}
 
       {listNotice && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -2438,8 +2438,9 @@ export default function CatalogPage() {
         </div>
       ) : (
       <>
-      {/* Tipo de vista y, en la misma línea (a la derecha), las acciones */}
+      {/* Título, tipo de vista y, a la derecha, las acciones: una sola línea para ahorrar espacio */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+        <h1 className="text-lg sm:text-[1.375rem] font-bold text-gray-900 mr-1">Catálogo de productos</h1>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           {([
             { key: 'list', label: 'Lista' },
@@ -2468,7 +2469,9 @@ export default function CatalogPage() {
           </button>
         </div>
       </div>
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
+      {/* Filtros fijos arriba al hacer scroll (sticky dentro del <main> que scrollea). */}
+      <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2 mb-2 bg-[var(--page-bg)]">
+      <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-2 sm:gap-3 shadow-sm">
         <div className="flex-1 min-w-[200px]">
           <label className="text-xs text-gray-500 block mb-1">Buscar por nombre o SKU</label>
           <input
@@ -2586,6 +2589,7 @@ export default function CatalogPage() {
           Limpiar
         </button>
         <span className="ml-auto text-xs text-gray-500 self-center">{total} producto(s)</span>
+      </div>
       </div>
       {stockFilter === 'critical' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
