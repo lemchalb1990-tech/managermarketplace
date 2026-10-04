@@ -2438,10 +2438,8 @@ export default function CatalogPage() {
         </div>
       ) : (
       <>
-      {/* Productos · total · tipo de vista, y en la misma línea (a la derecha) las acciones */}
+      {/* Tipo de vista y, en la misma línea (a la derecha), las acciones */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
-        <span className="text-sm font-semibold text-gray-700">Productos</span>
-        <span className="text-xs text-gray-400">{total}</span>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           {([
             { key: 'list', label: 'Lista' },
