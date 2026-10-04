@@ -2310,18 +2310,6 @@ export default function CatalogPage() {
     <div>
       <div className="flex items-center justify-between mb-6 gap-3">
         <h1 className="text-[1.375rem] font-bold text-gray-900">Catálogo de productos</h1>
-        {(!isSuperAdmin || selectedCompanyId) && (
-          <div className="flex gap-2">
-            <button onClick={openImportModal}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
-              Cargar stock/precios/costos
-            </button>
-            <button onClick={openCreateModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-              + Nuevo producto
-            </button>
-          </div>
-        )}
       </div>
 
       {listNotice && (
@@ -2450,10 +2438,11 @@ export default function CatalogPage() {
         </div>
       ) : (
       <>
-      <div className="flex items-center gap-3 mb-3">
+      {/* Productos · total · tipo de vista, y en la misma línea (a la derecha) las acciones */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
         <span className="text-sm font-semibold text-gray-700">Productos</span>
         <span className="text-xs text-gray-400">{total}</span>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-auto sm:ml-0">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           {([
             { key: 'list', label: 'Lista' },
             { key: 'grid', label: 'Cuadrícula' },
@@ -2469,6 +2458,16 @@ export default function CatalogPage() {
               {v.label}
             </button>
           ))}
+        </div>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:ml-auto">
+          <button onClick={openImportModal}
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            Cargar stock/precios/costos
+          </button>
+          <button onClick={openCreateModal}
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 whitespace-nowrap">
+            + Nuevo producto
+          </button>
         </div>
       </div>
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
