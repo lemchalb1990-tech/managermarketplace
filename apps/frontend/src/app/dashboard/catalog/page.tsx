@@ -2907,8 +2907,8 @@ export default function CatalogPage() {
 
       {/* Modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-12 px-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-6 sm:pt-12 pb-6 px-2 sm:px-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl min-w-0">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 {selected.id ? (
@@ -2931,7 +2931,7 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex items-center border-b border-gray-200 px-3 sm:px-6 overflow-x-auto">
+            <div className="flex flex-wrap items-center border-b border-gray-200 px-3 sm:px-6">
               {(selected.id
                 ? (['edit', 'images', 'ml', 'paris', 'ripley', 'falabella', 'walmart', 'stock'] as Tab[])
                     .filter((t) => t !== 'ml' || hasMlModule)
