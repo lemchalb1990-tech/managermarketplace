@@ -10,6 +10,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
+import WalmartListingCard from './WalmartListingCard';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1301,7 +1302,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'falabella' | 'stock';
+type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'falabella' | 'walmart' | 'stock';
 
 // Tiendas web con su propio "Precio de venta" (ChannelPrice por conexión): al importar se
 // llena con el precio de la tienda y la sincronización usa ese precio en esa plataforma.
@@ -1418,6 +1419,7 @@ export default function CatalogPage() {
   const parisConnections = genericConnections.filter((c) => c.marketplace === 'PARIS' && c.active);
   const ripleyConnections = genericConnections.filter((c) => c.marketplace === 'RIPLEY' && c.active);
   const falabellaConnections = genericConnections.filter((c) => c.marketplace === 'FALABELLA' && c.active);
+  const walmartConnections = genericConnections.filter((c) => c.marketplace === 'WALMART' && c.active);
   // Canales con al menos una conexión activa (las de Mercado Libre vienen sin "marketplace").
   const activeChannels = Array.from(new Set(activeConnections.map((c) => c.marketplace || 'MERCADO_LIBRE')))
     .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b));
@@ -2929,20 +2931,21 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex items-center border-b border-gray-200 px-6">
+            <div className="flex items-center border-b border-gray-200 px-3 sm:px-6 overflow-x-auto">
               {(selected.id
-                ? (['edit', 'images', 'ml', 'paris', 'ripley', 'falabella', 'stock'] as Tab[])
+                ? (['edit', 'images', 'ml', 'paris', 'ripley', 'falabella', 'walmart', 'stock'] as Tab[])
                     .filter((t) => t !== 'ml' || hasMlModule)
                     .filter((t) => t !== 'paris' || parisConnections.length > 0)
                     .filter((t) => t !== 'ripley' || ripleyConnections.length > 0)
                     .filter((t) => t !== 'falabella' || falabellaConnections.length > 0)
+                    .filter((t) => t !== 'walmart' || walmartConnections.length > 0)
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
-                  className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  className={`shrink-0 whitespace-nowrap py-3 px-3 sm:px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : t === 'falabella' ? 'Falabella' : 'Movimientos'}
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : t === 'falabella' ? 'Falabella' : t === 'walmart' ? 'Walmart' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar — se guardan solos al cambiar de pestaña" />
                   )}
@@ -3579,6 +3582,15 @@ export default function CatalogPage() {
                     </div>
                   ) : falabellaConnections.map((conn) => (
                     <FalabellaListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
+                      onRefresh={() => refreshSelected(selected.id)} />
+                  ))}
+                </div>
+              )}
+
+              {tab === 'walmart' && (
+                <div className="space-y-3">
+                  {walmartConnections.map((conn) => (
+                    <WalmartListingCard key={conn.id} product={selected} connection={conn}
                       onRefresh={() => refreshSelected(selected.id)} />
                   ))}
                 </div>
