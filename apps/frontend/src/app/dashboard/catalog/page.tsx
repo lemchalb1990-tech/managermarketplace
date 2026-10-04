@@ -1352,7 +1352,7 @@ const listingChipDefaultColor = 'bg-red-100 text-red-700';
 
 export default function CatalogPage() {
   const searchParams = useSearchParams();
-  const { selectedCompanyId } = useAdminCompany();
+  const { selectedCompanyId, companies: adminCompanies, openPicker } = useAdminCompany();
   const tz = useDashboardTimezone();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -2308,8 +2308,19 @@ export default function CatalogPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-3">
+      {/* Título y empresa gestionada en la misma línea (el chip no ocupa una fila aparte). */}
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <h1 className="text-[1.375rem] font-bold text-gray-900">Catálogo de productos</h1>
+        {isSuperAdmin && selectedCompanyId && (
+          <button
+            onClick={openPicker}
+            title="Cambiar empresa"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
+          >
+            Gestionando <strong className="truncate">{adminCompanies.find((c: any) => c.id === selectedCompanyId)?.name ?? 'empresa'}</strong>
+            <span className="text-blue-500">▾</span>
+          </button>
+        )}
       </div>
 
       {listNotice && (
