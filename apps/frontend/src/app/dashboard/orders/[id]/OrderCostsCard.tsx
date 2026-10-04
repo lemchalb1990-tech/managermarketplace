@@ -62,8 +62,10 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   // de los productos (costo promedio con IVA − costo ÷ 1,19 = costo sin IVA × 19%). Es solo un
   // renglón informativo: NO se descuenta de la ganancia.
   const ivaDebit = sinIva && taxes != null && taxes > 0 ? taxes : total - total / (1 + IVA_RATE);
-  const ivaCost = productCost != null ? productCost * IVA_RATE : null; // productCost ya está sin IVA
-  const ivaToPay = ivaDebit - (ivaCost ?? 0);
+  // Producto sin costo (0 o vacío) = su IVA del costo es 0; se suman los que sí tienen costo.
+  const knownCostSinIva = costs.reduce((s: number, c) => s + (c ?? 0), 0);
+  const ivaCost = knownCostSinIva * IVA_RATE; // costo sin IVA × 19% = costo con IVA − costo ÷ 1,19
+  const ivaToPay = ivaDebit - ivaCost;
   const hasCharges = fee != null || shipping != null || taxes != null || discount != null || net != null;
 
   return (
@@ -156,14 +158,14 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">IVA de la operación</p>
           <Row label="IVA de la operación (venta)" value={fmt(ivaDebit)}
             hint={sinIva && taxes != null && taxes > 0 ? 'IVA informado en la venta' : `Total − Total ÷ 1,19 = ${fmt(total)} − ${fmt(total / (1 + IVA_RATE))}`} />
-          {ivaCost != null && <Row label="IVA del costo del producto (costo promedio)" value={`-${fmt(ivaCost)}`} tone="minus"
-            hint={`Costo con IVA − Costo ÷ 1,19 = ${fmt(productCost! * (1 + IVA_RATE))} − ${fmt(productCost!)}`} />}
+          <Row label="IVA del costo del producto (costo promedio)" value={ivaCost > 0 ? `-${fmt(ivaCost)}` : fmt(0)} tone={ivaCost > 0 ? 'minus' : 'muted'}
+            hint={`Costo con IVA − Costo ÷ 1,19 = ${fmt(knownCostSinIva * (1 + IVA_RATE))} − ${fmt(knownCostSinIva)}`} />
           <div className={`flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 mt-1 text-xs font-semibold ${ivaToPay < 0 ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-800'}`}>
             <span>{ivaToPay < 0 ? 'IVA a favor' : 'IVA a pagar'}</span>
             <span className="tabular-nums">{fmt(Math.abs(ivaToPay))}</span>
           </div>
-          {ivaCost == null && items.length > 0 && (
-            <p className="text-[11px] text-gray-400">Sin costo de productos: el IVA a pagar no descuenta el IVA de la compra.</p>
+          {costs.some((c) => c == null) && (
+            <p className="text-[11px] text-gray-400">Productos sin costo cargado: su IVA del costo se toma como $0.</p>
           )}
         </div>
 
