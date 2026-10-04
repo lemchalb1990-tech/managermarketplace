@@ -7,7 +7,7 @@ import { getToken, getUser, clearSession } from '@/lib/auth';
 import { hasModule } from '@/lib/modules';
 import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
-import { CompanyGate } from './CompanyGate';
+import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 import { DialogProvider } from './ConfirmDialog';
 
@@ -397,7 +397,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 {MenuIcon}
               </button>
-              <span className="font-bold tracking-tight flex-1">Marketplace</span>
+              <span className="font-bold tracking-tight flex-1 min-w-0 truncate">Marketplace</span>
+              <HeaderCompanyPicker />
               <NotificationBell />
 
               <div className="relative" ref={profileRef}>

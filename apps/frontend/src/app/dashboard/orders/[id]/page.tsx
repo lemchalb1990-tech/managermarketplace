@@ -6,7 +6,6 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
-import { useAdminCompany } from '../../AdminCompanyContext';
 import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
@@ -30,7 +29,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
   const tz = useDashboardTimezone();
-  const { isSuperAdmin, selectedCompanyId, companies, openPicker } = useAdminCompany();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -358,16 +356,6 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           <span className="text-gray-300 font-normal">/</span>
           <span className="font-mono break-all">{isPack ? 'Pack' : 'N°'} {shortId}</span>
         </h1>
-        {isSuperAdmin && selectedCompanyId && (
-          <button
-            onClick={openPicker}
-            title="Cambiar empresa"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
-          >
-            Gestionando <strong className="truncate">{companies.find((c: any) => c.id === selectedCompanyId)?.name ?? 'empresa'}</strong>
-            <span className="text-blue-500">▾</span>
-          </button>
-        )}
       </div>
 
       {/* Header */}

@@ -21,17 +21,12 @@ const EXEMPT_PREFIXES = [
 // el Super Admin elija una empresa. El resto de los usuarios pasa directo.
 export function CompanyGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { isSuperAdmin, ready, selectedCompanyId, companies, selectCompany, pickerOpen, openPicker, closePicker } = useAdminCompany();
+  const { isSuperAdmin, ready, selectedCompanyId, companies, selectCompany, pickerOpen, closePicker } = useAdminCompany();
   const [draftCompanyId, setDraftCompanyId] = useState('');
 
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
-  // El home del dashboard dibuja su propio selector de empresa junto al título
-  // (para no gastar una fila entera arriba solo para el chip) — acá no se duplica.
-  // El detalle de orden y el Catálogo también lo llevan en su propia línea de título.
-  const rendersOwnChip = pathname === '/dashboard'
-    || pathname === '/dashboard/catalog'
-    || (/^\/dashboard\/orders\/[^/]+$/.test(pathname ?? '') && pathname !== '/dashboard/orders/escanear');
-  const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
+  // El selector de empresa vive en la barra superior (HeaderCompanyPicker), junto a las
+  // notificaciones: acá solo queda el modal para elegirla.
   const mustChoose = ready && !selectedCompanyId;
   const showModal = mustChoose || pickerOpen;
 
@@ -56,21 +51,6 @@ export function CompanyGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {selectedCompanyId && !rendersOwnChip && (
-        // Chip compacto (no un banner de fila completa) para no restar espacio vertical —
-        // mismo estilo en todas las vistas gestionadas por empresa.
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={openPicker}
-            title="Cambiar empresa"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium hover:bg-blue-100 max-w-full truncate"
-          >
-            Gestionando <strong className="truncate">{selectedCompany?.name ?? 'empresa'}</strong>
-            <span className="text-blue-500">▾</span>
-          </button>
-        </div>
-      )}
-
       {ready && selectedCompanyId && (
         // key => al cambiar de empresa se reinicia el estado de la página activa
         <Fragment key={selectedCompanyId}>{children}</Fragment>
@@ -121,5 +101,28 @@ export function CompanyGate({ children }: { children: ReactNode }) {
         </div>
       )}
     </>
+  );
+}
+
+// Selector de empresa del Super Admin en la barra superior, junto a las notificaciones: el
+// mismo lugar en todas las vistas gestionadas por empresa (en las de administración global
+// no aplica y no se muestra).
+export function HeaderCompanyPicker() {
+  const pathname = usePathname();
+  const { isSuperAdmin, selectedCompanyId, companies, openPicker } = useAdminCompany();
+  if (!isSuperAdmin || EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p))) return null;
+  const name = companies.find((c) => c.id === selectedCompanyId)?.name;
+  return (
+    <button
+      onClick={openPicker}
+      title={name ? `Gestionando ${name} — cambiar empresa` : 'Elegir empresa'}
+      className="flex items-center gap-1 min-w-0 max-w-[45vw] sm:max-w-[260px] px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-xs font-medium transition-colors"
+    >
+      <span className="hidden sm:inline opacity-80 shrink-0">Gestionando</span>
+      <strong className="truncate">{name ?? 'Elegir empresa'}</strong>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-80">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
   );
 }

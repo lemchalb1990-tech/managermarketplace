@@ -455,13 +455,9 @@ export default function PosPage() {
     }
   }
 
-  // Para Super Admin, CompanyGate dibuja arriba el chip "Gestionando <empresa>" (~2.5rem con
-  // su margen) que no existe para el resto de los roles — sin restarlo acá, esta altura fija
-  // quedaba corta por esos ~38px y aparecía un scroll dentro de <main> (el carrito/catálogo
-  // ya no calzaban en una sola pantalla).
-  const posHeightClass = isSuperAdmin
-    ? 'h-[calc(100dvh-8rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-10rem)]'
-    : 'h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-6.5rem)] lg:h-[calc(100dvh-7.5rem)]';
+  // Alto fijo para que carrito y catálogo calcen en una pantalla (el selector de empresa del
+  // Super Admin está en la barra superior, no ocupa espacio dentro de la página).
+  const posHeightClass = 'h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-6.5rem)] lg:h-[calc(100dvh-7.5rem)]';
 
   return (
     <div className={`flex flex-col lg:flex-row gap-4 sm:gap-6 ${posHeightClass}`}>
