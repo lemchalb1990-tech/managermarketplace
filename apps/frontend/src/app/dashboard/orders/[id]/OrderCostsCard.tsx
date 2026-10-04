@@ -58,8 +58,9 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   const productCost = allCosts ? costs.reduce((s: number, c) => s + (c ?? 0), 0) : null;
   const profit = netSinIva != null && productCost != null ? netSinIva - productCost : null;
 
-  // IVA a pagar de esta venta = IVA de la operación (venta: Total − Total ÷ 1,19) − IVA de la
-  // compra de los productos (costo sin IVA × 19%).
+  // IVA a pagar de esta venta = IVA de la operación (venta: Total − Total ÷ 1,19) − IVA del costo
+  // de los productos (costo promedio con IVA − costo ÷ 1,19 = costo sin IVA × 19%). Es solo un
+  // renglón informativo: NO se descuenta de la ganancia.
   const ivaDebit = sinIva && taxes != null && taxes > 0 ? taxes : total - total / (1 + IVA_RATE);
   const ivaCost = productCost != null ? productCost * IVA_RATE : null; // productCost ya está sin IVA
   const ivaToPay = ivaDebit - (ivaCost ?? 0);
@@ -155,8 +156,8 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">IVA de la operación</p>
           <Row label="IVA de la operación (venta)" value={fmt(ivaDebit)}
             hint={sinIva && taxes != null && taxes > 0 ? 'IVA informado en la venta' : `Total − Total ÷ 1,19 = ${fmt(total)} − ${fmt(total / (1 + IVA_RATE))}`} />
-          {ivaCost != null && <Row label="IVA de la compra del producto" value={`-${fmt(ivaCost)}`} tone="minus"
-            hint="Costo sin IVA × 19% (IVA de la factura de compra)" />}
+          {ivaCost != null && <Row label="IVA del costo del producto (costo promedio)" value={`-${fmt(ivaCost)}`} tone="minus"
+            hint={`Costo con IVA − Costo ÷ 1,19 = ${fmt(productCost! * (1 + IVA_RATE))} − ${fmt(productCost!)}`} />}
           <div className={`flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 mt-1 text-xs font-semibold ${ivaToPay < 0 ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-800'}`}>
             <span>{ivaToPay < 0 ? 'IVA a favor' : 'IVA a pagar'}</span>
             <span className="tabular-nums">{fmt(Math.abs(ivaToPay))}</span>
