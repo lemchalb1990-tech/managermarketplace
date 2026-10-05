@@ -1,5 +1,6 @@
 'use client';
 
+import MlAccountDataRecoveryCard from './MlAccountDataRecoveryCard';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
@@ -755,6 +756,8 @@ export default function MercadoLibrePage() {
             </div>
           )}
         </div>
+
+        <MlAccountDataRecoveryCard companyId={activeCompanyId || undefined} />
 
         <div className="mt-4 bg-white border border-amber-200 rounded-xl p-4 space-y-2">
             <div className="flex flex-wrap items-center gap-2">

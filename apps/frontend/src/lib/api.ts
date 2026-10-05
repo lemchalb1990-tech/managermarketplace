@@ -467,10 +467,10 @@ export const api = {
         printed: string[];
         errors: { orderId: string; message: string }[];
       }>('/ecommerce/ml/orders/print-labels-bulk', { method: 'POST', body: JSON.stringify({ orderIds, withDetail }) }, token),
-    publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[]) =>
+    publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[], title?: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',
-        body: JSON.stringify(saleTerms?.length ? { saleTerms } : {}),
+        body: JSON.stringify({ ...(saleTerms?.length ? { saleTerms } : {}), ...(title?.trim() ? { title: title.trim() } : {}) }),
       }, token),
     getSaleTerms: (connectionId: string, categoryId: string, token: string) =>
       apiFetch<{ id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[] }[]>(
@@ -574,6 +574,14 @@ export const api = {
           after?: { total: number; fee: number; shipping: number; net: number };
         }[];
       }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
+    accountInfo: (productId: string, token: string) =>
+      apiFetch<{ connectionId: string; mlTitle: string; mlPrice: number; sold: number }[]>(`/ecommerce/ml/products/${productId}/account-info`, {}, token),
+    recoverAccountData: (body: { companyId?: string; apply?: boolean }, token: string) =>
+      apiFetch<{
+        applied: boolean; checked: number; affected: number; errors: string[];
+        changes: { productId: string; sku: string; name: string; connection: string; connectionId: string; externalId: string; sold: number;
+          mlTitle: string; mlPrice: number; priceBefore: number; priceAfter: number; priceOwn: boolean; titleBefore: string; titleOwn: boolean; changed: boolean }[];
+      }>('/ecommerce/ml/account-data/recover', { method: 'POST', body: JSON.stringify(body) }, token),
     // Precio base de ML y precio de cada cuenta (null = usa el base); se envía a las publicaciones.
     setAccountPrices: (productId: string, body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] }, token: string) =>
       apiFetch<{ basePrice: number | null; pushed: { connection: string; price: number; ok: boolean; error?: string }[]; titles?: { connection: string; ok: boolean; error?: string }[] }>(

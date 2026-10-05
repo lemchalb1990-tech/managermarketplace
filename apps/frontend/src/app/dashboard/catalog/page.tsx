@@ -1364,6 +1364,9 @@ export default function CatalogPage() {
   // Al crear y publicar en 2+ cuentas de ML: mismo precio en todas o uno por cuenta.
   const [mlPriceMode, setMlPriceMode] = useState<'same' | 'perAccount'>('same');
   const [mlAccountPrices, setMlAccountPrices] = useState<Record<string, string>>({});
+  // Título por cuenta al crear (las publicaciones nuevas aún no tienen ventas, se puede elegir).
+  const [mlTitleMode, setMlTitleMode] = useState<'same' | 'perAccount'>('same');
+  const [mlAccountTitles, setMlAccountTitles] = useState<Record<string, string>>({});
   // Conexiones que el usuario eligió al crear el producto pero que quedaron pendientes de
   // publicar porque todavía no hay ninguna imagen (requisito para publicar en marketplaces).
   const [pendingPublishTargets, setPendingPublishTargets] = useState<string[]>([]);
@@ -1925,7 +1928,7 @@ export default function CatalogPage() {
       for (const connId of pendingPublishTargets) {
         const isMl = connections.some((c) => c.id === connId);
         try {
-          if (isMl) await api.marketplace.publish(selected.id, connId, token);
+          if (isMl) await api.marketplace.publish(selected.id, connId, token, undefined, mlTitleMode === 'perAccount' ? mlAccountTitles[connId] : undefined);
           else await api.connections.publish(connId, selected.id, token);
         } catch (err: any) {
           const conn = activeConnections.find((c) => c.id === connId);
@@ -3027,6 +3030,30 @@ export default function CatalogPage() {
                             Precio distinto por cuenta
                           </label>
                         </div>
+                        <p className="text-xs font-medium text-gray-700 pt-1">Título en las cuentas de Mercado Libre</p>
+                        <div className="flex flex-wrap gap-4 text-xs text-gray-700">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mlTitleMode === 'same'} onChange={() => setMlTitleMode('same')} />
+                            Mismo título en todas (nombre del producto)
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mlTitleMode === 'perAccount'} onChange={() => setMlTitleMode('perAccount')} />
+                            Título distinto por cuenta
+                          </label>
+                        </div>
+                        {mlTitleMode === 'perAccount' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {connections.filter((c) => publishTargets[c.id]).map((c) => (
+                              <div key={c.id}>
+                                <label className="block text-xs text-gray-600 mb-1">Título en {c.name}</label>
+                                <input type="text" maxLength={60} value={mlAccountTitles[c.id] || ''}
+                                  onChange={(e) => setMlAccountTitles((p) => ({ ...p, [c.id]: e.target.value }))}
+                                  placeholder="Vacío = nombre del producto"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {mlPriceMode === 'perAccount' && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {connections.filter((c) => publishTargets[c.id]).map((c) => (

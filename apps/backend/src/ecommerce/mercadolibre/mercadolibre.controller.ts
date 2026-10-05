@@ -3,7 +3,7 @@ import {
   UseGuards, Res, Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -68,6 +68,12 @@ class PublishOptionsDto {
   @ValidateNested({ each: true })
   @Type(() => SaleTermDto)
   saleTerms?: SaleTermDto[];
+
+  // Título de la publicación en esta cuenta (si no, el título propio guardado o el nombre).
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  title?: string;
 }
 
 class AnswerQuestionDto {
@@ -330,6 +336,22 @@ export class MercadolibreController {
     return this.service.transferConnectionData(fromId, toId, user, body?.apply === true);
   }
 
+  // Título, precio y ventas en ML de cada cuenta del producto (las con ventas quedan con su título real).
+  @Get('products/:productId/account-info')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  getMlAccountInfo(@Param('productId') productId: string, @CurrentUser() user: any) {
+    return this.service.getMlAccountInfo(productId, user);
+  }
+
+  // Recupera desde ML el precio y título de cada cuenta en productos ya importados (apply=false: solo revisa).
+  @Post('account-data/recover')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  recoverAccountData(@Body() body: { companyId?: string; apply?: boolean }, @CurrentUser() user: any) {
+    return this.service.recoverAccountData(user, { companyId: body?.companyId, apply: body?.apply === true });
+  }
+
   // Precio base de ML y precio de cada cuenta (null = usa el base); se envía a las publicaciones.
   @Put('products/:productId/account-prices')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -440,7 +462,7 @@ export class MercadolibreController {
     @CurrentUser() user: any,
     @Body() dto?: PublishOptionsDto,
   ) {
-    return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms);
+    return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms, dto?.title);
   }
 
   // Condiciones de venta (p.ej. garantía) que exige la categoría, para pedirlas antes de

@@ -824,8 +824,11 @@ export class MercadolibreService {
     connectionId: string,
     user: any,
     saleTerms?: { id: string; value_id?: string; value_name?: string }[],
+    title?: string,
   ) {
     const product = await this.catalog.findOne(productId, user);
+    // Título de esta cuenta: el elegido al publicar, si no el propio guardado, si no el nombre.
+    const accountTitle = (title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).slice(0, 60);
     await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
@@ -865,7 +868,7 @@ export class MercadolibreService {
     const userAttrs = await this.withDefaultUnits(categoryId, (product as any).mlAttributes || []);
 
     const mlItem = {
-      title: (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name,
+      title: accountTitle,
       category_id: categoryId,
       price: Math.round(effectivePrice),
       currency_id: 'CLP',
@@ -956,9 +959,11 @@ export class MercadolibreService {
         status: ListingStatus.ACTIVE,
         syncedAt: new Date(),
         errorMsg: null,
+        title: accountTitle !== product.name.trim() ? accountTitle : null,
       },
       create: {
         productId, connectionId,
+        title: accountTitle !== product.name.trim() ? accountTitle : null,
         externalId: mlData.id,
         externalUrl: mlData.permalink,
         status: ListingStatus.ACTIVE,
@@ -1051,6 +1056,100 @@ export class MercadolibreService {
     }
   }
 
+  // Lee en ML el título, precio y ventas de cada publicación y deja el precio y título de cada
+  // cuenta como en ML: igual al base (precio base ML / nombre del producto) = usa el base; distinto
+  // = propio de esa cuenta. Solo lectura en ML: no cambia nada en las publicaciones. Sirve para
+  // productos importados antes del precio/título por cuenta, donde la última cuenta importada
+  // pisaba el precio base y el nombre. `titlesOnlySold`: solo corrige títulos de publicaciones
+  // con ventas (ML no deja cambiarlos, así que el título real es el de ML).
+  async recoverAccountData(user: any, opts: { companyId?: string; productId?: string; apply?: boolean; titlesOnlySold?: boolean }) {
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        externalId: { not: null },
+        connection: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true },
+        product: { ...this.companyFilter(user, opts.companyId), ...(opts.productId ? { id: opts.productId } : {}) },
+      },
+      include: {
+        connection: { select: { id: true, name: true } },
+        product: { select: { id: true, sku: true, name: true, price: true, mlPrice: true, channelPrices: { select: { connectionId: true, price: true } } } },
+      },
+      orderBy: [{ productId: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    // Lectura en ML por cuenta (lotes de 20).
+    const items = new Map<string, any>();
+    const byConn = new Map<string, string[]>();
+    for (const l of listings) byConn.set(l.connectionId, [...(byConn.get(l.connectionId) || []), l.externalId!]);
+    const connErrors: string[] = [];
+    for (const [connId, ids] of byConn) {
+      try {
+        const token = await this.getValidToken(connId);
+        for (const it of await this.fetchMlItems(Array.from(new Set(ids)), token)) items.set(it.id, it);
+      } catch (err: any) {
+        connErrors.push(`${listings.find((l) => l.connectionId === connId)?.connection.name}: ${err.message}`);
+      }
+    }
+
+    type Change = {
+      productId: string; sku: string; name: string; connection: string; connectionId: string; externalId: string; sold: number;
+      mlTitle: string; mlPrice: number; priceBefore: number; priceAfter: number; priceOwn: boolean; titleBefore: string; titleOwn: boolean;
+      changed: boolean;
+    };
+    const rows: Change[] = [];
+    const baseSet = new Map<string, number>(); // productId → precio base que se fija (si no tenía)
+    for (const l of listings) {
+      const it = items.get(l.externalId!);
+      if (!it) continue;
+      const p = l.product;
+      const mlTitle = String(it.title || '').trim();
+      const mlPrice = Number(it.price);
+      const sold = Number(it.sold_quantity || 0);
+      const own = p.channelPrices.find((cp) => cp.connectionId === l.connectionId);
+      let base = p.mlPrice != null ? Number(p.mlPrice) : baseSet.get(p.id);
+      if (base == null && mlPrice > 0) { base = mlPrice; baseSet.set(p.id, mlPrice); }
+      const priceBefore = own ? Number(own.price) : Number(p.mlPrice ?? p.price);
+      const wantOwnPrice = mlPrice > 0 && base != null && Math.round(mlPrice) !== Math.round(base) ? mlPrice : null;
+      const priceChanged = !opts.titlesOnlySold && mlPrice > 0
+        && ((wantOwnPrice == null) !== !own || (wantOwnPrice != null && own != null && Math.round(Number(own.price)) !== Math.round(wantOwnPrice)));
+      const titleBefore = (l.title || p.name).trim();
+      const wantTitle = mlTitle && mlTitle !== p.name.trim() ? mlTitle : null;
+      const titleChanged = !!mlTitle && (!opts.titlesOnlySold || sold > 0) && (wantTitle ?? null) !== (l.title ? l.title.trim() : null);
+
+      if (opts.apply) {
+        if (priceChanged) {
+          if (wantOwnPrice == null) await this.prisma.channelPrice.deleteMany({ where: { productId: p.id, connectionId: l.connectionId } });
+          else await this.prisma.channelPrice.upsert({
+            where: { productId_connectionId: { productId: p.id, connectionId: l.connectionId } },
+            update: { price: wantOwnPrice }, create: { productId: p.id, connectionId: l.connectionId, price: wantOwnPrice },
+          });
+        }
+        if (titleChanged) await this.prisma.listing.update({ where: { id: l.id }, data: { title: wantTitle } });
+      }
+      rows.push({
+        productId: p.id, sku: p.sku, name: p.name, connection: l.connection.name, connectionId: l.connectionId, externalId: l.externalId!, sold,
+        mlTitle, mlPrice, priceBefore, priceAfter: mlPrice > 0 ? mlPrice : priceBefore, priceOwn: wantOwnPrice != null,
+        titleBefore, titleOwn: wantTitle != null, changed: priceChanged || titleChanged || (baseSet.has(p.id) && !opts.titlesOnlySold),
+      });
+    }
+    if (opts.apply && !opts.titlesOnlySold) {
+      for (const [productId, price] of baseSet) await this.prisma.product.update({ where: { id: productId }, data: { mlPrice: price } });
+    }
+    return {
+      applied: !!opts.apply, checked: rows.length, affected: rows.filter((r) => r.changed).length,
+      changes: opts.productId ? rows : rows.filter((r) => r.changed), errors: connErrors,
+    };
+  }
+
+  // Datos en vivo de cada cuenta para la tarjeta "Precios y títulos por cuenta": título, precio y
+  // ventas en ML. Las publicaciones con ventas quedan con el título que tienen en ML.
+  async getMlAccountInfo(productId: string, user: any) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { companyId: true } });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
+    const r = await this.recoverAccountData(user, { companyId: product.companyId, productId, apply: true, titlesOnlySold: true });
+    return r.changes.map((c) => ({ connectionId: c.connectionId, mlTitle: c.mlTitle, mlPrice: c.mlPrice, sold: c.sold }));
+  }
+
   // Guarda el precio base de ML y el de cada cuenta (null = usa el base) y lo envía de inmediato
   // a las publicaciones activas/pausadas de esas cuentas.
   async setMlAccountPrices(productId: string, dto: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] }, user: any) {
@@ -1098,8 +1197,19 @@ export class MercadolibreService {
       const after = (newTitle || product.name).trim();
       await this.prisma.listing.update({ where: { id: l.id }, data: { title: newTitle } });
       if (before === after || !l.externalId || !([ListingStatus.ACTIVE, ListingStatus.PAUSED] as ListingStatus[]).includes(l.status)) continue;
+      const token = await this.getValidToken(l.connectionId).catch(() => null);
+      const [current] = token ? await this.fetchMlItems([l.externalId], token) : [];
+      const keepMlTitle = async () => {
+        const t = String(current?.title || '').trim();
+        if (t) await this.prisma.listing.update({ where: { id: l.id }, data: { title: t !== String(product.name).trim() ? t : null } });
+      };
+      if (Number(current?.sold_quantity || 0) > 0) {
+        await keepMlTitle();
+        titleResults.push({ connection: l.connection.name, ok: false, error: 'título: la publicación tiene ventas y Mercado Libre no permite cambiarlo; se mantiene el título de la publicación' });
+        continue;
+      }
       try {
-        const token = await this.getValidToken(l.connectionId);
+        if (!token) throw new Error('sin token de la cuenta');
         const res = await fetch(`${ML_API}/items/${l.externalId}`, {
           method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: after }),
         });
@@ -1110,7 +1220,8 @@ export class MercadolibreService {
         }
         titleResults.push({ connection: l.connection.name, ok: true });
       } catch (err: any) {
-        titleResults.push({ connection: l.connection.name, ok: false, error: `título: ${err.message}` });
+        await keepMlTitle();
+        titleResults.push({ connection: l.connection.name, ok: false, error: `título: ${err.message} (se mantiene el título de la publicación)` });
       }
     }
 
@@ -1394,7 +1505,7 @@ export class MercadolibreService {
   }
 
   private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
-    const attrs = 'id,title,price,available_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures,family_name';
+    const attrs = 'id,title,price,available_quantity,sold_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures,family_name';
     const items: any[] = [];
     for (let i = 0; i < itemIds.length; i += 20) {
       const batch = itemIds.slice(i, i + 20);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
@@ -25,6 +25,26 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
       const t = listingOf(c.id)?.title;
       return [c.id, { mode: cp ? 'own' : 'base', price: cp ? String(Number(cp.price)) : '', titleMode: t ? 'own' : 'base', title: t || '' }];
     })));
+  // Datos en vivo de ML: las publicaciones con ventas no pueden cambiar título (queda el de ML).
+  const [info, setInfo] = useState<Record<string, { mlTitle: string; mlPrice: number; sold: number }>>({});
+  useEffect(() => {
+    let alive = true;
+    api.marketplace.accountInfo(product.id, getToken()!).then((list) => {
+      if (!alive) return;
+      setInfo(Object.fromEntries(list.map((i) => [i.connectionId, i])));
+      setRows((r) => {
+        const next = { ...r };
+        for (const i of list) {
+          if (i.sold > 0 && i.mlTitle && next[i.connectionId]) {
+            const isBase = i.mlTitle.trim() === String(product.name).trim();
+            next[i.connectionId] = { ...next[i.connectionId], titleMode: isBase ? 'base' : 'own', title: isBase ? '' : i.mlTitle };
+          }
+        }
+        return next;
+      });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [product.id, product.name]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -43,7 +63,7 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
           connectionId: c.id,
           price: !equalizeAll && r?.mode === 'own' && Number(r.price) > 0 ? Number(r.price) : null,
           // "Igualar" solo afecta precios; el título se envía solo en cuentas con publicación.
-          ...(listingOf(c.id) ? { title: r?.titleMode === 'own' && r.title.trim() ? r.title.trim() : null } : {}),
+          ...(listingOf(c.id) && !(info[c.id]?.sold > 0) ? { title: r?.titleMode === 'own' && r.title.trim() ? r.title.trim() : null } : {}),
         };
       });
       const res = await api.marketplace.setAccountPrices(product.id, { basePrice: Number(base) > 0 ? Number(base) : null, accounts }, getToken()!);
@@ -95,6 +115,7 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
                 <p className="text-sm font-medium text-gray-800 truncate">{c.name}</p>
                 <p className="text-[11px] text-gray-400 truncate">
                   {listing?.externalId ? `${listing.externalId} · ${listing.status === 'ACTIVE' ? 'Activa' : listing.status === 'PAUSED' ? 'Pausada' : listing.status}` : 'Sin publicar'}
+                  {info[c.id]?.sold > 0 && ` · ${info[c.id].sold} vendido(s)`}
                 </p>
               </div>
               <div className="flex items-center gap-3 text-xs">
@@ -112,7 +133,14 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
                   placeholder="Precio en esta cuenta"
                   className="w-full sm:w-36 px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
               )}
-              {listing && (
+              {listing && info[c.id]?.sold > 0 && (
+                <div className="w-full text-xs text-gray-600">
+                  <span className="text-gray-500">Título: </span>
+                  <span className="font-medium">{info[c.id].mlTitle}</span>
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">con ventas, Mercado Libre no permite cambiarlo</span>
+                </div>
+              )}
+              {listing && !(info[c.id]?.sold > 0) && (
                 <div className="w-full flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
                   <span className="text-gray-500 w-10">Título</span>
                   <label className="flex items-center gap-1 cursor-pointer min-w-0">
