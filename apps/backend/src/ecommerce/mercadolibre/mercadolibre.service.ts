@@ -1747,8 +1747,24 @@ export class MercadolibreService {
 
       const bonus = Number(sender?.compensation || 0) + compensationsSum - flexCharge + flexFullBonus;
 
+      // Caso confirmado: Flex con costo informado al vendedor (costs.senders.cost > 0) — ese costo
+      // NO se le cobra (el envío Flex lo paga el comprador / ML y lo entrega el vendedor); lo que ML
+      // acredita como "Bonificación por envío" son los descuentos del vendedor (senders.discounts,
+      // promoted_amount). Ej. orden 2000018780690098: cost=2601, discount mandatory 10% = 289 →
+      // ML liquida 24528 − 3679 + 289 = 21138.
+      const senderDiscounts = Array.isArray(sender?.discounts)
+        ? sender.discounts.reduce((s: number, d: any) => s + Number(d?.promoted_amount || 0), 0)
+        : 0;
+      const flexWithCost = isFlex && senderCostRaw != null && senderCostRaw > 0;
+      if (flexWithCost) {
+        this.logger.log(`ML orden ${orderId} Flex con costo informado ${senderCostRaw}: no se cobra; bonificación = descuentos ${senderDiscounts} + compensaciones ${bonus}`);
+      }
+
       // 1) Si /costs trae el cargo real al vendedor, se usa directo (menos la bonificación, si existe).
-      const sendersCost = sender?.cost != null ? Number(sender.cost) - bonus : undefined;
+      //    Flex con costo: solo la bonificación (negativo = a favor del vendedor).
+      const sendersCost = flexWithCost
+        ? -(senderDiscounts + bonus)
+        : sender?.cost != null ? Number(sender.cost) - bonus : undefined;
 
       // 2) Si no, se infiere: costo real de envío menos lo que pagó el comprador.
       //    Positivo = se le cobra la diferencia al vendedor (ej. envío "gratis" para el comprador).
@@ -2095,7 +2111,8 @@ export class MercadolibreService {
         ...this.companyFilter(user, opts.companyId),
         channel: SaleChannel.MERCADO_LIBRE,
         connectionId: { not: null },
-        OR: [{ mlPackId: { not: null } }, { mlMergedOrderIds: { isEmpty: false } }],
+        // Carritos (envío compartido) y ventas Flex (bonificación de envío mal calculada antes de oct-2026).
+        OR: [{ mlPackId: { not: null } }, { mlMergedOrderIds: { isEmpty: false } }, { shippingMethod: 'Flex' }],
       },
       select: {
         id: true, externalId: true, mlPackId: true, mlShippingId: true, mlMergedOrderIds: true, connectionId: true,
@@ -2113,7 +2130,8 @@ export class MercadolibreService {
       };
       try {
         const token = await this.getValidToken(sale.connectionId!);
-        const ids = (await this.packOrderIds(sale, token)) || [sale.externalId!, ...sale.mlMergedOrderIds];
+        const ids = (sale.mlPackId || sale.mlMergedOrderIds.length ? await this.packOrderIds(sale, token) : null)
+          || [sale.externalId!, ...sale.mlMergedOrderIds];
         if (sale.externalId && !ids.includes(sale.externalId)) { entry.error = 'El pack de Mercado Libre no incluye la orden principal: no se modifica'; report.push(entry); continue; }
         const mlOrders: any[] = [];
         for (const id of ids) {
