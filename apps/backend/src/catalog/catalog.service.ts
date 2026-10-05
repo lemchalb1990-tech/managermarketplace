@@ -711,7 +711,13 @@ export class CatalogService {
     const products = await this.prisma.product.findMany({
       where: { companyId, active: true },
       orderBy: { name: 'asc' },
-      select: { sku: true, name: true, price: true, cost: true, stock: true },
+      select: { sku: true, name: true, price: true, cost: true, stock: true, mlPrice: true, channelPrices: { select: { connectionId: true, price: true } } },
+    });
+    // Precio por cuenta de Mercado Libre: "Precio base ML" (todas las cuentas) y una columna por
+    // cuenta; celda vacía = esa cuenta usa el precio base.
+    const mlConnections = await this.prisma.marketplaceConnection.findMany({
+      where: { companyId, active: true, marketplace: 'MERCADO_LIBRE' as any },
+      select: { id: true, name: true }, orderBy: { name: 'asc' },
     });
 
     const workbook = new ExcelJS.Workbook();
@@ -722,10 +728,18 @@ export class CatalogService {
       { header: 'Precio', key: 'price', width: 15 },
       { header: 'Costo', key: 'cost', width: 15 },
       { header: 'Stock', key: 'stock', width: 12 },
+      ...(mlConnections.length ? [{ header: 'Precio base ML', key: 'mlPrice', width: 16 }] : []),
+      ...mlConnections.map((c) => ({ header: `Precio ML - ${c.name}`, key: `ml_${c.id}`, width: 22 })),
     ];
     sheet.getRow(1).font = { bold: true };
     for (const p of products) {
-      sheet.addRow({ sku: p.sku, name: p.name, price: Number(p.price), cost: p.cost != null ? Number(p.cost) : null, stock: p.stock });
+      const row: Record<string, any> = { sku: p.sku, name: p.name, price: Number(p.price), cost: p.cost != null ? Number(p.cost) : null, stock: p.stock };
+      if (mlConnections.length) row.mlPrice = p.mlPrice != null ? Number(p.mlPrice) : null;
+      for (const c of mlConnections) {
+        const cp = p.channelPrices.find((x) => x.connectionId === c.id);
+        row[`ml_${c.id}`] = cp ? Number(cp.price) : null;
+      }
+      sheet.addRow(row);
     }
     return Buffer.from(await workbook.xlsx.writeBuffer());
   }
@@ -750,6 +764,23 @@ export class CatalogService {
     let skipped = 0;
     const errors: BulkImportError[] = [];
 
+    // Columnas opcionales de Mercado Libre (por nombre del encabezado): "Precio base ML" y
+    // "Precio ML - <cuenta>". Si la columna de una cuenta está, celda vacía = usa el precio base.
+    const mlConnections = await this.prisma.marketplaceConnection.findMany({
+      where: { companyId, marketplace: 'MERCADO_LIBRE' as any }, select: { id: true, name: true },
+    });
+    let mlBaseCol: number | null = null;
+    const mlAccountCols: { col: number; connectionId: string }[] = [];
+    sheet.getRow(1).eachCell((cell, col) => {
+      const h = String(cell.value ?? '').trim();
+      if (/^precio base ml$/i.test(h)) mlBaseCol = col;
+      const m = /^precio ml\s*-\s*(.+)$/i.exec(h);
+      if (m) {
+        const conn = mlConnections.find((c) => c.name.trim().toLowerCase() === m[1].trim().toLowerCase());
+        if (conn) mlAccountCols.push({ col, connectionId: conn.id });
+      }
+    });
+
     for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
       const row = sheet.getRow(rowNumber);
       const rawSku = row.getCell(1).value;
@@ -772,7 +803,10 @@ export class CatalogService {
         const n = Number(rawStock);
         if (!Number.isNaN(n)) dto.stock = Math.trunc(n);
       }
-      if (dto.price === undefined && dto.cost === undefined && dto.stock === undefined) {
+      const numOrNull = (v: any) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+      const mlBase = mlBaseCol != null ? numOrNull(row.getCell(mlBaseCol).value) : undefined;
+      const mlAccounts = mlAccountCols.map((c) => ({ connectionId: c.connectionId, price: numOrNull(row.getCell(c.col).value) }));
+      if (dto.price === undefined && dto.cost === undefined && dto.stock === undefined && mlBase === undefined && !mlAccounts.length) {
         skipped++;
         continue;
       }
@@ -783,7 +817,23 @@ export class CatalogService {
         continue;
       }
       try {
-        await this.update(product.id, dto, user);
+        const mlDto: any = mlBase !== undefined ? { mlPrice: mlBase != null && mlBase > 0 ? mlBase : null } : {};
+        if (Object.keys(dto).length || Object.keys(mlDto).length) await this.update(product.id, { ...dto, ...mlDto } as any, user);
+        if (mlAccounts.length) {
+          for (const a of mlAccounts) {
+            if (a.price == null || !(a.price > 0)) {
+              await this.prisma.channelPrice.deleteMany({ where: { productId: product.id, connectionId: a.connectionId } });
+            } else {
+              await this.prisma.channelPrice.upsert({
+                where: { productId_connectionId: { productId: product.id, connectionId: a.connectionId } },
+                update: { price: a.price }, create: { productId: product.id, connectionId: a.connectionId, price: a.price },
+              });
+            }
+          }
+          // Envía a cada publicación su precio vigente (propio de la cuenta o el base).
+          const fresh = await this.prisma.product.findUnique({ where: { id: product.id }, select: { stock: true, price: true, mlPrice: true } });
+          if (fresh) this.sync.syncProduct(product.id, fresh.stock, Number(fresh.mlPrice ?? fresh.price)).catch(() => {});
+        }
         updated++;
       } catch (err: any) {
         errors.push({ row: rowNumber, sku, reason: err.message || 'Error al actualizar' });

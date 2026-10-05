@@ -1023,6 +1023,93 @@ export class MercadolibreService {
   // Dirección inversa de syncStock: trae los datos actuales de la publicación desde ML y
   // los copia hacia la ficha del producto (nombre, descripción, precio de referencia,
   // categoría/atributos, fotos y stock), en vez de empujar los datos locales hacia ML.
+  // ─── Precio por cuenta de Mercado Libre ──────────────────────────────────────
+  // Regla: un producto tiene UN precio base de ML (Product.mlPrice) que usan todas las cuentas,
+  // salvo las que tengan precio propio (ChannelPrice). Al traer el precio de una publicación de
+  // una cuenta: si el producto aún no tiene base (o solo está en esa cuenta) pasa a ser el base;
+  // si ya tiene base y el precio es distinto, queda como precio propio de ESA cuenta — así
+  // importar varias cuentas no pisa el precio de las otras.
+  private async applyMlAccountPrice(client: any, productId: string, connectionId: string, price: number | null | undefined) {
+    if (price == null || !(Number(price) > 0)) return;
+    const product = await client.product.findUnique({ where: { id: productId }, select: { mlPrice: true } });
+    const otherMlListings = await client.listing.count({
+      where: { productId, connectionId: { not: connectionId }, connection: { marketplace: MarketplaceType.MERCADO_LIBRE } },
+    });
+    if (product?.mlPrice == null || otherMlListings === 0) {
+      await client.product.update({ where: { id: productId }, data: { mlPrice: price } });
+      await client.channelPrice.deleteMany({ where: { productId, connectionId } });
+      return;
+    }
+    if (Math.round(Number(product.mlPrice)) === Math.round(Number(price))) {
+      await client.channelPrice.deleteMany({ where: { productId, connectionId } });
+    } else {
+      await client.channelPrice.upsert({
+        where: { productId_connectionId: { productId, connectionId } },
+        update: { price },
+        create: { productId, connectionId, price },
+      });
+    }
+  }
+
+  // Guarda el precio base de ML y el de cada cuenta (null = usa el base) y lo envía de inmediato
+  // a las publicaciones activas/pausadas de esas cuentas.
+  async setMlAccountPrices(productId: string, dto: { basePrice?: number | null; accounts: { connectionId: string; price: number | null }[] }, user: any) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
+    const connIds = (dto.accounts || []).map((a) => a.connectionId);
+    const conns = await this.prisma.marketplaceConnection.findMany({
+      where: { id: { in: connIds }, companyId: product.companyId, marketplace: MarketplaceType.MERCADO_LIBRE },
+      select: { id: true },
+    });
+    if (conns.length !== connIds.length) throw new BadRequestException('Alguna cuenta no es de Mercado Libre de esta empresa.');
+
+    await this.prisma.$transaction(async (tx) => {
+      if (dto.basePrice !== undefined) {
+        await tx.product.update({ where: { id: productId }, data: { mlPrice: dto.basePrice != null && dto.basePrice > 0 ? dto.basePrice : null } });
+      }
+      for (const a of dto.accounts || []) {
+        if (a.price == null || !(Number(a.price) > 0)) {
+          await tx.channelPrice.deleteMany({ where: { productId, connectionId: a.connectionId } });
+        } else {
+          await tx.channelPrice.upsert({
+            where: { productId_connectionId: { productId, connectionId: a.connectionId } },
+            update: { price: a.price },
+            create: { productId, connectionId: a.connectionId, price: a.price },
+          });
+        }
+      }
+    });
+
+    // Envía el precio vigente a cada publicación de ML del producto.
+    const fresh = await this.prisma.product.findUnique({ where: { id: productId } });
+    const base = Number(fresh!.mlPrice ?? fresh!.price);
+    const listings = await this.prisma.listing.findMany({
+      where: { productId, externalId: { not: null }, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] }, connection: { marketplace: MarketplaceType.MERCADO_LIBRE } },
+      include: { connection: { select: { name: true } } },
+    });
+    const results: { connection: string; price: number; ok: boolean; error?: string }[] = [];
+    for (const l of listings) {
+      const price = Math.round(await getEffectivePrice(this.prisma, productId, l.connectionId, base));
+      try {
+        const token = await this.getValidToken(l.connectionId);
+        const res = await fetch(`${ML_API}/items/${l.externalId}`, {
+          method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ price }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as any;
+          throw new Error(err.message || `HTTP ${res.status}`);
+        }
+        await this.prisma.listing.update({ where: { id: l.id }, data: { syncedAt: new Date(), errorMsg: null } });
+        results.push({ connection: l.connection.name, price, ok: true });
+      } catch (err: any) {
+        await this.prisma.listing.update({ where: { id: l.id }, data: { errorMsg: err.message } }).catch(() => {});
+        results.push({ connection: l.connection.name, price, ok: false, error: err.message });
+      }
+    }
+    return { basePrice: fresh!.mlPrice != null ? Number(fresh!.mlPrice) : null, pushed: results };
+  }
+
   async pullProductFromMl(productId: string, connectionId: string, user: any) {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
@@ -1050,12 +1137,13 @@ export class MercadolibreService {
           // devolver plain_text/text) — cada resincronización fallida borraba silenciosamente
           // la descripción ya guardada en vez de dejarla intacta.
           mlDescription: mlDesc || (product as any).mlDescription || null,
-          mlPrice: item.price != null ? item.price : product.mlPrice,
           mlCategoryId: item.category_id || null,
           mlFamilyName: item.family_name || null,
           mlAttributes: additionalAttrs.length ? additionalAttrs : undefined,
         },
       });
+      // Precio de ESTA cuenta: base si es la única cuenta (o no hay base), si no precio propio.
+      await this.applyMlAccountPrice(tx, productId, connectionId, item.price);
       // El stock que trae ML se aplica como ajuste en la bodega del producto (kardex).
       if (stockDelta !== 0) {
         await this.ledger.move(tx, {
@@ -1483,6 +1571,9 @@ export class MercadolibreService {
               syncedAt: new Date(),
             },
           });
+          // Sin esto, la sincronización le enviaba el precio base a la publicación de esta cuenta
+          // y le cambiaba el precio en ML: el precio que tiene en ML queda como el de esta cuenta.
+          await this.applyMlAccountPrice(this.prisma, product.id, connectionId, item.price);
           linkedProductIds.add(product.id);
           linked++;
         } else {

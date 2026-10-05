@@ -11,6 +11,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import WalmartListingCard from './WalmartListingCard';
+import MlAccountPricesCard from './MlAccountPricesCard';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1360,6 +1361,9 @@ export default function CatalogPage() {
   const [connections, setConnections] = useState<any[]>([]);
   const [genericConnections, setGenericConnections] = useState<any[]>([]);
   const [publishTargets, setPublishTargets] = useState<Record<string, boolean>>({});
+  // Al crear y publicar en 2+ cuentas de ML: mismo precio en todas o uno por cuenta.
+  const [mlPriceMode, setMlPriceMode] = useState<'same' | 'perAccount'>('same');
+  const [mlAccountPrices, setMlAccountPrices] = useState<Record<string, string>>({});
   // Conexiones que el usuario eligió al crear el producto pero que quedaron pendientes de
   // publicar porque todavía no hay ninguna imagen (requisito para publicar en marketplaces).
   const [pendingPublishTargets, setPendingPublishTargets] = useState<string[]>([]);
@@ -1881,6 +1885,12 @@ export default function CatalogPage() {
       const created = await api.catalog.create(payload, token);
       await saveWebChannelPrices(created.id, editForm.channelPrices || {}, {}, token);
       const targetIds = Object.entries(publishTargets).filter(([, checked]) => checked).map(([id]) => id);
+      const mlTargets = connections.filter((c) => publishTargets[c.id]);
+      if (mlPriceMode === 'perAccount' && mlTargets.length > 1) {
+        await api.marketplace.setAccountPrices(created.id, {
+          accounts: mlTargets.map((c) => ({ connectionId: c.id, price: Number(mlAccountPrices[c.id]) > 0 ? Number(mlAccountPrices[c.id]) : null })),
+        }, token);
+      }
       await loadProducts(1);
 
       if (targetIds.length) {
@@ -2383,6 +2393,10 @@ export default function CatalogPage() {
             <div className="px-6 py-5 space-y-4">
               <p className="text-xs text-gray-500">
                 Descarga la plantilla con tu catálogo actual, edita las columnas <b>Precio</b>, <b>Costo</b> y/o <b>Stock</b> y súbela de vuelta.
+                {connections.length > 0 && (
+                  <> Si tienes Mercado Libre, también trae <b>Precio base ML</b> y una columna <b>Precio ML - [cuenta]</b> por cuenta
+                  (vacía = esa cuenta usa el precio base).</>
+                )}
                 Solo se actualizan productos que ya existen (por SKU) — esto nunca crea productos nuevos.
                 El costo no se actualiza en productos con compras registradas (se calcula automático).
               </p>
@@ -2839,6 +2853,12 @@ export default function CatalogPage() {
                   {activeConnections.length > 0 && (
                     <td className={`${cellPad} text-gray-700`}>
                       {p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : <span className="text-gray-300">—</span>}
+                      {(() => {
+                        const own = (p.channelPrices || []).filter((cp: any) => connections.some((c) => c.id === cp.connectionId));
+                        if (!own.length) return null;
+                        const detail = own.map((cp: any) => `${connections.find((c) => c.id === cp.connectionId)?.name}: ${fmtCLP(Number(cp.price))}`).join('\n');
+                        return <span className="block text-[11px] text-amber-700" title={detail}>{own.length} cuenta{own.length > 1 ? 's' : ''} con precio propio</span>;
+                      })()}
                     </td>
                   )}
                   {webPriceConnections.map((c) => {
@@ -2994,6 +3014,34 @@ export default function CatalogPage() {
                         </label>
                       ))}
                     </div>
+                    {connections.filter((c) => publishTargets[c.id]).length > 1 && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                        <p className="text-xs font-medium text-gray-700">Precio en las cuentas de Mercado Libre</p>
+                        <div className="flex flex-wrap gap-4 text-xs text-gray-700">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mlPriceMode === 'same'} onChange={() => setMlPriceMode('same')} />
+                            Mismo precio en todas (precio base ML)
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mlPriceMode === 'perAccount'} onChange={() => setMlPriceMode('perAccount')} />
+                            Precio distinto por cuenta
+                          </label>
+                        </div>
+                        {mlPriceMode === 'perAccount' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {connections.filter((c) => publishTargets[c.id]).map((c) => (
+                              <div key={c.id}>
+                                <label className="block text-xs text-gray-600 mb-1">{c.name}</label>
+                                <input type="number" min="0" step="1" value={mlAccountPrices[c.id] || ''}
+                                  onChange={(e) => setMlAccountPrices((p) => ({ ...p, [c.id]: e.target.value }))}
+                                  placeholder="Vacío = precio base ML"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {!selected.active && (
@@ -3061,7 +3109,9 @@ export default function CatalogPage() {
                   </div>
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Precio venta ML</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Precio base ML <span className="font-normal text-gray-400">(todas las cuentas{connections.length > 1 ? '; precio propio por cuenta en la pestaña Mercado Libre' : ''})</span>
+                      </label>
                       <input type="number" step="0.01" min="0" value={editForm.mlPrice}
                         onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
                         placeholder="Igual al de venta directa si se deja vacío"
@@ -3455,6 +3505,10 @@ export default function CatalogPage() {
                       </div>
                     );
                   })()}
+                  {connections.length > 0 && selected.id && (
+                    <MlAccountPricesCard key={`${selected.id}-${selected.updatedAt}`} product={selected} connections={connections}
+                      onSaved={() => refreshSelected(selected.id)} />
+                  )}
                   {connections.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                       <p className="text-sm mb-1">No hay cuentas de Mercado Libre conectadas.</p>

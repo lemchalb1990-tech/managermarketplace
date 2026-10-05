@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Query, Body, Param,
+  Controller, Get, Post, Put, Patch, Delete, Query, Body, Param,
   UseGuards, Res, Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -328,6 +328,18 @@ export class MercadolibreController {
     @Body() body: { apply?: boolean }, @CurrentUser() user: any,
   ) {
     return this.service.transferConnectionData(fromId, toId, user, body?.apply === true);
+  }
+
+  // Precio base de ML y precio de cada cuenta (null = usa el base); se envía a las publicaciones.
+  @Put('products/:productId/account-prices')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  setMlAccountPrices(
+    @Param('productId') productId: string,
+    @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null }[] },
+    @CurrentUser() user: any,
+  ) {
+    return this.service.setMlAccountPrices(productId, { basePrice: body?.basePrice, accounts: Array.isArray(body?.accounts) ? body.accounts : [] }, user);
   }
 
   // Vuelve a leer la venta en Mercado Libre y sobrescribe sus datos y los de su orden.
