@@ -83,9 +83,19 @@ export class FactoAdapter implements BillingAdapter {
       const lineTax = exempt ? 0 : Math.round(lineNet * IVA_RATE);
       netAmount += lineNet;
       taxesAmount += lineTax;
+      // El formulario guarda "descripción corta + salto de línea + descripción larga" en name.
+      // Facto las recibe separadas: line_description = título de la línea (máx. 100 caracteres)
+      // y long_description = descripción larga adicional (opcional). Si la corta pasa de 100, se
+      // corta y el texto completo va como descripción larga para no perderlo.
+      const raw = String(item.name || '');
+      const nl = raw.indexOf('\n');
+      const short = (nl === -1 ? raw : raw.slice(0, nl)).trim();
+      let long = nl === -1 ? '' : raw.slice(nl + 1).trim();
+      if (short.length > 100) long = long ? `${short}\n${long}` : short;
       return {
         quantity: item.quantity,
-        line_description: item.name,
+        line_description: short.length > 100 ? short.slice(0, 100) : short,
+        ...(long ? { long_description: long } : {}),
         unit_measure: 'UN',
         unit_price: item.unitPrice,
         modifier_percentage: item.discount ?? 0,
