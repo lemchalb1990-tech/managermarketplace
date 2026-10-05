@@ -123,6 +123,14 @@ export default function ChannelPublicationsCard({
             await api.connections.sync(c.id, product.id, token).catch((e: any) => failed.push(`${c.name} (${e.message})`));
           }
         }
+        // Publicaciones adicionales: precio propio de la publicación y se envía a esa publicación.
+        for (const l of extras) {
+          await api.connections.setListingPrice(l.id, ownPrice(extraRows[l.id], equalizeAll), token);
+          if (l.externalId) {
+            const name = connections.find((c) => c.id === l.connectionId)?.name || '';
+            await api.connections.sync(l.connectionId, product.id, token, l.id).catch((e: any) => failed.push(`${name} ${l.externalId} (${e.message})`));
+          }
+        }
         setMessage(failed.length ? { ok: false, text: `Guardado. No se pudo actualizar en: ${failed.join('; ')}` } : { ok: true, text: 'Guardado.' });
       }
       if (equalizeAll) {
@@ -281,11 +289,13 @@ export default function ChannelPublicationsCard({
                   <div key={l.id} className="pl-6 pr-3 py-2 bg-gray-50/60 border-t border-dashed border-gray-100 space-y-2">
                     <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
                       {renderIdentity(`${c.name} · publicación adicional`, l, true)}
-                      {isMl && renderPrice(l.id, er, setE, 'Precio de la cuenta', accountValue(c.id))}
+                      {renderPrice(l.id, er, setE, 'Precio de la cuenta', accountValue(c.id))}
                     </div>
                     {renderTitle(l.id, er, setE, l)}
                     <div className="flex flex-wrap items-center gap-2">
-                      <ExtraListingActions isMl={isMl} productId={product.id} productStock={product.stock} conn={c} listing={l} onDone={onSaved} />
+                      {isMl
+                        ? <ExtraListingActions isMl productId={product.id} productStock={product.stock} conn={c} listing={l} onDone={onSaved} />
+                        : <GenericChannelActions conn={c} listing={l} productId={product.id} productStock={product.stock} extra onDone={onSaved} />}
                     </div>
                   </div>
                 );
@@ -306,14 +316,17 @@ export default function ChannelPublicationsCard({
   );
 }
 
-// Acciones de canales sin ficha propia (JumpSeller, Shopify, WooCommerce…): publicar / sincronizar.
-export function GenericChannelActions({ conn, listing, productId, onDone }: {
-  conn: any; listing: any | undefined; productId: string; onDone: () => void | Promise<void>;
+// Acciones de canales sin ficha propia (JumpSeller, Shopify, WooCommerce…): publicar, sincronizar,
+// pausar/activar (si el canal lo permite) y eliminar el vínculo. `extra`: publicación adicional de
+// la misma cuenta (las acciones van sobre esa publicación puntual; no se publica desde ahí).
+const TOGGLE_CHANNELS = new Set(['JUMPSELLER']);
+export function GenericChannelActions({ conn, listing, productId, productStock, extra = false, onDone }: {
+  conn: any; listing: any | undefined; productId: string; productStock?: number; extra?: boolean; onDone: () => void | Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState('');
-  async function run(fn: () => Promise<any>) {
-    setBusy(true);
+  async function run(kind: string, fn: () => Promise<any>) {
+    setBusy(kind);
     setErr('');
     try {
       await fn();
@@ -321,22 +334,47 @@ export function GenericChannelActions({ conn, listing, productId, onDone }: {
     } catch (e: any) {
       setErr(e.message || 'Error');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
   const token = () => getToken()!;
+  const listingId = extra ? listing?.id : undefined;
+  const isActive = listing?.status === 'ACTIVE';
+  const canToggle = TOGGLE_CHANNELS.has(conn.marketplace) && listing?.externalId && (isActive || listing?.status === 'PAUSED');
   return (
     <>
-      {!listing?.externalId ? (
-        <button onClick={() => run(() => api.connections.publish(conn.id, productId, token()))} disabled={busy}
+      {!listing?.externalId && !extra && (
+        <button onClick={() => run('publish', () => api.connections.publish(conn.id, productId, token()))} disabled={!!busy}
           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
-          {busy ? 'Publicando...' : 'Publicar'}
+          {busy === 'publish' ? 'Publicando...' : 'Publicar'}
         </button>
-      ) : (
-        <button onClick={() => run(() => api.connections.sync(conn.id, productId, token()))} disabled={busy}
+      )}
+      {listing?.externalId && (
+        <button onClick={() => run('sync', () => api.connections.sync(conn.id, productId, token(), listingId))} disabled={!!busy}
           title="Envía el precio y stock del producto a la publicación"
           className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
-          {busy ? 'Sincronizando...' : 'Sincronizar'}
+          {busy === 'sync' ? 'Sincronizando...' : 'Sincronizar'}
+        </button>
+      )}
+      {canToggle && (
+        <button onClick={() => run('toggle', () => api.connections.toggle(conn.id, productId, token(), listingId))}
+          disabled={!!busy || (!isActive && productStock === 0)}
+          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : undefined}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
+            isActive ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+          }`}>
+          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? 'Pausar publicación' : 'Activar publicación'}
+        </button>
+      )}
+      {listing && (
+        <button disabled={!!busy}
+          onClick={async () => {
+            if (!(await confirmDialog('¿Eliminar el vínculo con esta publicación? La publicación sigue en la tienda; el sistema deja de rastrearla.', { danger: true }))) return;
+            await run('delete', () => api.catalog.deleteListing(productId, conn.id, token(), listing.id));
+          }}
+          title="Borra el vínculo interno con la tienda sin afectar la publicación real"
+          className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
+          {busy === 'delete' ? 'Eliminando...' : 'Eliminar publicación'}
         </button>
       )}
       {err && <span className="text-xs text-red-600">{err}</span>}

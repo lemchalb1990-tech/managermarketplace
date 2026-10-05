@@ -157,6 +157,18 @@ export class JumpSellerAdapter implements PlatformAdapter {
     this.logger.log(`JumpSeller sync: product=${externalId} stock=${fields.stock}${fields.price != null ? ` price=${fields.price}` : ''}`);
   }
 
+  // Activar/desactivar en la tienda: el estado vive en el producto de JumpSeller (también para una
+  // variante, se cambia el producto que la contiene).
+  async setListingStatus(conn: any, externalId: string, active: boolean): Promise<void> {
+    const { productId } = parseKey(externalId);
+    await this.request(conn, `/products/${productId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product: { status: active ? 'available' : 'disabled' } }),
+    });
+    this.logger.log(`JumpSeller status: product=${productId} ${active ? 'available' : 'disabled'}`);
+  }
+
   // ─── Importar catálogo existente desde Jumpseller ─────────────────────────────
   // Se importan productos disponibles y desactivados por igual (el modal permite filtrar por
   // estado); el estado de Jumpseller queda en channelAttributes.status y el sync de stock/precio

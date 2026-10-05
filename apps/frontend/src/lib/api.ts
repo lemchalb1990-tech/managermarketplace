@@ -649,8 +649,13 @@ export const api = {
         `/ecommerce/connections/${id}/invoice-push`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, token),
     publish: (connectionId: string, productId: string, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/publish`, { method: 'POST' }, token),
-    sync: (connectionId: string, productId: string, token: string) =>
-      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/sync`, { method: 'POST' }, token),
+    // listingId: una publicación puntual (adicional de la misma cuenta); si no, la principal.
+    sync: (connectionId: string, productId: string, token: string, listingId?: string) =>
+      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/sync${listingId ? `?listingId=${listingId}` : ''}`, { method: 'POST' }, token),
+    toggle: (connectionId: string, productId: string, token: string, listingId?: string) =>
+      apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/toggle${listingId ? `?listingId=${listingId}` : ''}`, { method: 'PATCH' }, token),
+    setListingPrice: (listingId: string, price: number | null, token: string) =>
+      apiFetch<any>(`/ecommerce/connections/listings/${listingId}/price`, { method: 'PATCH', body: JSON.stringify({ price }) }, token),
     link: (connectionId: string, productId: string, data: { externalId: string; externalUrl?: string }, token: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/link`, { method: 'POST', body: JSON.stringify(data) }, token),
     productListings: (productId: string, token: string) =>

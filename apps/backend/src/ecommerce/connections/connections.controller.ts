@@ -92,8 +92,26 @@ export class ConnectionsController {
     @Param('connectionId') connectionId: string,
     @Param('productId') productId: string,
     @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
   ) {
-    return this.service.syncListingNow(connectionId, productId, user);
+    return this.service.syncListingNow(connectionId, productId, user, listingId);
+  }
+
+  @Patch(':connectionId/products/:productId/toggle')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  toggleNow(
+    @Param('connectionId') connectionId: string,
+    @Param('productId') productId: string,
+    @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
+  ) {
+    return this.service.toggleListingNow(connectionId, productId, user, listingId);
+  }
+
+  @Patch('listings/:listingId/price')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  setListingPrice(@Param('listingId') listingId: string, @Body() body: { price: number | null }, @CurrentUser() user: any) {
+    return this.service.setListingPrice(listingId, body?.price ?? null, user);
   }
 
   @Post(':connectionId/products/:productId/link')

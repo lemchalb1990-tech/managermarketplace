@@ -3692,7 +3692,7 @@ export default function CatalogPage() {
                         renderDetail={detail}
                         detailLabel={detail ? `Ficha y publicación en ${MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace}` : undefined}
                         renderActions={detail ? undefined : (conn, listing) => (
-                          <GenericChannelActions conn={conn} listing={listing} productId={selected.id} onDone={refresh} />
+                          <GenericChannelActions conn={conn} listing={listing} productId={selected.id} productStock={selected.stock} onDone={refresh} />
                         )} />
                     );
                   })}

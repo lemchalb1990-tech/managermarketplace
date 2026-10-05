@@ -14,7 +14,7 @@ import { CatalogService } from '../../catalog/catalog.service';
 import { ChannelOrdersService } from '../sync/channel-orders.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
-import { getEffectivePrice } from '../../common/effective-price.util';
+import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
 
 const NON_ML_TYPES: MarketplaceType[] = [
   MarketplaceType.SHOPIFY, MarketplaceType.WOOCOMMERCE, MarketplaceType.JUMPSELLER,
@@ -199,17 +199,18 @@ export class ConnectionsService {
   // Reenvía stock/precio actuales a una publicación YA existente en el canal — a
   // diferencia de publishProduct, no crea nada nuevo. Sirve para cualquier plataforma no-ML
   // que implemente syncListing (hoy Shopify/WooCommerce/JumpSeller/Paris).
-  async syncListingNow(connectionId: string, productId: string, user: any) {
+  // listingId: una publicación puntual (adicional de la misma cuenta); si no, la principal.
+  async syncListingNow(connectionId: string, productId: string, user: any, listingId?: string) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
 
-    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
+    const listing = await this.findTargetListing(productId, connectionId, listingId);
     if (!listing?.externalId) throw new BadRequestException('El producto no está publicado en esta conexión todavía');
 
     const product = await this.catalog.findOne(productId, user);
     const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
-    const price = await getEffectivePrice(this.prisma, productId, connectionId, Number(product.price));
+    const price = await getListingPrice(this.prisma, listing, Number(product.price));
 
     try {
       await adapter.syncListing(conn, listing.externalId, { stock: product.stock, price });
@@ -221,6 +222,48 @@ export class ConnectionsService {
       await this.prisma.listing.update({ where: { id: listing.id }, data: { errorMsg: err.message } }).catch(() => {});
       throw new BadRequestException(err.message);
     }
+  }
+
+  private async findTargetListing(productId: string, connectionId: string, listingId?: string) {
+    if (!listingId) {
+      return this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
+    }
+    const l = await this.prisma.listing.findUnique({ where: { id: listingId } });
+    if (!l || l.productId !== productId || l.connectionId !== connectionId) throw new NotFoundException('Publicación no encontrada');
+    return l;
+  }
+
+  // Pausar / activar una publicación en el canal (si el canal lo permite, p. ej. JumpSeller).
+  async toggleListingNow(connectionId: string, productId: string, user: any, listingId?: string) {
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+    const listing = await this.findTargetListing(productId, connectionId, listingId);
+    if (!listing?.externalId) throw new BadRequestException('El producto no está publicado en esta conexión todavía');
+    const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
+    if (!adapter.setListingStatus) throw new BadRequestException('Este canal no permite pausar o activar desde el sistema.');
+    const activate = listing.status !== ListingStatus.ACTIVE;
+    if (activate) {
+      const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { stock: true } });
+      if (!product?.stock) throw new BadRequestException('No se puede activar la publicación: el producto no tiene stock.');
+    }
+    try {
+      await adapter.setListingStatus(conn, listing.externalId, activate);
+    } catch (err: any) {
+      throw new BadRequestException(err.message);
+    }
+    return this.prisma.listing.update({
+      where: { id: listing.id },
+      data: { status: activate ? ListingStatus.ACTIVE : ListingStatus.PAUSED, syncedAt: new Date(), errorMsg: null },
+    });
+  }
+
+  // Precio propio de una publicación adicional (null = usa el de la cuenta / base).
+  async setListingPrice(listingId: string, price: number | null, user: any) {
+    const l = await this.prisma.listing.findUnique({ where: { id: listingId }, include: { product: { select: { companyId: true } } } });
+    if (!l) throw new NotFoundException('Publicación no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && l.product.companyId !== user.companyId) throw new ForbiddenException();
+    return this.prisma.listing.update({ where: { id: listingId }, data: { price: price != null && Number(price) > 0 ? price : null } });
   }
 
   async linkProduct(connectionId: string, productId: string, dto: LinkProductDto, user: any) {
