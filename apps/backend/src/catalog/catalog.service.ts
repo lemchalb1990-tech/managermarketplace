@@ -472,6 +472,8 @@ export class CatalogService {
         images: { orderBy: { order: 'asc' } },
         warehouse: { select: { id: true, name: true } },
         dropshipProduct: { include: { dropshipSupplier: { include: { supplier: { select: { id: true, name: true } } } } } },
+        listings: { select: { connectionId: true, externalId: true, status: true, connection: { select: { name: true, marketplace: true } } } },
+        channelPrices: { select: { connectionId: true, price: true } },
         _count: {
           select: {
             saleItems: true, stockMovements: true, purchaseItems: true, listings: true,
@@ -622,6 +624,49 @@ export class CatalogService {
 
       if (masterFrom && (await tx.variantAttribute.count({ where: { productId: survivorId } })) === 0) {
         await tx.variantAttribute.updateMany({ where: { productId: masterFrom.id }, data: { productId: survivorId } });
+      }
+
+      // Precio por cuenta: cada publicación conserva el precio que tenía en su cuenta. Si es igual
+      // al precio base del producto unificado, usa el base; si no, queda como precio propio de esa
+      // cuenta (ChannelPrice). Sin esto, los precios propios de los productos eliminados se perdían
+      // y la sincronización les enviaba el precio base (cambiando el precio en el marketplace).
+      {
+        const all = await tx.product.findMany({
+          where: { id: { in: ids } },
+          select: {
+            id: true, price: true, mlPrice: true,
+            channelPrices: { select: { connectionId: true, price: true } },
+            listings: { select: { connectionId: true, connection: { select: { marketplace: true } } } },
+          },
+        });
+        const newPrice = Number(data.price);
+        const newMlBase = data.mlPrice != null ? Number(data.mlPrice) : newPrice;
+        const target = new Map<string, number | null>(); // connectionId → precio propio (null = usa base)
+        for (const p of all) {
+          for (const l of p.listings) {
+            const isMl = l.connection.marketplace === 'MERCADO_LIBRE';
+            const own = p.channelPrices.find((cp) => cp.connectionId === l.connectionId);
+            const effective = own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
+            const base = isMl ? newMlBase : newPrice;
+            target.set(l.connectionId, Math.round(effective) === Math.round(base) ? null : effective);
+          }
+          // Precios propios de cuentas donde ese producto no tenía publicación: se conservan si
+          // el producto unificado no trae otro para esa cuenta.
+          for (const cp of p.channelPrices) {
+            if (!target.has(cp.connectionId)) target.set(cp.connectionId, Number(cp.price));
+          }
+        }
+        await tx.channelPrice.deleteMany({ where: { productId: { in: loserIds } } });
+        for (const [connectionId, price] of target) {
+          if (price == null) {
+            await tx.channelPrice.deleteMany({ where: { productId: survivorId, connectionId } });
+          } else {
+            await tx.channelPrice.upsert({
+              where: { productId_connectionId: { productId: survivorId, connectionId } },
+              update: { price }, create: { productId: survivorId, connectionId, price },
+            });
+          }
+        }
       }
 
       // Recién ahora se puede borrar a los perdedores: ya no les queda ningún registro

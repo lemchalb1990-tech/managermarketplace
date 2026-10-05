@@ -11,7 +11,7 @@ const MERGE_FIELDS: { key: string; label: string; format: (p: any) => string }[]
   { key: 'type', label: 'Tipo', format: (p) => (p.type === 'SERVICIO' ? 'Servicio' : 'Artículo') },
   { key: 'category', label: 'Categoría', format: (p) => p.category || '— Sin categoría —' },
   { key: 'price', label: 'Precio Venta - Tienda Física', format: (p) => fmtCLP(Number(p.price)) },
-  { key: 'mlPrice', label: 'Precio ML', format: (p) => (p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : '— Sin precio ML —') },
+  { key: 'mlPrice', label: 'Precio base ML', format: (p) => (p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : '— Sin precio ML —') },
   { key: 'cost', label: 'Costo', format: (p) => (p.cost != null ? fmtCLP(Number(p.cost)) : '— Sin costo —') },
   { key: 'supplierPrice', label: 'Precio proveedor', format: (p) => (p.supplierPrice != null ? fmtCLP(Number(p.supplierPrice)) : '— Sin precio proveedor —') },
   { key: 'stock', label: 'Stock', format: (p) => `${p.stock} unidad(es)` },
@@ -73,6 +73,23 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
     for (const c of COUNT_LABELS) acc[c.key] = (acc[c.key] || 0) + (p._count?.[c.key] || 0);
     return acc;
   }, {});
+
+  // Precio de cada cuenta tras unificar (misma regla que el backend): cada publicación conserva
+  // el precio que tiene hoy en su cuenta; si coincide con el precio base del producto final usa el
+  // base, si no queda como precio propio de esa cuenta.
+  const srcOf = (key: string) => products.find((p) => p.id === fieldSources[key]) || products[0];
+  const finalPrice = Number(srcOf('price').price);
+  const finalMlBase = srcOf('mlPrice').mlPrice != null ? Number(srcOf('mlPrice').mlPrice) : finalPrice;
+  const accountPrices = products.flatMap((p) => (p.listings || []).map((l: any) => {
+    const isMl = l.connection?.marketplace === 'MERCADO_LIBRE';
+    const own = (p.channelPrices || []).find((cp: any) => cp.connectionId === l.connectionId);
+    const current = own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
+    const base = isMl ? finalMlBase : finalPrice;
+    return {
+      key: `${p.id}-${l.connectionId}`, sku: p.sku, connection: l.connection?.name || 'Conexión',
+      isMl, externalId: l.externalId, current, usesBase: Math.round(current) === Math.round(base),
+    };
+  }));
 
   function pick(key: string, productId: string) {
     setFieldSources((f) => ({ ...f, [key]: productId }));
@@ -203,6 +220,38 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                   </tbody>
                 </table>
               </div>
+              {accountPrices.length > 0 && (
+                <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio por cuenta después de unificar</p>
+                  <p className="px-3 pb-2 text-[11px] text-gray-400">
+                    Cada publicación conserva su precio actual. Si es igual al precio base, usa el base; si no, queda como precio propio de esa cuenta.
+                  </p>
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-y border-gray-200">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Cuenta</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Publicación (SKU actual)</th>
+                        <th className="text-right px-3 py-1.5 font-medium text-gray-500">Precio</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Queda como</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {accountPrices.map((a) => (
+                        <tr key={a.key}>
+                          <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{a.connection}</td>
+                          <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{a.externalId || '—'} <span className="font-mono text-gray-400">({a.sku})</span></td>
+                          <td className="px-3 py-1.5 text-right text-gray-800 whitespace-nowrap">{fmtCLP(a.current)}</td>
+                          <td className="px-3 py-1.5 whitespace-nowrap">
+                            {a.usesBase
+                              ? <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Precio base</span>
+                              : <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Precio propio</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <p className="text-xs text-gray-400">
                 El producto sobreviviente es el que elijas como origen del <strong>SKU</strong> (marcado en azul en esa fila) — los demás se eliminarán.
               </p>
@@ -227,6 +276,38 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                   )}
                 </ul>
               </div>
+              {accountPrices.length > 0 && (
+                <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio por cuenta después de unificar</p>
+                  <p className="px-3 pb-2 text-[11px] text-gray-400">
+                    Cada publicación conserva su precio actual. Si es igual al precio base, usa el base; si no, queda como precio propio de esa cuenta.
+                  </p>
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-y border-gray-200">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Cuenta</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Publicación (SKU actual)</th>
+                        <th className="text-right px-3 py-1.5 font-medium text-gray-500">Precio</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Queda como</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {accountPrices.map((a) => (
+                        <tr key={a.key}>
+                          <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{a.connection}</td>
+                          <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{a.externalId || '—'} <span className="font-mono text-gray-400">({a.sku})</span></td>
+                          <td className="px-3 py-1.5 text-right text-gray-800 whitespace-nowrap">{fmtCLP(a.current)}</td>
+                          <td className="px-3 py-1.5 whitespace-nowrap">
+                            {a.usesBase
+                              ? <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Precio base</span>
+                              : <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Precio propio</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

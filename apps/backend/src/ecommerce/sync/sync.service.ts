@@ -47,7 +47,7 @@ export class SyncService {
   async syncProduct(productId: string, newStock: number, price?: number) {
     const listings = await this.prisma.listing.findMany({
       where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] } },
-      include: { connection: true },
+      include: { connection: true, product: { select: { price: true, mlPrice: true } } },
     });
     if (!listings.length) return;
 
@@ -61,11 +61,18 @@ export class SyncService {
   private async syncOneListing(listing: any, payload: SyncPayload) {
     const { connection } = listing;
     try {
-      // El precio que llega acá es el mismo para todas las conexiones del producto — si
-      // esta conexión puntual tiene su propio precio (ChannelPrice, ej. "Precio de Venta
-      // Paris"), ese manda por sobre el genérico.
-      const effectivePrice = payload.price !== undefined
-        ? await getEffectivePrice(this.prisma, listing.productId, connection.id, payload.price)
+      // `payload.price` solo indica que hay que enviar precio. El precio de cada publicación es:
+      // su precio propio de la conexión (ChannelPrice) si existe; si no, en Mercado Libre el
+      // precio base de ML (mlPrice, o el de venta si no hay) y en los demás canales el precio de
+      // venta. Antes se usaba un solo precio para todos (p. ej. mlPrice terminaba en Paris, o el
+      // precio de venta en ML tras unificar productos).
+      const fallback = listing.product
+        ? (connection.marketplace === MarketplaceType.MERCADO_LIBRE
+          ? Number(listing.product.mlPrice ?? listing.product.price)
+          : Number(listing.product.price))
+        : payload.price;
+      const effectivePrice = payload.price !== undefined && fallback !== undefined
+        ? await getEffectivePrice(this.prisma, listing.productId, connection.id, fallback)
         : undefined;
       const effectivePayload: SyncPayload = { ...payload, price: effectivePrice };
 
