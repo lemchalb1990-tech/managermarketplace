@@ -286,10 +286,11 @@ export class ConnectionsService {
 
   // Adapter con soporte de borrador/homologación por Listing (hoy Paris, Ripley y Falabella).
   // Walmart todavía no tiene publish/homologación — solo import (ver getCatalogImportAdapter).
-  private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter {
+  private getListingAdapter(conn: any): ParisAdapter | RipleyAdapter | FalabellaAdapter | WalmartAdapter {
     if (conn.marketplace === MarketplaceType.PARIS) return this.paris;
     if (conn.marketplace === MarketplaceType.RIPLEY) return this.ripley;
     if (conn.marketplace === MarketplaceType.FALABELLA) return this.falabella;
+    if (conn.marketplace === MarketplaceType.WALMART) return this.walmart;
     throw new BadRequestException('Esta plataforma todavía no soporta homologación por producto');
   }
 
@@ -393,6 +394,21 @@ export class ConnectionsService {
     this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
     const { images } = await this.walmart.findItemImages(conn, sku, undefined, 'first');
     return { url: images[0] || null, count: images.length };
+  }
+
+  // Publicar en Walmart (feed asíncrono): enviar y luego consultar su resultado.
+  async walmartPublish(connectionId: string, productId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
+    await this.catalog.findOne(productId, user);
+    return this.walmart.submitItemFeed(conn, productId);
+  }
+
+  async walmartPublishStatus(connectionId: string, productId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    this.assertMarketplace(conn, MarketplaceType.WALMART, 'Walmart');
+    await this.catalog.findOne(productId, user);
+    return this.walmart.checkItemFeed(conn, productId);
   }
 
   async walmartFetchMissingImages(connectionId: string, user: any) {

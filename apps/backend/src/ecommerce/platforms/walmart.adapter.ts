@@ -1,6 +1,9 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SettingsService } from '../../settings/settings.service';
+import { toAbsoluteUrl } from '../../common/absolute-url.util';
+import { getEffectivePrice } from '../../common/effective-price.util';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
@@ -44,7 +47,7 @@ export interface WalmartImportItem {
 export class WalmartAdapter implements PlatformAdapter {
   private readonly logger = new Logger(WalmartAdapter.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -167,10 +170,173 @@ export class WalmartAdapter implements PlatformAdapter {
   // esta integración cubre sincronización de stock/precio e importación de catálogo/ventas
   // ya existentes — mismo punto de partida con el que arrancaron Ripley y Falabella antes de
   // tener publish.
+  // La publicación es asíncrona (feed): se hace desde la pestaña "Walmart" del producto
+  // (submitItemFeed + checkItemFeed), no desde el flujo genérico de "Publicar".
   async publishProduct(_conn: any, _product: any): Promise<PublishResult> {
     throw new BadRequestException(
-      'Publicar productos nuevos en Walmart todavía no está soportado — por ahora la integración sincroniza stock/precio e importa catálogo/ventas ya existentes en Walmart.',
+      'En Walmart la publicación se hace desde la pestaña "Walmart" del producto: completa sus datos y presiona "Publicar en Walmart".',
     );
+  }
+
+  // ─── Publicar en Walmart Chile (feed MP_ITEM_INTL) ────────────────────────────
+  // Formato VALIDADO en vivo (cuenta real, feed aceptado ok=1): la API no entrega el esquema
+  // de Chile, se obtuvo de los errores del feed. Header: version 4.46 + mart WALMART_CHILE
+  // (con WALMART_CL responde "versión no encontrada"). Campos generales en `Orderable` y los de
+  // la categoría (en español; validada "Muebles") en `Visible.<Categoría>`. Ojo con nombres
+  // exactos: shippingDimensionsHeight va con minúscula inicial. Si el GTIN ya existe en el
+  // catálogo de Walmart, la oferta se asocia a ESA ficha (nombre/fotos de Walmart).
+
+  async upsertListingFields(productId: string, connectionId: string, dto: { title?: string; description?: string; channelAttributes?: any }) {
+    const current = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    // Se conserva el seguimiento del feed (feedId/estado/errores) al guardar el formulario.
+    const prev: any = current?.channelAttributes || {};
+    const merged = dto.channelAttributes !== undefined
+      ? { ...dto.channelAttributes, feed: prev.feed ?? dto.channelAttributes?.feed }
+      : undefined;
+    return this.prisma.listing.upsert({
+      where: { productId_connectionId: { productId, connectionId } },
+      update: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(merged !== undefined ? { channelAttributes: merged } : {}),
+      },
+      create: { productId, connectionId, title: dto.title, description: dto.description, channelAttributes: merged, status: 'DRAFT' as any },
+      include: { images: { orderBy: { order: 'asc' } } },
+    });
+  }
+
+  async addListingImage(productId: string, connectionId: string, filename: string, url: string) {
+    const listing = await this.prisma.listing.upsert({
+      where: { productId_connectionId: { productId, connectionId } }, update: {}, create: { productId, connectionId, status: 'DRAFT' as any },
+    });
+    const count = await this.prisma.listingImage.count({ where: { listingId: listing.id } });
+    return this.prisma.listingImage.create({ data: { listingId: listing.id, filename, url, order: count } });
+  }
+
+  async removeListingImage(listingId: string, imageId: string) {
+    return this.prisma.listingImage.deleteMany({ where: { id: imageId, listingId } });
+  }
+
+  private buildItemFeed(product: any, listing: any, a: any, price: number, images: string[]) {
+    const num = (v: any) => (v === '' || v == null || isNaN(Number(v)) ? undefined : Number(v));
+    const list = (v: any) => (Array.isArray(v) ? v : String(v ?? '').split(',')).map((x: any) => String(x).trim()).filter(Boolean);
+    const dim = (v: any, unit: string) => (num(v) != null ? { measure: num(v), unit } : undefined);
+    const clean = (o: any) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)));
+    const category = String(a.category || 'Muebles').trim();
+    const keyFeatures = list(String(a.keyFeatures ?? '').split('\n').join(','));
+    const warrantyOn = a.warrantyEnabled !== false;
+    return {
+      MPItemFeedHeader: { version: '4.46', mart: 'WALMART_CHILE', locale: 'es', sellingChannel: 'marketplace', processMode: 'REPLACE', subset: 'EXTERNAL' },
+      MPItem: [{
+        Orderable: clean({
+          sku: product.sku,
+          productIdentifiers: { productIdType: 'GTIN', productId: String(a.gtin || product.barcode || '').replace(/\D/g, '').padStart(14, '0') },
+          productName: (listing.title || product.name || '').trim(),
+          brand: a.brand,
+          price: Math.round(price),
+          ShippingWeight: num(a.shippingWeightKg) ?? 1,
+          pricePerUnit: { pricePerUnitQuantity: 1, pricePerUnitUom: a.pricePerUnitUom || 'un' },
+          shortDescription: (listing.description || product.description || listing.title || product.name || '').trim().slice(0, 4000),
+          keyFeatures: keyFeatures.length ? keyFeatures : undefined,
+          mainImageUrl: images[0],
+          productSecondaryImageURL: images.slice(1).length ? images.slice(1) : images.slice(0, 1),
+          manufacturer: a.manufacturer || a.brand,
+          condition: a.condition || 'Nuevo',
+          countryOfOriginAssembly: list(a.countryOfOrigin),
+          ShippingDimensionsWidth: dim(a.shipWidthCm, 'cm'),
+          ShippingDimensionsDepth: dim(a.shipDepthCm, 'cm'),
+          shippingDimensionsHeight: dim(a.shipHeightCm, 'cm'),
+          sellerWarranty: warrantyOn ? 'Sí' : 'No',
+          warrantyText: warrantyOn ? a.warrantyText : undefined,
+          sellerWarrantyCondition: warrantyOn ? a.warrantyCondition : undefined,
+          sellerWarrantyPeriod: warrantyOn ? num(a.warrantyMonths) : undefined,
+        }),
+        Visible: {
+          [category]: clean({
+            color: list(a.color),
+            material: list(a.material),
+            isAssemblyRequired: a.isAssemblyRequired || 'No',
+            modelNumber: a.modelNumber || product.sku,
+            assembledProductHeight: dim(a.heightCm, 'cm'),
+            assembledProductWidth: dim(a.widthCm, 'cm'),
+            assembledProductLength: dim(a.lengthCm, 'cm'),
+            assembledProductWeight: dim(a.weightKg, 'kg'),
+          }),
+        },
+      }],
+    };
+  }
+
+  // Envía el feed de publicación y deja su seguimiento en la publicación (estado DRAFT hasta que Walmart lo procese).
+  async submitItemFeed(conn: any, productId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, include: { images: { orderBy: { order: 'asc' } } } });
+    if (!product) throw new BadRequestException('Producto no encontrado');
+    const listing = await this.prisma.listing.findUnique({
+      where: { productId_connectionId: { productId, connectionId: conn.id } }, include: { images: { orderBy: { order: 'asc' } } },
+    });
+    const a: any = listing?.channelAttributes || {};
+    const missing: string[] = [];
+    const gtin = String(a.gtin || product.barcode || '').replace(/\D/g, '');
+    if (gtin.length < 8) missing.push('código de barras (GTIN/EAN)');
+    if (!a.brand) missing.push('marca');
+    if (!a.countryOfOrigin) missing.push('país de origen');
+    if (!a.color) missing.push('color');
+    if (!a.material) missing.push('material');
+    for (const [k, label] of [['heightCm', 'alto'], ['widthCm', 'ancho'], ['lengthCm', 'largo'], ['weightKg', 'peso'], ['shipWidthCm', 'ancho de envío'], ['shipDepthCm', 'profundidad de envío'], ['shipHeightCm', 'alto de envío']]) {
+      if (!(Number(a[k]) > 0)) missing.push(label);
+    }
+    if (a.warrantyEnabled !== false && (!a.warrantyText || !a.warrantyCondition || !(Number(a.warrantyMonths) > 0))) missing.push('garantía (texto, condiciones y meses)');
+    const imgs = listing?.images?.length ? listing.images : product.images;
+    if (imgs.length < 2) missing.push('al menos 2 fotos (Walmart exige principal y secundaria)');
+    if (missing.length) throw new BadRequestException(`Faltan datos para publicar en Walmart: ${missing.join(', ')}.`);
+
+    const images = await Promise.all(imgs.map((i: any) => toAbsoluteUrl(this.settings, i.url)));
+    const price = await getEffectivePrice(this.prisma, product.id, conn.id, Number(product.price));
+    const payload = this.buildItemFeed(product, listing || {}, a, price, images);
+
+    const form = new FormData();
+    form.append('file', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'item.json');
+    const res = await this.request(conn, '/v3/feeds?feedType=MP_ITEM_INTL', { method: 'POST', body: form as any });
+    const feedId = res?.feedId;
+    if (!feedId) throw new BadRequestException('Walmart no devolvió el número de feed.');
+
+    const feed = { feedId, status: 'RECEIVED', submittedAt: new Date().toISOString(), errors: [] as string[] };
+    await this.prisma.listing.upsert({
+      where: { productId_connectionId: { productId, connectionId: conn.id } },
+      update: { channelAttributes: { ...a, feed } as any, errorMsg: null },
+      create: { productId, connectionId: conn.id, status: 'DRAFT' as any, channelAttributes: { ...a, feed } as any },
+    });
+    this.logger.log(`Walmart publicar: sku=${product.sku} feed=${feedId}`);
+    return feed;
+  }
+
+  // Consulta el feed: si Walmart aceptó el ítem, la publicación queda ACTIVA (externalId = sku)
+  // y se envía el stock; si no, guarda los errores de Walmart (en español) para corregir.
+  async checkItemFeed(conn: any, productId: string) {
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId: conn.id } }, include: { product: true } });
+    const a: any = listing?.channelAttributes || {};
+    if (!listing || !a.feed?.feedId) throw new BadRequestException('Este producto no tiene un envío a Walmart pendiente.');
+    const d = await this.request(conn, `/v3/feeds/${encodeURIComponent(a.feed.feedId)}?includeDetails=true`);
+    const status = String(d?.feedStatus || 'RECEIVED');
+    const fileErrors = (d?.ingestionErrors?.ingestionError || []).map((e: any) => String(e.description));
+    const item = d?.itemDetails?.itemIngestionStatus?.[0];
+    const itemErrors = (item?.ingestionErrors?.ingestionError || []).map((e: any) => `${e.field}: ${String(e.description).split('. Enter')[0]}`);
+    const ok = Number(d?.itemsSucceeded || 0) > 0;
+    const done = !['RECEIVED', 'INPROGRESS'].includes(status);
+    const feed = { ...a.feed, status: ok ? 'OK' : done ? 'ERROR' : status, checkedAt: new Date().toISOString(), errors: [...fileErrors, ...itemErrors], wpid: item?.wpid || null };
+    await this.prisma.listing.update({
+      where: { id: listing.id },
+      data: {
+        channelAttributes: { ...a, feed } as any,
+        ...(ok ? { status: 'ACTIVE' as any, externalId: listing.product.sku, syncedAt: new Date(), errorMsg: null } : {}),
+        ...(done && !ok ? { status: 'ERROR' as any, errorMsg: feed.errors.join(' | ').slice(0, 2000) || 'Walmart rechazó la publicación' } : {}),
+      },
+    });
+    if (ok) {
+      try { await this.syncListing(conn, listing.product.sku, { stock: listing.product.stock }); }
+      catch (err: any) { this.logger.warn(`Walmart stock tras publicar ${listing.product.sku}: ${err.message}`); }
+    }
+    return feed;
   }
 
   // ─── Importar catálogo existente desde Walmart ────────────────────────────────

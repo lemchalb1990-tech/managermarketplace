@@ -238,6 +238,18 @@ export class ConnectionsController {
     return this.service.walmartImageDiagnostic(id, user, sku);
   }
 
+  @Post(':connectionId/products/:productId/walmart/publish')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  walmartPublish(@Param('connectionId') connectionId: string, @Param('productId') productId: string, @CurrentUser() user: any) {
+    return this.service.walmartPublish(connectionId, productId, user);
+  }
+
+  @Post(':connectionId/products/:productId/walmart/publish-status')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  walmartPublishStatus(@Param('connectionId') connectionId: string, @Param('productId') productId: string, @CurrentUser() user: any) {
+    return this.service.walmartPublishStatus(connectionId, productId, user);
+  }
+
   @Get(':id/walmart/thumbnail')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   walmartThumbnail(@Param('id') id: string, @Query('sku') sku: string, @CurrentUser() user: any) {

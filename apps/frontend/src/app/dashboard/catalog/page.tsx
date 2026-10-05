@@ -1319,7 +1319,7 @@ function channelPriceMap(product: any): Record<string, string> {
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
   stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '',
-  packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '',
+  packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '',
   channelPrices: {} as Record<string, string>,
 };
 
@@ -1678,7 +1678,8 @@ export default function CatalogPage() {
       editForm.mlDescription !== orig.mlDescription ||
       JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
       JSON.stringify(editForm.channelPrices || {}) !== orig.channelPrices ||
-      editForm.warehouseId !== orig.warehouseId;
+      editForm.warehouseId !== orig.warehouseId ||
+      (editForm.barcode || '') !== (orig.barcode || '');
     setIsDirty(dirty);
   }, [editForm]);
 
@@ -1727,6 +1728,7 @@ export default function CatalogPage() {
       packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
+      barcode: product.barcode || '',
       channelPrices: channelPriceMap(product),
     });
     setTab('edit');
@@ -1753,6 +1755,7 @@ export default function CatalogPage() {
       packageWidth: product.packageWidth != null ? String(Number(product.packageWidth)) : '',
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
+      barcode: product.barcode || '',
       channelPrices: JSON.stringify(channelPriceMap(product)),
     };
     setMlCategoryAttrs([]);
@@ -1822,6 +1825,7 @@ export default function CatalogPage() {
         packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
         packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
+        barcode: (editForm.barcode || '').trim() || undefined,
       };
       await api.catalog.update(selected.id, payload, token);
       await saveWebChannelPrices(selected.id, editForm.channelPrices || {}, channelPriceMap(selected), token);
@@ -1871,6 +1875,7 @@ export default function CatalogPage() {
         packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
         packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
+        barcode: (editForm.barcode || '').trim() || undefined,
         ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
       };
       const created = await api.catalog.create(payload, token);
@@ -3012,6 +3017,13 @@ export default function CatalogPage() {
                     <input value={editForm.sku || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, sku: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Código de barras (GTIN/EAN)</label>
+                    <input value={editForm.barcode || ''} inputMode="numeric"
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, barcode: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="Obligatorio para publicar en Walmart"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>

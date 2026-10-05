@@ -81,6 +81,8 @@ export class CreateProductDto {
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWidth?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageLength?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWeight?: number;
+  // Código de barras (GTIN/EAN/UPC), obligatorio para publicar en Walmart.
+  @IsOptional() @IsString() barcode?: string;
 
   // Solo lo usa Super Admin: a qué empresa pertenece el producto (la que tiene
   // seleccionada en el selector de empresa). Para el resto de los roles se ignora — el
@@ -173,6 +175,8 @@ export class UpdateProductDto {
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWidth?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageLength?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) packageWeight?: number;
+  // Código de barras (GTIN/EAN/UPC), obligatorio para publicar en Walmart.
+  @IsOptional() @IsString() barcode?: string;
 }
 
 export class AdjustStockDto {

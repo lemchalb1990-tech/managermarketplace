@@ -354,6 +354,8 @@ enum ProductType {
 model Product {
   id            String      @id @default(cuid())
   sku           String
+  // Código de barras (GTIN/EAN/UPC). Walmart lo exige para publicar.
+  barcode       String?
   name          String
   type          ProductType @default(ARTICULO)
   description   String?     @db.Text
