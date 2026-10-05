@@ -214,9 +214,17 @@ export class ConnectionsService {
 
     try {
       await adapter.syncListing(conn, listing.externalId, { stock: product.stock, price });
+      let status: ListingStatus = product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;
+      if (adapter.setListingStatus) {
+        // Stock 0 → pausa real en la tienda; con stock se reactiva salvo pausa manual.
+        const manualPaused = !!(listing.channelAttributes as any)?.manualPaused;
+        const wantActive = product.stock > 0 && !manualPaused;
+        if (wantActive !== (listing.status === ListingStatus.ACTIVE)) await adapter.setListingStatus(conn, listing.externalId, wantActive);
+        status = wantActive ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
+      }
       return this.prisma.listing.update({
         where: { id: listing.id },
-        data: { syncedAt: new Date(), errorMsg: null, status: product.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE },
+        data: { syncedAt: new Date(), errorMsg: null, status },
       });
     } catch (err: any) {
       await this.prisma.listing.update({ where: { id: listing.id }, data: { errorMsg: err.message } }).catch(() => {});
@@ -252,9 +260,11 @@ export class ConnectionsService {
     } catch (err: any) {
       throw new BadRequestException(err.message);
     }
+    // Pausa manual: la sincronización no la reactiva sola cuando vuelve el stock.
+    const attrs = { ...((listing.channelAttributes as any) || {}), manualPaused: !activate };
     return this.prisma.listing.update({
       where: { id: listing.id },
-      data: { status: activate ? ListingStatus.ACTIVE : ListingStatus.PAUSED, syncedAt: new Date(), errorMsg: null },
+      data: { status: activate ? ListingStatus.ACTIVE : ListingStatus.PAUSED, syncedAt: new Date(), errorMsg: null, channelAttributes: attrs },
     });
   }
 

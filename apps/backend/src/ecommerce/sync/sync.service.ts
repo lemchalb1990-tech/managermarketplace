@@ -85,6 +85,23 @@ export class SyncService {
         }
         const adapter = this.getAdapter(connection.marketplace);
         await adapter.syncListing(connection, listing.externalId, effectivePayload);
+        // Canales que permiten pausar (JumpSeller, Shopify, WooCommerce): con stock 0 la
+        // publicación se pausa de verdad en la tienda; al volver el stock se reactiva, salvo que
+        // se haya pausado a mano (channelAttributes.manualPaused). Los demás canales solo
+        // reciben el stock en 0.
+        if (adapter.setListingStatus) {
+          const manualPaused = !!(listing.channelAttributes as any)?.manualPaused;
+          const wantActive = payload.stock > 0 && !manualPaused;
+          const isActive = listing.status === ListingStatus.ACTIVE;
+          if (wantActive !== isActive && !(payload.stock > 0 && manualPaused)) {
+            await adapter.setListingStatus(connection, listing.externalId, wantActive);
+          }
+          await this.prisma.listing.update({
+            where: { id: listing.id },
+            data: { status: wantActive ? ListingStatus.ACTIVE : ListingStatus.PAUSED, syncedAt: new Date(), errorMsg: null },
+          });
+          return;
+        }
       }
 
       const newStatus = payload.stock === 0 ? ListingStatus.PAUSED : ListingStatus.ACTIVE;

@@ -71,4 +71,18 @@ export class WooCommerceAdapter implements PlatformAdapter {
     }
     this.logger.log(`WooCommerce sync: product=${externalId} stock=${payload.stock}`);
   }
+
+  // Pausar = borrador (no visible en la tienda); activar = publicado.
+  async setListingStatus(conn: any, externalId: string, active: boolean): Promise<void> {
+    const res = await fetch(`${this.baseUrl(conn)}/products/${externalId}?${this.authParams(conn)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: active ? 'publish' : 'draft' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new Error(`WooCommerce status update failed: ${err.message || res.status}`);
+    }
+    this.logger.log(`WooCommerce status: product=${externalId} ${active ? 'publish' : 'draft'}`);
+  }
 }

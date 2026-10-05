@@ -119,6 +119,27 @@ export class ShopifyAdapter implements PlatformAdapter {
     this.logger.log(`Shopify sync: variant=${variantId} stock=${payload.stock}`);
   }
 
+  // Pausar = producto en borrador (no visible en la tienda); activar = activo. El estado es del
+  // producto de Shopify que contiene la variante publicada.
+  async setListingStatus(conn: any, externalId: string, active: boolean): Promise<void> {
+    const base = this.baseUrl(conn);
+    const hdrs = this.headers(conn);
+    const [variantId] = externalId.split(':');
+    const vRes = await fetch(`${base}/variants/${variantId}.json`, { headers: hdrs });
+    if (!vRes.ok) throw new Error(`Shopify: no se encontró la variante ${variantId} (HTTP ${vRes.status})`);
+    const productId = ((await vRes.json()) as any)?.variant?.product_id;
+    if (!productId) throw new Error('Shopify no devolvió el producto de la variante');
+    const res = await fetch(`${base}/products/${productId}.json`, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify({ product: { id: Number(productId), status: active ? 'active' : 'draft' } }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new Error(`Shopify status update failed: ${JSON.stringify(err.errors || err)}`);
+    }
+    this.logger.log(`Shopify status: product=${productId} ${active ? 'active' : 'draft'}`);
+  }
+
   private async getOrFetchLocationId(conn: any, base: string, hdrs: Record<string, string>): Promise<number | null> {
     const creds = this.creds(conn);
     if (creds.locationId) return creds.locationId;
