@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-// Precio del producto en cada cuenta de Mercado Libre. Un precio base de ML que usan todas las
-// cuentas, salvo las que tengan precio propio. Stock, descripción y fotos son siempre los
+// Precio y título del producto en cada cuenta de Mercado Libre. Un precio base de ML y un título
+// base (el nombre del producto) que usan todas las cuentas, salvo las que tengan precio o título
+// propio (el título propio solo en cuentas con publicación). Stock, descripción y fotos son siempre los
 // mismos para todas las cuentas (un solo producto). Al guardar, el precio vigente se envía de
 // inmediato a las publicaciones activas/pausadas de cada cuenta.
 
@@ -16,17 +17,20 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
 }) {
   const own = (connId: string) => (product.channelPrices || []).find((cp: any) => cp.connectionId === connId);
   const [base, setBase] = useState<string>(product.mlPrice != null ? String(Number(product.mlPrice)) : '');
-  const [rows, setRows] = useState<Record<string, { mode: 'base' | 'own'; price: string }>>(() =>
+  type Row = { mode: 'base' | 'own'; price: string; titleMode: 'base' | 'own'; title: string };
+  const listingOf = (connId: string) => (product.listings || []).find((l: any) => l.connectionId === connId);
+  const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(connections.map((c) => {
       const cp = own(c.id);
-      return [c.id, { mode: cp ? 'own' : 'base', price: cp ? String(Number(cp.price)) : '' }];
+      const t = listingOf(c.id)?.title;
+      return [c.id, { mode: cp ? 'own' : 'base', price: cp ? String(Number(cp.price)) : '', titleMode: t ? 'own' : 'base', title: t || '' }];
     })));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const baseValue = Number(base) > 0 ? Number(base) : Number(product.price);
   const ownCount = Object.values(rows).filter((r) => r.mode === 'own').length;
-  const setRow = (id: string, patch: Partial<{ mode: 'base' | 'own'; price: string }>) =>
+  const setRow = (id: string, patch: Partial<Row>) =>
     setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
 
   async function save(equalizeAll = false) {
@@ -35,14 +39,19 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
     try {
       const accounts = connections.map((c) => {
         const r = rows[c.id];
-        return { connectionId: c.id, price: !equalizeAll && r?.mode === 'own' && Number(r.price) > 0 ? Number(r.price) : null };
+        return {
+          connectionId: c.id,
+          price: !equalizeAll && r?.mode === 'own' && Number(r.price) > 0 ? Number(r.price) : null,
+          // "Igualar" solo afecta precios; el título se envía solo en cuentas con publicación.
+          ...(listingOf(c.id) ? { title: r?.titleMode === 'own' && r.title.trim() ? r.title.trim() : null } : {}),
+        };
       });
       const res = await api.marketplace.setAccountPrices(product.id, { basePrice: Number(base) > 0 ? Number(base) : null, accounts }, getToken()!);
-      if (equalizeAll) setRows((r) => Object.fromEntries(Object.keys(r).map((k) => [k, { mode: 'base' as const, price: '' }])));
-      const failed = res.pushed.filter((p) => !p.ok);
+      if (equalizeAll) setRows((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, { ...v, mode: 'base' as const, price: '' }])));
+      const failed = [...res.pushed, ...(res.titles || [])].filter((p) => !p.ok);
       setMessage(failed.length
         ? { ok: false, text: `Precios guardados. No se pudo actualizar en: ${failed.map((f) => `${f.connection} (${f.error})`).join('; ')}` }
-        : { ok: true, text: `Precios guardados${res.pushed.length ? ` y enviados a ${res.pushed.length} publicación(es) de Mercado Libre` : ''}.` });
+        : { ok: true, text: `Precios y títulos guardados${res.pushed.length ? ` y enviados a ${res.pushed.length} publicación(es) de Mercado Libre` : ''}.` });
       await onSaved();
     } catch (err: any) {
       setMessage({ ok: false, text: err.message || 'No se pudieron guardar los precios.' });
@@ -54,7 +63,7 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
   return (
     <div className="border border-yellow-200 bg-yellow-50/40 rounded-xl p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-gray-800 mr-auto">Precios por cuenta</p>
+        <p className="text-sm font-semibold text-gray-800 mr-auto">Precios y títulos por cuenta</p>
         {ownCount > 0 && (
           <button onClick={() => save(true)} disabled={saving}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50">
@@ -63,7 +72,8 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
         )}
       </div>
       <p className="text-xs text-gray-500">
-        Stock, descripción y fotos son los mismos en todas las cuentas. El precio puede ser el mismo (precio base) o propio de cada cuenta.
+        Stock, descripción y fotos son los mismos en todas las cuentas. El precio y el título pueden ser los mismos (base) o propios de cada cuenta.
+        El título base es el nombre del producto; Mercado Libre no deja cambiar el título de una publicación que ya tiene ventas.
       </p>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -78,7 +88,7 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
       <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
         {connections.map((c) => {
           const listing = (product.listings || []).find((l: any) => l.connectionId === c.id);
-          const r = rows[c.id] || { mode: 'base', price: '' };
+          const r = rows[c.id] || { mode: 'base', price: '', titleMode: 'base', title: '' };
           return (
             <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
               <div className="min-w-0 flex-1 basis-40">
@@ -102,6 +112,25 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
                   placeholder="Precio en esta cuenta"
                   className="w-full sm:w-36 px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
               )}
+              {listing && (
+                <div className="w-full flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                  <span className="text-gray-500 w-10">Título</span>
+                  <label className="flex items-center gap-1 cursor-pointer min-w-0">
+                    <input type="radio" name={`tmode-${c.id}`} checked={r.titleMode === 'base'} onChange={() => setRow(c.id, { titleMode: 'base' })} />
+                    Título base <span className="text-gray-400 truncate max-w-[16rem]" title={product.name}>{product.name}</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name={`tmode-${c.id}`} checked={r.titleMode === 'own'}
+                      onChange={() => setRow(c.id, { titleMode: 'own', title: r.title || product.name })} />
+                    Propio
+                  </label>
+                  {r.titleMode === 'own' && (
+                    <input type="text" maxLength={60} value={r.title} onChange={(e) => setRow(c.id, { title: e.target.value })}
+                      placeholder="Título en esta cuenta"
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -110,7 +139,7 @@ export default function MlAccountPricesCard({ product, connections, onSaved }: {
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => save(false)} disabled={saving}
           className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
-          {saving ? 'Guardando...' : 'Guardar precios'}
+          {saving ? 'Guardando...' : 'Guardar precios y títulos'}
         </button>
         {message && <p className={`text-xs ${message.ok ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>}
       </div>

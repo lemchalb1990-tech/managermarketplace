@@ -575,8 +575,8 @@ export const api = {
         }[];
       }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
     // Precio base de ML y precio de cada cuenta (null = usa el base); se envía a las publicaciones.
-    setAccountPrices: (productId: string, body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null }[] }, token: string) =>
-      apiFetch<{ basePrice: number | null; pushed: { connection: string; price: number; ok: boolean; error?: string }[] }>(
+    setAccountPrices: (productId: string, body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] }, token: string) =>
+      apiFetch<{ basePrice: number | null; pushed: { connection: string; price: number; ok: boolean; error?: string }[]; titles?: { connection: string; ok: boolean; error?: string }[] }>(
         `/ecommerce/ml/products/${productId}/account-prices`, { method: 'PUT', body: JSON.stringify(body) }, token),
     repairPackDuplicates: (body: { companyId?: string; apply?: boolean; saleIds?: string[] }, token: string) =>
       apiFetch<{

@@ -336,7 +336,7 @@ export class MercadolibreController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   setMlAccountPrices(
     @Param('productId') productId: string,
-    @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null }[] },
+    @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] },
     @CurrentUser() user: any,
   ) {
     return this.service.setMlAccountPrices(productId, { basePrice: body?.basePrice, accounts: Array.isArray(body?.accounts) ? body.accounts : [] }, user);

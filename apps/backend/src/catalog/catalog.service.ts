@@ -472,7 +472,7 @@ export class CatalogService {
         images: { orderBy: { order: 'asc' } },
         warehouse: { select: { id: true, name: true } },
         dropshipProduct: { include: { dropshipSupplier: { include: { supplier: { select: { id: true, name: true } } } } } },
-        listings: { select: { connectionId: true, externalId: true, status: true, connection: { select: { name: true, marketplace: true } } } },
+        listings: { select: { connectionId: true, externalId: true, status: true, title: true, connection: { select: { name: true, marketplace: true } } } },
         channelPrices: { select: { connectionId: true, price: true } },
         _count: {
           select: {
@@ -577,6 +577,17 @@ export class CatalogService {
       data.warehouseId = null;
     }
 
+    // Precio y título de cada publicación ANTES de fusionar: dentro de la transacción las
+    // publicaciones pasan al sobreviviente y ya no se sabe de qué producto venían.
+    const preMerge = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true, name: true, price: true, mlPrice: true,
+        channelPrices: { select: { connectionId: true, price: true } },
+        listings: { select: { id: true, connectionId: true, title: true, connection: { select: { marketplace: true } } } },
+      },
+    });
+
     await this.prisma.$transaction(async (tx) => {
       if (loserIds.length) {
         const where = { productId: { in: loserIds } };
@@ -631,14 +642,7 @@ export class CatalogService {
       // cuenta (ChannelPrice). Sin esto, los precios propios de los productos eliminados se perdían
       // y la sincronización les enviaba el precio base (cambiando el precio en el marketplace).
       {
-        const all = await tx.product.findMany({
-          where: { id: { in: ids } },
-          select: {
-            id: true, price: true, mlPrice: true,
-            channelPrices: { select: { connectionId: true, price: true } },
-            listings: { select: { connectionId: true, connection: { select: { marketplace: true } } } },
-          },
-        });
+        const all = preMerge;
         const newPrice = Number(data.price);
         const newMlBase = data.mlPrice != null ? Number(data.mlPrice) : newPrice;
         const target = new Map<string, number | null>(); // connectionId → precio propio (null = usa base)
@@ -649,6 +653,13 @@ export class CatalogService {
             const effective = own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
             const base = isMl ? newMlBase : newPrice;
             target.set(l.connectionId, Math.round(effective) === Math.round(base) ? null : effective);
+          }
+          // Título por cuenta: cada publicación conserva su título (el propio o el nombre de su
+          // producto). Igual al nombre del producto final = usa el título base.
+          const finalName = String(data.name ?? '').trim();
+          for (const l of p.listings) {
+            const t = String(l.title || p.name || '').trim();
+            await tx.listing.update({ where: { id: l.id }, data: { title: t && t !== finalName ? t : null } });
           }
           // Precios propios de cuentas donde ese producto no tenía publicación: se conservan si
           // el producto unificado no trae otro para esa cuenta.

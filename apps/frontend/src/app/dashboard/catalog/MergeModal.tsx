@@ -79,6 +79,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
   // base, si no queda como precio propio de esa cuenta.
   const srcOf = (key: string) => products.find((p) => p.id === fieldSources[key]) || products[0];
   const finalPrice = Number(srcOf('price').price);
+  const finalName = String(srcOf('name').name || '').trim();
   const finalMlBase = srcOf('mlPrice').mlPrice != null ? Number(srcOf('mlPrice').mlPrice) : finalPrice;
   const accountPrices = products.flatMap((p) => (p.listings || []).map((l: any) => {
     const isMl = l.connection?.marketplace === 'MERCADO_LIBRE';
@@ -88,6 +89,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
     return {
       key: `${p.id}-${l.connectionId}`, sku: p.sku, connection: l.connection?.name || 'Conexión',
       isMl, externalId: l.externalId, current, usesBase: Math.round(current) === Math.round(base),
+      title: String(l.title || p.name || '').trim(), titleIsBase: String(l.title || p.name || '').trim() === finalName,
     };
   }));
 
@@ -222,9 +224,9 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
               </div>
               {accountPrices.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-x-auto">
-                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio por cuenta después de unificar</p>
+                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio y título por cuenta después de unificar</p>
                   <p className="px-3 pb-2 text-[11px] text-gray-400">
-                    Cada publicación conserva su precio actual. Si es igual al precio base, usa el base; si no, queda como precio propio de esa cuenta.
+                    Cada publicación conserva su precio y su título actuales. Si son iguales al precio base / nombre del producto final, usan el base; si no, quedan como propios de esa cuenta.
                   </p>
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 border-y border-gray-200">
@@ -233,6 +235,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                         <th className="text-left px-3 py-1.5 font-medium text-gray-500">Publicación (SKU actual)</th>
                         <th className="text-right px-3 py-1.5 font-medium text-gray-500">Precio</th>
                         <th className="text-left px-3 py-1.5 font-medium text-gray-500">Queda como</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Título</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -245,6 +248,12 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                             {a.usesBase
                               ? <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Precio base</span>
                               : <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Precio propio</span>}
+                          </td>
+                          <td className="px-3 py-1.5 min-w-[14rem]">
+                            <span className={`mr-1 px-2 py-0.5 rounded-full ${a.titleIsBase ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-800'}`}>
+                              {a.titleIsBase ? 'Título base' : 'Título propio'}
+                            </span>
+                            <span className="text-gray-600">{a.title}</span>
                           </td>
                         </tr>
                       ))}
@@ -278,9 +287,9 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
               </div>
               {accountPrices.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-x-auto">
-                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio por cuenta después de unificar</p>
+                  <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio y título por cuenta después de unificar</p>
                   <p className="px-3 pb-2 text-[11px] text-gray-400">
-                    Cada publicación conserva su precio actual. Si es igual al precio base, usa el base; si no, queda como precio propio de esa cuenta.
+                    Cada publicación conserva su precio y su título actuales. Si son iguales al precio base / nombre del producto final, usan el base; si no, quedan como propios de esa cuenta.
                   </p>
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 border-y border-gray-200">
@@ -289,6 +298,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                         <th className="text-left px-3 py-1.5 font-medium text-gray-500">Publicación (SKU actual)</th>
                         <th className="text-right px-3 py-1.5 font-medium text-gray-500">Precio</th>
                         <th className="text-left px-3 py-1.5 font-medium text-gray-500">Queda como</th>
+                        <th className="text-left px-3 py-1.5 font-medium text-gray-500">Título</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -301,6 +311,12 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                             {a.usesBase
                               ? <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Precio base</span>
                               : <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Precio propio</span>}
+                          </td>
+                          <td className="px-3 py-1.5 min-w-[14rem]">
+                            <span className={`mr-1 px-2 py-0.5 rounded-full ${a.titleIsBase ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-800'}`}>
+                              {a.titleIsBase ? 'Título base' : 'Título propio'}
+                            </span>
+                            <span className="text-gray-600">{a.title}</span>
                           </td>
                         </tr>
                       ))}
