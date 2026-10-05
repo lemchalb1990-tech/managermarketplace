@@ -111,7 +111,7 @@ export class RipleyAdapter implements PlatformAdapter {
 
   private async getListingWithImages(productId: string, connectionId: string) {
     return this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       include: { images: { orderBy: { order: 'asc' } } },
     });
   }
@@ -222,7 +222,7 @@ export class RipleyAdapter implements PlatformAdapter {
     dto: { title?: string; description?: string; channelAttributes?: RipleyChannelAttributes },
   ) {
     return this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: {
         ...(dto.title !== undefined ? { title: dto.title } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
@@ -238,7 +238,7 @@ export class RipleyAdapter implements PlatformAdapter {
 
   async addListingImage(productId: string, connectionId: string, filename: string, url: string) {
     const listing = await this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: {},
       create: { productId, connectionId },
     });
@@ -354,7 +354,7 @@ export class RipleyAdapter implements PlatformAdapter {
         linkedIds.add(offer.shop_sku);
 
         await this.prisma.listing.upsert({
-          where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
+          where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: {
             externalId: offer.shop_sku, status: 'ACTIVE' as any, syncedAt: new Date(),
             title: offer.product_title, description: offer.product_description || undefined,

@@ -10,7 +10,7 @@ import { FalabellaAdapter } from '../platforms/falabella.adapter';
 import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter, SyncPayload } from '../platforms/platform.interface';
-import { getEffectivePrice } from '../../common/effective-price.util';
+import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
 
 const ML_API = 'https://api.mercadolibre.com';
 
@@ -72,7 +72,7 @@ export class SyncService {
           : Number(listing.product.price))
         : payload.price;
       const effectivePrice = payload.price !== undefined && fallback !== undefined
-        ? await getEffectivePrice(this.prisma, listing.productId, connection.id, fallback)
+        ? await getListingPrice(this.prisma, { productId: listing.productId, connectionId: connection.id, price: listing.price }, fallback)
         : undefined;
       const effectivePayload: SyncPayload = { ...payload, price: effectivePrice };
 

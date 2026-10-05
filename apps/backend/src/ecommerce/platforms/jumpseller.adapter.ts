@@ -448,7 +448,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
           channelAttributes: { ...r.channel, variantId: r.variantId, attributes: r.attributes } as any,
         };
         await this.prisma.listing.upsert({
-          where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
+          where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: listingData,
           create: { productId: product.id, connectionId: conn.id, ...listingData },
         });

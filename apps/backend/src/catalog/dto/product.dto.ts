@@ -244,4 +244,11 @@ export class MergeProductsDto {
   @IsOptional()
   @IsString()
   dropshipFromProductId?: string | null;
+
+  // Stock real del producto unificado, si el usuario lo indica (si no, el del producto elegido
+  // en el campo "Stock"). La diferencia queda como ajuste en el kardex.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  stockOverride?: number;
 }

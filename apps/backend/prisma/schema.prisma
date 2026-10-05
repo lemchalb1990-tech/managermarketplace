@@ -815,7 +815,16 @@ model Listing {
   connection   MarketplaceConnection @relation(fields: [connectionId], references: [id])
   images       ListingImage[]
 
-  @@unique([productId, connectionId])
+  // Varias publicaciones del mismo producto en una misma cuenta (habitual en Mercado Libre: el
+  // mismo artículo publicado varias veces con otro título/precio). slot 0 = publicación principal
+  // (la que usan publicar/sincronizar contenido); 1, 2… = publicaciones adicionales en esa cuenta,
+  // que comparten el stock del producto. price = precio propio de ESTA publicación (si no, el de
+  // la cuenta —ChannelPrice— o el precio base).
+  slot  Int      @default(0)
+  price Decimal? @db.Decimal(10, 2)
+
+  @@unique([productId, connectionId, slot])
+  @@index([productId, connectionId])
   @@map("listings")
 }
 

@@ -102,6 +102,14 @@ export class CatalogController {
     return this.service.bulkDeleteListings(dto.ids, user);
   }
 
+  // Seleccionar varios productos pegando una lista de códigos (SKU, número sin prefijo o N° de
+  // publicación del marketplace).
+  @Post('products/bulk/resolve-codes')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  resolveCodes(@Body() body: { codes: string[]; companyId?: string }, @CurrentUser() user: any) {
+    return this.service.resolveCodes(Array.isArray(body?.codes) ? body.codes : [], user, body?.companyId);
+  }
+
   // Unificar productos duplicados: paso 1, detalle + validación para armar el selector.
   @Post('products/bulk/merge-preview')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)

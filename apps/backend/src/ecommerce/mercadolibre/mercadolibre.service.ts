@@ -17,7 +17,7 @@ import { ListingStatus } from '@prisma/client';
 import { SyncService } from '../sync/sync.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
 import { StockLedgerService } from '../../purchases/stock-ledger.service';
-import { getEffectivePrice } from '../../common/effective-price.util';
+import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -932,7 +932,7 @@ export class MercadolibreService {
     if (!attempt.ok) {
       const summary = attempt.mlErrors[0];
       await this.prisma.listing.upsert({
-        where: { productId_connectionId: { productId, connectionId } },
+        where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
         update: { status: ListingStatus.ERROR, errorMsg: attempt.mlErrors.join(' | ') },
         create: { productId, connectionId, status: ListingStatus.ERROR, errorMsg: attempt.mlErrors.join(' | ') },
       });
@@ -952,7 +952,7 @@ export class MercadolibreService {
     }
 
     const listing = await this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: {
         externalId: mlData.id,
         externalUrl: mlData.permalink,
@@ -977,7 +977,7 @@ export class MercadolibreService {
   private async syncListingCore(product: any, listing: any, token: string): Promise<{ warnings: string[] }> {
     const warnings: string[] = [];
 
-    const price = await getEffectivePrice(this.prisma, product.id, listing.connectionId, Number(product.mlPrice ?? product.price));
+    const price = await getListingPrice(this.prisma, { productId: product.id, connectionId: listing.connectionId, price: listing.price }, Number(product.mlPrice ?? product.price));
 
     // Sincronizar precio y stock (ML no permite cambiar título de items activos)
     const itemRes = await fetch(`${ML_API}/items/${listing.externalId}`, {
@@ -1009,7 +1009,7 @@ export class MercadolibreService {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
     });
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
@@ -1073,7 +1073,7 @@ export class MercadolibreService {
         connection: { select: { id: true, name: true } },
         product: { select: { id: true, sku: true, name: true, price: true, mlPrice: true, channelPrices: { select: { connectionId: true, price: true } } } },
       },
-      orderBy: [{ productId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ productId: 'asc' }, { slot: 'asc' }, { createdAt: 'asc' }],
     });
 
     // Lectura en ML por cuenta (lotes de 20).
@@ -1091,12 +1091,14 @@ export class MercadolibreService {
     }
 
     type Change = {
-      productId: string; sku: string; name: string; connection: string; connectionId: string; externalId: string; sold: number;
+      productId: string; listingId: string; slot: number; sku: string; name: string; connection: string; connectionId: string; externalId: string; sold: number;
       mlTitle: string; mlPrice: number; priceBefore: number; priceAfter: number; priceOwn: boolean; titleBefore: string; titleOwn: boolean;
       changed: boolean;
     };
     const rows: Change[] = [];
     const baseSet = new Map<string, number>(); // productId → precio base que se fija (si no tenía)
+    // Precio propio de la cuenta tras procesar su publicación principal (para las adicionales).
+    const accountOwn = new Map<string, number | null>();
     for (const l of listings) {
       const it = items.get(l.externalId!);
       if (!it) continue;
@@ -1107,16 +1109,28 @@ export class MercadolibreService {
       const own = p.channelPrices.find((cp) => cp.connectionId === l.connectionId);
       let base = p.mlPrice != null ? Number(p.mlPrice) : baseSet.get(p.id);
       if (base == null && mlPrice > 0) { base = mlPrice; baseSet.set(p.id, mlPrice); }
-      const priceBefore = own ? Number(own.price) : Number(p.mlPrice ?? p.price);
-      const wantOwnPrice = mlPrice > 0 && base != null && Math.round(mlPrice) !== Math.round(base) ? mlPrice : null;
+      const accKey = `${p.id}|${l.connectionId}`;
+      const accountPrice = accountOwn.has(accKey) ? accountOwn.get(accKey) : own ? Number(own.price) : null;
+      const extra = l.slot > 0;
+      // Publicación principal: precio de la cuenta (ChannelPrice) vs precio base. Adicional:
+      // precio propio de la publicación (Listing.price) vs precio de su cuenta.
+      const ref = extra ? (accountPrice ?? base) : base;
+      const stored = extra ? (l.price != null ? Number(l.price) : null) : (own ? Number(own.price) : null);
+      const priceBefore = extra
+        ? (l.price != null ? Number(l.price) : Number(accountPrice ?? p.mlPrice ?? p.price))
+        : (own ? Number(own.price) : Number(p.mlPrice ?? p.price));
+      const wantOwnPrice = mlPrice > 0 && ref != null && Math.round(mlPrice) !== Math.round(ref) ? mlPrice : null;
       const priceChanged = !opts.titlesOnlySold && mlPrice > 0
-        && ((wantOwnPrice == null) !== !own || (wantOwnPrice != null && own != null && Math.round(Number(own.price)) !== Math.round(wantOwnPrice)));
+        && ((wantOwnPrice == null) !== (stored == null) || (wantOwnPrice != null && stored != null && Math.round(stored) !== Math.round(wantOwnPrice)));
+      if (!extra) accountOwn.set(accKey, opts.titlesOnlySold ? (own ? Number(own.price) : null) : wantOwnPrice);
       const titleBefore = (l.title || p.name).trim();
       const wantTitle = mlTitle && mlTitle !== p.name.trim() ? mlTitle : null;
       const titleChanged = !!mlTitle && (!opts.titlesOnlySold || sold > 0) && (wantTitle ?? null) !== (l.title ? l.title.trim() : null);
 
       if (opts.apply) {
-        if (priceChanged) {
+        if (priceChanged && extra) {
+          await this.prisma.listing.update({ where: { id: l.id }, data: { price: wantOwnPrice } });
+        } else if (priceChanged) {
           if (wantOwnPrice == null) await this.prisma.channelPrice.deleteMany({ where: { productId: p.id, connectionId: l.connectionId } });
           else await this.prisma.channelPrice.upsert({
             where: { productId_connectionId: { productId: p.id, connectionId: l.connectionId } },
@@ -1126,7 +1140,7 @@ export class MercadolibreService {
         if (titleChanged) await this.prisma.listing.update({ where: { id: l.id }, data: { title: wantTitle } });
       }
       rows.push({
-        productId: p.id, sku: p.sku, name: p.name, connection: l.connection.name, connectionId: l.connectionId, externalId: l.externalId!, sold,
+        productId: p.id, listingId: l.id, slot: l.slot, sku: p.sku, name: p.name, connection: l.connection.name, connectionId: l.connectionId, externalId: l.externalId!, sold,
         mlTitle, mlPrice, priceBefore, priceAfter: mlPrice > 0 ? mlPrice : priceBefore, priceOwn: wantOwnPrice != null,
         titleBefore, titleOwn: wantTitle != null, changed: priceChanged || titleChanged || (baseSet.has(p.id) && !opts.titlesOnlySold),
       });
@@ -1147,12 +1161,17 @@ export class MercadolibreService {
     if (!product) throw new NotFoundException('Producto no encontrado');
     if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
     const r = await this.recoverAccountData(user, { companyId: product.companyId, productId, apply: true, titlesOnlySold: true });
-    return r.changes.map((c) => ({ connectionId: c.connectionId, mlTitle: c.mlTitle, mlPrice: c.mlPrice, sold: c.sold }));
+    return r.changes.map((c) => ({ listingId: c.listingId, slot: c.slot, connectionId: c.connectionId, mlTitle: c.mlTitle, mlPrice: c.mlPrice, sold: c.sold }));
   }
 
   // Guarda el precio base de ML y el de cada cuenta (null = usa el base) y lo envía de inmediato
   // a las publicaciones activas/pausadas de esas cuentas.
-  async setMlAccountPrices(productId: string, dto: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] }, user: any) {
+  async setMlAccountPrices(productId: string, dto: {
+    basePrice?: number | null;
+    accounts: { connectionId: string; price: number | null; title?: string | null }[];
+    // Publicaciones adicionales de una misma cuenta (slot > 0): precio y título propios.
+    publications?: { listingId: string; price: number | null; title?: string | null }[];
+  }, user: any) {
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Producto no encontrado');
     if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
@@ -1162,8 +1181,16 @@ export class MercadolibreService {
       select: { id: true },
     });
     if (conns.length !== connIds.length) throw new BadRequestException('Alguna cuenta no es de Mercado Libre de esta empresa.');
+    const pubs = dto.publications || [];
+    if (pubs.length) {
+      const owned = await this.prisma.listing.count({ where: { id: { in: pubs.map((x) => x.listingId) }, productId } });
+      if (owned !== pubs.length) throw new BadRequestException('Alguna publicación no pertenece a este producto.');
+    }
 
     await this.prisma.$transaction(async (tx) => {
+      for (const pub of pubs) {
+        await tx.listing.update({ where: { id: pub.listingId }, data: { price: pub.price != null && Number(pub.price) > 0 ? pub.price : null } });
+      }
       if (dto.basePrice !== undefined) {
         await tx.product.update({ where: { id: productId }, data: { mlPrice: dto.basePrice != null && dto.basePrice > 0 ? dto.basePrice : null } });
       }
@@ -1184,12 +1211,13 @@ export class MercadolibreService {
     // Solo aplica a cuentas con publicación; si cambió, se intenta actualizar en ML (ML no deja
     // cambiar el título de una publicación que ya tiene ventas: se informa como error).
     const titleResults: { connection: string; ok: boolean; error?: string }[] = [];
-    for (const a of dto.accounts || []) {
+    const titleJobs: { where: any; title: string | null | undefined }[] = [
+      ...(dto.accounts || []).map((a) => ({ where: { productId_connectionId_slot: { productId, connectionId: a.connectionId, slot: 0 } }, title: a.title })),
+      ...pubs.map((x) => ({ where: { id: x.listingId }, title: x.title })),
+    ];
+    for (const a of titleJobs) {
       if (a.title === undefined) continue;
-      const l = await this.prisma.listing.findUnique({
-        where: { productId_connectionId: { productId, connectionId: a.connectionId } },
-        include: { connection: { select: { name: true } } },
-      });
+      const l = await this.prisma.listing.findUnique({ where: a.where, include: { connection: { select: { name: true } } } });
       if (!l) continue;
       const wanted = String(a.title ?? '').trim();
       const newTitle = wanted && wanted !== String(product.name).trim() ? wanted : null;
@@ -1234,7 +1262,7 @@ export class MercadolibreService {
     });
     const results: { connection: string; price: number; ok: boolean; error?: string }[] = [];
     for (const l of listings) {
-      const price = Math.round(await getEffectivePrice(this.prisma, productId, l.connectionId, base));
+      const price = Math.round(await getListingPrice(this.prisma, l, base));
       try {
         const token = await this.getValidToken(l.connectionId);
         const res = await fetch(`${ML_API}/items/${l.externalId}`, {
@@ -1258,7 +1286,7 @@ export class MercadolibreService {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
     });
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
@@ -1403,7 +1431,7 @@ export class MercadolibreService {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
     });
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
@@ -1654,11 +1682,8 @@ export class MercadolibreService {
       if (s) skuCountsInBatch.set(s, (skuCountsInBatch.get(s) || 0) + 1);
     }
 
-    // Un producto solo puede tener una publicación por conexión (Listing es único por
-    // productId+connectionId). Si dos ítems de ML del mismo lote resuelven al mismo SKU
-    // (p.ej. variaciones o publicaciones duplicadas), sin este control el segundo intento
-    // de crear el Listing rompe esa restricción única. Se arma el set con lo que ya existe
-    // en la conexión y se va actualizando a medida que se vinculan/crean productos en el lote.
+    // Productos que ya tienen publicación en esta conexión. Si otro ítem de ML resuelve al mismo
+    // SKU, se vincula como publicación adicional (slot siguiente) en vez de omitirse.
     const preexistingListings = await this.prisma.listing.findMany({
       where: { connectionId },
       select: { productId: true },
@@ -1685,11 +1710,8 @@ export class MercadolibreService {
           where: { sku_companyId: { sku, companyId: conn.companyId } },
         });
 
-        if (product && linkedProductIds.has(product.id)) {
-          skipped++;
-          errors.push(`${item.id}: el SKU ${sku} ya está vinculado a otra publicación en esta conexión (usa "Importar como nuevo" para crear un producto aparte).`);
-          continue;
-        }
+        // Si el SKU ya tiene una publicación en esta cuenta, esta se vincula como publicación
+        // adicional del mismo producto (mismo stock), con su precio y título propios.
 
         const packageDims = this.parsePackageDimensions(item.attributes);
         const additionalAttrs = this.extractAdditionalAttributes(item.attributes);
@@ -1716,10 +1738,17 @@ export class MercadolibreService {
             await this.prisma.product.update({ where: { id: product.id }, data: fillData });
           }
 
+          const usedSlots = (await this.prisma.listing.findMany({ where: { productId: product.id, connectionId }, select: { slot: true } })).map((x) => x.slot);
+          let slot = 0;
+          while (usedSlots.includes(slot)) slot++;
           await this.prisma.listing.create({
             data: {
               productId: product.id,
               connectionId,
+              slot,
+              // Publicación adicional: precio propio si difiere del de la cuenta/base.
+              ...(slot > 0 && item.price != null && Math.round(Number(item.price)) !== Math.round(await getEffectivePrice(this.prisma, product.id, connectionId, Number(product.mlPrice ?? product.price)))
+                ? { price: item.price } : {}),
               externalId: item.id,
               externalUrl: item.permalink,
               status,
@@ -1730,7 +1759,7 @@ export class MercadolibreService {
           });
           // Sin esto, la sincronización le enviaba el precio base a la publicación de esta cuenta
           // y le cambiaba el precio en ML: el precio que tiene en ML queda como el de esta cuenta.
-          await this.applyMlAccountPrice(this.prisma, product.id, connectionId, item.price);
+          if (slot === 0) await this.applyMlAccountPrice(this.prisma, product.id, connectionId, item.price);
           linkedProductIds.add(product.id);
           linked++;
         } else {

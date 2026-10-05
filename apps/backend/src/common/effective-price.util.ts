@@ -15,3 +15,14 @@ export async function getEffectivePrice(
   });
   return override ? Number(override.price) : fallback;
 }
+
+// Precio de UNA publicación: su precio propio (publicaciones adicionales de una misma cuenta,
+// Listing.price) si lo tiene; si no, el de la cuenta (ChannelPrice) o el fallback.
+export async function getListingPrice(
+  prisma: PrismaService,
+  listing: { productId: string; connectionId: string; price?: unknown },
+  fallback: number,
+): Promise<number> {
+  if (listing.price != null) return Number(listing.price);
+  return getEffectivePrice(prisma, listing.productId, listing.connectionId, fallback);
+}

@@ -190,7 +190,7 @@ export class ConnectionsService {
     const result = await adapter.publishProduct(conn, product);
 
     return this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: { externalId: result.externalId, externalUrl: result.externalUrl, status: ListingStatus.ACTIVE, syncedAt: new Date(), errorMsg: null },
       create: { productId, connectionId, externalId: result.externalId, externalUrl: result.externalUrl, status: ListingStatus.ACTIVE, syncedAt: new Date() },
     });
@@ -204,7 +204,7 @@ export class ConnectionsService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
 
-    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
     if (!listing?.externalId) throw new BadRequestException('El producto no está publicado en esta conexión todavía');
 
     const product = await this.catalog.findOne(productId, user);
@@ -230,7 +230,7 @@ export class ConnectionsService {
     await this.catalog.findOne(productId, user);
 
     return this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: { externalId: dto.externalId, externalUrl: dto.externalUrl, status: ListingStatus.ACTIVE, syncedAt: new Date(), errorMsg: null },
       create: { productId, connectionId, externalId: dto.externalId, externalUrl: dto.externalUrl, status: ListingStatus.ACTIVE, syncedAt: new Date() },
     });
@@ -362,7 +362,7 @@ export class ConnectionsService {
   async removeListingImage(connectionId: string, productId: string, imageId: string, user: any) {
     const conn = await this.getOwnedConnection(connectionId, user);
     const adapter = this.getListingAdapter(conn);
-    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
     if (!listing) throw new NotFoundException('Publicación no encontrada');
     return adapter.removeListingImage(listing.id, imageId);
   }

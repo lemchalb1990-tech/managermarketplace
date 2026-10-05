@@ -358,10 +358,13 @@ export class MercadolibreController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   setMlAccountPrices(
     @Param('productId') productId: string,
-    @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] },
+    @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[]; publications?: { listingId: string; price: number | null; title?: string | null }[] },
     @CurrentUser() user: any,
   ) {
-    return this.service.setMlAccountPrices(productId, { basePrice: body?.basePrice, accounts: Array.isArray(body?.accounts) ? body.accounts : [] }, user);
+    return this.service.setMlAccountPrices(productId, {
+      basePrice: body?.basePrice, accounts: Array.isArray(body?.accounts) ? body.accounts : [],
+      publications: Array.isArray(body?.publications) ? body.publications : [],
+    }, user);
   }
 
   // Vuelve a leer la venta en Mercado Libre y sobrescribe sus datos y los de su orden.

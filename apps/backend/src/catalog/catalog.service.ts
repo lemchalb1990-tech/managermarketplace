@@ -104,7 +104,7 @@ export class CatalogService {
       where: companyId ? { companyId } : {},
       include: {
         images: { orderBy: { order: 'asc' } },
-        listings: { include: { connection: { select: { id: true, name: true } } } },
+        listings: { orderBy: { slot: 'asc' }, include: { connection: { select: { id: true, name: true } } } },
         warehouse: { select: { id: true, name: true } },
       },
       orderBy: { name: 'asc' },
@@ -197,7 +197,7 @@ export class CatalogService {
         where,
         include: {
           images: { orderBy: { order: 'asc' } },
-          listings: { include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } } },
+          listings: { orderBy: { slot: 'asc' }, include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } } },
           channelPrices: { select: { price: true, connectionId: true } },
           warehouse: { select: { id: true, name: true } },
           productMaster: { select: { id: true, name: true, masterSku: true } },
@@ -230,7 +230,7 @@ export class CatalogService {
       where: { id },
       include: {
         images: { orderBy: { order: 'asc' } },
-        listings: { include: { connection: true, images: { orderBy: { order: 'asc' } } } },
+        listings: { orderBy: { slot: 'asc' }, include: { connection: true, images: { orderBy: { order: 'asc' } } } },
         channelPrices: { select: { id: true, price: true, connectionId: true } },
         warehouse: { select: { id: true, name: true } },
         _count: { select: { purchaseItems: true } },
@@ -343,7 +343,7 @@ export class CatalogService {
   async deleteListing(productId: string, connectionId: string, user: any) {
     if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) throw new ForbiddenException();
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       include: { product: { select: { companyId: true } } },
     });
     if (!listing) throw new NotFoundException('Publicación no encontrada');
@@ -462,6 +462,38 @@ export class CatalogService {
   // Trae el detalle completo de los productos candidatos a unificar (para que el frontend
   // arme el selector campo por campo) más cuántos registros de cada tipo tiene cada uno, y
   // si hay conflictos de publicaciones duplicadas en una misma conexión que bloquean la fusión.
+  // Resuelve una lista pegada de códigos a productos: SKU exacto; número sin prefijo
+  // ("007027" → "SKU-007027", "ML-…"); o N° de publicación del marketplace ("MLC123…", también
+  // "ML123…" sin la C). Un código puede traer más de un producto (p. ej. la misma publicación
+  // vinculada en dos cuentas): se devuelven todos para que el usuario los vea antes de elegir.
+  async resolveCodes(rawCodes: string[], user: any, companyIdParam?: string) {
+    const companyId = this.resolveCompanyId(user, companyIdParam);
+    const codes = Array.from(new Set(rawCodes.map((c) => String(c ?? '').trim()).filter(Boolean))).slice(0, 500);
+    const select = { id: true, sku: true, name: true, stock: true, listings: { select: { externalId: true, connection: { select: { name: true } } } } };
+    const results: { code: string; products: any[] }[] = [];
+    for (const code of codes) {
+      const variants = new Set<string>([code]);
+      const m = /^ML[A-Z]?(\d{6,})$/i.exec(code);
+      if (m) for (const site of ['MLC', 'MLA', 'MLM', 'MLB', 'MLU', 'MCO', 'MPE']) variants.add(`${site}${m[1]}`);
+      if (/^\d{6,}$/.test(code)) variants.add(`MLC${code}`);
+      const found = await this.prisma.product.findMany({
+        where: {
+          companyId,
+          OR: [
+            { sku: { in: Array.from(variants), mode: 'insensitive' } },
+            { sku: { endsWith: `-${code}`, mode: 'insensitive' } },
+            ...Array.from(variants).map((v) => ({ sku: { endsWith: `-${v}`, mode: 'insensitive' as const } })),
+            { listings: { some: { externalId: { in: Array.from(variants) } } } },
+          ],
+        },
+        select,
+        take: 10,
+      });
+      results.push({ code, products: found });
+    }
+    return { results, notFound: results.filter((r) => !r.products.length).map((r) => r.code) };
+  }
+
   async getMergeCandidates(ids: string[], user: any) {
     const uniqueIds = Array.from(new Set(ids));
     if (uniqueIds.length < 2) throw new BadRequestException('Selecciona al menos 2 productos para unificar');
@@ -472,7 +504,7 @@ export class CatalogService {
         images: { orderBy: { order: 'asc' } },
         warehouse: { select: { id: true, name: true } },
         dropshipProduct: { include: { dropshipSupplier: { include: { supplier: { select: { id: true, name: true } } } } } },
-        listings: { select: { connectionId: true, externalId: true, status: true, title: true, connection: { select: { name: true, marketplace: true } } } },
+        listings: { orderBy: { slot: 'asc' }, select: { id: true, slot: true, price: true, connectionId: true, externalId: true, status: true, title: true, connection: { select: { name: true, marketplace: true } } } },
         channelPrices: { select: { connectionId: true, price: true } },
         _count: {
           select: {
@@ -531,15 +563,8 @@ export class CatalogService {
       throw new BadRequestException('Producto de origen del proveedor dropship inválido');
     }
 
-    const conflicts = await this.findMergeConnectionConflicts(ids);
-    if (conflicts.length) {
-      const detail = conflicts
-        .map((c) => `${c.connectionName} (${c.products.map((p) => p.name).join(' y ')})`)
-        .join('; ');
-      throw new BadRequestException(
-        `No se puede unificar: hay publicaciones de más de un producto en la misma conexión — ${detail}. Desvincula una de esas publicaciones antes de unificar.`,
-      );
-    }
+    // Varias publicaciones en la misma cuenta ya no bloquean: quedan como publicaciones
+    // adicionales del producto unificado en esa cuenta (slot 1, 2…), con su precio y título.
 
     const survivorId = dto.survivorId;
     const loserIds = ids.filter((id) => id !== survivorId);
@@ -584,14 +609,35 @@ export class CatalogService {
       select: {
         id: true, name: true, price: true, mlPrice: true,
         channelPrices: { select: { connectionId: true, price: true } },
-        listings: { select: { id: true, connectionId: true, title: true, connection: { select: { marketplace: true } } } },
+        listings: { select: { id: true, connectionId: true, title: true, slot: true, price: true, connection: { select: { marketplace: true } } } },
       },
     });
+    // Número de publicación final en su cuenta: las del sobreviviente se quedan como están; las
+    // de los demás toman el siguiente número libre si en esa cuenta ya hay una con ese número.
+    const finalSlot = new Map<string, number>();
+    {
+      const used = new Map<string, Set<number>>();
+      const ordered = [...preMerge].sort((a, b) => (a.id === survivorId ? -1 : b.id === survivorId ? 1 : ids.indexOf(a.id) - ids.indexOf(b.id)));
+      for (const p of ordered) {
+        for (const l of [...p.listings].sort((a, b) => a.slot - b.slot)) {
+          const set = used.get(l.connectionId) || new Set<number>();
+          let slot = l.slot;
+          if (set.has(slot)) { slot = 0; while (set.has(slot)) slot++; }
+          set.add(slot);
+          used.set(l.connectionId, set);
+          finalSlot.set(l.id, slot);
+        }
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (loserIds.length) {
         const where = { productId: { in: loserIds } };
         const move = { productId: survivorId };
+        // Primero a un número temporal (evita choques entre ellas) y después al final.
+        const relocated = preMerge.filter((p) => p.id !== survivorId).flatMap((p) => p.listings).filter((l) => finalSlot.get(l.id) !== l.slot);
+        for (const l of relocated) await tx.listing.update({ where: { id: l.id }, data: { slot: 1000 + finalSlot.get(l.id)! } });
+        for (const l of relocated) await tx.listing.update({ where: { id: l.id }, data: { slot: finalSlot.get(l.id)! } });
         await tx.listing.updateMany({ where, data: move });
         await tx.saleItem.updateMany({ where, data: move });
         await tx.stockMovement.updateMany({ where, data: move });
@@ -645,14 +691,22 @@ export class CatalogService {
         const all = preMerge;
         const newPrice = Number(data.price);
         const newMlBase = data.mlPrice != null ? Number(data.mlPrice) : newPrice;
-        const target = new Map<string, number | null>(); // connectionId → precio propio (null = usa base)
+        const target = new Map<string, number | null>(); // connectionId → precio propio de la cuenta (null = usa base)
         for (const p of all) {
           for (const l of p.listings) {
             const isMl = l.connection.marketplace === 'MERCADO_LIBRE';
             const own = p.channelPrices.find((cp) => cp.connectionId === l.connectionId);
-            const effective = own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
+            const effective = l.price != null ? Number(l.price) : own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
             const base = isMl ? newMlBase : newPrice;
-            target.set(l.connectionId, Math.round(effective) === Math.round(base) ? null : effective);
+            const ownPrice = Math.round(effective) === Math.round(base) ? null : effective;
+            if (finalSlot.get(l.id) === 0) {
+              // Publicación principal de la cuenta: su precio es el de la cuenta (ChannelPrice).
+              target.set(l.connectionId, ownPrice);
+              if (l.price != null) await tx.listing.update({ where: { id: l.id }, data: { price: null } });
+            } else {
+              // Publicación adicional: precio propio de esa publicación si difiere del de la cuenta.
+              await tx.listing.update({ where: { id: l.id }, data: { price: ownPrice } });
+            }
           }
           // Título por cuenta: cada publicación conserva su título (el propio o el nombre de su
           // producto). Igual al nombre del producto final = usa el título base.
@@ -694,7 +748,15 @@ export class CatalogService {
     // Empuja el precio y stock finales a todas las publicaciones del sobreviviente (incluidas
     // las que se le acaban de reasignar) — sin esperar la respuesta ni romper la fusión si
     // alguna plataforma falla; el error queda registrado en esa publicación como de costumbre.
-    this.sync.syncProduct(survivorId, data.stock, Number(data.price)).catch(() => {});
+    let finalStock = data.stock;
+    if (dto.stockOverride != null && data.type !== ProductType.SERVICIO) {
+      const current = await this.prisma.product.findUnique({ where: { id: survivorId }, select: { stock: true } });
+      if (current && current.stock !== Math.trunc(dto.stockOverride)) {
+        await this.update(survivorId, { stock: Math.trunc(dto.stockOverride) } as any, user);
+      }
+      finalStock = Math.trunc(dto.stockOverride);
+    }
+    this.sync.syncProduct(survivorId, finalStock, Number(data.price)).catch(() => {});
 
     return this.findOne(survivorId, user);
   }

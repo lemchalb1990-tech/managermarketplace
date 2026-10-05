@@ -14,7 +14,10 @@ const MERGE_FIELDS: { key: string; label: string; format: (p: any) => string }[]
   { key: 'mlPrice', label: 'Precio base ML', format: (p) => (p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : '— Sin precio ML —') },
   { key: 'cost', label: 'Costo', format: (p) => (p.cost != null ? fmtCLP(Number(p.cost)) : '— Sin costo —') },
   { key: 'supplierPrice', label: 'Precio proveedor', format: (p) => (p.supplierPrice != null ? fmtCLP(Number(p.supplierPrice)) : '— Sin precio proveedor —') },
-  { key: 'stock', label: 'Stock', format: (p) => `${p.stock} unidad(es)` },
+  { key: 'stock', label: 'Stock', format: (p) => {
+    const accounts = Array.from(new Set((p.listings || []).map((l: any) => l.connection?.name).filter(Boolean)));
+    return `${p.stock} unidad(es)${accounts.length ? ` · ${accounts.join(', ')}` : ''}`;
+  } },
   { key: 'criticalStock', label: 'Stock crítico', format: (p) => `${p.criticalStock ?? 0} unidad(es)` },
   { key: 'warehouseId', label: 'Bodega', format: (p) => p.warehouse?.name || '— Sin bodega —' },
   { key: 'mlCategoryId', label: 'Categoría ML', format: (p) => p.mlCategoryId || '— Sin categoría ML —' },
@@ -46,6 +49,7 @@ interface MergeModalProps {
     fieldSources: Record<string, string>;
     imagesFromProductId: string | null;
     dropshipFromProductId: string | null;
+    stockOverride?: number;
   }) => void;
   submitting: boolean;
   error: string;
@@ -64,7 +68,10 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
   const [imagesFrom, setImagesFrom] = useState<string | null>(productsWithImages[0]?.id || null);
   const [dropshipFrom, setDropshipFrom] = useState<string | null>(productsWithDropship[0]?.id || null);
 
-  const blocked = connectionConflicts.length > 0;
+  // Varias publicaciones en una misma cuenta ya no bloquean: quedan como publicaciones adicionales.
+  const blocked = false;
+  // Stock real: por defecto el del producto elegido en "Stock"; el usuario puede escribir otro.
+  const [stockCustom, setStockCustom] = useState('');
   const survivorId = fieldSources.sku;
   const survivor = products.find((p) => p.id === survivorId);
   const losers = products.filter((p) => p.id !== survivorId);
@@ -84,7 +91,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
   const accountPrices = products.flatMap((p) => (p.listings || []).map((l: any) => {
     const isMl = l.connection?.marketplace === 'MERCADO_LIBRE';
     const own = (p.channelPrices || []).find((cp: any) => cp.connectionId === l.connectionId);
-    const current = own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
+    const current = l.price != null ? Number(l.price) : own ? Number(own.price) : isMl ? Number(p.mlPrice ?? p.price) : Number(p.price);
     const base = isMl ? finalMlBase : finalPrice;
     return {
       key: `${p.id}-${l.connectionId}`, sku: p.sku, connection: l.connection?.name || 'Conexión',
@@ -222,6 +229,27 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                   </tbody>
                 </table>
               </div>
+              {connectionConflicts.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
+                  <p className="font-semibold">Varias publicaciones en una misma cuenta</p>
+                  <ul className="list-disc list-inside">
+                    {connectionConflicts.map((c) => (
+                      <li key={c.connectionId}><b>{c.connectionName}</b>: {c.products.length} publicaciones</li>
+                    ))}
+                  </ul>
+                  <p>Quedarán todas en el producto unificado (una principal y las demás adicionales), cada una con su precio y título, compartiendo el mismo stock.</p>
+                </div>
+              )}
+              <div className="border border-gray-200 rounded-xl p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-gray-700">Stock real del producto unificado</p>
+                <p className="text-[11px] text-gray-400">
+                  Por defecto queda el stock del producto elegido en la fila <b>Stock</b> ({srcOf('stock').stock} unidades).
+                  Los stocks de cada cuenta no se suman: si el real es otro, escríbelo aquí (queda como ajuste en el kardex).
+                </p>
+                <input type="number" min="0" step="1" value={stockCustom} onChange={(e) => setStockCustom(e.target.value)}
+                  placeholder={`${srcOf('stock').stock}`}
+                  className="w-full sm:w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
               {accountPrices.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-x-auto">
                   <p className="px-3 pt-3 text-xs font-semibold text-gray-700">Precio y título por cuenta después de unificar</p>
@@ -273,6 +301,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                   Sobrevive <strong className="font-mono">{survivor?.sku}</strong> — {survivor?.name}.
                   {' '}Se eliminarán {losers.length} producto(s): {losers.map((p) => p.sku).join(', ')}.
                 </p>
+                <p>Stock final: <strong>{stockCustom.trim() !== '' ? Math.trunc(Number(stockCustom)) : srcOf('stock').stock}</strong> unidad(es).</p>
               </div>
               <div className="border border-gray-200 rounded-xl p-4">
                 <p className="font-medium text-gray-700 mb-2">Se reasignarán al SKU sobreviviente:</p>
@@ -353,6 +382,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                   fieldSources,
                   imagesFromProductId: imagesFrom,
                   dropshipFromProductId: dropshipFrom,
+                  ...(stockCustom.trim() !== '' && Number(stockCustom) >= 0 ? { stockOverride: Math.trunc(Number(stockCustom)) } : {}),
                 })}
                 disabled={submitting}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold"

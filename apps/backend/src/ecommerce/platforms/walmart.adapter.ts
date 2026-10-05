@@ -187,14 +187,14 @@ export class WalmartAdapter implements PlatformAdapter {
   // catálogo de Walmart, la oferta se asocia a ESA ficha (nombre/fotos de Walmart).
 
   async upsertListingFields(productId: string, connectionId: string, dto: { title?: string; description?: string; channelAttributes?: any }) {
-    const current = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId } } });
+    const current = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
     // Se conserva el seguimiento del feed (feedId/estado/errores) al guardar el formulario.
     const prev: any = current?.channelAttributes || {};
     const merged = dto.channelAttributes !== undefined
       ? { ...dto.channelAttributes, feed: prev.feed ?? dto.channelAttributes?.feed }
       : undefined;
     return this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: {
         ...(dto.title !== undefined ? { title: dto.title } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
@@ -207,7 +207,7 @@ export class WalmartAdapter implements PlatformAdapter {
 
   async addListingImage(productId: string, connectionId: string, filename: string, url: string) {
     const listing = await this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } }, update: {}, create: { productId, connectionId, status: 'DRAFT' as any },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } }, update: {}, create: { productId, connectionId, status: 'DRAFT' as any },
     });
     const count = await this.prisma.listingImage.count({ where: { listingId: listing.id } });
     return this.prisma.listingImage.create({ data: { listingId: listing.id, filename, url, order: count } });
@@ -272,7 +272,7 @@ export class WalmartAdapter implements PlatformAdapter {
     const product = await this.prisma.product.findUnique({ where: { id: productId }, include: { images: { orderBy: { order: 'asc' } } } });
     if (!product) throw new BadRequestException('Producto no encontrado');
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId: conn.id } }, include: { images: { orderBy: { order: 'asc' } } },
+      where: { productId_connectionId_slot: { productId, connectionId: conn.id, slot: 0 } }, include: { images: { orderBy: { order: 'asc' } } },
     });
     const a: any = listing?.channelAttributes || {};
     const missing: string[] = [];
@@ -302,7 +302,7 @@ export class WalmartAdapter implements PlatformAdapter {
 
     const feed = { feedId, status: 'RECEIVED', submittedAt: new Date().toISOString(), errors: [] as string[] };
     await this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId: conn.id } },
+      where: { productId_connectionId_slot: { productId, connectionId: conn.id, slot: 0 } },
       update: { channelAttributes: { ...a, feed } as any, errorMsg: null },
       create: { productId, connectionId: conn.id, status: 'DRAFT' as any, channelAttributes: { ...a, feed } as any },
     });
@@ -313,7 +313,7 @@ export class WalmartAdapter implements PlatformAdapter {
   // Consulta el feed: si Walmart aceptó el ítem, la publicación queda ACTIVA (externalId = sku)
   // y se envía el stock; si no, guarda los errores de Walmart (en español) para corregir.
   async checkItemFeed(conn: any, productId: string) {
-    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId: { productId, connectionId: conn.id } }, include: { product: true } });
+    const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId: conn.id, slot: 0 } }, include: { product: true } });
     const a: any = listing?.channelAttributes || {};
     if (!listing || !a.feed?.feedId) throw new BadRequestException('Este producto no tiene un envío a Walmart pendiente.');
     const d = await this.request(conn, `/v3/feeds/${encodeURIComponent(a.feed.feedId)}?includeDetails=true`);
@@ -555,7 +555,7 @@ export class WalmartAdapter implements PlatformAdapter {
         linkedIds.add(externalId);
 
         await this.prisma.listing.upsert({
-          where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
+          where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: { externalId, status: 'ACTIVE' as any, syncedAt: new Date(), title: r.name },
           create: { productId: product.id, connectionId: conn.id, externalId, status: 'ACTIVE' as any, syncedAt: new Date(), title: r.name },
         });

@@ -406,6 +406,9 @@ export const api = {
     bulkImport: (file: File, token: string, companyId?: string, onProgress?: (percent: number) => void) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
         `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token, onProgress),
+    resolveCodes: (codes: string[], token: string, companyId?: string) =>
+      apiFetch<{ results: { code: string; products: { id: string; sku: string; name: string; stock: number; listings: { externalId: string | null; connection: { name: string } }[] }[] }[]; notFound: string[] }>(
+        '/catalog/products/bulk/resolve-codes', { method: 'POST', body: JSON.stringify({ codes, ...(companyId ? { companyId } : {}) }) }, token),
     mergePreview: (ids: string[], token: string) =>
       apiFetch<{ products: any[]; connectionConflicts: { connectionId: string; connectionName: string; products: { id: string; name: string }[] }[] }>(
         '/catalog/products/bulk/merge-preview', { method: 'POST', body: JSON.stringify({ ids }) }, token),
@@ -415,6 +418,7 @@ export const api = {
       fieldSources: Record<string, string>;
       imagesFromProductId?: string | null;
       dropshipFromProductId?: string | null;
+      stockOverride?: number;
     }, token: string) =>
       apiFetch<any>('/catalog/products/bulk/merge', { method: 'POST', body: JSON.stringify(dto) }, token),
   },
@@ -575,7 +579,7 @@ export const api = {
         }[];
       }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
     accountInfo: (productId: string, token: string) =>
-      apiFetch<{ connectionId: string; mlTitle: string; mlPrice: number; sold: number }[]>(`/ecommerce/ml/products/${productId}/account-info`, {}, token),
+      apiFetch<{ listingId: string; slot: number; connectionId: string; mlTitle: string; mlPrice: number; sold: number }[]>(`/ecommerce/ml/products/${productId}/account-info`, {}, token),
     recoverAccountData: (body: { companyId?: string; apply?: boolean }, token: string) =>
       apiFetch<{
         applied: boolean; checked: number; affected: number; errors: string[];
@@ -583,7 +587,7 @@ export const api = {
           mlTitle: string; mlPrice: number; priceBefore: number; priceAfter: number; priceOwn: boolean; titleBefore: string; titleOwn: boolean; changed: boolean }[];
       }>('/ecommerce/ml/account-data/recover', { method: 'POST', body: JSON.stringify(body) }, token),
     // Precio base de ML y precio de cada cuenta (null = usa el base); se envía a las publicaciones.
-    setAccountPrices: (productId: string, body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[] }, token: string) =>
+    setAccountPrices: (productId: string, body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[]; publications?: { listingId: string; price: number | null; title?: string | null }[] }, token: string) =>
       apiFetch<{ basePrice: number | null; pushed: { connection: string; price: number; ok: boolean; error?: string }[]; titles?: { connection: string; ok: boolean; error?: string }[] }>(
         `/ecommerce/ml/products/${productId}/account-prices`, { method: 'PUT', body: JSON.stringify(body) }, token),
     repairPackDuplicates: (body: { companyId?: string; apply?: boolean; saleIds?: string[] }, token: string) =>

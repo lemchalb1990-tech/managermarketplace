@@ -142,7 +142,7 @@ export class FalabellaAdapter implements PlatformAdapter {
 
   private async getListingWithImages(productId: string, connectionId: string) {
     return this.prisma.listing.findUnique({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       include: { images: { orderBy: { order: 'asc' } } },
     });
   }
@@ -230,7 +230,7 @@ export class FalabellaAdapter implements PlatformAdapter {
     dto: { title?: string; description?: string; channelAttributes?: FalabellaChannelAttributes },
   ) {
     return this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       update: {
         ...(dto.title !== undefined ? { title: dto.title } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
@@ -243,7 +243,7 @@ export class FalabellaAdapter implements PlatformAdapter {
 
   async addListingImage(productId: string, connectionId: string, filename: string, url: string) {
     const listing = await this.prisma.listing.upsert({
-      where: { productId_connectionId: { productId, connectionId } }, update: {}, create: { productId, connectionId },
+      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } }, update: {}, create: { productId, connectionId },
     });
     const count = await this.prisma.listingImage.count({ where: { listingId: listing.id } });
     return this.prisma.listingImage.create({ data: { listingId: listing.id, filename, url, order: count } });
@@ -379,7 +379,7 @@ export class FalabellaAdapter implements PlatformAdapter {
         linkedIds.add(r.sellerSku);
 
         const listing = await this.prisma.listing.upsert({
-          where: { productId_connectionId: { productId: product.id, connectionId: conn.id } },
+          where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: {
             externalId: r.sellerSku, status: 'ACTIVE' as any, syncedAt: new Date(),
             title: r.name, description: r.description,

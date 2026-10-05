@@ -1374,6 +1374,8 @@ export default function CatalogPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Seleccionar varios productos pegando una lista de SKU / N° de publicación.
+  const [codePicker, setCodePicker] = useState<{ text: string; loading: boolean; error: string; result: Awaited<ReturnType<typeof api.catalog.resolveCodes>> | null; picked: Set<string> } | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [bulkFailed, setBulkFailed] = useState<{ id: string; name: string; reason: string; canForce?: boolean }[]>([]);
@@ -2628,6 +2630,91 @@ export default function CatalogPage() {
       <datalist id="category-suggestions">
         {categories.map((c) => <option key={c} value={c} />)}
       </datalist>
+
+      {isAdmin && selectedIds.size === 0 && (
+        <div className="flex justify-end -mt-1 mb-2">
+          <button onClick={() => setCodePicker({ text: '', loading: false, error: '', result: null, picked: new Set() })}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            Seleccionar varios por SKU
+          </button>
+        </div>
+      )}
+
+      {codePicker && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+              <div>
+                <h2 className="font-bold text-gray-900 text-base">Seleccionar varios productos</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Pega SKU o N° de publicación, uno por línea (o separados por coma/espacio).</p>
+              </div>
+              <button onClick={() => setCodePicker(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8">×</button>
+            </div>
+            <div className="p-5 overflow-y-auto space-y-3">
+              {!codePicker.result ? (
+                <textarea value={codePicker.text} onChange={(e) => setCodePicker((c) => c && { ...c, text: e.target.value })}
+                  rows={10} placeholder="007027&#10;002669&#10;MLC1360526767"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+              ) : (
+                <div className="space-y-2">
+                  {codePicker.result.notFound.length > 0 && (
+                    <p className="text-xs text-red-600">No encontrados: {codePicker.result.notFound.join(', ')}</p>
+                  )}
+                  <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                    {Array.from(new Map(codePicker.result.results.flatMap((r) => r.products.map((p) => [p.id, { ...p, code: r.code }]))).values()).map((p) => (
+                      <label key={p.id} className="flex items-start gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" className="mt-0.5" checked={codePicker.picked.has(p.id)}
+                          onChange={(e) => setCodePicker((c) => {
+                            if (!c) return c;
+                            const picked = new Set(c.picked);
+                            if (e.target.checked) picked.add(p.id); else picked.delete(p.id);
+                            return { ...c, picked };
+                          })} />
+                        <span className="min-w-0">
+                          <span className="font-mono text-gray-700">{p.sku}</span>
+                          <span className="text-gray-400"> (pegado: {p.code})</span>
+                          <span className="block text-gray-800 truncate">{p.name}</span>
+                          <span className="block text-gray-400">Stock {p.stock} · {p.listings.map((l) => `${l.connection.name} ${l.externalId || ''}`).join(' · ') || 'sin publicaciones'}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {codePicker.error && <p className="text-xs text-red-600">{codePicker.error}</p>}
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              {codePicker.result && (
+                <button onClick={() => setCodePicker((c) => c && { ...c, result: null, picked: new Set() })}
+                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">Volver</button>
+              )}
+              {!codePicker.result ? (
+                <button disabled={codePicker.loading || !codePicker.text.trim()}
+                  onClick={async () => {
+                    const codes = codePicker.text.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+                    setCodePicker((c) => c && { ...c, loading: true, error: '' });
+                    try {
+                      const result = await api.catalog.resolveCodes(codes, getToken()!, isSuperAdmin ? selectedCompanyId || undefined : undefined);
+                      const picked = new Set(result.results.flatMap((r) => r.products.map((p) => p.id)));
+                      setCodePicker((c) => c && { ...c, loading: false, result, picked });
+                    } catch (err: any) {
+                      setCodePicker((c) => c && { ...c, loading: false, error: err.message || 'No se pudo buscar.' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                  {codePicker.loading ? 'Buscando...' : 'Buscar'}
+                </button>
+              ) : (
+                <button disabled={!codePicker.picked.size}
+                  onClick={() => { setSelectedIds(new Set(codePicker.picked)); setCodePicker(null); }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                  Seleccionar {codePicker.picked.size} producto(s)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAdmin && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
