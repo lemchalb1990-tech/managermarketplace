@@ -1,6 +1,7 @@
 'use client';
 
 import MlAccountDataRecoveryCard from './MlAccountDataRecoveryCard';
+import MlDuplicateListingsCard from './MlDuplicateListingsCard';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
@@ -757,6 +758,7 @@ export default function MercadoLibrePage() {
           )}
         </div>
 
+        <MlDuplicateListingsCard companyId={activeCompanyId || undefined} />
         <MlAccountDataRecoveryCard companyId={activeCompanyId || undefined} />
 
         <div className="mt-4 bg-white border border-amber-200 rounded-xl p-4 space-y-2">

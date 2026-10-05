@@ -61,6 +61,8 @@ export function ImportModal({
   const [hasMore, setHasMore] = useState(false);
   const [nextScrollId, setNextScrollId] = useState<string | null>(null);
   const [alreadyImportedCount, setAlreadyImportedCount] = useState(0);
+  // Ya importadas en otras tiendas de la empresa (por tienda): no se duplican.
+  const [elsewhere, setElsewhere] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [unlinked, setUnlinked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -76,6 +78,11 @@ export function ImportModal({
     setHasMore(data.hasMore);
     setNextScrollId(data.nextScrollId);
     setAlreadyImportedCount((prev) => (replace ? 0 : prev) + data.alreadyImportedCount);
+    setElsewhere((prev) => {
+      const next: Record<string, number> = replace ? {} : { ...prev };
+      for (const e of data.alreadyImportedElsewhere || []) next[e.store] = (next[e.store] || 0) + e.count;
+      return next;
+    });
     setSelected((prev) => {
       const next = replace ? new Set<string>() : new Set(prev);
       data.items.forEach((i) => next.add(i.externalId));
@@ -296,6 +303,11 @@ export function ImportModal({
                     <span>{newCount} nuevas</span>
                     <span>{matchCount} coinciden por SKU con productos existentes</span>
                     {alreadyImportedCount > 0 && <span>{alreadyImportedCount} ya importadas (no se muestran)</span>}
+                    {Object.keys(elsewhere).length > 0 && (
+                      <span className="text-amber-700">
+                        de ellas, ya importadas en otra tienda: {Object.entries(elsewhere).map(([s, n]) => `${s} (${n})`).join(', ')} — no se duplican
+                      </span>
+                    )}
                   </div>
                   <div className="overflow-x-auto">
                   <table className="w-full text-sm mt-3">

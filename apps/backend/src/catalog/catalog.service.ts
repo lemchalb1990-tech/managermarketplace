@@ -22,7 +22,7 @@ const MARKETPLACE_LABELS: Record<string, string> = {
 // Campos "de identidad" del producto que se pueden elegir campo por campo al unificar
 // duplicados (ver mergeProducts). Imágenes y proveedor dropship se resuelven aparte porque
 // no son un valor simple (una lista de imágenes / una relación 1 a 1), no un campo escalar.
-const MERGE_FIELD_KEYS = [
+export const MERGE_FIELD_KEYS = [
   'sku', 'name', 'type', 'description', 'mlDescription', 'mlAttributes',
   'price', 'mlPrice', 'cost', 'supplierPrice', 'stock', 'criticalStock',
   'category', 'mlCategoryId', 'warehouseId', 'dropship',
@@ -533,7 +533,8 @@ export class CatalogService {
   // el historial (ventas, movimientos de stock, compras, etc.) de los demás se reasignan a ese
   // mismo SKU y esos otros productos se eliminan. Operación irreversible — se ejecuta completa
   // en una sola transacción (todo o nada).
-  async mergeProducts(dto: MergeProductsDto, user: any) {
+  // quiet: sin sincronizar con los marketplaces ni devolver la ficha (fusiones masivas internas).
+  async mergeProducts(dto: MergeProductsDto, user: any, opts: { quiet?: boolean } = {}) {
     const ids = Array.from(new Set(dto.productIds));
     if (ids.length < 2) throw new BadRequestException('Selecciona al menos 2 productos para unificar');
     if (!ids.includes(dto.survivorId)) {
@@ -756,6 +757,7 @@ export class CatalogService {
       }
       finalStock = Math.trunc(dto.stockOverride);
     }
+    if (opts.quiet) return { id: survivorId };
     this.sync.syncProduct(survivorId, finalStock, Number(data.price)).catch(() => {});
 
     return this.findOne(survivorId, user);

@@ -11,7 +11,7 @@ import {
   MlQuestionStatus, MlClaimStatus, SaleFeedbackRating, ReturnStatus, FulfillmentType, OrderStatus, OrderEventSource,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CatalogService } from '../../catalog/catalog.service';
+import { CatalogService, MERGE_FIELD_KEYS } from '../../catalog/catalog.service';
 import { SettingsService } from '../../settings/settings.service';
 import { ListingStatus } from '@prisma/client';
 import { SyncService } from '../sync/sync.service';
@@ -1154,6 +1154,129 @@ export class MercadolibreService {
     };
   }
 
+  // Publicaciones duplicadas: una misma publicación de ML (MLC…, y variación) vinculada más de una
+  // vez en la empresa (en otra tienda o a otro producto). Se conserva un solo vínculo: el de una
+  // tienda activa (si hay varias activas, la que tenga autorizada la cuenta dueña del ítem; si no
+  // se puede saber, se deja para revisión manual) y se eliminan los demás vínculos. Los productos
+  // no se tocan: los que queden sin publicaciones se informan para unificarlos o desactivarlos.
+  async reviewDuplicateListings(user: any, opts: { companyId?: string; apply?: boolean; limit?: number }) {
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        externalId: { not: null },
+        connection: { marketplace: MarketplaceType.MERCADO_LIBRE, ...this.companyFilter(user, opts.companyId) },
+      },
+      select: {
+        id: true, externalId: true, variationId: true, productId: true, createdAt: true,
+        connection: { select: { id: true, name: true, active: true, companyId: true, mlUserId: true } },
+        product: { select: { sku: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    const groups = new Map<string, typeof listings>();
+    for (const l of listings) {
+      const key = `${l.connection.companyId}|${l.externalId}|${l.variationId || ''}`;
+      groups.set(key, [...(groups.get(key) || []), l]);
+    }
+    const dupGroups = Array.from(groups.values()).filter((g) => g.length > 1);
+
+    // Dueño real del ítem (seller_id) solo cuando hay más de una tienda activa en el grupo.
+    const ambiguous = dupGroups.filter((g) => new Set(g.filter((l) => l.connection.active).map((l) => l.connection.id)).size > 1);
+    const sellerOf = new Map<string, string>();
+    if (ambiguous.length) {
+      const byConn = new Map<string, string[]>();
+      for (const g of ambiguous) for (const l of g) if (l.connection.active) byConn.set(l.connection.id, [...(byConn.get(l.connection.id) || []), l.externalId!]);
+      for (const [connId, ids] of byConn) {
+        try {
+          const token = await this.getValidToken(connId);
+          for (let i = 0; i < ids.length; i += 20) {
+            const chunk = [...new Set(ids)].slice(i, i + 20);
+            const res = await fetch(`${ML_API}/items?ids=${chunk.join(',')}&attributes=id,seller_id`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+            if (!res?.ok) continue;
+            for (const r of (await res.json()) as any[]) if (r?.code === 200) sellerOf.set(String(r.body.id), String(r.body.seller_id));
+          }
+        } catch { /* sin token: queda para revisión manual */ }
+      }
+    }
+
+    const result: {
+      externalId: string; keep: { store: string; sku: string } | null; remove: { store: string; sku: string }[]; reason?: string;
+    }[] = [];
+    const removeIds: string[] = [];
+    const plan: { keepProductId: string; removeIds: string[]; removeProductIds: string[] }[] = [];
+    for (const g of dupGroups) {
+      const active = g.filter((l) => l.connection.active);
+      let keep: (typeof g)[number] | undefined;
+      if (active.length === 1) keep = active[0];
+      else if (active.length > 1) {
+        const owners = active.filter((l) => l.connection.mlUserId && sellerOf.get(l.externalId!) === l.connection.mlUserId);
+        const ownerConns = new Set(owners.map((l) => l.connection.id));
+        if (ownerConns.size === 1) keep = owners[0];
+        else if (new Set(active.map((l) => l.connection.id)).size === 1) keep = active[0]; // misma tienda, distinto producto
+      } else keep = g[0];
+      if (!keep) {
+        result.push({ externalId: g[0].externalId!, keep: null, remove: [], reason: 'Varias tiendas activas y no se pudo saber cuál es la dueña: revisar a mano' });
+        continue;
+      }
+      const remove = g.filter((l) => l.id !== keep!.id);
+      removeIds.push(...remove.map((l) => l.id));
+      plan.push({ keepProductId: keep.productId, removeIds: remove.map((l) => l.id), removeProductIds: [...new Set(remove.map((l) => l.productId))] });
+      result.push({
+        externalId: keep.externalId!,
+        keep: { store: keep.connection.name, sku: keep.product.sku },
+        remove: remove.map((l) => ({ store: l.connection.name, sku: l.product.sku })),
+      });
+    }
+
+    // Productos que quedarían sin ninguna publicación (duplicados del que se conserva).
+    const affectedProducts = [...new Set(listings.filter((l) => removeIds.includes(l.id)).map((l) => l.productId))];
+    const stillListed = await this.prisma.listing.findMany({
+      where: { productId: { in: affectedProducts }, id: { notIn: removeIds } }, select: { productId: true },
+    });
+    const listedSet = new Set(stillListed.map((l) => l.productId));
+    const orphanProducts = affectedProducts.filter((id) => !listedSet.has(id)).length;
+
+    // Aplicar por tandas (cada llamada procesa hasta `limit` publicaciones duplicadas): se borra el
+    // vínculo duplicado y, si su producto queda sin publicaciones, se unifica con el producto que
+    // se conserva (mismo artículo): su historial pasa a ese producto y el duplicado se elimina. Se
+    // conservan todos los datos del producto que se conserva y no se envía nada a los marketplaces.
+    let processed = 0, linksRemoved = 0, productsMerged = 0;
+    const mergeErrors: string[] = [];
+    if (opts.apply) {
+      const limit = Math.max(1, Math.min(opts.limit ?? 100, 300));
+      for (const step of plan.slice(0, limit)) {
+        await this.prisma.listing.deleteMany({ where: { id: { in: step.removeIds } } }); // imágenes: en cascada
+        linksRemoved += step.removeIds.length;
+        for (const productId of step.removeProductIds) {
+          if (productId === step.keepProductId) continue;
+          const left = await this.prisma.listing.count({ where: { productId } });
+          if (left > 0) continue;
+          const keeper = await this.prisma.product.findUnique({ where: { id: step.keepProductId }, select: { id: true, dropshipProduct: { select: { id: true } } } });
+          const loser = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true, sku: true, dropshipProduct: { select: { id: true } } } });
+          if (!keeper || !loser) continue;
+          try {
+            await this.catalog.mergeProducts({
+              productIds: [keeper.id, loser.id], survivorId: keeper.id,
+              fieldSources: Object.fromEntries(MERGE_FIELD_KEYS.map((k) => [k, keeper.id])) as any,
+              imagesFromProductId: keeper.id,
+              dropshipFromProductId: keeper.dropshipProduct ? keeper.id : loser.dropshipProduct ? loser.id : null,
+            } as any, user, { quiet: true });
+            productsMerged++;
+          } catch (err: any) {
+            mergeErrors.push(`${loser.sku}: ${err.message}`);
+          }
+        }
+        processed++;
+      }
+      this.logger.log(`Publicaciones duplicadas: ${processed} grupos, ${linksRemoved} vínculos borrados, ${productsMerged} productos unificados.`);
+    }
+    return {
+      applied: !!opts.apply,
+      groups: dupGroups.length, linksToRemove: removeIds.length, manual: result.filter((r) => !r.keep).length,
+      orphanProducts, sample: result.slice(0, 200),
+      processed, linksRemoved, productsMerged, mergeErrors, remaining: Math.max(0, plan.length - processed),
+    };
+  }
+
   // Datos en vivo de cada cuenta para la tarjeta "Precios y títulos por cuenta": título, precio y
   // ventas en ML. Las publicaciones con ventas quedan con el título que tienen en ML.
   async getMlAccountInfo(productId: string, user: any) {
@@ -1613,13 +1736,22 @@ export class MercadolibreService {
           where: { companyId: conn.companyId, sku: { in: skus } },
           select: { id: true, sku: true, name: true },
         }),
+        // Una publicación de ML (MLC…) es única en todo el sitio: si ya está vinculada en
+        // cualquier tienda de ML de la empresa, ya está importada y no se vuelve a traer.
         this.prisma.listing.findMany({
-          where: { connectionId, externalId: { in: mlItems.map((i) => i.id) } },
-          select: { externalId: true, productId: true, product: { select: { name: true } } },
+          where: {
+            externalId: { in: mlItems.map((i) => i.id) },
+            connection: { companyId: conn.companyId, marketplace: MarketplaceType.MERCADO_LIBRE },
+          },
+          select: { externalId: true, productId: true, connectionId: true, connection: { select: { name: true } }, product: { select: { name: true } } },
         }),
       ]);
       const productBySku = new Map(existingProducts.map((p) => [p.sku, p]));
       const listingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
+      const elsewhere = new Map<string, number>();
+      for (const l of existingListings) {
+        if (l.connectionId !== connectionId) elsewhere.set(l.connection.name, (elsewhere.get(l.connection.name) || 0) + 1);
+      }
 
       const items = mlItems
         .filter((i) => !listingByExternalId.has(i.id))
@@ -1644,7 +1776,10 @@ export class MercadolibreService {
 
       const alreadyImportedCount = mlItems.length - items.length;
 
-      return { connectionName: conn.name, total, hasMore, nextScrollId, alreadyImportedCount, items };
+      return {
+        connectionName: conn.name, total, hasMore, nextScrollId, alreadyImportedCount, items,
+        alreadyImportedElsewhere: Array.from(elsewhere, ([store, count]) => ({ store, count })),
+      };
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
       this.logger.error(`previewImport error: ${err?.message || err}`, err?.stack);
@@ -1692,10 +1827,16 @@ export class MercadolibreService {
 
     for (const item of mlItems) {
       try {
+        // Ya importada en esta u otra tienda de ML de la empresa: no se duplica.
         const alreadyLinked = await this.prisma.listing.findFirst({
-          where: { connectionId, externalId: item.id },
+          where: { externalId: item.id, connection: { companyId: conn.companyId, marketplace: MarketplaceType.MERCADO_LIBRE } },
+          include: { connection: { select: { name: true } } },
         });
-        if (alreadyLinked) { skipped++; continue; }
+        if (alreadyLinked) {
+          skipped++;
+          if (alreadyLinked.connectionId !== connectionId) errors.push(`${item.id}: ya está importada en la tienda "${alreadyLinked.connection.name}" (no se duplica).`);
+          continue;
+        }
 
         const status = item.status === 'active' ? ListingStatus.ACTIVE : ListingStatus.PAUSED;
         const matchedSku = this.extractSku(item.attributes);

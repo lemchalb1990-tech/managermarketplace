@@ -493,6 +493,8 @@ export const api = {
     previewImport: (connectionId: string, scrollId: string | null, token: string) =>
       apiFetch<{
         connectionName: string;
+        // Ya importadas en OTRA tienda de ML de la empresa (no se vuelven a importar).
+        alreadyImportedElsewhere?: { store: string; count: number }[];
         total: number;
         hasMore: boolean;
         nextScrollId: string | null;
@@ -578,6 +580,12 @@ export const api = {
           after?: { total: number; fee: number; shipping: number; net: number };
         }[];
       }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
+    reviewDuplicateListings: (body: { companyId?: string; apply?: boolean; limit?: number }, token: string) =>
+      apiFetch<{
+        applied: boolean; groups: number; linksToRemove: number; manual: number; orphanProducts: number;
+        sample: { externalId: string; keep: { store: string; sku: string } | null; remove: { store: string; sku: string }[]; reason?: string }[];
+        processed: number; linksRemoved: number; productsMerged: number; mergeErrors: string[]; remaining: number;
+      }>('/ecommerce/ml/duplicate-listings', { method: 'POST', body: JSON.stringify(body) }, token),
     accountInfo: (productId: string, token: string) =>
       apiFetch<{ listingId: string; slot: number; connectionId: string; mlTitle: string; mlPrice: number; sold: number }[]>(`/ecommerce/ml/products/${productId}/account-info`, {}, token),
     recoverAccountData: (body: { companyId?: string; apply?: boolean }, token: string) =>

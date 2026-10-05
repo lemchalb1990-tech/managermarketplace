@@ -344,6 +344,14 @@ export class MercadolibreController {
     return this.service.getMlAccountInfo(productId, user);
   }
 
+  // Publicaciones de ML vinculadas más de una vez en la empresa (apply=false: solo revisa).
+  @Post('duplicate-listings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  reviewDuplicateListings(@Body() body: { companyId?: string; apply?: boolean; limit?: number }, @CurrentUser() user: any) {
+    return this.service.reviewDuplicateListings(user, { companyId: body?.companyId, apply: body?.apply === true, limit: Number(body?.limit) || undefined });
+  }
+
   // Recupera desde ML el precio y título de cada cuenta en productos ya importados (apply=false: solo revisa).
   @Post('account-data/recover')
   @UseGuards(JwtAuthGuard, RolesGuard)
