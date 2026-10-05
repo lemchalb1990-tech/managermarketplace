@@ -1005,12 +1005,11 @@ export class MercadolibreService {
     return { warnings };
   }
 
-  async syncStock(productId: string, connectionId: string, user: any) {
+  // listingId: una publicación puntual (p. ej. una adicional de la misma cuenta); si no, la principal.
+  async syncStock(productId: string, connectionId: string, user: any, listingId?: string) {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
-    const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
-    });
+    const listing = await this.findTargetListing(productId, connectionId, listingId);
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
     const token = await this.getValidToken(connectionId);
@@ -1550,12 +1549,10 @@ export class MercadolibreService {
     }
   }
 
-  async toggleListingStatus(productId: string, connectionId: string, user: any) {
+  async toggleListingStatus(productId: string, connectionId: string, user: any, listingId?: string) {
     const product = await this.catalog.findOne(productId, user);
     await this.getConnectionForUser(connectionId, user);
-    const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
-    });
+    const listing = await this.findTargetListing(productId, connectionId, listingId);
     if (!listing?.externalId) throw new BadRequestException('La publicación no existe en ML');
 
     const isActive = listing.status === ListingStatus.ACTIVE;
@@ -1582,6 +1579,17 @@ export class MercadolibreService {
       where: { id: listing.id },
       data: { status: newStatus, syncedAt: new Date() },
     });
+  }
+
+  // Publicación sobre la que actúa una acción: la indicada (debe ser de ese producto y cuenta) o
+  // la principal de la cuenta.
+  private async findTargetListing(productId: string, connectionId: string, listingId?: string) {
+    if (!listingId) {
+      return this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
+    }
+    const l = await this.prisma.listing.findUnique({ where: { id: listingId } });
+    if (!l || l.productId !== productId || l.connectionId !== connectionId) throw new NotFoundException('Publicación no encontrada');
+    return l;
   }
 
   // ─── Importación de publicaciones existentes ─────────────────────────────────

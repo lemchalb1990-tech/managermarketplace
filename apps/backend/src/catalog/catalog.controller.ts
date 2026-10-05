@@ -145,8 +145,9 @@ export class CatalogController {
     @Param('id') id: string,
     @Param('connectionId') connectionId: string,
     @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
   ) {
-    return this.service.deleteListing(id, connectionId, user);
+    return this.service.deleteListing(id, connectionId, user, listingId);
   }
 
   @Delete('products/:id/force')

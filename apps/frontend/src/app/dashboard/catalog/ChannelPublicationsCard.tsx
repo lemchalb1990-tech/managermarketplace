@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { confirmDialog } from '../ConfirmDialog';
 
 // Publicaciones del producto en un marketplace (pestaña "Conexiones"): una fila por publicación
 // con estado, ID, link, error, precio (base o propio), título y sus acciones. Stock, descripción
@@ -283,6 +284,9 @@ export default function ChannelPublicationsCard({
                       {isMl && renderPrice(l.id, er, setE, 'Precio de la cuenta', accountValue(c.id))}
                     </div>
                     {renderTitle(l.id, er, setE, l)}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ExtraListingActions isMl={isMl} productId={product.id} productStock={product.stock} conn={c} listing={l} onDone={onSaved} />
+                    </div>
                   </div>
                 );
               })}
@@ -335,6 +339,65 @@ export function GenericChannelActions({ conn, listing, productId, onDone }: {
           {busy ? 'Sincronizando...' : 'Sincronizar'}
         </button>
       )}
+      {err && <span className="text-xs text-red-600">{err}</span>}
+    </>
+  );
+}
+
+// Acciones de una publicación adicional de la misma cuenta (los botones de la fila principal
+// actúan sobre la publicación principal): sincronizar, pausar/activar y eliminar el vínculo.
+function ExtraListingActions({ isMl, productId, productStock, conn, listing, onDone }: {
+  isMl: boolean; productId: string; productStock: number; conn: any; listing: any; onDone: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+  const [warn, setWarn] = useState('');
+  async function run(kind: string, fn: () => Promise<any>) {
+    setBusy(kind);
+    setErr('');
+    setWarn('');
+    try {
+      const r = await fn();
+      if (r?.warnings?.length) setWarn(r.warnings.join(' | '));
+      await onDone();
+    } catch (e: any) {
+      setErr(e.message || 'Error');
+    } finally {
+      setBusy(null);
+    }
+  }
+  const token = () => getToken()!;
+  const isActive = listing.status === 'ACTIVE';
+  const canToggle = isMl && listing.externalId && (isActive || listing.status === 'PAUSED');
+  return (
+    <>
+      {isMl && listing.externalId && (
+        <button onClick={() => run('sync', () => api.marketplace.sync(productId, conn.id, token(), listing.id))} disabled={!!busy}
+          title="Envía el precio, descripción y stock del producto a esta publicación"
+          className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+          {busy === 'sync' ? 'Sincronizando...' : 'Sincronizar'}
+        </button>
+      )}
+      {canToggle && (
+        <button onClick={() => run('toggle', () => api.marketplace.toggleListing(productId, conn.id, token(), listing.id))}
+          disabled={!!busy || (!isActive && productStock === 0)}
+          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : undefined}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
+            isActive ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+          }`}>
+          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? 'Pausar publicación' : 'Activar publicación'}
+        </button>
+      )}
+      <button disabled={!!busy}
+        onClick={async () => {
+          if (!(await confirmDialog('¿Eliminar el vínculo con esta publicación? La publicación sigue en el marketplace; el sistema deja de rastrearla.', { danger: true }))) return;
+          await run('delete', () => api.catalog.deleteListing(productId, conn.id, token(), listing.id));
+        }}
+        title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
+        className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
+        {busy === 'delete' ? 'Eliminando...' : 'Eliminar publicación'}
+      </button>
+      {warn && <span className="text-xs text-amber-700">{warn}</span>}
       {err && <span className="text-xs text-red-600">{err}</span>}
     </>
   );

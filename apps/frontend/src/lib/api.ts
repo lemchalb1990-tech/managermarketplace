@@ -389,9 +389,10 @@ export const api = {
     bulkDeleteListings: (ids: string[], token: string) =>
       apiFetch<{ deleted: number }>(
         '/catalog/products/bulk/delete-listings', { method: 'POST', body: JSON.stringify({ ids }) }, token),
-    deleteListing: (productId: string, connectionId: string, token: string) =>
+    // listingId: una publicación puntual (adicional de la misma cuenta); si no, la principal.
+    deleteListing: (productId: string, connectionId: string, token: string, listingId?: string) =>
       apiFetch<{ deleted: boolean }>(
-        `/catalog/products/${productId}/listings/${connectionId}`, { method: 'DELETE' }, token),
+        `/catalog/products/${productId}/listings/${connectionId}${listingId ? `?listingId=${listingId}` : ''}`, { method: 'DELETE' }, token),
     downloadBulkTemplate: (token: string, companyId?: string) =>
       apiDownload(
         `/catalog/products/bulk/import-template${companyId ? `?companyId=${companyId}` : ''}`,
@@ -479,8 +480,8 @@ export const api = {
     getSaleTerms: (connectionId: string, categoryId: string, token: string) =>
       apiFetch<{ id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[] }[]>(
         `/ecommerce/ml/connections/${connectionId}/categories/${categoryId}/sale-terms`, {}, token),
-    sync: (productId: string, connectionId: string, token: string) =>
-      apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}`, { method: 'POST' }, token),
+    sync: (productId: string, connectionId: string, token: string, listingId?: string) =>
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/sync/${connectionId}${listingId ? `?listingId=${listingId}` : ''}`, { method: 'POST' }, token),
     pullFromMl: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/pull/${connectionId}`, { method: 'POST' }, token),
     syncAll: (productId: string, token: string) =>
@@ -488,8 +489,8 @@ export const api = {
         syncedCount: number; failedCount: number;
         results: Array<{ connectionId: string; connectionName: string; success: boolean; warnings: string[]; error: string | null }>;
       }>(`/ecommerce/ml/products/${productId}/sync-all`, { method: 'POST' }, token),
-    toggleListing: (productId: string, connectionId: string, token: string) =>
-      apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}`, { method: 'PATCH' }, token),
+    toggleListing: (productId: string, connectionId: string, token: string, listingId?: string) =>
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/toggle/${connectionId}${listingId ? `?listingId=${listingId}` : ''}`, { method: 'PATCH' }, token),
     previewImport: (connectionId: string, scrollId: string | null, token: string) =>
       apiFetch<{
         connectionName: string;

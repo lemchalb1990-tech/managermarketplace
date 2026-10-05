@@ -340,13 +340,14 @@ export class CatalogService {
 
   // Igual que bulkDeleteListings pero para un solo producto/conexión, desde la ficha del
   // producto: borra el vínculo interno sin llamar a la API del marketplace.
-  async deleteListing(productId: string, connectionId: string, user: any) {
+  // listingId: una publicación puntual (p. ej. una adicional de la misma cuenta); si no, la principal.
+  async deleteListing(productId: string, connectionId: string, user: any, listingId?: string) {
     if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) throw new ForbiddenException();
     const listing = await this.prisma.listing.findUnique({
-      where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
+      where: listingId ? { id: listingId } : { productId_connectionId_slot: { productId, connectionId, slot: 0 } },
       include: { product: { select: { companyId: true } } },
     });
-    if (!listing) throw new NotFoundException('Publicación no encontrada');
+    if (!listing || listing.productId !== productId || listing.connectionId !== connectionId) throw new NotFoundException('Publicación no encontrada');
     if (user.role !== Role.SUPER_ADMIN && listing.product.companyId !== user.companyId) {
       throw new ForbiddenException();
     }

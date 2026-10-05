@@ -496,8 +496,9 @@ export class MercadolibreController {
     @Param('productId') productId: string,
     @Param('connectionId') connectionId: string,
     @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
   ) {
-    return this.service.syncStock(productId, connectionId, user);
+    return this.service.syncStock(productId, connectionId, user, listingId);
   }
 
   @Post('products/:productId/pull/:connectionId')
@@ -525,8 +526,9 @@ export class MercadolibreController {
     @Param('productId') productId: string,
     @Param('connectionId') connectionId: string,
     @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
   ) {
-    return this.service.toggleListingStatus(productId, connectionId, user);
+    return this.service.toggleListingStatus(productId, connectionId, user, listingId);
   }
 
   // ─── Preguntas ─────────────────────────────────────────────────────────────
