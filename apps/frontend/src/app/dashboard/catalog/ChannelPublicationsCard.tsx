@@ -319,7 +319,7 @@ export default function ChannelPublicationsCard({
 // Acciones de canales sin ficha propia (JumpSeller, Shopify, WooCommerce…): publicar, sincronizar,
 // pausar/activar (si el canal lo permite) y eliminar el vínculo. `extra`: publicación adicional de
 // la misma cuenta (las acciones van sobre esa publicación puntual; no se publica desde ahí).
-const TOGGLE_CHANNELS = new Set(['JUMPSELLER']);
+const TOGGLE_CHANNELS = new Set(['JUMPSELLER', 'SHOPIFY', 'WOOCOMMERCE']);
 export function GenericChannelActions({ conn, listing, productId, productStock, extra = false, onDone }: {
   conn: any; listing: any | undefined; productId: string; productStock?: number; extra?: boolean; onDone: () => void | Promise<void>;
 }) {
