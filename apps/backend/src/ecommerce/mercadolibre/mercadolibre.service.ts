@@ -1557,11 +1557,15 @@ export class MercadolibreService {
     };
   }
 
-  // Neto real que recibe el vendedor: precio del producto - comisión - envío a su cargo - impuestos - cupón.
+  // Neto real que recibe el vendedor: precio del producto - comisión - envío a su cargo - impuestos.
   // Verificado contra el panel de ML: $8.499 - $1.530 - $799 = $6.170.
+  // El cupón/descuento de ML (payments.coupon_amount) NO se descuenta: lo financia Mercado Libre
+  // y al vendedor le liquida el precio completo. Verificado: orden 2000018772264136 → 45500 − 5005
+  // (comisión) + 289 (bonificación Flex) = 40784, con un cupón de 9100 que pagó ML. Se guarda en
+  // Sale.discount solo como información.
   private computeSellerNetAmount(order: any, charges: { marketplaceFee: number; shippingCost: number; taxes: number; coupon: number }): number {
     const productTotal = Math.round(Number(order.total_amount || 0));
-    return productTotal - charges.marketplaceFee - charges.shippingCost - charges.taxes - charges.coupon;
+    return productTotal - charges.marketplaceFee - charges.shippingCost - charges.taxes;
   }
 
   private static readonly ML_LOGISTIC_LABELS: Record<string, string> = {
@@ -2112,7 +2116,8 @@ export class MercadolibreService {
         channel: SaleChannel.MERCADO_LIBRE,
         connectionId: { not: null },
         // Carritos (envío compartido) y ventas Flex (bonificación de envío mal calculada antes de oct-2026).
-        OR: [{ mlPackId: { not: null } }, { mlMergedOrderIds: { isEmpty: false } }, { shippingMethod: 'Flex' }],
+        // + ventas con cupón de ML (antes se descontaba del neto).
+        OR: [{ mlPackId: { not: null } }, { mlMergedOrderIds: { isEmpty: false } }, { shippingMethod: 'Flex' }, { discount: { gt: 0 } }],
       },
       select: {
         id: true, externalId: true, mlPackId: true, mlShippingId: true, mlMergedOrderIds: true, connectionId: true,

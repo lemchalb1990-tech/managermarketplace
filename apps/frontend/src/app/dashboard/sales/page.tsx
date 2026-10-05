@@ -525,8 +525,10 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                             <span>{fmt(Number(sale.taxes))}</span>
                           </div>
                         )}
-                        {sale.discount != null && (
-                          <div className="flex justify-between text-xs text-gray-500"><span>Descuento/Cupón</span><span>-{fmt(Number(sale.discount))}</span></div>
+                        {sale.discount != null && (sale.channel !== 'MERCADO_LIBRE' || Number(sale.discount) !== 0) && (
+                          sale.channel === 'MERCADO_LIBRE'
+                            ? <div className="flex justify-between text-xs text-gray-400"><span>Cupón de Mercado Libre (lo paga ML, no afecta tu neto)</span><span>{fmt(Number(sale.discount))}</span></div>
+                            : <div className="flex justify-between text-xs text-gray-500"><span>Descuento/Cupón</span><span>-{fmt(Number(sale.discount))}</span></div>
                         )}
                         {sale.netAmount != null && (
                           <div className="flex justify-between text-xs font-semibold text-gray-700">

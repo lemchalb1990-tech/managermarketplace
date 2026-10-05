@@ -711,7 +711,7 @@ export default function MercadoLibrePage() {
 
         <div className="mt-4 bg-white border border-sky-200 rounded-xl p-4 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-gray-800 mr-auto">Montos de ventas de carrito y Flex (comisión y envío)</p>
+            <p className="text-sm font-medium text-gray-800 mr-auto">Montos de ventas de carrito, Flex y con cupón</p>
             <button onClick={() => handleRecalculateAmounts(false)} disabled={amountsLoading}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               {amountsLoading ? 'Revisando...' : 'Revisar'}
@@ -725,7 +725,7 @@ export default function MercadoLibrePage() {
           </div>
           <p className="text-xs text-gray-500">
             Compara cada venta de carrito o con envío Flex con los valores de Mercado Libre (comisión por producto, costo del
-            envío —uno solo por carrito— y bonificación de envío Flex) y corrige total, comisión, envío y neto. &quot;Revisar&quot; no cambia nada.
+            envío —uno solo por carrito—, bonificación de envío Flex y cupones que paga ML) y corrige total, comisión, envío y neto. &quot;Revisar&quot; no cambia nada.
           </p>
           {amountsError && <p className="text-xs text-red-600">{amountsError}</p>}
           {amountsReport && (

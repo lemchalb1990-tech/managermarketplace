@@ -130,7 +130,9 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
         {taxes != null && taxes !== 0 && (
           <Row label={sinIva ? 'IVA incluido en el total (va al fisco)' : 'Impuestos'} value={fmt(taxes)} tone="muted" />
         )}
-        {discount != null && discount !== 0 && <Row label="Descuento / cupón" value={`-${fmt(discount)}`} tone="minus" />}
+        {discount != null && discount !== 0 && (sale.channel === 'MERCADO_LIBRE'
+          ? <Row label="Cupón de Mercado Libre (lo paga ML, no afecta tu neto)" value={fmt(discount)} tone="muted" />
+          : <Row label="Descuento / cupón" value={`-${fmt(discount)}`} tone="minus" />)}
         {net != null && (
           <div className="pt-1 mt-1 border-t border-dashed border-gray-200 space-y-1">
             {sinIva ? (
