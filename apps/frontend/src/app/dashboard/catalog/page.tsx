@@ -11,7 +11,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import WalmartListingCard from './WalmartListingCard';
-import MlAccountPricesCard from './MlAccountPricesCard';
+import ChannelPublicationsCard, { GenericChannelActions } from './ChannelPublicationsCard';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1303,7 +1303,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-type Tab = 'edit' | 'images' | 'ml' | 'paris' | 'ripley' | 'falabella' | 'walmart' | 'stock';
+type Tab = 'edit' | 'images' | 'connections' | 'stock';
 
 // Tiendas web con su propio "Precio de venta" (ChannelPrice por conexión): al importar se
 // llena con el precio de la tienda y la sincronización usa ese precio en esa plataforma.
@@ -1433,6 +1433,13 @@ export default function CatalogPage() {
   const activeChannels = Array.from(new Set(activeConnections.map((c) => c.marketplace || 'MERCADO_LIBRE')))
     .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b));
   const webPriceConnections = genericConnections.filter((c) => c.active && WEB_PRICE_PLATFORMS[c.marketplace]);
+  // Pestaña "Conexiones": publicaciones agrupadas por marketplace (Mercado Libre primero).
+  const connectionGroups: { marketplace: string; connections: any[] }[] = [
+    ...(hasMlModule && connections.filter((c) => c.active).length ? [{ marketplace: 'MERCADO_LIBRE', connections: connections.filter((c) => c.active) }] : []),
+    ...Array.from(new Set(genericConnections.filter((c) => c.active).map((c) => c.marketplace as string)))
+      .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b))
+      .map((m) => ({ marketplace: m, connections: genericConnections.filter((c) => c.active && c.marketplace === m) })),
+  ];
   // "Precio venta JumpSeller" (y el nombre de la conexión si hay más de una de esa plataforma).
   const webPriceLabel = (c: any) => {
     const platform = WEB_PRICE_PLATFORMS[c.marketplace];
@@ -3048,19 +3055,15 @@ export default function CatalogPage() {
 
             <div className="flex flex-wrap items-center border-b border-gray-200 px-3 sm:px-6">
               {(selected.id
-                ? (['edit', 'images', 'ml', 'paris', 'ripley', 'falabella', 'walmart', 'stock'] as Tab[])
-                    .filter((t) => t !== 'ml' || hasMlModule)
-                    .filter((t) => t !== 'paris' || parisConnections.length > 0)
-                    .filter((t) => t !== 'ripley' || ripleyConnections.length > 0)
-                    .filter((t) => t !== 'falabella' || falabellaConnections.length > 0)
-                    .filter((t) => t !== 'walmart' || walmartConnections.length > 0)
+                ? (['edit', 'images', 'connections', 'stock'] as Tab[])
+                    .filter((t) => t !== 'connections' || connectionGroups.length > 0)
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
                   className={`shrink-0 whitespace-nowrap py-3 px-3 sm:px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'ml' ? 'Mercado Libre' : t === 'paris' ? 'Paris' : t === 'ripley' ? 'Ripley' : t === 'falabella' ? 'Falabella' : t === 'walmart' ? 'Walmart' : 'Movimientos'}
+                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conexiones' : 'Movimientos'}
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar — se guardan solos al cambiar de pestaña" />
                   )}
@@ -3594,8 +3597,8 @@ export default function CatalogPage() {
                 </div>
               )}
 
-              {tab === 'ml' && (
-                <div className="space-y-3">
+              {tab === 'connections' && (
+                <div className="space-y-4">
                   {mlWarning && (
                     <div className="flex gap-3 px-4 py-3 bg-yellow-50 border border-yellow-300 rounded-xl text-sm text-yellow-800">
                       <span className="text-yellow-500 text-lg leading-none">⚠</span>
@@ -3605,80 +3608,31 @@ export default function CatalogPage() {
                       </div>
                     </div>
                   )}
-                  {(() => {
-                    const activeCount = selected.listings?.filter((l: any) => l.status === 'ACTIVE' || l.status === 'PAUSED').length || 0;
-                    if (activeCount === 0) return null;
-                    return (
-                      <div className="flex justify-end">
-                        <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
-                          className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
-                          {syncAllLoading === selected.id
-                            ? 'Sincronizando...'
-                            : activeCount > 1 ? 'Sincronizar todas las publicaciones' : 'Resincronizar'}
-                        </button>
-                      </div>
-                    );
-                  })()}
-                  {connections.length > 0 && selected.id && (
-                    <MlAccountPricesCard key={`${selected.id}-${selected.updatedAt}`} product={selected} connections={connections}
-                      onSaved={() => refreshSelected(selected.id)} />
-                  )}
-                  {connections.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <p className="text-sm mb-1">No hay cuentas de Mercado Libre conectadas.</p>
-                      <p className="text-xs">Ve a <strong>Mercado Libre</strong> en el menú para conectar una cuenta.</p>
-                    </div>
-                  ) : connections.map((conn) => {
-                    const listing = selected.listings?.find((l: any) => l.connectionId === conn.id);
-                    const publishBusy = publishModal?.connectionId === conn.id && publishModal?.phase === 'publishing';
-                    const syncBusy = mlLoading[`sync_${conn.id}`];
-                    const toggleBusy = mlLoading[`toggle_${conn.id}`];
-                    const isActive = listing?.status === 'ACTIVE';
-                    const isPaused = listing?.status === 'PAUSED';
-                    const canToggle = listing && (isActive || isPaused);
-                    return (
-                      <div key={conn.id} className="border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">{conn.name}</p>
-                            <p className="text-xs text-gray-400">Mercado Libre</p>
-                          </div>
-                          {listing ? (
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[listing.status]}`}>
-                              {statusLabel[listing.status]}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                              Sin publicar
-                            </span>
-                          )}
-                        </div>
-                        {listing?.externalId && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-400">ID:</span>
-                            <code className="text-xs font-mono bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-gray-600">
-                              {listing.externalId}
-                            </code>
-                            <button type="button"
-                              onClick={() => navigator.clipboard.writeText(listing.externalId)}
-                              className="text-xs text-blue-500 hover:text-blue-700">
-                              Copiar
+                  <p className="text-xs text-gray-500">
+                    Stock, descripción y fotos son los mismos en todas las publicaciones. El precio y el título pueden ser los mismos (base) o propios de cada cuenta o publicación.
+                  </p>
+                  {connectionGroups.map((g) => {
+                    const key = `${g.marketplace}-${selected.id}-${selected.updatedAt}`;
+                    const refresh = () => refreshSelected(selected.id);
+                    if (g.marketplace === 'MERCADO_LIBRE') {
+                      const activeCount = selected.listings?.filter((l: any) => g.connections.some((c: any) => c.id === l.connectionId) && (l.status === 'ACTIVE' || l.status === 'PAUSED')).length || 0;
+                      return (
+                        <ChannelPublicationsCard key={key} title="Mercado Libre" isMl product={selected} connections={g.connections} onSaved={refresh}
+                          headerActions={activeCount > 0 ? (
+                            <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
+                              className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                              {syncAllLoading === selected.id ? 'Sincronizando...' : activeCount > 1 ? 'Sincronizar todas' : 'Resincronizar'}
                             </button>
-                          </div>
-                        )}
-                        {listing?.externalUrl && (
-                          <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:underline block mb-3 truncate">
-                            {listing.externalUrl}
-                          </a>
-                        )}
-                        {listing?.errorMsg && (
-                          <div className="flex gap-2 items-start mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                            <span className="shrink-0 mt-0.5">❌</span>
-                            <span>{listing.errorMsg}</span>
-                          </div>
-                        )}
-                        <div className="flex gap-2 flex-wrap">
+                          ) : undefined}
+                          renderActions={(conn, listing) => {
+                            const publishBusy = publishModal?.connectionId === conn.id && publishModal?.phase === 'publishing';
+                            const syncBusy = mlLoading[`sync_${conn.id}`];
+                            const toggleBusy = mlLoading[`toggle_${conn.id}`];
+                            const isActive = listing?.status === 'ACTIVE';
+                            const isPaused = listing?.status === 'PAUSED';
+                            const canToggle = listing && (isActive || isPaused);
+                            return (
+                              <>
                           <button onClick={() => openPublishModal(conn.id, !!listing)} disabled={publishBusy}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-xs font-semibold disabled:opacity-50">
                             {publishBusy ? 'Publicando...' : listing ? 'Republicar' : 'Publicar'}
@@ -3718,61 +3672,30 @@ export default function CatalogPage() {
                               {mlLoading[`delete_${conn.id}`] ? 'Eliminando...' : 'Eliminar publicación'}
                             </button>
                           )}
-                        </div>
-                      </div>
+                              </>
+                            );
+                          }} />
+                      );
+                    }
+                    const detail = g.marketplace === 'PARIS'
+                      ? (conn: any) => <ParisListingCard product={selected} connection={conn} currentUser={currentUser} onRefresh={refresh} />
+                      : g.marketplace === 'RIPLEY'
+                        ? (conn: any) => <RipleyListingCard product={selected} connection={conn} currentUser={currentUser} onRefresh={refresh} />
+                        : g.marketplace === 'FALABELLA'
+                          ? (conn: any) => <FalabellaListingCard product={selected} connection={conn} currentUser={currentUser} onRefresh={refresh} />
+                          : g.marketplace === 'WALMART'
+                            ? (conn: any) => <WalmartListingCard product={selected} connection={conn} onRefresh={refresh} />
+                            : undefined;
+                    return (
+                      <ChannelPublicationsCard key={key} title={MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace} isMl={false}
+                        product={selected} connections={g.connections} onSaved={refresh}
+                        renderDetail={detail}
+                        detailLabel={detail ? `Ficha y publicación en ${MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace}` : undefined}
+                        renderActions={detail ? undefined : (conn, listing) => (
+                          <GenericChannelActions conn={conn} listing={listing} productId={selected.id} onDone={refresh} />
+                        )} />
                     );
                   })}
-                </div>
-              )}
-
-              {tab === 'paris' && (
-                <div className="space-y-3">
-                  {parisConnections.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <p className="text-sm mb-1">No hay conexiones de Paris activas.</p>
-                      <p className="text-xs">Ve a <strong>Paris</strong> en el menú para conectar una cuenta.</p>
-                    </div>
-                  ) : parisConnections.map((conn) => (
-                    <ParisListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
-                      onRefresh={() => refreshSelected(selected.id)} />
-                  ))}
-                </div>
-              )}
-
-              {tab === 'ripley' && (
-                <div className="space-y-3">
-                  {ripleyConnections.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <p className="text-sm mb-1">No hay conexiones de Ripley activas.</p>
-                      <p className="text-xs">Ve a <strong>Ripley</strong> en el menú para conectar una cuenta.</p>
-                    </div>
-                  ) : ripleyConnections.map((conn) => (
-                    <RipleyListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
-                      onRefresh={() => refreshSelected(selected.id)} />
-                  ))}
-                </div>
-              )}
-
-              {tab === 'falabella' && (
-                <div className="space-y-3">
-                  {falabellaConnections.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <p className="text-sm mb-1">No hay conexiones de Falabella activas.</p>
-                      <p className="text-xs">Ve a <strong>Falabella</strong> en el menú para conectar una cuenta.</p>
-                    </div>
-                  ) : falabellaConnections.map((conn) => (
-                    <FalabellaListingCard key={conn.id} product={selected} connection={conn} currentUser={currentUser}
-                      onRefresh={() => refreshSelected(selected.id)} />
-                  ))}
-                </div>
-              )}
-
-              {tab === 'walmart' && (
-                <div className="space-y-3">
-                  {walmartConnections.map((conn) => (
-                    <WalmartListingCard key={conn.id} product={selected} connection={conn}
-                      onRefresh={() => refreshSelected(selected.id)} />
-                  ))}
                 </div>
               )}
             </div>
