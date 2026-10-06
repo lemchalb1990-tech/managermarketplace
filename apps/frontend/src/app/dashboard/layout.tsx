@@ -106,6 +106,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/users', label: 'Usuarios', perm: 'users', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/access-profiles', label: 'Perfiles de acceso', perm: 'access-profiles', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/actividad', label: 'Historial de actividad', perm: 'activity', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER', 'DESPACHADOR'], module: null },
     ],
   },
   {

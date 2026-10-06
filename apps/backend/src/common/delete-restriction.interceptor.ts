@@ -1,4 +1,5 @@
 import { CallHandler, ExecutionContext, ForbiddenException, Injectable, NestInterceptor } from '@nestjs/common';
+import { ActivityService } from '../activity/activity.service';
 import { Observable } from 'rxjs';
 import { cannotDelete } from './permissions';
 
@@ -11,6 +12,8 @@ const DESTRUCTIVE_POST = /\/(bulk\/delete(-listings)?|bulk-delete|delete-listing
 
 @Injectable()
 export class DeleteRestrictionInterceptor implements NestInterceptor {
+  constructor(private activity: ActivityService) {}
+
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<any> {
     if (ctx.getType() !== 'http') return next.handle();
     const req = ctx.switchToHttp().getRequest();
@@ -19,6 +22,11 @@ export class DeleteRestrictionInterceptor implements NestInterceptor {
       const path = String(req.originalUrl || req.url || '').split('?')[0];
       const destructive = req.method === 'DELETE' || (req.method === 'POST' && DESTRUCTIVE_POST.test(path));
       if (destructive && cannotDelete(user)) {
+        this.activity.log({
+          companyId: user.companyId ?? null, userId: user.id, actorName: user.name || user.email,
+          module: 'Seguridad', action: 'BLOQUEADO', summary: `Intentó eliminar y su perfil no lo permite (${req.method} ${path.replace(/^\/api/, '')})`,
+          ip: String(req.headers?.['x-forwarded-for'] || req.ip || '').split(',')[0].trim() || null,
+        });
         throw new ForbiddenException('Tu perfil no permite eliminar registros. Pide a un administrador que lo haga.');
       }
     }

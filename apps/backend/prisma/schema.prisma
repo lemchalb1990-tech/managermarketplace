@@ -1613,6 +1613,35 @@ model DriverPayment {
   @@map("driver_payments")
 }
 
+// Historial de actividad de cada empresa (módulo "Historial de actividad"): quién hizo qué, cuándo
+// y sobre qué. origin = 'live' (capturado al momento) o 'history' (reconstruido desde los datos
+// existentes al crear el módulo). automatic = acción del sistema (ventas importadas, pausas por
+// stock 0, cambios de estado desde marketplaces...). Solo se escribe desde el backend: no se edita.
+model ActivityLog {
+  id          String   @id @default(cuid())
+  companyId   String?
+  userId      String?
+  actorName   String?
+  automatic   Boolean  @default(false)
+  origin      String   @default("live")
+  module      String
+  action      String
+  entity      String?
+  entityId    String?
+  entityLabel String?
+  summary     String
+  changes     Json?
+  ip          String?
+  href        String?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, userId, createdAt])
+  @@index([companyId, module, createdAt])
+  @@index([companyId, action, createdAt])
+  @@map("activity_logs")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   action    String

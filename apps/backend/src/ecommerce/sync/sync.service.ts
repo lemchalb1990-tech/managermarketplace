@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ActivityService } from '../../activity/activity.service';
 import { assertIntegrationsEnabled, integrationsDisabled } from '../../common/integrations.util';
 import { MarketplaceType, ListingStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -29,6 +30,7 @@ export class SyncService {
     private falabella: FalabellaAdapter,
     private walmart: WalmartAdapter,
     private stub: StubAdapter,
+    private activity: ActivityService,
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
@@ -98,6 +100,11 @@ export class SyncService {
           const isActive = listing.status === ListingStatus.ACTIVE;
           if (wantActive !== isActive && !(payload.stock > 0 && manualPaused)) {
             await adapter.setListingStatus(connection, listing.externalId, wantActive);
+            this.activity.logSystem({
+              companyId: connection.companyId, module: 'Marketplaces', action: 'ESTADO', entity: 'product', entityId: listing.productId,
+              entityLabel: listing.externalId,
+              summary: `${wantActive ? 'Publicación reactivada' : 'Publicación pausada'} en ${connection.name} (${listing.externalId}): ${wantActive ? 'volvió el stock' : 'stock en 0'}`,
+            });
           }
           await this.prisma.listing.update({
             where: { id: listing.id },

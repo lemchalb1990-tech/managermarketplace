@@ -1,4 +1,5 @@
 import { mlShipmentLabel } from './ml-shipment-labels';
+import { ActivityService } from '../../activity/activity.service';
 import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { buildLabelsPdf, LabelDetailOrder } from './label-detail';
 import {
@@ -118,6 +119,7 @@ export class MercadolibreService {
     private sync: SyncService,
     private costing: InventoryCostingService,
     private ledger: StockLedgerService,
+    private activity: ActivityService,
   ) {}
 
   // ─── Credenciales por empresa ────────────────────────────────────────────────
@@ -3452,6 +3454,11 @@ export class MercadolibreService {
       }
     }
 
+    this.activity.logSystem({
+      companyId: companyId as string, module: 'Ventas', action: 'IMPORTAR', entity: 'sale', entityLabel: orderId,
+      summary: existingPackSale ? `Se agregó la orden ${orderId} de Mercado Libre a una venta de carrito` : `Venta importada de Mercado Libre n° ${orderId}`,
+      href: '/dashboard/sales',
+    });
     return existingPackSale ? 'merged' : 'imported';
   }
 
@@ -3936,6 +3943,14 @@ export class MercadolibreService {
     await this.prisma.orderStatusEvent.create({
       data: { orderId, status, source: OrderEventSource.MERCADO_LIBRE, title, detail, occurredAt },
     });
+    const o = await this.prisma.order.findUnique({ where: { id: orderId }, select: { companyId: true, sale: { select: { externalId: true } } } }).catch(() => null);
+    if (o) {
+      const ref = o.sale?.externalId || orderId.slice(-8);
+      this.activity.logSystem({
+        companyId: o.companyId, module: 'Órdenes', action: 'ESTADO', entity: 'order', entityId: orderId, entityLabel: `#${ref}`,
+        summary: `Orden #${ref}: ${title} (informado por Mercado Libre)`, href: `/dashboard/orders/${orderId}`,
+      });
+    }
   }
 
   // Importa al historial de la orden los hitos del envío que informa ML: las fechas de
@@ -4787,6 +4802,21 @@ export class MercadolibreService {
         createdAt: c.createdAt,
         href: '/dashboard/mercadolibre/reclamos',
       })),
+      // Alertas del historial de actividad (muchas eliminaciones, intentos fallidos de sesión):
+      // solo para administradores.
+      ...(user.role === Role.SUPER_ADMIN || user.role === Role.COMPANY_ADMIN
+        ? (await this.activity.recentAlerts((where as any).companyId ?? null, since)).map((a) => ({
+            type: 'alert' as const,
+            id: a.id,
+            title: 'Alerta de seguridad',
+            channel: 'Historial de actividad',
+            connectionName: null as string | null,
+            productName: a.summary,
+            orderRef: null as string | null,
+            createdAt: a.createdAt,
+            href: '/dashboard/actividad',
+          }))
+        : []),
     ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     return { events, serverTime: new Date().toISOString() };

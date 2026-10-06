@@ -135,6 +135,18 @@ export function openBase64Pdf(base64: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+export type ActivityFilters = { companyId?: string; userId?: string; from?: string; to?: string; module?: string; action?: string; automatic?: boolean };
+export type ActivityItem = {
+  id: string; createdAt: string; userId: string | null; actorName: string | null; automatic: boolean; origin: string;
+  module: string; action: string; entity: string | null; entityLabel: string | null; summary: string;
+  changes: { field: string; before: any; after: any }[] | null; ip: string | null; href: string | null;
+};
+function activityQuery(f: ActivityFilters & { page?: number }) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== null) q.set(k, String(v));
+  return q.toString();
+}
+
 export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
   const res = await fetch(`${API_URL}/api${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -624,13 +636,22 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{
         events: Array<{
-          type: 'sale' | 'question' | 'claim'; id: string; title: string;
+          type: 'sale' | 'question' | 'claim' | 'alert'; id: string; title: string;
           channel: string; connectionName: string | null; productName: string | null; orderRef: string | null;
           createdAt: string; href: string;
         }>;
         serverTime: string;
       }>(`/ecommerce/ml/notifications?${q}`, {}, token);
     },
+  },
+  // Historial de actividad de la empresa (solo lectura).
+  activity: {
+    list: (token: string, f: ActivityFilters & { page?: number }) =>
+      apiFetch<{ items: ActivityItem[]; total: number; page: number; pages: number }>(`/activity?${activityQuery(f)}`, {}, token),
+    filters: (token: string, companyId?: string) =>
+      apiFetch<{ users: { id: string; name: string; email: string }[]; modules: string[]; actions: { id: string; label: string }[] }>(
+        `/activity/filters${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    export: (token: string, f: ActivityFilters) => apiDownload(`/activity/export?${activityQuery(f)}`, token, 'historial-actividad.xlsx'),
   },
   connections: {
     list: (token: string, params?: { marketplace?: string; companyId?: string }) => {

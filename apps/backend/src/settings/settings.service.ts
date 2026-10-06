@@ -12,6 +12,13 @@ export const SETTING_DEFINITIONS = [
     sensitive: false,
   },
   {
+    key: 'ACTIVITY_RETENTION_MONTHS',
+    label: 'Meses que se conserva el historial de actividad',
+    group: 'sistema',
+    hint: 'Los registros del historial de actividad más antiguos que este plazo se borran solos cada noche. Por defecto 12.',
+    sensitive: false,
+  },
+  {
     key: 'DASHBOARD_TIMEZONE',
     label: 'Horario del dashboard',
     group: 'sistema',

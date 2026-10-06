@@ -96,6 +96,7 @@ export const PERMISSION_GROUPS: {
     items: [
       { key: 'users', label: 'Usuarios' },
       { key: 'access-profiles', label: 'Perfiles de acceso' },
+      { key: 'activity', label: 'Historial de actividad' },
     ],
   },
   {
@@ -168,6 +169,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'drivers.zones',
     'users',
     'access-profiles',
+    'activity',
     'emails',
     'settings',
   ],

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ActivityService } from '../../activity/activity.service';
 import { MarketplaceType, MovementType, OrderEventSource, OrderStatus, Prisma, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
@@ -44,6 +45,7 @@ export class ChannelOrdersService {
     private falabella: FalabellaAdapter,
     private walmart: WalmartAdapter,
     private jumpseller: JumpSellerAdapter,
+    private activity: ActivityService,
   ) {}
 
   private channelOf(marketplace: MarketplaceType): { adapter: ChannelSalesAdapter; channel: SaleChannel; platform: string } | null {
@@ -130,6 +132,10 @@ export class ChannelOrdersService {
 
   private async createOrderForSale(tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>, deductStock = true) {
     const { sale, externalId, state } = created;
+    this.activity.logSystem({
+      companyId: sale.companyId, module: 'Ventas', action: 'IMPORTAR', entity: 'sale', entityId: sale.id, entityLabel: externalId,
+      summary: `Venta importada de ${platform} n° ${externalId}${state.status === 'CANCELLED' ? ' (llegó cancelada)' : ''}`, href: '/dashboard/sales',
+    });
     // Llegó ya cancelada: queda como venta en el historial, sin orden ni movimiento de stock.
     if (state.status === 'CANCELLED') return;
 
