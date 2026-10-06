@@ -3454,7 +3454,7 @@ export class MercadolibreService {
       }
     }
 
-    this.activity.logSystem({
+    this.activity.logImport({
       companyId: companyId as string, module: 'Ventas', action: 'IMPORTAR', entity: 'sale', entityLabel: orderId,
       summary: existingPackSale ? `Se agregó la orden ${orderId} de Mercado Libre a una venta de carrito` : `Venta importada de Mercado Libre n° ${orderId}`,
       href: '/dashboard/sales',

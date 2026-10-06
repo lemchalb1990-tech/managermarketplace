@@ -132,7 +132,7 @@ export class ChannelOrdersService {
 
   private async createOrderForSale(tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>, deductStock = true) {
     const { sale, externalId, state } = created;
-    this.activity.logSystem({
+    this.activity.logImport({
       companyId: sale.companyId, module: 'Ventas', action: 'IMPORTAR', entity: 'sale', entityId: sale.id, entityLabel: externalId,
       summary: `Venta importada de ${platform} n° ${externalId}${state.status === 'CANCELLED' ? ' (llegó cancelada)' : ''}`, href: '/dashboard/sales',
     });

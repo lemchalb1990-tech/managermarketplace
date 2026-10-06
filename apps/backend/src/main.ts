@@ -5,10 +5,14 @@ import { join } from 'path';
 import { AppModule } from './app.module';
 import { frontendUrls } from './common/frontend-url.util';
 import { installOutboundGuard } from './common/integrations.util';
+import { runWithRequest } from './common/request-context';
 
 async function bootstrap() {
   installOutboundGuard();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Contexto por petición: permite saber qué usuario inició una importación.
+  app.use((req: any, _res: any, next: () => void) => runWithRequest(req, next));
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentRequestUser } from '../common/request-context';
 import { ACTION_LABELS, ActivityAction, MODULE_NAMES } from './activity-routes';
 
 export interface ActivityEntry {
@@ -77,6 +78,14 @@ export class ActivityService {
   // Acción automática del sistema (ventas importadas, pausas por stock 0, estados desde marketplaces).
   logSystem(entry: Omit<ActivityEntry, 'automatic' | 'userId'>): void {
     this.log({ ...entry, automatic: true, actorName: entry.actorName ?? 'Sistema' });
+  }
+
+  // Importación: a nombre del usuario que la inició (botón Importar, Traer desde ML...). Si no
+  // la inició nadie (cron, aviso del marketplace) queda como acción automática del Sistema.
+  logImport(entry: Omit<ActivityEntry, 'automatic' | 'userId'>): void {
+    const user = currentRequestUser();
+    if (!user) return this.logSystem(entry);
+    this.log({ ...entry, automatic: false, userId: user.id, actorName: user.name || user.email });
   }
 
   // ─── Entidades: etiqueta, empresa y estado para comparar ─────────────────────
