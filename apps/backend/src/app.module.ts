@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorageModule } from './common/storage/storage.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -40,6 +41,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
       serveRoot: '/uploads',
     }),
     PrismaModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     CompaniesModule,

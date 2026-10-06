@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Put, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -27,7 +28,7 @@ const logoStorage = diskStorage({
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
 export class BillingController {
-  constructor(private service: BillingService) {}
+  constructor(private service: BillingService, private readonly storage: StorageService) {}
 
   // ── Connections ──────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ export class BillingController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp|svg\+xml)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG, WebP o SVG');
     }
-    const url = `/api/uploads/${file.filename}`;
+    const { url } = await this.storage.persist(file);
     return this.service.saveProfileLogo(url, user, companyId);
   }
 }

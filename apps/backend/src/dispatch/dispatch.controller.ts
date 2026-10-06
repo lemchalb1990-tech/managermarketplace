@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -27,7 +28,7 @@ const photoStorage = diskStorage({
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.DESPACHADOR)
 export class DispatchController {
-  constructor(private service: DispatchService) {}
+  constructor(private service: DispatchService, private readonly storage: StorageService) {}
 
   @Get('routes')
   findAll(@CurrentUser() user: any, @Query() query: FindRoutesDto) {
@@ -94,7 +95,7 @@ export class DispatchController {
 
   @Patch('routes/:id/stops/:stopId/deliver')
   @UseInterceptors(FileInterceptor('file', { storage: photoStorage }))
-  deliverStop(
+  async deliverStop(
     @Param('id') id: string,
     @Param('stopId') stopId: string,
     @Body() dto: DeliverStopDto,
@@ -107,7 +108,8 @@ export class DispatchController {
       if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
         throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
       }
-      photo = { filename: file.filename, url: `/api/uploads/${file.filename}` };
+      // Foto de entrega: datos personales (domicilio, receptor) → archivo privado.
+      photo = await this.storage.persist(file, { private: true });
     }
     return this.service.deliverStop(id, stopId, dto, photo, user);
   }

@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException, Res,
 } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -25,7 +26,7 @@ const imageStorage = diskStorage({
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
 export class CatalogController {
-  constructor(private service: CatalogService) {}
+  constructor(private service: CatalogService, private readonly storage: StorageService) {}
 
   @Post('products')
   create(@Body() dto: CreateProductDto, @CurrentUser() user: any) {
@@ -178,8 +179,8 @@ export class CatalogController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const url = `/api/uploads/${file.filename}`;
-    return this.service.addImage(id, file.filename, url, user);
+    const { filename, url } = await this.storage.persist(file);
+    return this.service.addImage(id, filename, url, user);
   }
 
   @Delete('products/:id/images/:imageId')

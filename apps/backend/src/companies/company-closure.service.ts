@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { Cron } from '@nestjs/schedule';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -21,7 +22,7 @@ const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 export class CompanyClosureService {
   private readonly logger = new Logger(CompanyClosureService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly storage: StorageService) {}
 
   private companyIdOf(user: any, companyId?: string): string {
     if (user.role === Role.SUPER_ADMIN) {
@@ -215,14 +216,8 @@ export class CompanyClosureService {
       if (pending.size) throw new Error(`No se pudieron borrar las tablas: ${[...pending].join(', ')}`);
     }, { timeout: 10 * 60 * 1000, maxWait: 30 * 1000 });
 
-    // Archivos: solo dentro de la carpeta de uploads (nunca rutas que se salgan de ella).
-    const dir = resolve(process.env.UPLOAD_DIR || join(process.cwd(), 'uploads'));
-    let deleted = 0;
-    for (const f of new Set(files.filter(Boolean))) {
-      const path = resolve(dir, f);
-      if (!path.startsWith(dir + sep)) continue;
-      try { await unlink(path); deleted++; } catch { /* ya no existía */ }
-    }
+    // Archivos: en disco (solo dentro de uploads/) y en Supabase Storage si está configurado.
+    const deleted = await this.storage.remove(files);
     return { rows, files: deleted };
   }
 

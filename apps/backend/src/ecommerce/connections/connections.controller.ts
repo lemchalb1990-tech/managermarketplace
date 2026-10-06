@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards,
   UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { StorageService } from '../../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -25,7 +26,7 @@ const imageStorage = diskStorage({
 @Controller('ecommerce/connections')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ConnectionsController {
-  constructor(private service: ConnectionsService) {}
+  constructor(private service: ConnectionsService, private readonly storage: StorageService) {}
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
@@ -205,8 +206,8 @@ export class ConnectionsController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const url = `/api/uploads/${file.filename}`;
-    return this.service.addListingImage(connectionId, productId, file.filename, url, user);
+    const { filename, url } = await this.storage.persist(file);
+    return this.service.addListingImage(connectionId, productId, filename, url, user);
   }
 
   @Delete(':connectionId/products/:productId/listing-images/:imageId')

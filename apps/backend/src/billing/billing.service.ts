@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, MarketplaceType, PaymentCondition, Role } from '@prisma/client';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -27,6 +28,7 @@ export class BillingService {
   private adapters: Map<BillingProvider, BillingAdapter>;
 
   constructor(
+    private readonly storage: StorageService,
     private prisma: PrismaService,
     private email: EmailService,
     private settings: SettingsService,
@@ -319,10 +321,10 @@ export class BillingService {
   // request) — cuando el proveedor de facturación devuelve el documento embebido (data URI,
   // caso de Facto) hay que hospedarlo nosotros mismos bajo /api/uploads.
   private async hostInvoiceDocumentPublicly(invoiceId: string, doc: InvoiceDocument): Promise<string> {
-    const dir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
     const filename = `invoice-${invoiceId}.${doc.extension}`;
-    await writeFile(join(dir, filename), doc.bytes);
-    return toAbsoluteUrl(this.settings, `/api/uploads/${filename}`);
+    const contentType = doc.extension === 'pdf' ? 'application/pdf' : doc.extension === 'xml' ? 'application/xml' : 'application/octet-stream';
+    const { url } = await this.storage.put(Buffer.from(doc.bytes), filename, contentType);
+    return url.startsWith('/') ? toAbsoluteUrl(this.settings, url) : url;
   }
 
   // Intenta emitir un Invoice ya guardado (DRAFT) ante el proveedor real. La identidad del

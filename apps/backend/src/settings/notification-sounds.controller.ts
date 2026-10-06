@@ -1,6 +1,7 @@
 import {
   Controller, Get, Post, Delete, Param, UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -22,7 +23,7 @@ const soundStorage = diskStorage({
 @Controller('notification-sounds')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationSoundsController {
-  constructor(private service: SettingsService) {}
+  constructor(private service: SettingsService, private readonly storage: StorageService) {}
 
   // Solo lectura para COMPANY_ADMIN: puede ver los nombres de los sonidos elegidos en
   // Configuración, pero no subir ni eliminar (eso sigue siendo solo de Super Admin).
@@ -41,7 +42,7 @@ export class NotificationSoundsController {
     if (!file.mimetype.match(/^audio\/(mpeg|mp3|wav|x-wav|ogg|webm)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa MP3, WAV u OGG');
     }
-    const url = `/api/uploads/${file.filename}`;
+    const { url } = await this.storage.persist(file);
     const name = file.originalname.replace(/\.[^.]+$/, '');
     return this.service.addNotificationSound(name, url);
   }

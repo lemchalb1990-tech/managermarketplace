@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { FinanceAccountType, Prisma, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -25,7 +26,7 @@ type AutoRow = { systemKey: string; year: number; month: number; amount: number 
 
 @Injectable()
 export class FinanceService {
-  constructor(private prisma: PrismaService, private settings: SettingsService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService, private readonly storage: StorageService) {}
 
   resolveCompanyId(user: any, companyId?: string): string {
     if (user.role === Role.SUPER_ADMIN) {
@@ -270,8 +271,7 @@ export class FinanceService {
   }
 
   private async deleteAttachmentFile(url: string | null) {
-    const name = url?.split('/api/uploads/finance/')[1];
-    if (name) await unlink(join(this.uploadsDir(), name)).catch(() => {});
+    if (url) await this.storage.remove([url]).catch(() => {});
   }
 
   async setAttachment(user: any, id: string, file: Express.Multer.File) {
@@ -283,11 +283,10 @@ export class FinanceService {
     const EXT: Record<string, string> = { 'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
     const ext = EXT[file.mimetype];
     if (!ext) throw new BadRequestException('Tipo de archivo no permitido: usa PDF, JPG, PNG o WebP');
-    await mkdir(this.uploadsDir(), { recursive: true });
     const filename = `${randomUUID()}${ext}`;
-    await writeFile(join(this.uploadsDir(), filename), file.buffer);
+    const { url } = await this.storage.put(file.buffer, filename, file.mimetype, { folder: 'finance', private: true });
     await this.deleteAttachmentFile(m.attachmentUrl);
-    return this.prisma.financeMovement.update({ where: { id }, data: { attachmentUrl: `/api/uploads/finance/${filename}` } });
+    return this.prisma.financeMovement.update({ where: { id }, data: { attachmentUrl: url } });
   }
 
   async removeAttachment(user: any, id: string) {

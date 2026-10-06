@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { StorageService } from '../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -27,7 +28,7 @@ const photoStorage = diskStorage({
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
 export class OrdersController {
-  constructor(private service: OrdersService) {}
+  constructor(private service: OrdersService, private readonly storage: StorageService) {}
 
   @Get()
   findAll(@CurrentUser() user: any, @Query() query: FindOrdersDto) {
@@ -91,8 +92,9 @@ export class OrdersController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const url = `/api/uploads/${file.filename}`;
-    return this.service.addPhoto(id, file.filename, url, user);
+    // Foto de despacho: puede mostrar datos del comprador → archivo privado.
+    const { filename, url } = await this.storage.persist(file, { private: true });
+    return this.service.addPhoto(id, filename, url, user);
   }
 
   @Delete(':id/photos/:photoId')
