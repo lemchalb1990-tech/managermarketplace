@@ -128,14 +128,48 @@ export class JumpSellerAdapter implements PlatformAdapter {
         },
       }),
     });
+    const jsId = String(data.product?.id || data.id);
+    // JumpSeller no acepta imágenes al crear el producto: se envían después, una por una
+    // (POST /products/{id}/images.json con {"image": {"url", "position"}}; JumpSeller descarga
+    // la URL, por eso debe ser pública y completa).
+    await this.pushImages(conn, jsId, product);
     // JumpSeller devuelve solo el permalink (p. ej. "x4-alfombras-…"): se arma la dirección
     // completa con el dominio de la tienda, igual que al importar. Sin eso el enlace "Ver
     // publicación" quedaba relativo y abría una página inexistente dentro del aplicativo.
     const store = await this.storeInfo(conn);
     return {
-      externalId: String(data.product?.id || data.id),
+      externalId: jsId,
       externalUrl: this.productUrl(store.url, data.product?.permalink ?? null) || undefined,
     };
+  }
+
+  // Envía las imágenes del producto (la principal primero, máx. 20) a un producto de JumpSeller.
+  // Una imagen que falla no anula la publicación: se informa en el log y se devuelve el detalle.
+  async pushImages(conn: any, jsProductId: string, product: any): Promise<{ sent: number; failed: string[] }> {
+    const images = [...(product.images || [])]
+      .sort((a: any, b: any) => Number(!!b.isPrimary) - Number(!!a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
+      .slice(0, 20);
+    if (!images.length) return { sent: 0, failed: [] };
+    const appUrl = (await this.prisma.setting.findUnique({ where: { key: 'APP_URL' } }).catch(() => null))?.value?.replace(/\/+$/, '') || '';
+    let sent = 0;
+    const failed: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const raw = String(images[i].url || '');
+      const url = /^https?:\/\//.test(raw) ? raw : appUrl ? `${appUrl}${raw.startsWith('/') ? '' : '/'}${raw}` : '';
+      if (!url) { failed.push(`${raw} (falta APP_URL)`); continue; }
+      try {
+        await this.request(conn, `/products/${jsProductId}/images.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: { url, position: i + 1 } }),
+        });
+        sent++;
+      } catch (err: any) {
+        failed.push(`${url} (${err?.message || err})`);
+      }
+    }
+    this.logger.log(`JumpSeller imágenes: product=${jsProductId} enviadas=${sent}/${images.length}${failed.length ? ` fallidas: ${failed.join(' | ')}` : ''}`);
+    return { sent, failed };
   }
 
   // Producto simple → PUT /products/{id}.json; variante → PUT /products/{id}/variants/{vid}.json
