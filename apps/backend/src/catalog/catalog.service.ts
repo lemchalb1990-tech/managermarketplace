@@ -172,10 +172,18 @@ export class CatalogService {
       ];
     }
     if (query.search?.trim()) {
-      const term = query.search.trim();
-      where.OR = [
-        { name: { contains: term, mode: 'insensitive' } },
-        { sku: { contains: term, mode: 'insensitive' } },
+      // Búsqueda por palabras: cada palabra debe aparecer en el nombre, el SKU o el código de
+      // barras, en cualquier orden ("par led p13w" encuentra "Par Ampolletas Led … P13w").
+      const words = query.search.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+      where.AND = [
+        ...(where.AND || []),
+        ...words.map((w) => ({
+          OR: [
+            { name: { contains: w, mode: 'insensitive' } },
+            { sku: { contains: w, mode: 'insensitive' } },
+            { barcode: { contains: w, mode: 'insensitive' } },
+          ],
+        })),
       ];
     }
 
