@@ -191,7 +191,7 @@ export default function AccessProfilesPage() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="ui-card w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="ui-card w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-[var(--border-soft)]">
               <h2 className="font-semibold text-[var(--text)]">{editing === 'new' ? 'Crear perfil de acceso' : 'Editar perfil'}</h2>
             </div>
@@ -231,7 +231,7 @@ export default function AccessProfilesPage() {
                             onChange={() => toggleGroup(g)} className="rounded" />
                           <span className="text-sm font-semibold text-[var(--text)]">{g.label}</span>
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pl-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 pl-6">
                           {g.items.map((it) => (
                             <label key={it.key} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
                               <input type="checkbox" checked={hasKey(it.key)} onChange={() => toggleKey(it.key)} className="rounded" />
