@@ -96,6 +96,7 @@ export default function DashboardPage() {
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [criticalProducts, setCriticalProducts] = useState<any[]>([]);
+  const [criticalTotal, setCriticalTotal] = useState(0);
 
   useEffect(() => {
     const u = getUser();
@@ -121,8 +122,9 @@ export default function DashboardPage() {
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
       api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
-      api.catalog.list(token, companyId).catch(() => []),
-    ]).then(([sum, pending, preparing, ready, sales, products]) => {
+      // Solo los productos con stock crítico (antes se descargaba el catálogo completo: ~50 MB).
+      api.catalog.criticalStock(token, companyId).catch(() => ({ total: 0, items: [] })),
+    ]).then(([sum, pending, preparing, ready, sales, critical]) => {
       setSummary(sum);
 
       const pendingR = pending as any;
@@ -139,11 +141,8 @@ export default function DashboardPage() {
       setActiveOrdersCount((pendingR.total || 0) + (preparingR.total || 0) + (readyR.total || 0));
       setRecentSales(((sales as any).sales || []).slice(0, 5));
 
-      const critical = (products as any[])
-        .filter((p: any) => p.active && p.stock <= (p.criticalStock ?? 0))
-        .sort((a: any, b: any) => a.stock - b.stock)
-        .slice(0, 6);
-      setCriticalProducts(critical);
+      setCriticalProducts(critical.items);
+      setCriticalTotal(critical.total);
     }).finally(() => setLoading(false));
   }, [user, isSuperAdmin, selectedCompanyId, tz]);
 
@@ -307,9 +306,9 @@ export default function DashboardPage() {
         />
         <KpiCard
           title="Stock crítico"
-          value={criticalProducts.length}
+          value={criticalTotal}
           sub="bajo el umbral de cada producto"
-          colorClass={criticalProducts.length > 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}
+          colorClass={criticalTotal > 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}
           icon="⚠️"
           href="/dashboard/catalog?stock=critical"
         />

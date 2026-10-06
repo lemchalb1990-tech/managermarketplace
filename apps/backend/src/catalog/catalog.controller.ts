@@ -61,6 +61,13 @@ export class CatalogController {
     return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir });
   }
 
+  // Dashboard: total de productos con stock crítico y los más urgentes (sin descargar el catálogo).
+  @Get('products/critical-stock')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  criticalStock(@CurrentUser() user: any, @Query('companyId') companyId?: string, @Query('limit') limit?: string) {
+    return this.service.criticalStock(user, companyId, Number(limit) || 6);
+  }
+
   @Get('products/categories')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   listCategories(@CurrentUser() user: any, @Query('companyId') companyId?: string) {

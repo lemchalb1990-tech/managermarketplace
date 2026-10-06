@@ -407,6 +407,9 @@ export const api = {
     bulkImport: (file: File, token: string, companyId?: string, onProgress?: (percent: number) => void) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
         `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token, onProgress),
+    criticalStock: (token: string, companyId?: string, limit = 6) =>
+      apiFetch<{ total: number; items: { id: string; name: string; sku: string; stock: number; criticalStock: number; images: { url: string; isPrimary: boolean }[] }[] }>(
+        `/catalog/products/critical-stock?limit=${limit}${companyId ? `&companyId=${companyId}` : ''}`, {}, token),
     resolveCodes: (codes: string[], token: string, companyId?: string) =>
       apiFetch<{ results: { code: string; products: { id: string; sku: string; name: string; stock: number; listings: { externalId: string | null; connection: { name: string } }[] }[] }[]; notFound: string[] }>(
         '/catalog/products/bulk/resolve-codes', { method: 'POST', body: JSON.stringify({ codes, ...(companyId ? { companyId } : {}) }) }, token),

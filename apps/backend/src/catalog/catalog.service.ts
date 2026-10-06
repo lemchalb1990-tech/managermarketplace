@@ -827,6 +827,25 @@ export class CatalogService {
   // Plantilla con el catálogo activo actual (SKU, nombre, precio, costo, stock) para que el
   // usuario edite Precio/Costo/Stock en Excel y la vuelva a subir — el nombre solo es
   // referencia visual.
+  // Productos activos con stock en o bajo su stock crítico: el total y los `limit` con menos stock.
+  async criticalStock(user: any, companyIdParam: string | undefined, limit = 6) {
+    const companyId = this.resolveCompanyId(user, companyIdParam);
+    const where = { companyId, active: true, stock: { lte: this.prisma.product.fields.criticalStock } };
+    const [total, items] = await Promise.all([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        orderBy: { stock: 'asc' },
+        take: Math.min(Math.max(limit, 1), 50),
+        select: {
+          id: true, name: true, sku: true, stock: true, criticalStock: true,
+          images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1, select: { url: true, isPrimary: true } },
+        },
+      }),
+    ]);
+    return { total, items };
+  }
+
   async exportBulkTemplate(user: any, companyIdParam?: string): Promise<Buffer> {
     const companyId = this.resolveCompanyId(user, companyIdParam);
     const products = await this.prisma.product.findMany({
