@@ -1127,8 +1127,13 @@ export const api = {
       apiUpload<any>(`/finance/movements/${movementId}/attachment`, file, token),
     removeAttachment: (movementId: string, token: string) =>
       apiFetch<any>(`/finance/movements/${movementId}/attachment`, { method: 'DELETE' }, token),
-    summary: (token: string, companyId?: string) =>
-      apiFetch<any>(`/finance/summary${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    // cached: caché de 60 s en el servidor (solo para el panel de inicio).
+    summary: (token: string, companyId?: string, cached = false) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      if (cached) q.set('cached', '1');
+      return apiFetch<any>(`/finance/summary${q.toString() ? `?${q}` : ''}`, {}, token);
+    },
     cashflow: (months: number, token: string, companyId?: string) =>
       apiFetch<any>(`/finance/cashflow?months=${months}${companyId ? `&companyId=${companyId}` : ''}`, {}, token),
     bankAccounts: (token: string, companyId?: string) =>

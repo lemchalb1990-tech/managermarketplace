@@ -27,7 +27,7 @@ export default function DashboardFinance({ companyId }: { companyId?: string }) 
     if (!token) return;
     setData(null);
     setFailed(false);
-    api.finance.summary(token, companyId).then(setData).catch(() => setFailed(true));
+    api.finance.summary(token, companyId, true).then(setData).catch(() => setFailed(true));
   }, [companyId]);
 
   if (failed) return null;
@@ -60,7 +60,7 @@ export default function DashboardFinance({ companyId }: { companyId?: string }) 
                       </p>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                         <span className="text-[11px] text-[var(--text-muted)]">
-                          Presupuesto {clp(c.budget)}{pct != null ? ` · ${pct} %` : ''}
+                          {c.budget ? `Presupuesto ${clp(c.budget)}${pct != null ? ` · ${pct} %` : ''}` : 'Sin presupuesto definido'}
                         </span>
                         {light && <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${light.cls}`}>{light.label}</span>}
                       </div>

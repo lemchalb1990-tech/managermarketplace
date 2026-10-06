@@ -103,8 +103,8 @@ export class FinanceController {
 
   // ── Resumen, alertas y flujo de caja ──
   @Get('summary')
-  summary(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
-    return this.insights.summary(user, companyId);
+  summary(@CurrentUser() user: any, @Query('companyId') companyId?: string, @Query('cached') cached?: string) {
+    return this.insights.summary(user, companyId, { cached: cached === '1' });
   }
 
   @Get('cashflow')

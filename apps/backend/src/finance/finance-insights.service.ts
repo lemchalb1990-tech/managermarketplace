@@ -27,8 +27,20 @@ export class FinanceInsightsService {
     return { today, year, month };
   }
 
-  async summary(user: any, companyIdParam?: string) {
+  // Caché corta para el panel de inicio: el resumen calcula el reporte del año completo y el
+  // dashboard lo vuelve a pedir con cada venta/pregunta nueva. La página de Finanzas no la usa
+  // (ahí los cambios deben verse al instante).
+  private readonly summaryCache = new Map<string, { at: number; data: any }>();
+
+  async summary(user: any, companyIdParam?: string, opts: { cached?: boolean } = {}) {
     const companyId = this.finance.resolveCompanyId(user, companyIdParam);
+    if (opts.cached) {
+      const hit = this.summaryCache.get(companyId);
+      if (hit && Date.now() - hit.at < 60_000) return hit.data;
+      const data = await this.summary(user, companyId);
+      this.summaryCache.set(companyId, { at: Date.now(), data });
+      return data;
+    }
     await this.recurring.generateDue(companyId);
     const { year, month } = await this.currentMonth();
     const [report, bankAccounts, upcoming] = await Promise.all([
