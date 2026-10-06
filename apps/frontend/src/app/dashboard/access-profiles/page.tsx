@@ -35,7 +35,8 @@ export default function AccessProfilesPage() {
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
 
   const isSuperAdmin = me?.role === 'SUPER_ADMIN';
-  const allKeys = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.key)), [groups]);
+  // Las restricciones (p. ej. "No puede eliminar") no cuentan como permisos concedidos.
+  const allKeys = useMemo(() => groups.filter((g) => g.key !== 'restricciones').flatMap((g) => g.items.map((i) => i.key)), [groups]);
 
   async function load() {
     const token = getToken();
@@ -217,7 +218,7 @@ export default function AccessProfilesPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-[var(--text-2)]">Permisos</label>
-                  <span className="text-xs text-[var(--text-muted)]">{form.permissions.filter((k) => k !== '*').length} de {allKeys.length}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{form.permissions.filter((k) => allKeys.includes(k)).length} de {allKeys.length}</span>
                 </div>
                 <div className="border border-[var(--border)] rounded-xl divide-y divide-[var(--border-soft)]">
                   {groups.map((g) => {
@@ -225,11 +226,11 @@ export default function AccessProfilesPage() {
                     const allOn = keys.every((k) => hasKey(k));
                     const someOn = keys.some((k) => hasKey(k));
                     return (
-                      <div key={g.key} className="p-3">
+                      <div key={g.key} className={`p-3 ${g.key === 'restricciones' ? 'bg-red-50/60' : ''}`}>
                         <label className="flex items-center gap-2 mb-1.5 cursor-pointer">
                           <input type="checkbox" checked={allOn} ref={(el) => { if (el) el.indeterminate = !allOn && someOn; }}
                             onChange={() => toggleGroup(g)} className="rounded" />
-                          <span className="text-sm font-semibold text-[var(--text)]">{g.label}</span>
+                          <span className={`text-sm font-semibold ${g.key === 'restricciones' ? 'text-red-700' : 'text-[var(--text)]'}`}>{g.label}</span>
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 pl-6">
                           {g.items.map((it) => (

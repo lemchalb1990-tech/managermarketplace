@@ -99,6 +99,13 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
+    // Restricciones (en negativo para no cambiar perfiles existentes: sin marcar = sin
+    // restricción). Ver DeleteRestrictionInterceptor.
+    key: 'restricciones',
+    label: 'Restricciones',
+    items: [{ key: 'no-delete', label: 'No puede eliminar registros (productos, ventas, publicaciones, etc.)' }],
+  },
+  {
     key: 'admin',
     label: 'Administración',
     items: [
@@ -230,4 +237,11 @@ export function permissionsForUser(user: {
 
 export function hasPermission(perms: string[], key: string): boolean {
   return perms.includes('*') || perms.includes(key);
+}
+
+// Restricción "No puede eliminar registros" (Super Admin nunca la tiene).
+export const NO_DELETE_PERMISSION = 'no-delete';
+export function cannotDelete(user: { role: Role; accessProfile?: { permissions: string[] } | null }): boolean {
+  if (user.role === Role.SUPER_ADMIN) return false;
+  return permissionsForUser(user).includes(NO_DELETE_PERMISSION);
 }

@@ -3,7 +3,8 @@ import { StorageModule } from './common/storage/storage.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { DeleteRestrictionInterceptor } from './common/delete-restriction.interceptor';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
@@ -66,6 +67,9 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
     DriversModule,
     DropshippingModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: DeleteRestrictionInterceptor },
+  ],
 })
 export class AppModule {}
