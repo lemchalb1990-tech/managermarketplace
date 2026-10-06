@@ -10,6 +10,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
+import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
 import ChannelPublicationsCard, { GenericChannelActions } from './ChannelPublicationsCard';
 
@@ -1384,6 +1385,8 @@ export default function CatalogPage() {
   const [mergeCandidates, setMergeCandidates] = useState<{ products: any[]; connectionConflicts: any[] } | null>(null);
   const [mergeSubmitting, setMergeSubmitting] = useState(false);
   const [mergeError, setMergeError] = useState('');
+  // Espera / confirmación / error de la unificación (modal sobre el de unificar).
+  const [mergeStatus, setMergeStatus] = useState<MergeStatus | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importTemplateLoading, setImportTemplateLoading] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -1621,18 +1624,22 @@ export default function CatalogPage() {
     imagesFromProductId: string | null;
     dropshipFromProductId: string | null;
   }) {
+    const all: any[] = mergeCandidates?.products || [];
+    const survivor = all.find((p) => p.id === dto.survivorId);
+    const removedSkus = all.filter((p) => p.id !== dto.survivorId).map((p) => p.sku);
     setMergeSubmitting(true);
     setMergeError('');
+    setMergeStatus({ kind: 'working', survivorSku: survivor?.sku || '', count: dto.productIds.length });
     try {
       const token = getToken()!;
-      await api.catalog.merge(dto, token);
+      const result: any = await api.catalog.merge(dto, token);
       setMergeCandidates(null);
       setSelectedIds(new Set());
-      await loadProducts(1);
-      setListNotice('Productos unificados correctamente.');
-      setListNoticeIsWarning(false);
+      setMergeStatus({ kind: 'done', survivorSku: result?.sku || survivor?.sku || '', survivorName: result?.name || survivor?.name || '', removedSkus });
+      loadProducts(1);
     } catch (err: any) {
-      setMergeError(err.message || 'No se pudo unificar los productos.');
+      // El modal de unificar sigue abierto debajo, para reintentar sin volver a elegir todo.
+      setMergeStatus({ kind: 'error', message: err.message || 'No se pudo unificar los productos.' });
     } finally {
       setMergeSubmitting(false);
     }
@@ -3719,6 +3726,9 @@ export default function CatalogPage() {
           loading={linkLoading}
           error={linkError}
         />
+      )}
+      {mergeStatus && (
+        <MergeStatusModal status={mergeStatus} onClose={() => setMergeStatus(null)} />
       )}
       {mergeCandidates && (
         <MergeModal
