@@ -128,9 +128,13 @@ export class JumpSellerAdapter implements PlatformAdapter {
         },
       }),
     });
+    // JumpSeller devuelve solo el permalink (p. ej. "x4-alfombras-…"): se arma la dirección
+    // completa con el dominio de la tienda, igual que al importar. Sin eso el enlace "Ver
+    // publicación" quedaba relativo y abría una página inexistente dentro del aplicativo.
+    const store = await this.storeInfo(conn);
     return {
       externalId: String(data.product?.id || data.id),
-      externalUrl: data.product?.permalink,
+      externalUrl: this.productUrl(store.url, data.product?.permalink ?? null) || undefined,
     };
   }
 

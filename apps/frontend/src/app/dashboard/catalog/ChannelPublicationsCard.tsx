@@ -161,7 +161,7 @@ export default function ChannelPublicationsCard({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
             <code className="font-mono bg-gray-50 border border-gray-200 rounded px-1 py-px text-gray-600">{listing.externalId}</code>
             <button type="button" onClick={() => navigator.clipboard.writeText(listing.externalId)} className="text-blue-500 hover:text-blue-700">Copiar</button>
-            {listing.externalUrl && (
+            {/^https?:\/\//.test(listing.externalUrl || '') && (
               <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver publicación ↗</a>
             )}
           </div>
