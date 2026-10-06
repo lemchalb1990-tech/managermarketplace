@@ -37,7 +37,6 @@ async function main() {
     const names = readdirSync(dir).filter((n) => statSync(join(dir, n)).isDirectory()).sort();
     for (const name of names) run(`migrate resolve --applied ${name}`);
     console.log(`[db-start] ${names.length} migraciones marcadas como aplicadas.`);
-    await createFirstSuperAdmin();
     return;
   }
   if (hasHistory) {
@@ -49,7 +48,7 @@ async function main() {
   run('db push --accept-data-loss --skip-generate');
 }
 
-// Primer Super Admin de una base nueva, solo si se definieron SUPER_ADMIN_EMAIL y
+// Primer Super Admin cuando aún no existe ninguno, solo si se definieron SUPER_ADMIN_EMAIL y
 // SUPER_ADMIN_PASSWORD (nunca con una contraseña por defecto).
 async function createFirstSuperAdmin() {
   const email = (process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
@@ -65,8 +64,9 @@ async function createFirstSuperAdmin() {
   const bcrypt = require('bcryptjs');
   const prisma = new PrismaClient({ datasources: { db: { url } } });
   try {
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) return;
+    // Solo si todavía no hay ningún Super Admin (base nueva).
+    if (await prisma.user.count({ where: { role: 'SUPER_ADMIN' } })) return;
+    if (await prisma.user.findUnique({ where: { email } })) return;
     await prisma.user.create({
       data: { email, password: await bcrypt.hash(password, 10), name: 'Super Admin', role: 'SUPER_ADMIN' },
     });
@@ -76,7 +76,28 @@ async function createFirstSuperAdmin() {
   }
 }
 
-main().catch((err) => {
+// Supabase expone el esquema public por su API REST con una clave pública (anon). El backend no
+// la usa (se conecta directo a Postgres), así que se cierra: RLS activo en todas las tablas (sin
+// reglas = la API no lee ni escribe nada) y sin permisos para anon/authenticated. Solo con
+// Supabase configurado, para no tocar otras instalaciones.
+async function lockSupabaseApi() {
+  if (!process.env.SUPABASE_URL) return;
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const tables = await prisma.$queryRawUnsafe(`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity`);
+    for (const { tablename } of tables) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE public."${tablename.replace(/"/g, '""')}" ENABLE ROW LEVEL SECURITY`);
+    }
+    for (const kind of ['TABLES', 'SEQUENCES', 'FUNCTIONS']) {
+      await prisma.$executeRawUnsafe(`REVOKE ALL ON ALL ${kind} IN SCHEMA public FROM anon, authenticated`);
+    }
+    if (tables.length) console.log(`[db-start] RLS activado en ${tables.length} tabla(s) nuevas.`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main().then(lockSupabaseApi).then(createFirstSuperAdmin).catch((err) => {
   console.error('[db-start] Error preparando la base:', err?.message || err);
   process.exit(1);
 });
