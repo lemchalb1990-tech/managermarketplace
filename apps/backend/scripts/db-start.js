@@ -37,6 +37,7 @@ async function main() {
     const names = readdirSync(dir).filter((n) => statSync(join(dir, n)).isDirectory()).sort();
     for (const name of names) run(`migrate resolve --applied ${name}`);
     console.log(`[db-start] ${names.length} migraciones marcadas como aplicadas.`);
+    await createFirstSuperAdmin();
     return;
   }
   if (hasHistory) {
@@ -46,6 +47,33 @@ async function main() {
   }
   console.log('[db-start] Base sin historial de migraciones: sincronizando el esquema (modo anterior).');
   run('db push --accept-data-loss --skip-generate');
+}
+
+// Primer Super Admin de una base nueva, solo si se definieron SUPER_ADMIN_EMAIL y
+// SUPER_ADMIN_PASSWORD (nunca con una contraseña por defecto).
+async function createFirstSuperAdmin() {
+  const email = (process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+  const password = process.env.SUPER_ADMIN_PASSWORD || '';
+  if (!email || !password) {
+    console.log('[db-start] Sin SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD: no se crea el Super Admin.');
+    return;
+  }
+  if (password.length < 10) {
+    console.log('[db-start] SUPER_ADMIN_PASSWORD debe tener al menos 10 caracteres: no se crea el Super Admin.');
+    return;
+  }
+  const bcrypt = require('bcryptjs');
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) return;
+    await prisma.user.create({
+      data: { email, password: await bcrypt.hash(password, 10), name: 'Super Admin', role: 'SUPER_ADMIN' },
+    });
+    console.log(`[db-start] Super Admin creado: ${email}. Quita SUPER_ADMIN_PASSWORD de las variables.`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((err) => {
