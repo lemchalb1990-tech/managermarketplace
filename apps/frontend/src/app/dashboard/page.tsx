@@ -95,8 +95,6 @@ export default function DashboardPage() {
   const [urgentOrders, setUrgentOrders] = useState<any[]>([]);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [recentSales, setRecentSales] = useState<any[]>([]);
-  const [criticalProducts, setCriticalProducts] = useState<any[]>([]);
-  const [criticalTotal, setCriticalTotal] = useState(0);
 
   useEffect(() => {
     const u = getUser();
@@ -122,9 +120,7 @@ export default function DashboardPage() {
       api.orders.list(token, { companyId, status: 'PREPARING' }).catch(() => ({ orders: [], total: 0 })),
       api.orders.list(token, { companyId, status: 'READY' }).catch(() => ({ orders: [], total: 0 })),
       api.pos.listSales({ companyId, page: 1 }, token).catch(() => ({ sales: [] })),
-      // Solo los productos con stock crítico (antes se descargaba el catálogo completo: ~50 MB).
-      api.catalog.criticalStock(token, companyId).catch(() => ({ total: 0, items: [] })),
-    ]).then(([sum, pending, preparing, ready, sales, critical]) => {
+    ]).then(([sum, pending, preparing, ready, sales]) => {
       setSummary(sum);
 
       const pendingR = pending as any;
@@ -141,8 +137,6 @@ export default function DashboardPage() {
       setActiveOrdersCount((pendingR.total || 0) + (preparingR.total || 0) + (readyR.total || 0));
       setRecentSales(((sales as any).sales || []).slice(0, 5));
 
-      setCriticalProducts(critical.items);
-      setCriticalTotal(critical.total);
     }).finally(() => setLoading(false));
   }, [user, isSuperAdmin, selectedCompanyId, tz]);
 
@@ -305,12 +299,12 @@ export default function DashboardPage() {
           href="/dashboard/orders"
         />
         <KpiCard
-          title="Stock crítico"
-          value={criticalTotal}
-          sub="bajo el umbral de cada producto"
-          colorClass={criticalTotal > 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}
-          icon="⚠️"
-          href="/dashboard/catalog?stock=critical"
+          title="Ticket promedio hoy"
+          value={`$${Math.round(Number(summary?.totalSales) ? Number(summary?.totalRevenue ?? 0) / Number(summary.totalSales) : 0).toLocaleString('es-CL')}`}
+          sub="ingresos del día ÷ ventas del día"
+          colorClass="bg-violet-50 text-violet-500"
+          icon="🧾"
+          href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
       </div>
 
@@ -493,8 +487,8 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
 
-      {/* Fila operativa — órdenes urgentes + últimas ventas + stock crítico, en 3 columnas iguales */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      {/* Fila operativa — órdenes urgentes + últimas ventas, en 2 columnas iguales */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
 
         <SectionCard
           title="Órdenes urgentes"
@@ -601,55 +595,6 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        <SectionCard
-          title="Stock crítico"
-          style={CARD_SHADOW}
-          actions={
-            <Link href="/dashboard/catalog" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-              Ver catálogo →
-            </Link>
-          }
-        >
-          {criticalProducts.length === 0 ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="text-center">
-                <p className="text-2xl mb-1">✅</p>
-                <p className="text-sm text-gray-400">Sin alertas de stock</p>
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--border-soft)]">
-              {criticalProducts.map((p: any) => {
-                const photoUrl = primaryImageUrl(p);
-                return (
-                <Link
-                  key={p.id}
-                  href="/dashboard/catalog?stock=critical"
-                  className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
-                    {photoUrl ? (
-                      <img src={photoUrl} alt={p.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-gray-300 text-xs">—</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate leading-tight">{p.name}</p>
-                    <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                    p.stock === 0 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                  }`}>
-                    {p.stock === 0 ? 'Sin stock' : `${p.stock} ud.`}
-                  </span>
-                  <RowOpenIcon />
-                </Link>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
       </div>
     </div>
   );

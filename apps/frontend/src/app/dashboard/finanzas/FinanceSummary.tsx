@@ -43,7 +43,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
         </div>
       )}
 
-      <div className={`grid gap-3 ${compact ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
+      <div className={`grid gap-3 ${compact ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
         {kpis.map((k) => {
           const light = k.type !== 'RESULT' ? trafficLight(k.type, k.budget, k.actual) : null;
           return (
@@ -57,7 +57,9 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
             </div>
           );
         })}
-        <div className={compact ? 'border border-gray-100 rounded-xl p-3' : 'bg-white border border-gray-200 rounded-2xl p-4'}>
+        {/* Bancos y caja: solo en la página de Finanzas, no en el panel de inicio. */}
+        {!compact && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4">
           <p className="text-xs text-gray-500">Bancos y caja</p>
           <p className={`text-xl font-bold mt-0.5 ${data.cash.total < 0 ? 'text-red-600' : 'text-gray-900'}`}>
             {data.cash.accounts.length ? clp(data.cash.total) : '—'}
@@ -66,6 +68,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
             {data.cash.accounts.length ? `${data.cash.accounts.length} cuenta(s)` : 'Sin cuentas registradas'}
           </p>
         </div>
+        )}
       </div>
 
       {alerts.length > 0 && (
