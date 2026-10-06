@@ -97,7 +97,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
     if (!res.ok) {
       const msg = data?.message || data?.error || data?.errors?.[0] || `HTTP ${res.status} en ${path}`;
-      throw new Error(`JumpSeller: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+      throw new Error(`JumpSeller (HTTP ${res.status}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
     }
     return data;
   }
@@ -205,6 +205,22 @@ export class JumpSellerAdapter implements PlatformAdapter {
       body: JSON.stringify({ product: { status: active ? 'available' : 'disabled' } }),
     });
     this.logger.log(`JumpSeller status: product=${productId} ${active ? 'available' : 'disabled'}`);
+  }
+
+  // Borra el producto en la tienda (DELETE /products/{id}.json). La API no permite borrar una
+  // sola variante, y borrar el producto se llevaría las demás: en ese caso se rechaza.
+  async deleteRemoteListing(conn: any, externalId: string): Promise<void> {
+    const { productId, variantId } = parseKey(externalId);
+    if (variantId) {
+      throw new Error('Es una variante de un producto con varias opciones: JumpSeller no permite borrar una sola variante. Bórrala desde el panel de JumpSeller o usa "Quitar vínculo".');
+    }
+    try {
+      await this.request(conn, `/products/${productId}.json`, { method: 'DELETE' });
+    } catch (err: any) {
+      // Ya no existía en la tienda: se considera borrado.
+      if (!/404/.test(String(err?.message || ''))) throw err;
+    }
+    this.logger.log(`JumpSeller: producto ${productId} eliminado de la tienda`);
   }
 
   // ─── Importar catálogo existente desde Jumpseller ─────────────────────────────

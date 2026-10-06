@@ -270,6 +270,27 @@ export class ConnectionsService {
     });
   }
 
+  // Borra la publicación EN LA TIENDA y luego su vínculo (si el canal lo permite).
+  async deleteRemoteListing(connectionId: string, productId: string, user: any, listingId?: string) {
+    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) throw new ForbiddenException();
+    const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!conn) throw new NotFoundException('Conexión no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
+    const listing = await this.findTargetListing(productId, connectionId, listingId);
+    if (!listing) throw new NotFoundException('Publicación no encontrada');
+    const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
+    if (!adapter.deleteRemoteListing) throw new BadRequestException('Este canal no permite borrar la publicación desde el sistema: usa "Quitar vínculo".');
+    if (listing.externalId) {
+      try {
+        await adapter.deleteRemoteListing(conn, listing.externalId);
+      } catch (err: any) {
+        throw new BadRequestException(err.message);
+      }
+    }
+    await this.prisma.listing.delete({ where: { id: listing.id } });
+    return { deleted: true };
+  }
+
   // Precio propio de una publicación adicional (null = usa el de la cuenta / base).
   async setListingPrice(listingId: string, price: number | null, user: any) {
     const l = await this.prisma.listing.findUnique({ where: { id: listingId }, include: { product: { select: { companyId: true } } } });

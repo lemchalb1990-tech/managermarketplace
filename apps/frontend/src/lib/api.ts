@@ -659,6 +659,9 @@ export const api = {
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/sync${listingId ? `?listingId=${listingId}` : ''}`, { method: 'POST' }, token),
     toggle: (connectionId: string, productId: string, token: string, listingId?: string) =>
       apiFetch<any>(`/ecommerce/connections/${connectionId}/products/${productId}/toggle${listingId ? `?listingId=${listingId}` : ''}`, { method: 'PATCH' }, token),
+    // Borra la publicación EN LA TIENDA y su vínculo (canales que lo permiten, p. ej. JumpSeller).
+    deleteRemote: (connectionId: string, productId: string, token: string, listingId?: string) =>
+      apiFetch<{ deleted: boolean }>(`/ecommerce/connections/${connectionId}/products/${productId}/remote${listingId ? `?listingId=${listingId}` : ''}`, { method: 'DELETE' }, token),
     setListingPrice: (listingId: string, price: number | null, token: string) =>
       apiFetch<any>(`/ecommerce/connections/listings/${listingId}/price`, { method: 'PATCH', body: JSON.stringify({ price }) }, token),
     link: (connectionId: string, productId: string, data: { externalId: string; externalUrl?: string }, token: string) =>

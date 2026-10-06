@@ -109,6 +109,18 @@ export class ConnectionsController {
     return this.service.toggleListingNow(connectionId, productId, user, listingId);
   }
 
+  // Borra la publicación en la tienda (no solo el vínculo).
+  @Delete(':connectionId/products/:productId/remote')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  deleteRemote(
+    @Param('connectionId') connectionId: string,
+    @Param('productId') productId: string,
+    @CurrentUser() user: any,
+    @Query('listingId') listingId?: string,
+  ) {
+    return this.service.deleteRemoteListing(connectionId, productId, user, listingId);
+  }
+
   @Patch('listings/:listingId/price')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   setListingPrice(@Param('listingId') listingId: string, @Body() body: { price: number | null }, @CurrentUser() user: any) {

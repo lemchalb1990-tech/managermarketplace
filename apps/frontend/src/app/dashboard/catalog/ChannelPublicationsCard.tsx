@@ -320,6 +320,8 @@ export default function ChannelPublicationsCard({
 // pausar/activar (si el canal lo permite) y eliminar el vínculo. `extra`: publicación adicional de
 // la misma cuenta (las acciones van sobre esa publicación puntual; no se publica desde ahí).
 const TOGGLE_CHANNELS = new Set(['JUMPSELLER', 'SHOPIFY', 'WOOCOMMERCE']);
+// Canales donde se puede borrar la publicación en la tienda desde el sistema.
+const REMOTE_DELETE_CHANNELS: Record<string, string> = { JUMPSELLER: 'JumpSeller' };
 export function GenericChannelActions({ conn, listing, productId, productStock, extra = false, onDone }: {
   conn: any; listing: any | undefined; productId: string; productStock?: number; extra?: boolean; onDone: () => void | Promise<void>;
 }) {
@@ -366,15 +368,26 @@ export function GenericChannelActions({ conn, listing, productId, productStock, 
           {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? 'Pausar publicación' : 'Activar publicación'}
         </button>
       )}
+      {listing?.externalId && REMOTE_DELETE_CHANNELS[conn.marketplace] && (
+        <button disabled={!!busy}
+          onClick={async () => {
+            if (!(await confirmDialog(`¿Eliminar esta publicación de ${REMOTE_DELETE_CHANNELS[conn.marketplace]}? El producto se borra de tu tienda y deja de estar a la venta ahí. No se puede deshacer.`, { danger: true }))) return;
+            await run('remote', () => api.connections.deleteRemote(conn.id, productId, token(), listing.id));
+          }}
+          title="Borra el producto en la tienda y el vínculo"
+          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+          {busy === 'remote' ? 'Eliminando...' : `Eliminar de ${REMOTE_DELETE_CHANNELS[conn.marketplace]}`}
+        </button>
+      )}
       {listing && (
         <button disabled={!!busy}
           onClick={async () => {
-            if (!(await confirmDialog('¿Eliminar el vínculo con esta publicación? La publicación sigue en la tienda; el sistema deja de rastrearla.', { danger: true }))) return;
+            if (!(await confirmDialog('¿Quitar el vínculo con esta publicación? La publicación sigue en la tienda tal como está; el sistema solo deja de sincronizarla.', { danger: true }))) return;
             await run('delete', () => api.catalog.deleteListing(productId, conn.id, token(), listing.id));
           }}
-          title="Borra el vínculo interno con la tienda sin afectar la publicación real"
+          title="Deja de sincronizar la publicación sin tocar la tienda"
           className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
-          {busy === 'delete' ? 'Eliminando...' : 'Eliminar publicación'}
+          {busy === 'delete' ? 'Quitando...' : 'Quitar vínculo'}
         </button>
       )}
       {err && <span className="text-xs text-red-600">{err}</span>}
