@@ -11,7 +11,7 @@ import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 import { can } from '@/lib/permissions';
 import { hasModule } from '@/lib/modules';
-import DashboardFinance from './DashboardFinance';
+import { useDashboardFinance, FinanceCards, FinanceAlerts, DASHBOARD_CARD_MIN_H } from './DashboardFinance';
 
 // "1804k" (el número completo pegado a una "k" minúscula) se leía ambiguo — ¿mil ochocientos
 // cuatro, o 1804 "k" de algo? Notación compacta estándar (1,8 M / 450 k) separa el número de
@@ -63,7 +63,7 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className="group relative ui-card p-5 flex items-start gap-4 h-full transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]"
+    <div className={`group relative ui-card p-5 flex items-start gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
@@ -89,6 +89,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const tz = useDashboardTimezone();
+  const finance = useDashboardFinance(
+    isSuperAdmin ? selectedCompanyId || undefined : undefined,
+    !!user && can(user, 'finance') && hasModule(user, 'finance') && (!isSuperAdmin || !!selectedCompanyId),
+  );
 
   const [summary, setSummary] = useState<any>(null);
   const [storeBreakdown, setStoreBreakdown] = useState<any[]>([]);
@@ -264,13 +268,10 @@ export default function DashboardPage() {
         tight
       />
 
-      {/* Finanzas del mes, primera fila (solo con el módulo y el permiso de Finanzas) */}
-      {can(user, 'finance') && hasModule(user, 'finance') && (!isSuperAdmin || selectedCompanyId) && (
-        <DashboardFinance companyId={isSuperAdmin ? selectedCompanyId || undefined : undefined} />
-      )}
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+      {/* Indicadores: finanzas del mes (si el usuario tiene Finanzas) + operación del día, en una
+          sola grilla para que todas las tarjetas tengan el mismo tamaño. */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${finance.visible ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-2`}>
+        {finance.visible && <FinanceCards data={finance.data} />}
         <KpiCard
           title="Ventas hoy"
           value={summary?.totalSales ?? 0}
@@ -313,6 +314,8 @@ export default function DashboardPage() {
         />
       </div>
 
+
+      {finance.visible && <FinanceAlerts data={finance.data} />}
 
       {/* Fila de ventas — historial y ventas por canal a mitades iguales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
