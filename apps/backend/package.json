@@ -37,6 +37,8 @@
     "@nestjs/serve-static": "^5.0.5",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.9.0",
+    "@supabase/server": "^1.9.1",
+    "@supabase/supabase-js": "^2.117.2",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
