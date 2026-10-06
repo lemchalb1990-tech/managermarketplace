@@ -206,6 +206,23 @@ export class MercadolibreService {
     });
   }
 
+  // Datos que cada cliente pega en SU aplicación de Mercado Libre (developers.mercadolibre.cl):
+  // URL de redirección, URL de notificaciones y tópicos que procesa el sistema.
+  async getAppSetup() {
+    const appUrl = (await this.settings.get('APP_URL'))?.replace(/\/+$/, '') || null;
+    return {
+      redirectUri: appUrl ? `${appUrl}/api/ecommerce/ml/callback` : null,
+      notificationsUrl: appUrl ? `${appUrl}/api/ecommerce/ml/webhook` : null,
+      topics: [
+        { id: 'orders_v2', label: 'Orders (ventas)' },
+        { id: 'questions', label: 'Questions (preguntas)' },
+        { id: 'claims', label: 'Claims (reclamos)' },
+        { id: 'shipments', label: 'Shipments (envíos)' },
+        { id: 'orders_feedback', label: 'Orders feedback (calificaciones)' },
+      ],
+    };
+  }
+
   private async getRedirectUri(): Promise<string> {
     const appUrl = await this.settings.get('APP_URL');
     if (!appUrl) {

@@ -2,6 +2,7 @@
 
 import MlAccountDataRecoveryCard from './MlAccountDataRecoveryCard';
 import MlDuplicateListingsCard from './MlDuplicateListingsCard';
+import MlAppSetupBox from './MlAppSetupBox';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
@@ -408,6 +409,7 @@ export default function MercadoLibrePage() {
                 Cada tienda tiene sus propias credenciales. Se guardan primero y luego autorizas desde la lista
                 — así, si algo falla, no tienes que volver a escribirlas.
               </p>
+              <MlAppSetupBox />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la tienda *</label>
@@ -609,6 +611,7 @@ export default function MercadoLibrePage() {
               <p className="text-xs text-gray-500">
                 Deja el Client Secret en blanco para mantener el actual sin cambiarlo.
               </p>
+              <MlAppSetupBox />
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la tienda</label>
                 <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })}

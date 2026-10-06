@@ -581,6 +581,8 @@ export const api = {
           after?: { total: number; fee: number; shipping: number; net: number };
         }[];
       }>('/ecommerce/ml/sales/recalculate-pack-amounts', { method: 'POST', body: JSON.stringify(body) }, token),
+    appSetup: (token: string) =>
+      apiFetch<{ redirectUri: string | null; notificationsUrl: string | null; topics: { id: string; label: string }[] }>('/ecommerce/ml/app-setup', {}, token),
     reviewDuplicateListings: (body: { companyId?: string; apply?: boolean; limit?: number }, token: string) =>
       apiFetch<{
         applied: boolean; groups: number; linksToRemove: number; manual: number; orphanProducts: number;

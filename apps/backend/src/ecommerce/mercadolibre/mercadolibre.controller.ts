@@ -286,6 +286,14 @@ export class MercadolibreController {
 
   // ─── Connections ───────────────────────────────────────────────────────────
 
+  // URL de redirección, URL de notificaciones y tópicos para configurar la aplicación de ML.
+  @Get('app-setup')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  getAppSetup() {
+    return this.service.getAppSetup();
+  }
+
   @Get('connections')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
