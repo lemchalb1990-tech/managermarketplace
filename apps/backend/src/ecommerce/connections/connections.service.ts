@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { MarketplaceType, ListingStatus, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
@@ -42,6 +43,7 @@ export class ConnectionsService {
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
+    assertIntegrationsEnabled();
     switch (marketplace) {
       case MarketplaceType.SHOPIFY: return this.shopify;
       case MarketplaceType.WOOCOMMERCE: return this.woocommerce;

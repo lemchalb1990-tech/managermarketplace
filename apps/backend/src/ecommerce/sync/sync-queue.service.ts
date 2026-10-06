@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { integrationsDisabled } from '../../common/integrations.util';
 import { Cron } from '@nestjs/schedule';
 import { SyncQueueField, SyncQueueStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -32,6 +33,7 @@ export class SyncQueueService {
 
   @Cron('*/2 * * * *')
   async processPending() {
+    if (integrationsDisabled()) return;
     if (this.isRunning) {
       this.logger.warn('SyncQueue: la corrida anterior sigue en curso, se omite este ciclo');
       return;

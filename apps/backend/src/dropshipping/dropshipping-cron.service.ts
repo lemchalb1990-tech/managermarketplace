@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { integrationsDisabled } from '../common/integrations.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DropshippingService } from './dropshipping.service';
 
@@ -14,6 +15,7 @@ export class DropshippingCronService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleCron() {
+    if (integrationsDisabled()) return;
     if (this.isRunning) {
       this.logger.warn('Barrido dropship: la corrida anterior sigue en curso, se omite este ciclo');
       return;

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { assertIntegrationsEnabled } from '../common/integrations.util';
 import { EmailType } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
@@ -266,6 +267,7 @@ export class EmailService {
   private async getTransporter(companyId: string): Promise<nodemailer.Transporter | null> {
     const cfg = await this.prisma.emailConfig.findUnique({ where: { companyId, active: true } });
     if (!cfg) return null;
+    assertIntegrationsEnabled();
     return nodemailer.createTransport({
       host: cfg.host,
       port: cfg.port,

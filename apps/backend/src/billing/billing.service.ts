@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { assertIntegrationsEnabled } from '../common/integrations.util';
 import { StorageService } from '../common/storage/storage.service';
 import { BillingConnection, BillingProvider, DteType, Invoice, InvoiceStatus, MarketplaceType, PaymentCondition, Role } from '@prisma/client';
 import { writeFile } from 'fs/promises';
@@ -332,6 +333,7 @@ export class BillingService {
   // lo que falte en las credenciales propias de la conexión para no romper conexiones ya
   // configuradas a mano.
   private async emitToProvider(invoice: Invoice, conn: BillingConnection) {
+    assertIntegrationsEnabled();
     const profile = await this.prisma.billingProfile.findUnique({ where: { companyId: conn.companyId } });
     const baseCredentials = (conn.credentials ?? {}) as Record<string, string>;
     const credentials: Record<string, string> = {

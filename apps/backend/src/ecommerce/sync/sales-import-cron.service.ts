@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { integrationsDisabled } from '../../common/integrations.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MarketplaceType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -37,6 +38,7 @@ export class SalesImportCronService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async handleCron() {
+    if (integrationsDisabled()) return;
     if (this.isRunning) {
       this.logger.warn('Auto-sync de ventas: la corrida anterior sigue en curso, se omite este ciclo');
       return;

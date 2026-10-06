@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { assertIntegrationsEnabled, integrationsDisabled } from '../../common/integrations.util';
 import { MarketplaceType, ListingStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyAdapter } from '../platforms/shopify.adapter';
@@ -31,6 +32,7 @@ export class SyncService {
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
+    assertIntegrationsEnabled();
     switch (marketplace) {
       case MarketplaceType.SHOPIFY: return this.shopify;
       case MarketplaceType.WOOCOMMERCE: return this.woocommerce;
@@ -45,6 +47,7 @@ export class SyncService {
 
   // Sincroniza stock (y opcionalmente precio) en TODAS las plataformas donde el producto está publicado.
   async syncProduct(productId: string, newStock: number, price?: number) {
+    if (integrationsDisabled()) return;
     const listings = await this.prisma.listing.findMany({
       where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] } },
       include: { connection: true, product: { select: { price: true, mlPrice: true } } },
@@ -137,6 +140,7 @@ export class SyncService {
   }
 
   private async getValidMlToken(connection: any): Promise<string> {
+    assertIntegrationsEnabled();
     let conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connection.id } });
     if (!conn) throw new Error('Conexión no encontrada');
 

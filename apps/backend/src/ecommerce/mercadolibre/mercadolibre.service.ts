@@ -1,4 +1,5 @@
 import { mlShipmentLabel } from './ml-shipment-labels';
+import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { buildLabelsPdf, LabelDetailOrder } from './label-detail';
 import {
   Injectable, Logger, BadRequestException, NotFoundException,
@@ -399,6 +400,7 @@ export class MercadolibreService {
   }
 
   private async getValidToken(connectionId: string): Promise<string> {
+    assertIntegrationsEnabled();
     let conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (conn.expiresAt && conn.expiresAt < new Date(Date.now() + 5 * 60 * 1000)) {

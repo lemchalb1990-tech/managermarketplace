@@ -4,8 +4,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { frontendUrls } from './common/frontend-url.util';
+import { installOutboundGuard } from './common/integrations.util';
 
 async function bootstrap() {
+  installOutboundGuard();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api');
