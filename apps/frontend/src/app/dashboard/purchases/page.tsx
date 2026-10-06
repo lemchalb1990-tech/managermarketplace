@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ProductSearchPicker from './ProductSearchPicker';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -9,7 +10,7 @@ import Link from 'next/link';
 import { Modal, FormError, btnPrimary, btnSecondary } from '@/components/ui/Modal';
 
 const emptyPurchaseForm = { supplierId: '', warehouseId: '', documentNumber: '', notes: '' };
-const emptyItem = { productId: '', quantity: '1', unitCost: '' };
+const emptyItem = { productId: '', productLabel: '', quantity: '1', unitCost: '' };
 
 const fmt = (n: number) => `$${Number(n).toLocaleString('es-CL')}`;
 
@@ -20,7 +21,6 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
@@ -36,23 +36,21 @@ export default function PurchasesPage() {
     const token = getToken();
     if (!token) return;
     if (isSuperAdmin && !selectedCompanyId) {
-      setPurchases([]); setSuppliers([]); setWarehouses([]); setProducts([]);
+      setPurchases([]); setSuppliers([]); setWarehouses([]);
       setLoading(false);
       return;
     }
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     setLoading(true);
     try {
-      const [p, s, w, prods] = await Promise.all([
+      const [p, s, w] = await Promise.all([
         api.purchases.list(token, { companyId }).catch(() => ({ purchases: [] })),
         api.suppliers.list(token, companyId).catch(() => []),
         api.warehouses.list(token).catch(() => []),
-        api.catalog.list(token, companyId).catch(() => []),
       ]);
       setPurchases(p.purchases || []);
       setSuppliers((s || []).filter((x: any) => x.active));
       setWarehouses((w || []).filter((x: any) => x.active && (!isSuperAdmin || x.companyId === selectedCompanyId)));
-      setProducts(prods || []);
     } finally {
       setLoading(false);
     }
@@ -189,12 +187,10 @@ export default function PurchasesPage() {
                   <div className="space-y-2">
                     {items.map((it, idx) => (
                       <div key={idx} className="flex flex-wrap gap-2 items-center">
-                        <select value={it.productId} required
-                          onChange={(e) => updateItem(idx, { productId: e.target.value })}
-                          className="flex-1 min-w-[160px] px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                          <option value="">— Producto —</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
-                        </select>
+                        <ProductSearchPicker
+                          companyId={isSuperAdmin ? selectedCompanyId || undefined : undefined}
+                          value={it.productId} label={it.productLabel}
+                          onChange={(prod) => updateItem(idx, { productId: prod.id, productLabel: prod.label })} />
                         <input type="number" min={1} value={it.quantity}
                           onChange={(e) => updateItem(idx, { quantity: e.target.value })}
                           placeholder="Cant." className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs" />
