@@ -612,6 +612,7 @@ export class MercadolibreService {
 
       const settings = catData.settings || {};
       const supportsHtml = !!settings.allow_pictures_in_description;
+      const maxTitleLength = Number(settings.max_title_length) || 60;
 
       const attributes = (Array.isArray(attrsData) ? attrsData : [])
         .filter((a: any) => a.tags?.required || a.tags?.catalog_required)
@@ -626,10 +627,10 @@ export class MercadolibreService {
           catalog_required: !!a.tags?.catalog_required,
         }));
 
-      return { attributes, supportsHtml };
+      return { attributes, supportsHtml, maxTitleLength };
     } catch (err) {
       this.logger.error('ML category attributes error', err);
-      return { attributes: [], supportsHtml: false };
+      return { attributes: [], supportsHtml: false, maxTitleLength: 60 };
     }
   }
 
@@ -852,7 +853,8 @@ export class MercadolibreService {
   ) {
     const product = await this.catalog.findOne(productId, user);
     // Título de esta cuenta: el elegido al publicar, si no el propio guardado, si no el nombre.
-    const accountTitle = (title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).slice(0, 60);
+    const fullTitle = (title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).trim();
+    let accountTitle = fullTitle.slice(0, 60);
     await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
@@ -863,6 +865,9 @@ export class MercadolibreService {
       );
     }
     await this.assertPublishableCategory(categoryId);
+    // Largo de título que admite la categoría (60 en muchas, 200 en otras).
+    const { maxTitleLength } = await this.getCategoryAttributes(categoryId);
+    accountTitle = fullTitle.slice(0, maxTitleLength || 60);
 
     const appUrl = await this.settings.get('APP_URL');
     const toAbsolute = (url: string) =>
@@ -995,6 +1000,20 @@ export class MercadolibreService {
 
     const mlData = attempt.data;
 
+    // Cuentas con "Precio por Variación" (User Products): ML crea el aviso solo con la primera
+    // foto aunque se envíe el set completo. Se cargan todas apenas existe el aviso.
+    const sentPictures: any[] = lastBody.pictures || [];
+    if (mlData.id && sentPictures.length > (mlData.pictures?.length || 0)) {
+      const pr = await fetch(`${ML_API}/items/${mlData.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pictures: sentPictures }),
+      }).catch(() => null);
+      if (!pr?.ok) this.logger.warn(`ML ${mlData.id}: no se pudieron cargar todas las fotos (${pr?.status ?? 'sin respuesta'})`);
+    }
+    // Título que quedó en ML (en cuentas con family_name, ML lo compone y puede ser más largo).
+    const savedTitle = String(mlData.title || accountTitle).trim();
+
     // Enviar descripción siempre vía endpoint dedicado
     let descriptionWarning: string | null = null;
     if (mlData.id) {
@@ -1013,11 +1032,11 @@ export class MercadolibreService {
         status: ListingStatus.ACTIVE,
         syncedAt: new Date(),
         errorMsg: null,
-        title: accountTitle !== product.name.trim() ? accountTitle : null,
+        title: savedTitle !== product.name.trim() ? savedTitle : null,
       },
       create: {
         productId, connectionId,
-        title: accountTitle !== product.name.trim() ? accountTitle : null,
+        title: savedTitle !== product.name.trim() ? savedTitle : null,
         externalId: mlData.id,
         externalUrl: mlData.permalink,
         status: ListingStatus.ACTIVE,
