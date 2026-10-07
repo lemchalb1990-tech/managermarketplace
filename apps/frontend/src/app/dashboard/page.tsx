@@ -64,14 +64,14 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className={`group relative ui-card p-5 flex items-start gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
+      <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${colorClass}`}>
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-[var(--text-muted)] font-medium mb-0.5">{title}</p>
-        <p className="text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
+        <p className="text-[11px] sm:text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{title}</p>
+        <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
@@ -275,7 +275,7 @@ export default function DashboardPage() {
 
       {/* Indicadores: finanzas del mes (si el usuario tiene Finanzas) + operación del día, en una
           sola grilla para que todas las tarjetas tengan el mismo tamaño. */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${finance.visible ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-2`}>
+      <div className={`grid grid-cols-2 ${finance.visible ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-2`}>
         {finance.visible && <FinanceCards data={finance.data} />}
         <KpiCard
           title="Ventas hoy"
@@ -429,7 +429,7 @@ export default function DashboardPage() {
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin ventas en este período</p>
           ) : (
             <div className="flex flex-col sm:flex-row items-center gap-5">
-              <div className="relative w-40 h-40 shrink-0">
+              <div className="relative w-28 h-28 sm:w-40 sm:h-40 shrink-0">
                 <svg viewBox="0 0 36 36" className="w-full h-full">
                   <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--border)" strokeWidth="3" />
                   {donutSegments.map((s, i) => (
@@ -457,8 +457,8 @@ export default function DashboardPage() {
                     <tr className="text-[11px] font-medium text-[var(--text-muted)]">
                       <th className="text-left font-medium pb-2 pr-2">Canal</th>
                       <th className="text-right font-medium pb-2 px-2">Órdenes</th>
-                      <th className="text-right font-medium pb-2 px-2">Ticket prom</th>
-                      <th className="text-right font-medium pb-2 px-2">Ventas totales</th>
+                      <th className="hidden sm:table-cell text-right font-medium pb-2 px-2">Ticket prom</th>
+                      <th className="hidden sm:table-cell text-right font-medium pb-2 px-2">Ventas totales</th>
                       <th className="text-right font-medium pb-2 pl-2">Total neto</th>
                       <th className="w-7 pb-2" />
                     </tr>
@@ -479,8 +479,8 @@ export default function DashboardPage() {
                             </span>
                           </td>
                           <td className="text-right px-2 font-semibold text-[var(--text)]">{s.count}</td>
-                          <td className="text-right px-2 text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</td>
-                          <td className="text-right px-2 font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</td>
+                          <td className="hidden sm:table-cell text-right px-2 text-[var(--text-2)]">${Math.round(avgTicket).toLocaleString('es-CL')}</td>
+                          <td className="hidden sm:table-cell text-right px-2 font-semibold text-[var(--text)]">${Math.round(s.total).toLocaleString('es-CL')}</td>
                           <td className="text-right pl-2 font-semibold text-emerald-600">${Math.round(s.netReceived ?? s.total).toLocaleString('es-CL')}</td>
                           <td className="pl-2 py-2">
                             <RowOpenIcon />

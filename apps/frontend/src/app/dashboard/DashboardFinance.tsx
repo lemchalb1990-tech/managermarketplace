@@ -13,7 +13,8 @@ import { clp, trafficLight } from './finanzas/finance-utils';
 
 const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)' };
 // Altura mínima común de todas las tarjetas de la grilla de indicadores (con y sin línea extra).
-export const DASHBOARD_CARD_MIN_H = 'min-h-[104px]';
+// En celular las tarjetas van de a 2 por fila y sin alto mínimo (más compactas).
+export const DASHBOARD_CARD_MIN_H = 'sm:min-h-[104px]';
 const MONTHS_FULL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const ALERT_CLS: Record<string, string> = {
   danger: 'bg-red-50 border-red-200 text-red-700',
@@ -40,7 +41,7 @@ export function FinanceCards({ data }: { data: any }) {
     return (
       <>
         {[0, 1, 2].map((i) => (
-          <div key={i} className={`ui-card p-5 ${DASHBOARD_CARD_MIN_H} animate-pulse`} style={CARD_SHADOW}>
+          <div key={i} className={`ui-card p-3 sm:p-5 ${DASHBOARD_CARD_MIN_H} animate-pulse`} style={CARD_SHADOW}>
             <div className="h-3 w-24 bg-gray-100 rounded mb-3" />
             <div className="h-6 w-32 bg-gray-100 rounded" />
           </div>
@@ -61,11 +62,11 @@ export function FinanceCards({ data }: { data: any }) {
         const pct = c.budget ? Math.round((c.actual / c.budget) * 100) : null;
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
-            <div className={`ui-card p-5 flex items-start gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
+            <div className={`ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+              <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${c.color}`}>{c.icon}</div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-[var(--text-muted)] font-medium mb-0.5">{c.label}</p>
-                <p className={`text-2xl font-bold leading-tight tracking-tight ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
+                <p className="text-[11px] sm:text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{c.label}</p>
+                <p className={`text-lg sm:text-2xl font-bold leading-tight tracking-tight ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
                   {clp(c.actual)}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">

@@ -107,12 +107,12 @@ export function SectionCard({
   return (
     <div className={`ui-card ${className}`} style={style}>
       {(title || actions) && (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-soft)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 sm:py-3.5 border-b border-[var(--border-soft)]">
           {title && <h2 className="font-semibold text-[var(--text)] text-sm">{title}</h2>}
           {actions}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      <div className="p-3 sm:p-5">{children}</div>
     </div>
   );
 }
