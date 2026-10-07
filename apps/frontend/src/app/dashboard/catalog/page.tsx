@@ -1831,7 +1831,8 @@ export default function CatalogPage() {
 
   function openCreateModal() {
     setSelected({ id: null, sku: '', name: '', active: true, images: [], listings: [] });
-    setEditForm(emptyForm);
+    // Sin Walmart activo el código de barras no se pide: el producto nace como "No tiene".
+    setEditForm({ ...emptyForm, noBarcode: walmartConnections.length === 0 });
     setTab('edit');
     setEditError('');
     setMlWarning('');
@@ -3270,22 +3271,25 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, sku: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <label className="block text-xs font-medium text-gray-600">Código de barras (GTIN/EAN)</label>
-                      <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
-                        <input type="checkbox" checked={!!editForm.noBarcode}
-                          onChange={(e) => setEditForm((f: any) => ({ ...f, noBarcode: e.target.checked, ...(e.target.checked ? { barcode: '' } : {}) }))}
-                          className="w-3.5 h-3.5 accent-blue-600" />
-                        No tiene
-                      </label>
+                  {/* Solo con Walmart activo: es el único canal que exige código de barras. */}
+                  {walmartConnections.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-xs font-medium text-gray-600">Código de barras (GTIN/EAN)</label>
+                        <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+                          <input type="checkbox" checked={!!editForm.noBarcode}
+                            onChange={(e) => setEditForm((f: any) => ({ ...f, noBarcode: e.target.checked, ...(e.target.checked ? { barcode: '' } : {}) }))}
+                            className="w-3.5 h-3.5 accent-blue-600" />
+                          No tiene
+                        </label>
+                      </div>
+                      <input value={editForm.noBarcode ? '' : (editForm.barcode || '')} inputMode="numeric"
+                        disabled={!!editForm.noBarcode}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, barcode: e.target.value.replace(/[^0-9]/g, '') }))}
+                        placeholder={editForm.noBarcode ? 'Sin código de barras' : 'Obligatorio para publicar en Walmart'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
                     </div>
-                    <input value={editForm.noBarcode ? '' : (editForm.barcode || '')} inputMode="numeric"
-                      disabled={!!editForm.noBarcode}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, barcode: e.target.value.replace(/[^0-9]/g, '') }))}
-                      placeholder={editForm.noBarcode ? 'Sin código de barras' : 'Obligatorio para publicar en Walmart'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
-                  </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
                     <select
