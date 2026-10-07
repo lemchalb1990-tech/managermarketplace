@@ -1,4 +1,5 @@
 import { mlShipmentLabel } from './ml-shipment-labels';
+import { cleanGtinAttributes } from '../../common/gtin.util';
 import { ActivityService } from '../../activity/activity.service';
 import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { buildLabelsPdf, LabelDetailOrder } from './label-detail';
@@ -888,7 +889,13 @@ export class MercadolibreService {
     // tipeado a mano o traído de un import viejo sin unidad), ML rechaza la publicación
     // completa en vez de solo ese atributo. Se completa con una unidad de respaldo en vez
     // de obligar a editar el atributo manualmente cada vez.
-    const userAttrs = await this.withDefaultUnits(categoryId, (product as any).mlAttributes || []);
+    const rawAttrs = await this.withDefaultUnits(categoryId, (product as any).mlAttributes || []);
+    // Nunca se envía un GTIN de ejemplo o inválido: ML lo rechaza si la cuenta ya lo usó en
+    // otra categoría. Sin GTIN válido se declara que el producto no tiene código registrado.
+    const { attrs: cleanedAttrs, removed: removedGtins } = cleanGtinAttributes(rawAttrs);
+    const userAttrs = removedGtins.length && !cleanedAttrs.some((a: any) => a.id === 'GTIN' || a.id === 'EMPTY_GTIN_REASON')
+      ? [...cleanedAttrs, { id: 'EMPTY_GTIN_REASON', value_id: '17055160' }]
+      : cleanedAttrs;
 
     const mlItem = {
       title: accountTitle,
@@ -1687,9 +1694,11 @@ export class MercadolibreService {
     const excluded = new Set([
       'SELLER_SKU', 'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT',
     ]);
-    return attributes
+    const attrs = attributes
       .filter((a) => a?.id && !excluded.has(a.id) && (a.value_name || a.value_id))
       .map((a) => ({ id: a.id, value_name: a.value_name, ...(a.value_id ? { value_id: a.value_id } : {}) }));
+    // Los GTIN de ejemplo o inválidos (p. ej. 0012345678905) no se guardan en el producto.
+    return cleanGtinAttributes(attrs).attrs;
   }
 
   // El ID de publicación de ML (item.id) es solo un identificador externo y se guarda
