@@ -179,7 +179,7 @@ export default function EcommercePage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="mb-8">
+      <div className="mb-3">
         <h1 className="ui-page-title mb-1">E-commerce</h1>
         <p className="ui-page-subtitle">
           Conecta y gestiona todos tus canales de venta online. El catálogo central sincroniza stock y precios en cada plataforma automáticamente.

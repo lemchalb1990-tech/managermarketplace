@@ -318,7 +318,7 @@ export default function RentabilidadPage() {
 
   return (
     <div className="max-w-[1400px]">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div>
           <h1 className="ui-page-title font-serif">Rentabilidad por producto</h1>
           <p className="ui-page-subtitle">

@@ -184,7 +184,7 @@ export default function ClientsPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <h1 className="ui-page-title">Clientes</h1>
           <p className="ui-page-subtitle">Clientes para solicitudes de pedido y facturación.</p>

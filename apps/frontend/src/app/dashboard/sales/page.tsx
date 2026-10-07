@@ -229,7 +229,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between -mb-3">
         <h1 className="ui-page-title">Ventas</h1>
       </div>
 

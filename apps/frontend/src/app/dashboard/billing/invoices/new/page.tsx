@@ -406,7 +406,7 @@ export default function NewInvoicePage() {
         <span className="text-sm text-gray-600 font-medium">Emitir DTE</span>
       </div>
 
-      <h1 className="ui-page-title mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
+      <h1 className="ui-page-title mb-3">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
       {draftLoadingInitial && (
         <SkeletonForm fields={6} className="mb-6" />
       )}

@@ -165,7 +165,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="ui-page-title mb-1">Configuración del sistema</h1>
         <p className="ui-page-subtitle">
           {canEdit

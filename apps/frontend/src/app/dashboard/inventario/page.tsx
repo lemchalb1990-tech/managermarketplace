@@ -76,7 +76,7 @@ export default function InventoryPage() {
 
   return (
     <div>
-      <div className="mb-5">
+      <div className="mb-3">
         <h1 className="ui-page-title">Inventario</h1>
         <p className="ui-page-subtitle">
           Stock por bodega, historial de cada movimiento y traspasos con recepción.

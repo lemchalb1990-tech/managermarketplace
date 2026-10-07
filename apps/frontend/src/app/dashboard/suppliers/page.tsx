@@ -145,7 +145,7 @@ export default function SuppliersPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <h1 className="ui-page-title">Proveedores</h1>
           <p className="ui-page-subtitle">Empresas a las que les compras mercadería.</p>

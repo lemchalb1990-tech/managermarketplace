@@ -120,7 +120,7 @@ export default function BillingProfilePage() {
         <span className="text-sm text-gray-600 font-medium">Perfil de facturación</span>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="ui-page-title">Perfil de facturación</h1>
         <p className="ui-page-subtitle">
           Datos de tu empresa como emisora de documentos tributarios. Se usan automáticamente al emitir cualquier DTE.

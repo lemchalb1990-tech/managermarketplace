@@ -342,7 +342,7 @@ export default function WorkOrdersPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 -mb-3">
         <div>
           <h1 className="ui-page-title">Órdenes de trabajo</h1>
           <p className="ui-page-subtitle">

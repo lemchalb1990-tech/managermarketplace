@@ -56,7 +56,7 @@ export default function MisRutasPage() {
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <div>
+      <div className="-mb-3">
         <h1 className="ui-page-title">Mis Rutas</h1>
         <p className="ui-page-subtitle">Rutas de despacho asignadas a ti</p>
       </div>

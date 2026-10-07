@@ -238,7 +238,7 @@ export default function UsersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="ui-page-title">Usuarios</h1>
           {!isSuperAdmin && myCompany && (

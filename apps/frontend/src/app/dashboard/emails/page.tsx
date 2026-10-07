@@ -168,7 +168,7 @@ export default function EmailsPage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="ui-page-title">Correos y Plantillas</h1>
         <p className="ui-page-subtitle">Personaliza los correos automáticos que reciben tus clientes</p>
       </div>

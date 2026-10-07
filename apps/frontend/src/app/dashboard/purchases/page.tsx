@@ -108,7 +108,7 @@ export default function PurchasesPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <h1 className="ui-page-title">Compras</h1>
           <p className="ui-page-subtitle">

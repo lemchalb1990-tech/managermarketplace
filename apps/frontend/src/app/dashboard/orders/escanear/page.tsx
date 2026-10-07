@@ -114,7 +114,7 @@ export default function EscanearVentaPage() {
         <span className="text-gray-300">/</span>
         <span className="text-sm text-gray-600 font-medium">Escanear para buscar venta</span>
       </div>
-      <h1 className="ui-page-title mb-6">Escanear para buscar venta</h1>
+      <h1 className="ui-page-title mb-3">Escanear para buscar venta</h1>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-10 max-w-lg mx-auto text-center">
         <div className="relative w-48 h-32 mx-auto mb-5">

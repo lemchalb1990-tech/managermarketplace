@@ -58,7 +58,7 @@ export function PageHeader({
   const hasCrumbRow = (crumbs && crumbs.length > 0) || (metaBelow && meta);
 
   return (
-    <div className={tight ? 'mb-2.5' : 'mb-5'}>
+    <div className={tight ? 'mb-2.5' : 'mb-3'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="ui-page-title">{title}</h1>
         <div className="flex items-center gap-3">

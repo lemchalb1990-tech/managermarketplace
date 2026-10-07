@@ -298,7 +298,7 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 -mt-1 sm:-mt-2 lg:-mt-3 mb-2">
+      <div className="flex items-center justify-between gap-3 mb-2">
         <div className="min-w-0">
           <h1 className="ui-page-title">Órdenes</h1>
         </div>

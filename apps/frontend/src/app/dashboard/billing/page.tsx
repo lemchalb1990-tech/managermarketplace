@@ -77,7 +77,7 @@ export default function BillingPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 mb-3">
         <div>
           <h1 className="ui-page-title mb-1">Facturación Electrónica</h1>
           <p className="ui-page-subtitle">

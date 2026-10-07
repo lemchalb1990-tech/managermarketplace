@@ -36,7 +36,7 @@ export default function FinanzasPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 -mb-2">
         <div>
           <h1 className="ui-page-title">Finanzas</h1>
           <p className="ui-page-subtitle">

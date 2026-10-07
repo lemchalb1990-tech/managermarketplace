@@ -354,7 +354,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   return (
     <div className="max-w-7xl">
       {/* Título + empresa gestionada en la misma línea */}
-      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
         <h1 className="ui-page-title !text-base sm:!text-2xl flex items-center gap-2 min-w-0 whitespace-nowrap">
           <a href="/dashboard/orders" className="text-gray-400 hover:text-blue-600 shrink-0" title="Volver a Órdenes">←</a>
           <span className="truncate">{isPack ? 'Pack' : 'Orden'} N° <span className="font-mono">{shortId}</span></span>

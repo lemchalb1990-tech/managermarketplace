@@ -149,7 +149,7 @@ export default function ConnectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="-mb-3">
         <h1 className="ui-page-title">Conexiones</h1>
         <p className="ui-page-subtitle">
           Todas las APIs de e-commerce y facturación conectadas, en todas las empresas.

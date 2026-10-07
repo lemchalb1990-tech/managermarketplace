@@ -88,7 +88,7 @@ export default function DespachosPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="ui-page-title">Rutas de Despacho</h1>
           <p className="ui-page-subtitle">Gestión y seguimiento de despachos</p>
