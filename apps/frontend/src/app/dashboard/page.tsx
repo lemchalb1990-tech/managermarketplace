@@ -59,9 +59,11 @@ const CHANNEL_LABEL: Record<string, string> = {
 const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)' };
 
 function KpiCard({
-  title, value, sub, colorClass, icon, href,
+  title, value, sub, colorClass, icon, href, centerValue = false,
 }: {
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
+  // Celular: valor centrado (cantidades) en vez de alineado a la derecha (montos).
+  centerValue?: boolean;
 }) {
   const content = (
     <div className={`group relative ui-card px-3 py-2 sm:p-5 flex items-center sm:items-start gap-2.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
@@ -72,7 +74,7 @@ function KpiCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
-        <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight max-sm:text-right">{value}</p>
+        <p className={`text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight ${centerValue ? 'max-sm:text-center' : 'max-sm:text-right'}`}>{value}</p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
@@ -283,6 +285,7 @@ export default function DashboardPage() {
         {finance.visible && <FinanceCards data={finance.data} />}
         <KpiCard
           title="Ventas hoy"
+          centerValue
           value={summary?.totalSales ?? 0}
           sub="transacciones · POS y e-commerce"
           colorClass="bg-blue-50 text-blue-500"
@@ -307,6 +310,7 @@ export default function DashboardPage() {
         />
         <KpiCard
           title="Órdenes activas"
+          centerValue
           value={activeOrdersCount}
           sub="pendiente / preparando / listo"
           colorClass="bg-amber-50 text-amber-500"
