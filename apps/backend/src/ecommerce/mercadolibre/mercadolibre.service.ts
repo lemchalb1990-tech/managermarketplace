@@ -933,6 +933,7 @@ export class MercadolibreService {
       return { ok: false as const, mlErrors };
     };
 
+    let lastBody: any = mlItem;
     let attempt = await attemptPublish(mlItem);
     // Cuentas migradas al modelo "Precio por Variación" (User Products) de ML exigen
     // "family_name" (el título de la "familia" del producto en ese modelo, no un nombre de
@@ -949,7 +950,27 @@ export class MercadolibreService {
       const familyName = rawFamilyName.length > 60
         ? (rawFamilyName.slice(0, 60).replace(/\s+\S*$/, '') || rawFamilyName.slice(0, 60))
         : rawFamilyName;
-      attempt = await attemptPublish({ ...itemWithoutTitle, family_name: familyName });
+      lastBody = { ...itemWithoutTitle, family_name: familyName };
+      attempt = await attemptPublish(lastBody);
+    }
+
+    // ML rechaza un GTIN que la cuenta ya usó en una publicación de otra categoría (pasa con
+    // códigos genéricos copiados entre productos, p. ej. 0012345678905). El GTIN no es parte
+    // del producto en sí: se reintenta sin él, informando que no tiene código registrado.
+    let gtinWarning: string | null = null;
+    if (!attempt.ok && attempt.mlErrors.some((m) => /c[oó]digo universal|GTIN/i.test(m))) {
+      const usedGtin = (lastBody.attributes || []).find((a: any) => a.id === 'GTIN')?.value_name;
+      lastBody = {
+        ...lastBody,
+        attributes: [
+          ...(lastBody.attributes || []).filter((a: any) => a.id !== 'GTIN' && a.id !== 'EMPTY_GTIN_REASON'),
+          { id: 'EMPTY_GTIN_REASON', value_id: '17055160' }, // "El producto no tiene código registrado"
+        ],
+      };
+      attempt = await attemptPublish(lastBody);
+      if (attempt.ok) {
+        gtinWarning = `Se publicó sin código universal${usedGtin ? ` (el GTIN ${usedGtin} ya está usado en otra categoría de esta cuenta)` : ''}.`;
+      }
     }
 
     if (!attempt.ok) {
@@ -994,7 +1015,7 @@ export class MercadolibreService {
       },
     });
 
-    return { ...listing, descriptionWarning };
+    return { ...listing, descriptionWarning: [gtinWarning, descriptionWarning].filter(Boolean).join(' ') || null };
   }
 
   private async syncListingCore(product: any, listing: any, token: string): Promise<{ warnings: string[] }> {
