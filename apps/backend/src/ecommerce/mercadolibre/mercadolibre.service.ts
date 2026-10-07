@@ -1689,6 +1689,23 @@ export class MercadolibreService {
   // Atributos propios de la categoría (color, material, modelo, etc.) que la publicación
   // de origen ya tenía, excluyendo SKU y paquete (que se guardan en columnas propias) —
   // se guardan tal cual para reenviarlos si el producto se vuelve a publicar.
+  // Medio de pago de una orden de ML (siempre procesado por Mercado Pago): tipo + medio,
+  // p. ej. "Mercado Pago · Tarjeta de crédito (visa)". Usa el primer pago aprobado.
+  private mlPaymentLabel(order: any): string | null {
+    const payments: any[] = Array.isArray(order?.payments) ? order.payments : [];
+    const p = payments.find((x) => x?.status === 'approved') || payments[0];
+    if (!p) return null;
+    const TYPES: Record<string, string> = {
+      credit_card: 'Tarjeta de crédito', debit_card: 'Tarjeta de débito', prepaid_card: 'Tarjeta prepago',
+      account_money: 'Dinero en cuenta', ticket: 'Pago en efectivo', bank_transfer: 'Transferencia',
+      atm: 'Cajero', digital_currency: 'Mercado Crédito', digital_wallet: 'Billetera digital',
+    };
+    const type = TYPES[p.payment_type] || (p.payment_type ? String(p.payment_type).replace(/_/g, ' ') : '');
+    const method = p.payment_method_id && !['account_money', p.payment_type].includes(p.payment_method_id) ? ` (${p.payment_method_id})` : '';
+    const installments = Number(p.installments) > 1 ? ` en ${p.installments} cuotas` : '';
+    return `Mercado Pago${type ? ` · ${type}${method}${installments}` : ''}`;
+  }
+
   private extractAdditionalAttributes(attributes: any[]): Array<{ id: string; value_name?: string; value_id?: string }> {
     if (!Array.isArray(attributes)) return [];
     const excluded = new Set([
@@ -2456,6 +2473,7 @@ export class MercadolibreService {
           discount: charges.coupon,
           netAmount: charges.totalPaid,
           shippingMethod: shippingInfo.method,
+          paymentMethodName: this.mlPaymentLabel(order),
           companyId: conn.companyId,
           connectionId: conn.id,
           customerName: order.buyer?.nickname || null,
@@ -3073,6 +3091,7 @@ export class MercadolibreService {
         discount: charges.coupon,
         netAmount: net,
         shippingMethod: shippingInfo.method || amounts.shippingMethod,
+        paymentMethodName: this.mlPaymentLabel(main) || sale.paymentMethodName,
         customerName,
         buyerNickname: main.buyer?.nickname || sale.buyerNickname,
         customerPhone,
@@ -3393,6 +3412,7 @@ export class MercadolibreService {
               discount: charges.coupon,
               netAmount: charges.totalPaid,
               shippingMethod: shippingInfo.method,
+              paymentMethodName: this.mlPaymentLabel(order),
               companyId: companyId as string,
               connectionId: resolvedItems[0].listing.connectionId,
               customerName: buyerContact?.name || order.buyer?.nickname || null,

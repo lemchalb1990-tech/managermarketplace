@@ -870,6 +870,9 @@ model Sale {
   discount        Decimal?         @db.Decimal(10, 2)
   netAmount       Decimal?         @db.Decimal(10, 2)
   paymentMethod   PaymentMethod?
+  // Método de pago que informa el marketplace (Mercado Pago, tarjeta, Webpay...). Texto libre,
+  // distinto de paymentMethod (efectivo/tarjeta/transferencia del punto de venta).
+  paymentMethodName String?
   notes           String?
   customerName    String?
   // Seudónimo (nickname) del comprador en el marketplace (Mercado Libre), aparte del nombre real.

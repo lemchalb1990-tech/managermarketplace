@@ -919,6 +919,18 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                     <span className="text-gray-800 font-mono break-all">{order.sale.mlShippingId}</span>
                   </div>
                 )}
+                {order.sale.paymentMethodName && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Pago</span>
+                    <span className="text-gray-800 font-medium">{order.sale.paymentMethodName}</span>
+                  </div>
+                )}
+                {order.sale.shippingMethod && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Envío</span>
+                    <span className="text-gray-800">{order.sale.shippingMethod}</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-20 shrink-0">Total</span>
                   <span className="text-gray-800 font-medium">

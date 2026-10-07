@@ -87,6 +87,16 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return { Authorization: `Basic ${basic}` };
   }
 
+  // Método de pago legible del pedido: el nombre que configuró la tienda ("Mercado Pago",
+  // "Transferencia bancaria") o, si no viene, el tipo técnico (mercado_pago → "Mercado Pago").
+  paymentLabel(o: any): string | null {
+    const name = String(o?.payment_method_name || '').trim();
+    if (name) return name;
+    const type = String(o?.payment_method_type || '').trim();
+    if (!type) return null;
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
   private async request(conn: any, path: string, init: RequestInit = {}): Promise<any> {
     const res = await fetch(`${BASE}${path}`, {
       ...init,
@@ -758,6 +768,8 @@ export class JumpSellerAdapter implements PlatformAdapter {
               address: customer.address,
               commune: customer.commune,
               city: customer.region,
+              paymentMethodName: this.paymentLabel(o),
+              shippingMethod: o.shipping_method_name || null,
               createdAt: new Date(o.created_at),
               items: { create: items.map((i, idx) => ({ productId: i.productId!, quantity: i.quantity, unitPrice: i.unitPrice, netAmount: b.lines[idx]?.net })) },
             },
