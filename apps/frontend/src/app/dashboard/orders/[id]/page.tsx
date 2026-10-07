@@ -355,10 +355,9 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
     <div className="max-w-7xl">
       {/* Título + empresa gestionada en la misma línea */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <h1 className="ui-page-title flex items-center gap-x-2 gap-y-0.5 flex-wrap min-w-0">
-          <a href="/dashboard/orders" className="hover:text-blue-600">Detalle de orden</a>
-          <span className="text-gray-300 font-normal">/</span>
-          <span className="font-mono break-all">{isPack ? 'Pack' : 'N°'} {shortId}</span>
+        <h1 className="ui-page-title !text-base sm:!text-2xl flex items-center gap-2 min-w-0 whitespace-nowrap">
+          <a href="/dashboard/orders" className="text-gray-400 hover:text-blue-600 shrink-0" title="Volver a Órdenes">←</a>
+          <span className="truncate">{isPack ? 'Pack' : 'Orden'} N° <span className="font-mono">{shortId}</span></span>
         </h1>
       </div>
 
@@ -386,12 +385,10 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                 </span>
               )}
             </div>
-            <p className="font-mono text-gray-400 text-xs break-all">
-              {isPack ? `Pack #${shortId}` : `Orden #${shortId}`}
-              {isPack && packOrderIds.length > 0 && (
-                <span className="block font-sans">Órden(es) ML: {packOrderIds.join(', ')}</span>
-              )}
-            </p>
+            {/* El número ya está en el título; en un pack se muestran sus órdenes de ML. */}
+            {isPack && packOrderIds.length > 0 && (
+              <p className="text-gray-400 text-xs break-all">Órden(es) ML: {packOrderIds.join(', ')}</p>
+            )}
             {order.createdBy && (
               <p className="text-xs text-gray-400 mt-0.5">Creado por {order.createdBy.name}</p>
             )}
@@ -937,12 +934,6 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                     <span className="text-gray-800 font-medium break-all">{order.sale.buyerNickname}</span>
                   </div>
                 )}
-                {order.sale.externalId && (
-                  <div className="flex gap-2">
-                    <span className="text-gray-400 w-20 shrink-0">Order ID</span>
-                    <span className="text-gray-800 font-mono break-all">{order.sale.externalId}</span>
-                  </div>
-                )}
                 {order.sale.mlPackId && (
                   <div className="flex gap-2">
                     <span className="text-gray-400 w-20 shrink-0">Pack ID</span>
@@ -967,18 +958,6 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                     <span className="text-gray-800">{order.sale.shippingMethod}</span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <span className="text-gray-400 w-20 shrink-0">Total</span>
-                  <span className="text-gray-800 font-medium">
-                    ${Number(order.sale.total).toLocaleString('es-CL')}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-400 w-20 shrink-0">Fecha</span>
-                  <span className="text-gray-800">
-                    {new Date(order.sale.createdAt).toLocaleDateString('es-CL', { timeZone: tz })}
-                  </span>
-                </div>
               </div>
             </div>
           )}
