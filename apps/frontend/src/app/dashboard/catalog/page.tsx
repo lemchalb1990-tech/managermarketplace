@@ -3144,7 +3144,7 @@ export default function CatalogPage() {
       {selected && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-6 sm:pt-12 pb-6 px-2 sm:px-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl min-w-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
               <div>
                 {selected.id ? (
                   <>
@@ -3204,12 +3204,12 @@ export default function CatalogPage() {
               </div>
             )}
 
-            <div className="p-6 max-h-[65vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 max-h-[70vh] sm:max-h-[65vh] overflow-y-auto">
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {!selected.id && activeConnections.length > 0 && (
-                  <div className="col-span-2 border border-gray-200 rounded-xl p-4">
+                  <div className="sm:col-span-2 border border-gray-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Publicar en marketplaces</p>
                     <div className="space-y-1.5">
                       {activeConnections.map((c) => (
@@ -3276,7 +3276,7 @@ export default function CatalogPage() {
                   </div>
                 )}
                 {!selected.active && (
-                  <div className="col-span-2 flex gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-800">
+                  <div className="sm:col-span-2 flex gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-800">
                     <span className="text-red-500 text-lg leading-none shrink-0">🔒</span>
                     <div>
                       <p className="font-semibold mb-0.5">Producto inactivo</p>
@@ -3285,7 +3285,7 @@ export default function CatalogPage() {
                   </div>
                 )}
                 <fieldset disabled={!selected.active} className="contents">
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
@@ -3355,7 +3355,7 @@ export default function CatalogPage() {
                       placeholder="Ej: Electrónica"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
-                  <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                  <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Precios</p>
                   </div>
                   <div>
@@ -3414,7 +3414,7 @@ export default function CatalogPage() {
                       </p>
                     </div>
                   )}
-                  <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                  <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Inventario</p>
                   </div>
                   <div>
@@ -3460,7 +3460,7 @@ export default function CatalogPage() {
                     </select>
                   </div>
                   {hasMlModule && (selected.id || mlChecked) && (
-                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                    <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Mercado Libre</p>
                     </div>
                   )}
@@ -3477,11 +3477,11 @@ export default function CatalogPage() {
                     </div>
                   )}
                   {hasMlModule && (selected.id || mlChecked) && (
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Dimensiones del paquete de envío (opcional)
                       </label>
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <input type="number" min={0} step="0.1" value={editForm.packageHeight}
                           onChange={(e) => setEditForm((f: any) => ({ ...f, packageHeight: e.target.value }))}
                           placeholder="Alto (cm)"
@@ -3504,14 +3504,14 @@ export default function CatalogPage() {
                       </p>
                     </div>
                   )}
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
                     <textarea value={editForm.description}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   {hasMlModule && (selected.id || mlChecked) && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Atributos requeridos por ML
                       {attrLoading && <span className="ml-2 text-gray-400 text-xs font-normal">cargando...</span>}
@@ -3536,7 +3536,7 @@ export default function CatalogPage() {
                         };
                         return (
                           <div key={attr.id} className="flex gap-2 items-center">
-                            <span className="w-44 shrink-0 text-xs text-gray-600 font-medium truncate">
+                            <span className="w-28 sm:w-44 shrink-0 text-xs text-gray-600 font-medium truncate">
                               {attr.name}{attr.required && <span className="text-red-500 ml-0.5">*</span>}
                             </span>
                             {attr.values.length > 0 ? (
@@ -3567,7 +3567,7 @@ export default function CatalogPage() {
                                 setEditForm((f: any) => ({ ...f, mlAttributes: list }));
                               }}
                               placeholder="ID (ej: MODEL)"
-                              className="w-44 shrink-0 px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-mono"
+                              className="w-28 sm:w-44 shrink-0 px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-mono"
                             />
                             <input
                               value={attr.value_name}
@@ -3595,7 +3595,7 @@ export default function CatalogPage() {
                   )}
 
                   {hasMlModule && (selected.id || mlChecked) && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
                     </label>
@@ -3624,8 +3624,8 @@ export default function CatalogPage() {
                     )}
                   </div>
                   )}
-                  {editError && <p className="col-span-2 text-red-600 text-sm">{editError}</p>}
-                  <div className="col-span-2">
+                  {editError && <p className="sm:col-span-2 text-red-600 text-sm">{editError}</p>}
+                  <div className="sm:col-span-2">
                     <button type="submit" disabled={editLoading}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                       {selected.id
