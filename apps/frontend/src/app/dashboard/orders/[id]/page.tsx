@@ -26,6 +26,9 @@ const CHANNEL_LABEL: Record<string, string> = {
   PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
 
+// Marketplaces (aparte de Mercado Libre) cuya etiqueta de despacho se trae por su API.
+const CHANNEL_LABELS: Record<string, string> = { JUMPSELLER: 'JumpSeller', PARIS: 'Paris', FALABELLA: 'Falabella', RIPLEY: 'Ripley' };
+
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -125,7 +128,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setLabelMode(withDetail ? 'detail' : 'pack');
     try {
       const token = getToken()!;
-      if (order?.sale?.channel === 'JUMPSELLER' || order?.sale?.channel === 'PARIS') await api.connections.printLabel(id, token, withDetail);
+      if (CHANNEL_LABELS[order?.sale?.channel || '']) await api.connections.printLabel(id, token, withDetail);
       else await api.marketplace.printLabel(id, token, withDetail);
       await load();
     } catch (err: any) {
@@ -287,8 +290,8 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   const packOrderIds: string[] = isPack ? [order.sale.externalId, ...(order.sale.mlMergedOrderIds || [])].filter(Boolean) : [];
 
   const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
-  // JumpSeller y Paris también entregan la etiqueta del courier (Starken, Bluexpress...) del despacho.
-  const isJsOrder = order.sale?.channel === 'JUMPSELLER' || order.sale?.channel === 'PARIS';
+  // JumpSeller, Paris, Falabella y Ripley también entregan la etiqueta del courier del despacho.
+  const isJsOrder = !!CHANNEL_LABELS[order.sale?.channel || ''];
   // Venta de ML sin Mercado Envíos ("acordar con el vendedor"): no hay etiqueta ni seguimiento
   // de ML, así que el avance (preparación, despacho, entrega) se gestiona desde el panel.
   const mlToAgree = isMlOrder && !order.sale?.mlShippingId;
@@ -410,7 +413,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
               <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button onClick={() => handlePrintLabel(false)} disabled={labelLoading}
-                    title={`La etiqueta del courier que generó ${order.sale?.channel === 'PARIS' ? 'Paris' : 'JumpSeller'}, para pegar en el paquete`}
+                    title={`La etiqueta del courier que generó ${CHANNEL_LABELS[order.sale?.channel || '']}, para pegar en el paquete`}
                     className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
                     {labelMode === 'pack' ? 'Obteniendo etiqueta...' : '🏷 Etiqueta de embalaje'}
                   </button>

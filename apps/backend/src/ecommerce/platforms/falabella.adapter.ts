@@ -690,6 +690,34 @@ export class FalabellaAdapter implements PlatformAdapter {
   // Nunca se probó una escritura real completa (el 500 que devolvió al probar con un link
   // falso ocurrió igual con un OrderItemId real e inexistente, así que no hay evidencia de
   // que haya tocado datos reales) — si el primer envío real falla, revisar el ErrorMessage.
+  // Etiqueta de despacho (documentación oficial "Obtener Etiqueta": GetDocument con
+  // DocumentType=shippingParcel y los OrderItemIds de la orden; devuelve el archivo en BASE64
+  // con su MimeType). Falabella la genera cuando los ítems ya están listos para despacho (E034
+  // si aún no se empaquetan). Sin probar en vivo: ninguna conexión tenía credenciales válidas.
+  async getShippingLabelPdf(conn: any, orderId: string): Promise<Buffer> {
+    const itemsData = await this.call(conn, 'GetOrderItems', { OrderId: orderId });
+    const raw = itemsData?.OrderItems?.OrderItem;
+    const items: any[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const ids = items.filter((i) => String(i.Status || '').toLowerCase() !== 'canceled').map((i) => Number(i.OrderItemId)).filter(Boolean);
+    if (!ids.length) throw new Error(`No se encontraron ítems vigentes de la orden ${orderId} en Falabella.`);
+    let body: any;
+    try {
+      body = await this.call(conn, 'GetDocument', { DocumentType: 'shippingParcel', OrderItemIds: JSON.stringify(ids) });
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (/E034|packed|ready/i.test(msg)) throw new Error(`La orden ${orderId} todavía no está lista para despacho en Falabella: márcala como lista para enviar y vuelve a intentar.`);
+      throw err;
+    }
+    const doc = body?.Documents?.Document || body?.Document;
+    const d = Array.isArray(doc) ? doc[0] : doc;
+    if (!d?.File) throw new Error(`Falabella no devolvió la etiqueta de la orden ${orderId}.`);
+    const file = Buffer.from(String(d.File), 'base64');
+    if (!String(d.MimeType || '').includes('pdf') && file.subarray(0, 4).toString() !== '%PDF') {
+      throw new Error(`Falabella entregó la etiqueta de la orden ${orderId} en formato ${d.MimeType || 'desconocido'} (no PDF).`);
+    }
+    return file;
+  }
+
   async sendInvoiceDocument(conn: any, sale: { externalId: string | null }, documentUrl: string, invoiceNumber: string): Promise<void> {
     if (!sale.externalId) throw new Error('La venta no tiene una orden Falabella asociada');
     const itemsData = await this.call(conn, 'GetOrderItems', { OrderId: sale.externalId });

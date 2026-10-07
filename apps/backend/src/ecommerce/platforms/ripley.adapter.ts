@@ -609,6 +609,28 @@ export class RipleyAdapter implements PlatformAdapter {
     return { imported: res.imported, skipped: res.skipped, errors: res.errors.length };
   }
 
+  // ─── Etiqueta de despacho ────────────────────────────────────────────────────────
+  // Mirakl: OR72 (GET /api/orders/documents) lista los documentos de la orden (Ripley deja ahí
+  // la etiqueta/guía del courier) y OR73 (GET /api/orders/documents/download) baja el archivo.
+  // Sin probar en vivo: la conexión de Ripley no tenía una API Key válida.
+  async getShippingLabelPdf(conn: any, orderId: string): Promise<Buffer> {
+    const data = await this.request(conn, `/api/orders/documents?order_ids=${encodeURIComponent(orderId)}`);
+    const docs: any[] = data?.order_documents || [];
+    const isLabel = (d: any) => /label|etiqueta|delivery|shipping|guia|guía|bill/i.test(`${d.type} ${d.file_name}`);
+    const isPdf = (d: any) => /\.pdf$/i.test(String(d.file_name || ''));
+    const doc = docs.find((d) => isLabel(d) && isPdf(d)) || docs.find(isLabel);
+    if (!doc) throw new Error(`Ripley todavía no tiene la etiqueta de la orden ${orderId}: genera el envío en Ripley y vuelve a intentar.`);
+    const res = await fetch(`${BASE}/api/orders/documents/download?document_ids=${encodeURIComponent(doc.id)}`, {
+      headers: { Authorization: this.creds(conn).apiKey },
+    });
+    if (!res.ok) throw new Error(`No se pudo descargar la etiqueta de la orden ${orderId} (HTTP ${res.status}).`);
+    const file = Buffer.from(await res.arrayBuffer());
+    if (file.subarray(0, 4).toString() !== '%PDF') {
+      throw new Error(`La etiqueta de Ripley de la orden ${orderId} no viene en PDF (${doc.file_name || doc.type}).`);
+    }
+    return file;
+  }
+
   // ─── Envío de boleta/factura a la orden (opcional, por conexión) ─────────────────
   // Ripley (Mirakl) exige adjuntar el documento tributario a la orden real — confirmado en
   // vivo (POST /api/orders/{order_id}/documents contra una orden inexistente para no tocar
