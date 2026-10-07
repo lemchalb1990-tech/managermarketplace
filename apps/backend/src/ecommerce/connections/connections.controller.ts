@@ -51,6 +51,13 @@ export class ConnectionsController {
     return this.service.deleteConnection(id, user);
   }
 
+  // Largo máximo del nombre por marketplace (contador de la ficha del producto).
+  @Get('title-limits')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  titleLimits(@Query('mlCategoryId') mlCategoryId?: string) {
+    return this.service.titleLimits(mlCategoryId || undefined);
+  }
+
   // Ver y editar credenciales de una conexión ya creada: solo Super Admin.
   @Get(':id')
   @Roles(Role.SUPER_ADMIN)

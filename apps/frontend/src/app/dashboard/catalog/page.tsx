@@ -1440,6 +1440,7 @@ export default function CatalogPage() {
   const activeChannels = Array.from(new Set(activeConnections.map((c) => c.marketplace || 'MERCADO_LIBRE')))
     .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b));
   const webPriceConnections = genericConnections.filter((c) => c.active && WEB_PRICE_PLATFORMS[c.marketplace]);
+
   // Pestaña "Conexiones": publicaciones agrupadas por marketplace (Mercado Libre primero).
   const connectionGroups: { marketplace: string; connections: any[] }[] = [
     ...(hasMlModule && connections.filter((c) => c.active).length ? [{ marketplace: 'MERCADO_LIBRE', connections: connections.filter((c) => c.active) }] : []),
@@ -1457,6 +1458,23 @@ export default function CatalogPage() {
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
   const [editForm, setEditForm] = useState<any>({});
+
+  // Largo máximo del nombre en cada marketplace activo (Mercado Libre: según la categoría).
+  const [titleLimits, setTitleLimits] = useState<Record<string, { max: number | null; source: string }>>({});
+  const editCategoryId = editForm?.mlCategoryId || '';
+  useEffect(() => {
+    const token = getToken();
+    if (!token || !selected) return;
+    api.connections.titleLimits(token, editCategoryId || undefined).then(setTitleLimits).catch(() => setTitleLimits({}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editCategoryId, selected?.id]);
+  const nameLength = String(editForm?.name || '').trim().length;
+  const titleChecks = activeChannels.map((ch) => {
+    const lim = titleLimits[ch];
+    const max = lim?.max ?? null;
+    return { ch, label: MARKETPLACE_LABELS[ch] || ch, max, source: lim?.source || '', over: max != null && nameLength > max, near: max != null && nameLength <= max && max - nameLength < 5 };
+  });
+  const titleOver = titleChecks.filter((t) => t.over);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -2063,6 +2081,11 @@ export default function CatalogPage() {
         label: 'Categoría ML',
         value: editForm.mlCategoryId || null,
         status: editForm.mlCategoryId ? 'ok' : 'error',
+      },
+      {
+        label: 'Largo del nombre',
+        value: titleLimits.MERCADO_LIBRE?.max != null ? `${nameLength} / ${titleLimits.MERCADO_LIBRE.max}` : `${nameLength}`,
+        status: titleLimits.MERCADO_LIBRE?.max != null && nameLength > titleLimits.MERCADO_LIBRE.max ? 'error' : 'ok',
       },
       {
         label: 'Precio ML',
@@ -3187,7 +3210,23 @@ export default function CatalogPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
-                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      required className={`w-full px-3 py-2 border rounded-lg text-sm ${titleOver.length ? 'border-red-400' : 'border-gray-300'}`} />
+                    {/* Conteo de caracteres frente al límite de cada marketplace activo */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span className="text-gray-500 mr-1">{nameLength} caracteres</span>
+                      {titleChecks.map((t) => (
+                        <span key={t.ch} title={t.source}
+                          className={`px-1.5 py-0.5 rounded-md border ${t.over ? 'border-red-300 bg-red-50 text-red-700' : t.near ? 'border-amber-300 bg-amber-50 text-amber-800' : t.max != null ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                          {t.label}: {t.max != null ? `${nameLength} / ${t.max}` : 'sin límite configurado'}{t.ch === 'MERCADO_LIBRE' && t.max != null ? ' (según categoría)' : ''}
+                        </span>
+                      ))}
+                    </div>
+                    {titleOver.length > 0 && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Debes ajustar el nombre: {titleOver.map((t) => `${t.label} admite ${t.max} caracteres (${t.source})`).join(' · ')}.
+                        Le sobran {Math.max(...titleOver.map((t) => nameLength - (t.max as number)))} caracteres.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>

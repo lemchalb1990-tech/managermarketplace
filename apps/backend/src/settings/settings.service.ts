@@ -3,7 +3,71 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_TIMEZONE } from '../common/timezone';
 
-export const SETTING_DEFINITIONS = [
+export const SETTING_DEFINITIONS: { key: string; label: string; group: string; hint: string; sensitive: boolean; default?: string }[] = [
+  {
+    key: 'TITLE_MAX_PARIS',
+    label: 'Largo máximo del nombre en Paris',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Paris en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'TITLE_MAX_RIPLEY',
+    label: 'Largo máximo del nombre en Ripley',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Ripley en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'TITLE_MAX_FALABELLA',
+    label: 'Largo máximo del nombre en Falabella',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Falabella en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'TITLE_MAX_WALMART',
+    label: 'Largo máximo del nombre en Walmart',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Walmart en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '200',
+  },
+  {
+    key: 'TITLE_MAX_HITES',
+    label: 'Largo máximo del nombre en Hites',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Hites en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'TITLE_MAX_JUMPSELLER',
+    label: 'Largo máximo del nombre en JumpSeller',
+    group: 'publicacion',
+    hint: 'Caracteres que admite JumpSeller en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'TITLE_MAX_SHOPIFY',
+    label: 'Largo máximo del nombre en Shopify',
+    group: 'publicacion',
+    hint: 'Caracteres que admite Shopify en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '255',
+  },
+  {
+    key: 'TITLE_MAX_WOOCOMMERCE',
+    label: 'Largo máximo del nombre en WooCommerce',
+    group: 'publicacion',
+    hint: 'Caracteres que admite WooCommerce en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
   {
     key: 'APP_URL',
     label: 'URL del backend',
@@ -90,7 +154,7 @@ export class SettingsService implements OnModuleInit {
     for (const def of SETTING_DEFINITIONS) {
       const exists = await this.prisma.setting.findUnique({ where: { key: def.key } });
       if (!exists) {
-        const envValue = this.config.get<string>(def.key) || (def.key === 'DASHBOARD_TIMEZONE' ? DEFAULT_TIMEZONE : '');
+        const envValue = this.config.get<string>(def.key) || (def.key === 'DASHBOARD_TIMEZONE' ? DEFAULT_TIMEZONE : '') || def.default || '';
         await this.prisma.setting.create({
           data: {
             key: def.key,

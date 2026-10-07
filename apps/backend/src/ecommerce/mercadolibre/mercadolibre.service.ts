@@ -613,6 +613,7 @@ export class MercadolibreService {
       const settings = catData.settings || {};
       const supportsHtml = !!settings.allow_pictures_in_description;
       const maxTitleLength = Number(settings.max_title_length) || 60;
+      const categoryName = String(catData.name || categoryId);
 
       const attributes = (Array.isArray(attrsData) ? attrsData : [])
         .filter((a: any) => a.tags?.required || a.tags?.catalog_required)
@@ -627,10 +628,10 @@ export class MercadolibreService {
           catalog_required: !!a.tags?.catalog_required,
         }));
 
-      return { attributes, supportsHtml, maxTitleLength };
+      return { attributes, supportsHtml, maxTitleLength, categoryName };
     } catch (err) {
       this.logger.error('ML category attributes error', err);
-      return { attributes: [], supportsHtml: false, maxTitleLength: 60 };
+      return { attributes: [], supportsHtml: false, maxTitleLength: 60, categoryName: categoryId };
     }
   }
 
@@ -866,8 +867,13 @@ export class MercadolibreService {
     }
     await this.assertPublishableCategory(categoryId);
     // Largo de título que admite la categoría (60 en muchas, 200 en otras).
-    const { maxTitleLength } = await this.getCategoryAttributes(categoryId);
-    accountTitle = fullTitle.slice(0, maxTitleLength || 60);
+    const { maxTitleLength, categoryName } = await this.getCategoryAttributes(categoryId);
+    if (fullTitle.length > (maxTitleLength || 60)) {
+      throw new BadRequestException(
+        `El nombre tiene ${fullTitle.length} caracteres y la categoría "${categoryName}" de Mercado Libre admite ${maxTitleLength || 60}. Ajústalo antes de publicar.`,
+      );
+    }
+    accountTitle = fullTitle;
 
     const appUrl = await this.settings.get('APP_URL');
     const toAbsolute = (url: string) =>

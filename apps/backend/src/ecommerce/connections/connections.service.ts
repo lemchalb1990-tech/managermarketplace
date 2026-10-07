@@ -188,6 +188,23 @@ export class ConnectionsService {
     return adapter.testConnection(conn);
   }
 
+  // Largo máximo del nombre por marketplace: Mercado Libre según la categoría del producto
+  // (API de ML); el resto, el valor configurado por el Super Admin (vacío = sin validar).
+  async titleLimits(mlCategoryId?: string) {
+    const out: Record<string, { max: number | null; source: string }> = {};
+    if (mlCategoryId) {
+      const cat = await this.mercadolibre.getCategoryAttributes(mlCategoryId);
+      out.MERCADO_LIBRE = { max: cat.maxTitleLength || 60, source: `categoría ${cat.categoryName}` };
+    } else {
+      out.MERCADO_LIBRE = { max: null, source: 'sin categoría de Mercado Libre' };
+    }
+    for (const mp of NON_ML_TYPES) {
+      const v = parseInt(await this.settings.get(`TITLE_MAX_${mp}`)) || null;
+      out[mp] = { max: v, source: v ? 'configurado' : 'sin límite configurado' };
+    }
+    return out;
+  }
+
   async publishProduct(connectionId: string, productId: string, user: any) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
@@ -195,6 +212,11 @@ export class ConnectionsService {
 
     const product: any = await this.catalog.findOne(productId, user);
     const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
+    const maxName = parseInt(await this.settings.get(`TITLE_MAX_${conn.marketplace}`)) || 0;
+    const name = String(product.name || '').trim();
+    if (maxName && name.length > maxName) {
+      throw new BadRequestException(`El nombre tiene ${name.length} caracteres y ${conn.marketplace} admite ${maxName}. Ajústalo antes de publicar.`);
+    }
     // Todo el set de fotos (principal primero) con URL absoluta, para los canales que las
     // reciben por URL al crear el producto (Shopify, WooCommerce).
     const sorted = [...(product.images || [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0));

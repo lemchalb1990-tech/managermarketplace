@@ -657,6 +657,10 @@ export const api = {
     // Etiqueta de despacho de una orden de JumpSeller (PDF), igual que la de Mercado Libre.
     printLabel: (orderId: string, token: string, withDetail = false) =>
       apiOpenPdf(`/ecommerce/connections/orders/${orderId}/label${withDetail ? '?detail=1' : ''}`, token),
+    // Largo máximo del nombre por marketplace (Mercado Libre según la categoría).
+    titleLimits: (token: string, mlCategoryId?: string) =>
+      apiFetch<Record<string, { max: number | null; source: string }>>(
+        `/ecommerce/connections/title-limits${mlCategoryId ? `?mlCategoryId=${encodeURIComponent(mlCategoryId)}` : ''}`, {}, token),
     // Check "Sincronizar" de la tienda (también conexiones de Mercado Libre).
     setSync: (id: string, enabled: boolean, token: string) =>
       apiFetch<{ id: string; syncEnabled: boolean }>(`/ecommerce/connections/${id}/sync`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, token),
