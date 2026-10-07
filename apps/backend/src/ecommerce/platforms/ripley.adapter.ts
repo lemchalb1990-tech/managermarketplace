@@ -612,7 +612,9 @@ export class RipleyAdapter implements PlatformAdapter {
   // ─── Etiqueta de despacho ────────────────────────────────────────────────────────
   // Mirakl: OR72 (GET /api/orders/documents) lista los documentos de la orden (Ripley deja ahí
   // la etiqueta/guía del courier) y OR73 (GET /api/orders/documents/download) baja el archivo.
-  // Sin probar en vivo: la conexión de Ripley no tenía una API Key válida.
+  // Probado en vivo con HABITA2: el único documento es SYSTEM_DELIVERY_BILL
+  // ("delivery-<orden>.pdf", el "Aviso de Pedido Ripley" con destinatario y productos); la
+  // etiqueta del courier (Blue Express) no viene por la API.
   async getShippingLabelPdf(conn: any, orderId: string): Promise<Buffer> {
     const data = await this.request(conn, `/api/orders/documents?order_ids=${encodeURIComponent(orderId)}`);
     const docs: any[] = data?.order_documents || [];
