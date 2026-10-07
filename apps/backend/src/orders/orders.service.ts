@@ -171,31 +171,42 @@ export class OrdersService {
       total: [{ sale: { total: dir } }],
       date: [{ createdAt: dir }],
     };
+    // Dos tramos paginados uno detrás del otro (primero A completo, después B).
+    const twoParts = async (whereA: any, orderA: any, whereB: any, orderB: any) => {
+      const [countA, countB] = await Promise.all([this.prisma.order.count({ where: whereA }), this.prisma.order.count({ where: whereB })]);
+      const partA = skip < countA
+        ? await this.prisma.order.findMany({ where: whereA, include, orderBy: orderA, skip, take: Math.min(PAGE_SIZE, countA - skip) })
+        : [];
+      const left = PAGE_SIZE - partA.length;
+      const partB = left > 0
+        ? await this.prisma.order.findMany({ where: whereB, include, orderBy: orderB, skip: Math.max(0, skip - countA), take: left })
+        : [];
+      return { rows: [...partA, ...partB], count: countA + countB };
+    };
+
     if (query.sortBy && SORTS[query.sortBy]) {
-      // Orden elegido por el usuario (clic en el título de la columna).
-      [orders, total] = await Promise.all([
-        this.prisma.order.findMany({ where, include, orderBy: [...SORTS[query.sortBy], { createdAt: 'desc' }], skip, take: PAGE_SIZE }),
-        this.prisma.order.count({ where }),
-      ]);
+      // Orden elegido por el usuario (clic en el título). Si ordena por un dato de la venta
+      // (n° de orden, canal, total), las órdenes manuales sin venta quedan al final.
+      const bySale = ['order', 'channel', 'total'].includes(query.sortBy);
+      const orderBy = [...SORTS[query.sortBy], { createdAt: 'desc' as const }];
+      if (bySale) {
+        const r = await twoParts({ AND: [where, { saleId: { not: null } }] }, orderBy, { AND: [where, { saleId: null }] }, { createdAt: 'desc' });
+        orders = r.rows; total = r.count;
+      } else {
+        [orders, total] = await Promise.all([
+          this.prisma.order.findMany({ where, include, orderBy, skip, take: PAGE_SIZE }),
+          this.prisma.order.count({ where }),
+        ]);
+      }
     } else {
       // Por defecto: primero las pendientes de despachar (de cualquier marketplace), de la más
       // antigua a la más nueva; después el resto, de la más reciente a la más antigua.
       const OPEN = [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY];
-      const openWhere = { AND: [where, { status: { in: OPEN } }] };
-      const restWhere = { AND: [where, { status: { notIn: OPEN } }] };
-      const [openCount, restCount] = await Promise.all([
-        this.prisma.order.count({ where: openWhere }),
-        this.prisma.order.count({ where: restWhere }),
-      ]);
-      const openPart = skip < openCount
-        ? await this.prisma.order.findMany({ where: openWhere, include, orderBy: { createdAt: 'asc' }, skip, take: Math.min(PAGE_SIZE, openCount - skip) })
-        : [];
-      const remaining = PAGE_SIZE - openPart.length;
-      const restPart = remaining > 0
-        ? await this.prisma.order.findMany({ where: restWhere, include, orderBy: { createdAt: 'desc' }, skip: Math.max(0, skip - openCount), take: remaining })
-        : [];
-      orders = [...openPart, ...restPart];
-      total = openCount + restCount;
+      const r = await twoParts(
+        { AND: [where, { status: { in: OPEN } }] }, { createdAt: 'asc' },
+        { AND: [where, { status: { notIn: OPEN } }] }, { createdAt: 'desc' },
+      );
+      orders = r.rows; total = r.count;
     }
 
     for (const o of orders) for (const ev of o.statusEvents) ev.title = displayMlEventTitle(ev);
