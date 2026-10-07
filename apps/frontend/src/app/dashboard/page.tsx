@@ -64,18 +64,15 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className={`group relative ui-card px-3 py-2 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-0.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card px-3 py-2 sm:p-5 flex items-center sm:items-start gap-2.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
-      {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
-      <div className="flex items-center gap-2 w-full sm:contents">
-        <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${colorClass}`}>
-          {icon}
-        </div>
-        <p className="sm:hidden text-[11px] text-[var(--text-2)] font-bold leading-tight line-clamp-2">{title}</p>
+      {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
+        {icon}
       </div>
-      <div className="min-w-0 max-sm:w-full max-sm:text-center">
-        <p className="hidden sm:block text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight">{title}</p>
-        <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
+        <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight max-sm:text-right">{value}</p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
