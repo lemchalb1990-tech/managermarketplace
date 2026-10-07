@@ -11,7 +11,7 @@ import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 import { can } from '@/lib/permissions';
 import { hasModule } from '@/lib/modules';
-import { useDashboardFinance, FinanceCards, FinanceAlerts, DASHBOARD_CARD_MIN_H } from './DashboardFinance';
+import { useDashboardFinance, FinanceCards, FinanceAlerts, DASHBOARD_CARD_MIN_H, kpiValueStyle, KPI_VALUE_MAX } from './DashboardFinance';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
 // "1804k" (el número completo pegado a una "k" minúscula) se leía ambiguo — ¿mil ochocientos
@@ -66,19 +66,16 @@ function KpiCard({
   centerValue?: boolean;
 }) {
   const content = (
-    <div className={`group relative ui-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex items-center gap-2.5 sm:gap-3 xl:gap-2 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
       {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
-      <div className={`xl:hidden w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
+      {/* Ícono del alto de título + valor. */}
+      <div className={`w-11 h-11 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
         {icon}
       </div>
-      <div className="min-w-0 flex-1">
-        {/* Pantallas anchas (8 tarjetas en una fila): ícono chico al lado del título. */}
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <span className={`hidden xl:inline-flex w-7 h-7 rounded-lg items-center justify-center text-sm shrink-0 ${colorClass}`}>{icon}</span>
-          <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold leading-tight line-clamp-2">{title}</p>
-        </div>
-        <p className={`text-lg sm:text-2xl xl:text-lg font-bold text-[var(--text)] leading-tight tracking-tight ${centerValue ? 'text-center' : 'text-right'}`}>{value}</p>
+      <div className={`@container min-w-0 flex-1 ${KPI_VALUE_MAX}`}>
+        <p className="text-xs sm:text-[13px] text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
+        <p style={kpiValueStyle(String(value))} className={`font-bold text-[var(--text)] leading-tight tracking-tight whitespace-nowrap ${centerValue ? 'text-center' : 'text-right'}`}>{value}</p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">

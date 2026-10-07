@@ -15,6 +15,11 @@ const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12)
 // Altura mínima común de todas las tarjetas de la grilla de indicadores (con y sin línea extra).
 // En celular las tarjetas van de a 2 por fila y sin alto mínimo (más compactas).
 export const DASHBOARD_CARD_MIN_H = '';
+// Tamaño de letra del valor: tope según la pantalla (--kpi-max) y, si el monto es largo, lo
+// justo para que quepa completo en el ancho de la tarjeta (100cqw = ancho del contenedor).
+export const kpiValueStyle = (text: string) => ({ fontSize: `min(var(--kpi-max), calc(100cqw / ${(Math.max(String(text).length, 4) * 0.62).toFixed(2)}))` });
+export const KPI_VALUE_MAX = '[--kpi-max:1.375rem] sm:[--kpi-max:1.625rem]';
+
 const MONTHS_FULL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const ALERT_CLS: Record<string, string> = {
   danger: 'bg-red-50 border-red-200 text-red-700',
@@ -62,16 +67,13 @@ export function FinanceCards({ data }: { data: any }) {
         const pct = c.budget ? Math.round((c.actual / c.budget) * 100) : null;
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
-            <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+            <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex items-center gap-2.5 sm:gap-3 xl:gap-2 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
               {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
-              <div className={`xl:hidden w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
-              <div className="min-w-0 flex-1">
-                {/* Pantallas anchas (8 tarjetas en una fila): ícono chico al lado del título. */}
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className={`hidden xl:inline-flex w-7 h-7 rounded-lg items-center justify-center text-sm shrink-0 ${c.color}`}>{c.icon}</span>
-                  <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold leading-tight line-clamp-2">{c.label}</p>
-                </div>
-                <p className={`text-lg sm:text-2xl xl:text-lg font-bold leading-tight tracking-tight text-right ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
+              {/* Ícono del alto de título + valor. */}
+              <div className={`w-11 h-11 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
+              <div className={`@container min-w-0 flex-1 ${KPI_VALUE_MAX}`}>
+                <p className="text-xs sm:text-[13px] text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{c.label}</p>
+                <p style={kpiValueStyle(clp(c.actual))} className={`font-bold leading-tight tracking-tight text-right whitespace-nowrap ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
                   {clp(c.actual)}
                 </p>
                 {/* Solo con presupuesto definido (sin él no se muestra nada). */}
