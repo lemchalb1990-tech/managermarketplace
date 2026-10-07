@@ -123,7 +123,7 @@ export default function OrdersPage() {
   // Solo los marketplaces con alguna tienda activa en la empresa.
   const [activeMarketplaces, setActiveMarketplaces] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  // Orden por columna (clic en el título). Vacío = pendientes más antiguas primero.
+  // Orden por columna (clic en el título). Vacío = de la más reciente a la más antigua.
   const [sort, setSort] = useState<{ by: string; dir: 'asc' | 'desc' } | null>(null);
   const sortRef = useRef(sort);
   sortRef.current = sort;

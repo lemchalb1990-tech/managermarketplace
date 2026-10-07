@@ -199,14 +199,11 @@ export class OrdersService {
         ]);
       }
     } else {
-      // Por defecto: primero las pendientes de despachar (de cualquier marketplace), de la más
-      // antigua a la más nueva; después el resto, de la más reciente a la más antigua.
-      const OPEN = [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY];
-      const r = await twoParts(
-        { AND: [where, { status: { in: OPEN } }] }, { createdAt: 'asc' },
-        { AND: [where, { status: { notIn: OPEN } }] }, { createdAt: 'desc' },
-      );
-      orders = r.rows; total = r.count;
+      // Por defecto: de la más reciente a la más antigua.
+      [orders, total] = await Promise.all([
+        this.prisma.order.findMany({ where, include, orderBy: { createdAt: 'desc' }, skip, take: PAGE_SIZE }),
+        this.prisma.order.count({ where }),
+      ]);
     }
 
     for (const o of orders) for (const ev of o.statusEvents) ev.title = displayMlEventTitle(ev);

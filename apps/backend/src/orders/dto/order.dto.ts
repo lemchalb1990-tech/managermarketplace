@@ -142,7 +142,7 @@ export class FindOrdersDto {
   @IsString()
   warehouseId?: string;
 
-  // Orden por columna (clic en el título). Sin sortBy: pendientes más antiguas primero.
+  // Orden por columna (clic en el título). Sin sortBy: de la más reciente a la más antigua.
   @IsOptional()
   @IsIn(['order', 'customer', 'channel', 'status', 'total', 'date'])
   sortBy?: string;
