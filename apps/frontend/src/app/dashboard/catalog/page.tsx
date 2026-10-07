@@ -1414,6 +1414,19 @@ export default function CatalogPage() {
     setViewMode(v);
     try { localStorage.setItem('mp_catalog_view', v); } catch { /* ignore */ }
   }
+  // En celular el catálogo se ve siempre en cuadrícula (la lista y la compacta no caben).
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  const view = isMobile ? 'grid' : viewMode;
+  const advancedFilterCount = [warehouseFilter, categoryFilter, typeFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
+  // Filtros avanzados plegados bajo "Más filtros" (se abren solos si llega alguno aplicado).
+  const [showMoreFilters, setShowMoreFilters] = useState(() => searchParams.get('stock') === 'critical');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -2509,7 +2522,7 @@ export default function CatalogPage() {
       {/* Título, tipo de vista y, a la derecha, las acciones: una sola línea para ahorrar espacio */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
         <h1 className="ui-page-title mr-1">Catálogo de productos</h1>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           {([
             { key: 'list', label: 'Lista' },
             { key: 'grid', label: 'Cuadrícula' },
@@ -2528,7 +2541,7 @@ export default function CatalogPage() {
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:ml-auto">
           <button onClick={openImportModal}
-            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            className="hidden sm:inline-flex sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             Cargar stock/precios/costos
           </button>
           <button onClick={openCreateModal}
@@ -2550,6 +2563,32 @@ export default function CatalogPage() {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setShowMoreFilters((v) => !v)}
+          className={`ui-btn-secondary inline-flex items-center gap-1.5 ${showMoreFilters ? '!border-[var(--brand)]' : ''}`}
+        >
+          {showMoreFilters ? 'Menos filtros' : 'Más filtros'}
+          {advancedFilterCount > 0 && (
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-[#35301f] inline-flex items-center justify-center">{advancedFilterCount}</span>
+          )}
+        </button>
+        <button
+          onClick={() => loadProducts(1)}
+          className="ui-btn-secondary"
+        >
+          Filtrar
+        </button>
+        <button
+          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }}
+          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
+        >
+          Limpiar
+        </button>
+        <span className="ml-auto text-sm text-[var(--text-2)] self-center"><b className="font-semibold text-[var(--text)]">{total.toLocaleString('es-CL')}</b> producto(s)</span>
+      </div>
+      {showMoreFilters && (
+        <div className="mt-2 bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-2 sm:gap-3 shadow-sm">
         <div>
           <label className="text-xs text-gray-500 block mb-1">Bodega</label>
           <select
@@ -2644,20 +2683,8 @@ export default function CatalogPage() {
             <option value="out">Sin stock</option>
           </select>
         </div>
-        <button
-          onClick={() => loadProducts(1)}
-          className="ui-btn-secondary"
-        >
-          Filtrar
-        </button>
-        <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }}
-          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
-        >
-          Limpiar
-        </button>
-        <span className="ml-auto text-sm text-[var(--text-2)] self-center"><b className="font-semibold text-[var(--text)]">{total.toLocaleString('es-CL')}</b> producto(s)</span>
-      </div>
+        </div>
+      )}
       </div>
       {stockFilter === 'critical' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
@@ -2821,8 +2848,8 @@ export default function CatalogPage() {
         </div>
       )}
 
-      <div className={`bg-white rounded-xl border border-gray-200 ${viewMode === 'grid' ? 'p-4' : 'overflow-x-auto'}`}>
-        {viewMode === 'grid' ? (
+      <div className={`bg-white rounded-xl border border-gray-200 ${view === 'grid' ? 'p-4' : 'overflow-x-auto'}`}>
+        {view === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {!loading && products.map((p) => {
             const img = primaryImage(p);
@@ -2933,7 +2960,7 @@ export default function CatalogPage() {
           <tbody className="divide-y divide-gray-100">
             {!loading && products.map((p) => {
               const img = primaryImage(p);
-              const compact = viewMode === 'compact';
+              const compact = view === 'compact';
               const cellPad = compact ? 'px-4 py-1' : 'px-4 py-3';
               const imgSize = compact ? 'w-6 h-6' : 'w-10 h-10';
               return (
