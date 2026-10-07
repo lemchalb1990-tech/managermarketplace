@@ -113,6 +113,7 @@ export class OrdersService {
     else if (query.companyId) where.companyId = query.companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
+    if (query.channel) where.sale = { channel: query.channel };
     if (query.from || query.to) {
       where.createdAt = {};
       if (query.from) where.createdAt.gte = new Date(query.from);

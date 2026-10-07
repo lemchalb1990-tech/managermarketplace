@@ -854,9 +854,10 @@ export const api = {
     },
   },
   orders: {
-    list: (token: string, params?: { status?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string; search?: string }) => {
+    list: (token: string, params?: { status?: string; channel?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string; search?: string }) => {
       const q = new URLSearchParams();
       if (params?.status) q.set('status', params.status);
+      if (params?.channel) q.set('channel', params.channel);
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
       if (params?.from) q.set('from', params.from);
       if (params?.to) q.set('to', params.to);

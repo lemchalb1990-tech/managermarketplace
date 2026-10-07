@@ -11,6 +11,21 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { onActivity } from '@/lib/activityBus';
 import ImageViewer from './[id]/ImageViewer';
 import { SkeletonTable } from '@/components/Skeleton';
+import { Logos } from '../ecommerce/components/logos';
+import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
+
+// Marketplaces que se pueden filtrar (enum del backend → slug del logo y nombre visible).
+const MARKETPLACE_FILTERS: { key: string; slug: string; label: string }[] = [
+  { key: 'MERCADO_LIBRE', slug: 'mercadolibre', label: 'Mercado Libre' },
+  { key: 'FALABELLA', slug: 'falabella', label: 'Falabella' },
+  { key: 'PARIS', slug: 'paris', label: 'Paris' },
+  { key: 'RIPLEY', slug: 'ripley', label: 'Ripley' },
+  { key: 'HITES', slug: 'hites', label: 'Hites' },
+  { key: 'WALMART', slug: 'walmart', label: 'Walmart' },
+  { key: 'JUMPSELLER', slug: 'jumpseller', label: 'JumpSeller' },
+  { key: 'SHOPIFY', slug: 'shopify', label: 'Shopify' },
+  { key: 'WOOCOMMERCE', slug: 'woocommerce', label: 'WooCommerce' },
+];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -105,6 +120,10 @@ export default function OrdersPage() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [channelFilter, setChannelFilter] = useState('');
+  // Solo los marketplaces con alguna tienda activa en la empresa.
+  const [activeMarketplaces, setActiveMarketplaces] = useState<string[]>([]);
+  const logoMap = usePlatformLogos();
   const [search, setSearch] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [deletingId, setDeletingId] = useState('');
@@ -130,12 +149,12 @@ export default function OrdersPage() {
   // Super Admin veía órdenes de TODAS las empresas mezcladas.
   const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
 
-  async function load(p = 1, status = statusFilter, q = search) {
+  async function load(p = 1, status = statusFilter, q = search, channel = channelFilter) {
     const token = getToken();
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.orders.list(token, { status: status || undefined, page: p, companyId, search: q || undefined });
+      const res = await api.orders.list(token, { status: status || undefined, channel: channel || undefined, page: p, companyId, search: q || undefined });
       setOrders(res.orders);
       setTotal(res.total);
       setPage(res.page);
@@ -156,9 +175,16 @@ export default function OrdersPage() {
     Promise.all([
       api.warehouses.list(token, companyId).catch(() => []),
       api.pos.listSales({ companyId }, token).catch(() => ({ sales: [] })),
-    ]).then(([whs, sales]) => {
+      api.marketplace.connections(token, companyId).catch(() => []),
+      api.connections.list(token, { companyId }).catch(() => []),
+    ]).then(([whs, sales, mlConns, otherConns]) => {
       setWarehouses(whs);
       setRecentSales(sales.sales || []);
+      const types = new Set<string>([
+        ...(mlConns as any[]).filter((c) => c.active).map(() => 'MERCADO_LIBRE'),
+        ...(otherConns as any[]).filter((c) => c.active).map((c) => c.marketplace),
+      ]);
+      setActiveMarketplaces(MARKETPLACE_FILTERS.filter((m) => types.has(m.key)).map((m) => m.key));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -188,6 +214,11 @@ export default function OrdersPage() {
   function changeTab(key: string) {
     setStatusFilter(key);
     load(1, key);
+  }
+
+  function changeChannel(key: string) {
+    setChannelFilter(key);
+    load(1, statusFilter, search, key);
   }
 
   function toggleSelect(id: string) {
@@ -449,6 +480,28 @@ export default function OrdersPage() {
         ))}
         <span className="ml-auto pl-2 shrink-0 text-xs text-gray-400 self-center">{total} órdenes</span>
       </div>
+
+      {/* Filtro por marketplace: solo los que la empresa tiene activos */}
+      {activeMarketplaces.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-4 overflow-x-auto sm:flex-wrap -mx-1 px-1 pb-1">
+          <span className="shrink-0 text-xs text-[var(--text-muted)] mr-1">Marketplace</span>
+          {[{ key: '', slug: '', label: 'Todos' }, ...MARKETPLACE_FILTERS.filter((m) => activeMarketplaces.includes(m.key))].map((m) => (
+            <button key={m.key || 'all'} onClick={() => changeChannel(m.key)}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                channelFilter === m.key
+                  ? 'border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--text)]'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}>
+              {m.slug && (
+                <span className="w-4 h-4 rounded overflow-hidden shrink-0 inline-flex">
+                  {resolvePlatformLogo(logoMap, m.slug, (Logos as any)[m.slug], m.label)}
+                </span>
+              )}
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">

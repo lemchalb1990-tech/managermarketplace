@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsArray, IsInt, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { OrderStatus, FulfillmentType } from '@prisma/client';
+import { OrderStatus, FulfillmentType, SaleChannel } from '@prisma/client';
 
 export class ManualItemDto {
   @IsString()
@@ -141,6 +141,11 @@ export class FindOrdersDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  // Marketplace de origen (canal de la venta): MERCADO_LIBRE, JUMPSELLER, RIPLEY...
+  @IsOptional()
+  @IsEnum(SaleChannel)
+  channel?: SaleChannel;
 
   @IsOptional()
   @IsString()
