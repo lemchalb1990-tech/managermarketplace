@@ -319,8 +319,8 @@ export default function RentabilidadPage() {
     <div className="max-w-[1400px]">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900 font-serif">Rentabilidad por producto</h1>
-          <p className="text-gray-500 text-xs mt-0.5">
+          <h1 className="ui-page-title font-serif">Rentabilidad por producto</h1>
+          <p className="ui-page-subtitle">
             Compara tu costo contra el precio de la competencia, con IVA y comisión reales, para decidir qué subir, publicitar o descartar.
           </p>
         </div>
@@ -527,7 +527,7 @@ export default function RentabilidadPage() {
         {/* Para investigar a mano */}
         {(investigar.DUDOSO.length > 0 || investigar.RECHAZADO.length > 0 || investigar.NO_VERIFICADO.length > 0) && (
           <div className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Para investigar a mano</h2>
+            <h2 className="ui-section-title mb-3">Para investigar a mano</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {(['DUDOSO', 'RECHAZADO', 'NO_VERIFICADO'] as const).map((s) => (
                 <div key={s} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -567,7 +567,7 @@ export default function RentabilidadPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 font-serif">Nuevo producto</h2>
+              <h2 className="ui-section-title font-serif">Nuevo producto</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <form onSubmit={handleCreate} className="overflow-y-auto">

@@ -38,8 +38,8 @@ export default function FinanzasPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Finanzas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="ui-page-title">Finanzas</h1>
+          <p className="ui-page-subtitle">
             Presupuesto y resultados sin IVA. Ventas, comisiones, despachos y compras se suman solos.
           </p>
         </div>

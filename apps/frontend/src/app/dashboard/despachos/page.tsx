@@ -90,8 +90,8 @@ export default function DespachosPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Rutas de Despacho</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gestión y seguimiento de despachos</p>
+          <h1 className="ui-page-title">Rutas de Despacho</h1>
+          <p className="ui-page-subtitle">Gestión y seguimiento de despachos</p>
         </div>
         <button
           onClick={() => { setShowCreate(true); setForm({ ...emptyForm, date: today }); }}
@@ -179,7 +179,7 @@ export default function DespachosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-              <h2 className="text-base font-bold text-gray-900">Nueva ruta de despacho</h2>
+              <h2 className="ui-section-title">Nueva ruta de despacho</h2>
               <button onClick={() => setShowCreate(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-lg flex items-center justify-center">×</button>
             </div>
             <form onSubmit={handleCreate} className="px-6 py-5 space-y-4 overflow-y-auto">

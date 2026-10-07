@@ -192,7 +192,7 @@ export default function InvoicesPage() {
             <span className="text-gray-300">/</span>
             <span className="text-sm text-gray-600 font-medium">Documentos</span>
           </div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Documentos Emitidos</h1>
+          <h1 className="ui-page-title">Documentos Emitidos</h1>
         </div>
         <Link href="/dashboard/billing/invoices/new"
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
         <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         <button onClick={() => load(1)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+          className="ui-btn-secondary">
           Buscar
         </button>
         <button onClick={() => { setFilterType(''); setFilterStatus(''); setFilterFrom(''); setFilterTo(''); setTimeout(() => load(1), 0); }}
@@ -377,7 +377,7 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">Marcar como pagada</h2>
+              <h2 className="ui-section-title">Marcar como pagada</h2>
               <button onClick={() => setPayingInvoice(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
@@ -430,7 +430,7 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 text-base">Vista del documento</h2>
+              <h2 className="ui-section-title">Vista del documento</h2>
               <button onClick={() => setViewingInvoice(null)}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
                 ×

@@ -186,8 +186,8 @@ export default function ClientsPage() {
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Clientes para solicitudes de pedido y facturación.</p>
+          <h1 className="ui-page-title">Clientes</h1>
+          <p className="ui-page-subtitle">Clientes para solicitudes de pedido y facturación.</p>
         </div>
         <div className="flex items-center gap-3">
           {canCreate && (!isSuperAdmin || selectedCompanyId) && (
@@ -294,7 +294,7 @@ export default function ClientsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900">Nuevo cliente</h2>
+              <h2 className="ui-section-title">Nuevo cliente</h2>
               <button onClick={() => setShowCreate(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
@@ -373,7 +373,7 @@ export default function ClientsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900">Editar cliente</h2>
+              <h2 className="ui-section-title">Editar cliente</h2>
               <button onClick={() => setEditingId(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
@@ -453,7 +453,7 @@ export default function ClientsPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div>
-                <h2 className="font-bold text-gray-900">Historial de {historyClient.name}</h2>
+                <h2 className="ui-section-title">Historial de {historyClient.name}</h2>
                 {historyClient.rut && <p className="text-xs text-gray-400 font-mono">{historyClient.rut}</p>}
               </div>
               <button onClick={() => setHistoryClient(null)}
@@ -467,7 +467,7 @@ export default function ClientsPage() {
               ) : (
                 <>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                    <h3 className="ui-subsection-title mb-2">
                       Documentos tributarios ({historyData.invoices.length})
                     </h3>
                     {historyData.invoices.length === 0 ? (

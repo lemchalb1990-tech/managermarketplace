@@ -135,8 +135,8 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
       <div className="flex items-start gap-3 pt-1">
         <Link href="/dashboard/mis-rutas" className="mt-1 text-gray-400 hover:text-gray-600 text-sm shrink-0">←</Link>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-gray-900 leading-tight">{route.name}</h1>
-          <p className="text-xs text-gray-400 capitalize mt-0.5">{dateStr}</p>
+          <h1 className="ui-page-title">{route.name}</h1>
+          <p className="ui-page-subtitle capitalize">{dateStr}</p>
         </div>
         {isActive && (
           <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full shrink-0">
@@ -236,7 +236,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
       {/* All stops list */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">Todas las paradas</h2>
+          <h2 className="ui-section-title">Todas las paradas</h2>
         </div>
         {stops.length === 0 ? (
           <p className="text-center text-sm text-gray-400 py-8">Sin paradas asignadas</p>

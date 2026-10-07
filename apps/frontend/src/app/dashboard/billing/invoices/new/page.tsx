@@ -406,7 +406,7 @@ export default function NewInvoicePage() {
         <span className="text-sm text-gray-600 font-medium">Emitir DTE</span>
       </div>
 
-      <h1 className="text-[1.375rem] font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
+      <h1 className="ui-page-title mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
       {draftLoadingInitial && (
         <SkeletonForm fields={6} className="mb-6" />
       )}
@@ -444,7 +444,7 @@ export default function NewInvoicePage() {
       <form onSubmit={handleOpenPreview} className="space-y-6">
         {/* Sección proveedor y tipo */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Configuración del documento</h2>
+          <h2 className="ui-section-title mb-4">Configuración del documento</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de documento *</label>
@@ -482,7 +482,7 @@ export default function NewInvoicePage() {
 
         {/* Datos del receptor */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Datos del receptor</h2>
+          <h2 className="ui-section-title mb-4">Datos del receptor</h2>
           <div className="mb-4">
             <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
             <div className="flex items-center gap-2">
@@ -552,7 +552,7 @@ export default function NewInvoicePage() {
         {/* Ítems */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Ítems</h2>
+            <h2 className="ui-section-title">Ítems</h2>
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => setShowProductModal(true)}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar producto del catálogo</button>
@@ -639,7 +639,7 @@ export default function NewInvoicePage() {
 
         {/* Pago */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Pago</h2>
+          <h2 className="ui-section-title mb-4">Pago</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Forma de pago *</label>
@@ -721,7 +721,7 @@ export default function NewInvoicePage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 text-base">Vista previa del documento</h2>
+              <h2 className="ui-section-title">Vista previa del documento</h2>
               <button onClick={() => setShowPreview(false)}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
                 ×
@@ -788,7 +788,7 @@ export default function NewInvoicePage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 text-base">Seleccionar cliente</h2>
+              <h2 className="ui-section-title">Seleccionar cliente</h2>
               <button onClick={() => setClientModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
                 ×
@@ -827,7 +827,7 @@ export default function NewInvoicePage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Agregar producto del catálogo</h2>
+              <h2 className="ui-section-title">Agregar producto del catálogo</h2>
               <button onClick={() => { setShowProductModal(false); setSelectedProductId(''); }}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold">
                 ×

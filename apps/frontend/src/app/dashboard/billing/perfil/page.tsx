@@ -121,8 +121,8 @@ export default function BillingProfilePage() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Perfil de facturación</h1>
-        <p className="text-gray-500 text-xs mt-0.5">
+        <h1 className="ui-page-title">Perfil de facturación</h1>
+        <p className="ui-page-subtitle">
           Datos de tu empresa como emisora de documentos tributarios. Se usan automáticamente al emitir cualquier DTE.
         </p>
       </div>
@@ -132,7 +132,7 @@ export default function BillingProfilePage() {
       ) : (
       <form onSubmit={handleSave} className="space-y-6">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Logo</h2>
+          <h2 className="ui-section-title mb-4">Logo</h2>
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
               {logoUrl ? (
@@ -153,7 +153,7 @@ export default function BillingProfilePage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Identidad tributaria</h2>
+          <h2 className="ui-section-title mb-4">Identidad tributaria</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Razón social</label>
@@ -208,7 +208,7 @@ export default function BillingProfilePage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Resolución SII</h2>
+          <h2 className="ui-section-title mb-4">Resolución SII</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">N° de resolución</label>

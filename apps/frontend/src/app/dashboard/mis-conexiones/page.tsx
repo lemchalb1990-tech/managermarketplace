@@ -229,8 +229,8 @@ export default function MisConexionesPage() {
       </div>
 
       <div>
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Mis conexiones</h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <h1 className="ui-page-title">Mis conexiones</h1>
+        <p className="ui-page-subtitle">
           {loading ? 'Cargando…' : `${rows.length} conexion${rows.length === 1 ? '' : 'es'} conectada${rows.length === 1 ? '' : 's'}.`}
         </p>
       </div>

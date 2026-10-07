@@ -39,7 +39,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
     <div className={compact ? 'bg-white border border-gray-200 rounded-2xl p-5 space-y-4' : 'space-y-4'}>
       {compact && (
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Finanzas · {MONTHS[data.month - 1]} {data.year}</h2>
+          <h2 className="ui-section-title">Finanzas · {MONTHS[data.month - 1]} {data.year}</h2>
           <Link href="/dashboard/finanzas" className="text-xs text-blue-600 hover:text-blue-800 font-medium">Ver finanzas →</Link>
         </div>
       )}
@@ -83,7 +83,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
       {!compact && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
-            <h3 className="text-sm font-semibold text-gray-800 mb-2">Saldos</h3>
+            <h3 className="ui-subsection-title mb-2">Saldos</h3>
             {!data.cash.accounts.length ? (
               <p className="text-xs text-gray-400">Registra tus cuentas bancarias y caja en la pestaña "Bancos y caja".</p>
             ) : (
@@ -98,7 +98,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
             )}
           </div>
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
-            <h3 className="text-sm font-semibold text-gray-800 mb-2">Próximos 7 días</h3>
+            <h3 className="ui-subsection-title mb-2">Próximos 7 días</h3>
             {!data.upcoming.length ? (
               <p className="text-xs text-gray-400">Sin vencimientos de gastos recurrentes.</p>
             ) : (

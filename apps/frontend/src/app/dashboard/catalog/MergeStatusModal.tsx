@@ -23,7 +23,7 @@ export default function MergeStatusModal({ status, onClose }: { status: MergeSta
         {status.kind === 'working' && (
           <>
             <div className="mx-auto w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" aria-hidden="true" />
-            <h3 className="font-semibold text-gray-900">Unificando {status.count} productos…</h3>
+            <h3 className="ui-section-title">Unificando {status.count} productos…</h3>
             <p className="text-sm text-gray-500">
               Se están moviendo ventas, stock y publicaciones a <span className="font-mono">{status.survivorSku}</span>.
               No cierres ni recargues la página.
@@ -34,7 +34,7 @@ export default function MergeStatusModal({ status, onClose }: { status: MergeSta
         {status.kind === 'done' && (
           <>
             <div className="mx-auto w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-2xl" aria-hidden="true">✓</div>
-            <h3 className="font-semibold text-gray-900">Productos unificados</h3>
+            <h3 className="ui-section-title">Productos unificados</h3>
             <p className="text-sm text-gray-600">
               Quedó <span className="font-mono font-medium">{status.survivorSku}</span> — {status.survivorName}.
             </p>
@@ -52,7 +52,7 @@ export default function MergeStatusModal({ status, onClose }: { status: MergeSta
         {status.kind === 'error' && (
           <>
             <div className="mx-auto w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl font-bold" aria-hidden="true">!</div>
-            <h3 className="font-semibold text-gray-900">No se pudo unificar</h3>
+            <h3 className="ui-section-title">No se pudo unificar</h3>
             <p className="text-sm text-gray-600 break-words">{status.message}</p>
             <p className="text-xs text-gray-400">No se cambió nada: los productos siguen como estaban.</p>
             <button onClick={onClose} autoFocus

@@ -240,7 +240,7 @@ export default function UsersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Usuarios</h1>
+          <h1 className="ui-page-title">Usuarios</h1>
           {!isSuperAdmin && myCompany && (
             <p className={`text-xs mt-0.5 ${atLimit ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
               {userCount} de {maxUsers} usuarios utilizados
@@ -256,7 +256,7 @@ export default function UsersPage() {
 
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nuevo usuario</h2>
+          <h2 className="ui-section-title mb-4">Nuevo usuario</h2>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
@@ -389,7 +389,7 @@ export default function UsersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-800">Editar usuario</h2>
+              <h2 className="ui-section-title">Editar usuario</h2>
               <p className="text-xs text-gray-400 mt-0.5">{editUser.email}</p>
             </div>
             <form onSubmit={handleEdit} className="px-6 py-4 flex flex-col gap-4">
@@ -504,7 +504,7 @@ export default function UsersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-800">Restablecer contraseña</h2>
+              <h2 className="ui-section-title">Restablecer contraseña</h2>
               <p className="text-xs text-gray-400 mt-0.5">{resetUser.name} — {resetUser.email}</p>
             </div>
 

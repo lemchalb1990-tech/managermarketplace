@@ -177,7 +177,7 @@ export default function MlReclamosPage() {
           <div className="ui-card w-full max-w-lg max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b border-[var(--border-soft)] flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-[var(--text)]">{typeLabel(open.type)}</h2>
+                <h2 className="ui-section-title">{typeLabel(open.type)}</h2>
                 <p className="text-xs text-[var(--text-muted)]">Reclamo {open.externalId}</p>
               </div>
               <button onClick={() => setOpen(null)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-xl leading-none">×</button>

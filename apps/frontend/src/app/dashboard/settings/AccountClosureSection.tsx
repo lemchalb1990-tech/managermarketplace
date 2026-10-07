@@ -56,7 +56,7 @@ export default function AccountClosureSection() {
   return (
     <div className="mt-8 border border-red-200 rounded-2xl bg-white">
       <div className="px-5 py-4 border-b border-red-100">
-        <h2 className="font-semibold text-red-700">Dar de baja la cuenta</h2>
+        <h2 className="ui-section-title text-red-700">Dar de baja la cuenta</h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Cierra la cuenta de <b>{status.name}</b> y elimina todos sus datos: productos, ventas, órdenes, clientes, documentos, finanzas, usuarios y conexiones.
         </p>

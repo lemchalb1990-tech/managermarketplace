@@ -296,8 +296,8 @@ export default function OrdersPage() {
     <div>
       <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
         <div className="min-w-0">
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Órdenes</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Gestiona la preparación y despacho de pedidos.</p>
+          <h1 className="ui-page-title">Órdenes</h1>
+          <p className="ui-page-subtitle">Gestiona la preparación y despacho de pedidos.</p>
         </div>
         {isAdmin && (
           <button
@@ -321,7 +321,7 @@ export default function OrdersPage() {
 
       {showCreate && isAdmin && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nueva orden</h2>
+          <h2 className="ui-section-title mb-4">Nueva orden</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

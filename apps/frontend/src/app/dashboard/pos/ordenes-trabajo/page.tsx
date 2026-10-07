@@ -343,8 +343,8 @@ export default function WorkOrdersPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Órdenes de trabajo</h1>
-          <p className="text-xs text-gray-500 mt-1">
+          <h1 className="ui-page-title">Órdenes de trabajo</h1>
+          <p className="ui-page-subtitle">
             Presupuestos para imprimir y entregar al cliente. No descuentan stock ni se cobran hasta que el cliente acepta.
           </p>
         </div>
@@ -476,7 +476,7 @@ export default function WorkOrdersPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900 text-base">Editar orden de trabajo</h2>
+              <h2 className="ui-section-title">Editar orden de trabajo</h2>
               <button onClick={() => setForm(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
@@ -507,7 +507,7 @@ export default function WorkOrdersPage() {
               </div>
 
               <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Ítems</h3>
+                <h3 className="ui-subsection-title mb-2">Ítems</h3>
 
                 {form.items.length > 0 && (
                   <div className="space-y-2 mb-3">
@@ -599,7 +599,7 @@ export default function WorkOrdersPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Aceptar y cobrar #{String(converting.folio).padStart(4, '0')}</h2>
+              <h2 className="ui-section-title">Aceptar y cobrar #{String(converting.folio).padStart(4, '0')}</h2>
               <button onClick={() => setConverting(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="p-6 space-y-4">

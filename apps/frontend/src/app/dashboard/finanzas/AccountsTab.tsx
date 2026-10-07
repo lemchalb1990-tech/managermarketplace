@@ -133,7 +133,7 @@ export default function AccountsTab({ companyId, onChanged }: { companyId?: stri
       {draft && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-3">
-            <h3 className="font-semibold text-gray-900">{draft.mode === 'new' ? 'Nueva cuenta' : 'Editar cuenta'}</h3>
+            <h3 className="ui-section-title">{draft.mode === 'new' ? 'Nueva cuenta' : 'Editar cuenta'}</h3>
             <div>
               <label className="text-xs text-gray-500">Nombre</label>
               <input autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}

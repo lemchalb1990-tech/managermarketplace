@@ -63,7 +63,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             aria-modal="true"
           >
             <div className="px-6 py-5">
-              {req.title && <h2 className="font-bold text-gray-900 mb-2">{req.title}</h2>}
+              {req.title && <h2 className="ui-section-title mb-2">{req.title}</h2>}
               <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">{req.message}</p>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">

@@ -219,7 +219,7 @@ export default function CompaniesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Empresas</h1>
+        <h1 className="ui-page-title">Empresas</h1>
         <button onClick={() => setShowForm(!showForm)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Nueva empresa
@@ -228,7 +228,7 @@ export default function CompaniesPage() {
 
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nueva empresa</h2>
+          <h2 className="ui-section-title mb-4">Nueva empresa</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -297,7 +297,7 @@ export default function CompaniesPage() {
 
       {editing && (
         <div className="bg-white rounded-xl border border-blue-200 p-6 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Editar empresa</h2>
+          <h2 className="ui-section-title mb-4">Editar empresa</h2>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>

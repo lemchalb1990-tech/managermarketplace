@@ -169,7 +169,7 @@ export default function MlDevolucionesPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="ui-card w-full max-w-md">
             <div className="px-6 py-4 border-b border-[var(--border-soft)]">
-              <h2 className="font-semibold text-[var(--text)]">Recepcionar devolución</h2>
+              <h2 className="ui-section-title">Recepcionar devolución</h2>
               <p className="text-xs text-[var(--text-muted)]">#{receiving.id.slice(-6).toUpperCase()}</p>
             </div>
             <div className="px-6 py-4 flex flex-col gap-4">

@@ -71,7 +71,7 @@ export default function OrderCostsCard({ sale, channelLabel }: { sale: any; chan
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
       <div className="flex items-start justify-between gap-2 mb-3">
-        <h2 className="font-semibold text-gray-800 text-sm">Costos de la venta</h2>
+        <h2 className="ui-section-title">Costos de la venta</h2>
         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
           {sinIva ? 'montos sin IVA' : 'montos con IVA · ganancia sin IVA'}
         </span>

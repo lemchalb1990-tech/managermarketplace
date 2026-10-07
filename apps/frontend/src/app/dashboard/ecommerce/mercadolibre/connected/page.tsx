@@ -16,7 +16,7 @@ export default function ConnectedPage() {
       <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4 text-3xl">
         ✓
       </div>
-      <h2 className="text-xl font-bold text-gray-900 mb-2">¡Cuenta conectada!</h2>
+      <h2 className="ui-section-title mb-2">¡Cuenta conectada!</h2>
       <p className="text-gray-500 text-sm">Redirigiendo al panel de Mercado Libre...</p>
     </div>
   );

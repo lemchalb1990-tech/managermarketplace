@@ -147,8 +147,8 @@ export default function SuppliersPage() {
     <div className="max-w-4xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Proveedores</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Empresas a las que les compras mercadería.</p>
+          <h1 className="ui-page-title">Proveedores</h1>
+          <p className="ui-page-subtitle">Empresas a las que les compras mercadería.</p>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (!isSuperAdmin || selectedCompanyId) && (
@@ -257,7 +257,7 @@ export default function SuppliersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900">Nuevo proveedor</h2>
+              <h2 className="ui-section-title">Nuevo proveedor</h2>
               <button onClick={() => setShowCreate(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
@@ -311,7 +311,7 @@ export default function SuppliersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-gray-900">Editar proveedor</h2>
+              <h2 className="ui-section-title">Editar proveedor</h2>
               <button onClick={() => setEditingId(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>

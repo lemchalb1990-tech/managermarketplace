@@ -18,8 +18,8 @@ export default function EncomiendasPage() {
       </div>
 
       <div>
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Encomiendas</h1>
-        <p className="text-xs text-gray-500 mt-1">Conecta un courier para generar etiquetas y seguimiento de despachos.</p>
+        <h1 className="ui-page-title">Encomiendas</h1>
+        <p className="ui-page-subtitle">Conecta un courier para generar etiquetas y seguimiento de despachos.</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">

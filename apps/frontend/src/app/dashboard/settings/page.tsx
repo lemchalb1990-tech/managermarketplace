@@ -164,8 +164,8 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">Configuración del sistema</h1>
-        <p className="text-xs text-gray-500">
+        <h1 className="ui-page-title mb-1">Configuración del sistema</h1>
+        <p className="ui-page-subtitle">
           {canEdit
             ? 'Variables y URLs que controlan el comportamiento de la plataforma.'
             : 'Variables y URLs que controlan el comportamiento de la plataforma. Modo solo lectura: puedes ver y copiar los valores, pero no editarlos.'}
@@ -178,7 +178,7 @@ export default function SettingsPage() {
           .map((group) => (
             <div key={group} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-                <h2 className="font-semibold text-gray-800 text-sm">{GROUP_LABELS[group] || group}</h2>
+                <h2 className="ui-section-title">{GROUP_LABELS[group] || group}</h2>
                 {GROUP_HINTS[group] && (
                   <p className="text-xs text-gray-400 mt-0.5">{GROUP_HINTS[group]}</p>
                 )}

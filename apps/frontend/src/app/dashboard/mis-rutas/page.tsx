@@ -57,8 +57,8 @@ export default function MisRutasPage() {
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Mis Rutas</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Rutas de despacho asignadas a ti</p>
+        <h1 className="ui-page-title">Mis Rutas</h1>
+        <p className="ui-page-subtitle">Rutas de despacho asignadas a ti</p>
       </div>
 
       {routes.length === 0 && (
@@ -106,7 +106,7 @@ function Section({ title, accent, children }: { title: string; accent: string; c
     <div>
       <div className="flex items-center gap-2 mb-3">
         <div className={`w-1 h-4 rounded-full ${bar}`} />
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</h2>
+        <h2 className="ui-section-title uppercase">{title}</h2>
       </div>
       <div className="space-y-3">{children}</div>
     </div>

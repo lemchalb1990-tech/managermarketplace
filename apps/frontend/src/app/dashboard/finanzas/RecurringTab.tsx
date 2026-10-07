@@ -154,7 +154,7 @@ export default function RecurringTab({ companyId, version, onChanged }: { compan
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-3 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-semibold text-gray-900">{editing.id ? 'Editar recurrente' : 'Nuevo recurrente'}</h3>
+            <h3 className="ui-section-title">{editing.id ? 'Editar recurrente' : 'Nuevo recurrente'}</h3>
             <div>
               <label className="text-xs text-gray-500">Cuenta</label>
               <select value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })} className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm mt-1">

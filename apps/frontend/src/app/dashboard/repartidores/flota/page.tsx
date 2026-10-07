@@ -109,7 +109,7 @@ export default function FlotaPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="ui-card w-full max-w-md">
             <div className="px-6 py-4 border-b border-[var(--border-soft)]">
-              <h2 className="font-semibold text-[var(--text)]">Ficha de {editing.name}</h2>
+              <h2 className="ui-section-title">Ficha de {editing.name}</h2>
             </div>
             <div className="px-6 py-4 flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">

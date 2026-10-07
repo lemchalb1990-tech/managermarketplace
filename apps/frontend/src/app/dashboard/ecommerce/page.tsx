@@ -180,8 +180,8 @@ export default function EcommercePage() {
   return (
     <div className="max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">E-commerce</h1>
-        <p className="text-gray-500 text-xs">
+        <h1 className="ui-page-title mb-1">E-commerce</h1>
+        <p className="ui-page-subtitle">
           Conecta y gestiona todos tus canales de venta online. El catálogo central sincroniza stock y precios en cada plataforma automáticamente.
         </p>
       </div>
@@ -215,7 +215,7 @@ export default function EcommercePage() {
                       : Logos[p.id]}
                   </div>
                 </div>
-                <h2 className="font-semibold text-gray-900 mb-1">{p.displayName}</h2>
+                <h2 className="ui-section-title mb-1">{p.displayName}</h2>
                 <p className="text-xs text-gray-500 leading-relaxed">{p.displayDescription}</p>
                 <p className={`mt-3 text-xs font-semibold group-hover:underline ${
                   isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'
@@ -240,7 +240,7 @@ export default function EcommercePage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">
+              <h2 className="ui-section-title">
                 Editar — {DEFAULT_PLATFORMS.find(p => p.id === editingId)?.name}
               </h2>
               <button onClick={() => setEditingId(null)}

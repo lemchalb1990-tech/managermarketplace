@@ -60,7 +60,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">Selecciona una empresa</h2>
+              <h2 className="ui-section-title">Selecciona una empresa</h2>
               {!mustChoose && (
                 <button onClick={closePicker}
                   className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>

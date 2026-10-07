@@ -101,6 +101,31 @@ body {
   letter-spacing: -0.02em;
   color: var(--text);
 }
+/* Jerarquía visual del panel: 1) título de página, 2) título de sección, 3) subsección,
+   4) texto de apoyo atenuado. Cada vista usa estas clases en vez de tamaños sueltos. */
+.ui-page-subtitle {
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.ui-section-title {
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.ui-subsection-title {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--text-2);
+}
+@media (max-width: 640px) {
+  .ui-page-title { font-size: 1.25rem; }
+}
+
 .ui-crumbs {
   display: flex;
   align-items: center;
@@ -161,6 +186,28 @@ body {
 }
 .ui-btn-brand:hover { background: var(--brand-dark); }
 .ui-btn-brand:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Acción secundaria (filtrar, buscar, exportar): visible pero sin competir con la principal. */
+.ui-btn-secondary {
+  background: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  border-radius: var(--r-md);
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+.ui-btn-secondary:hover { background: var(--surface-soft); color: var(--text); }
+.ui-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Encabezados de tabla atenuados: el dato pesa más que el nombre de la columna. */
+.ui-dashboard thead th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
 
 @keyframes marquee {
   from { transform: translateX(0); }

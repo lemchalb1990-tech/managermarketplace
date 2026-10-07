@@ -130,7 +130,7 @@ export function SalesImportModal({
       <div className="bg-white rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
-            <h3 className="font-semibold text-gray-900">Importar ventas de "{connectionName}"</h3>
+            <h3 className="ui-section-title">Importar ventas de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">
               Trae ventas ya realizadas en Mercado Libre como historial. No descuenta stock ni genera movimientos de inventario.
             </p>

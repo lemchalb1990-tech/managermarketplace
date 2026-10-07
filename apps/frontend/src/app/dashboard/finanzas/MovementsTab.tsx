@@ -153,7 +153,7 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-2xl overflow-x-auto">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">Registrados manualmente</h2>
+            <h2 className="ui-section-title">Registrados manualmente</h2>
             {data && <span className="text-xs text-gray-500">{data.total} movimiento(s) · {clp(data.sum)}</span>}
           </div>
           <table className="w-full text-sm">
@@ -215,7 +215,7 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
         </div>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-4 h-fit">
-          <h2 className="text-sm font-semibold text-gray-800">Automáticos del período</h2>
+          <h2 className="ui-section-title">Automáticos del período</h2>
           <p className="text-xs text-gray-500 mt-0.5 mb-3">Calculados desde ventas, comisiones, despachos y compras. No hace falta registrarlos.</p>
           {!automatic.length ? (
             <p className="text-xs text-gray-400">Sin montos automáticos en el período.</p>
@@ -238,7 +238,7 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-3">
-            <h3 className="font-semibold text-gray-900">{editing.id ? 'Editar movimiento' : 'Nuevo movimiento'}</h3>
+            <h3 className="ui-section-title">{editing.id ? 'Editar movimiento' : 'Nuevo movimiento'}</h3>
             <div>
               <label className="text-xs text-gray-500">Cuenta</label>
               <select value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })}

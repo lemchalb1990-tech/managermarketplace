@@ -114,7 +114,7 @@ export default function EscanearVentaPage() {
         <span className="text-gray-300">/</span>
         <span className="text-sm text-gray-600 font-medium">Escanear para buscar venta</span>
       </div>
-      <h1 className="text-[1.375rem] font-bold text-gray-900 mb-6">Escanear para buscar venta</h1>
+      <h1 className="ui-page-title mb-6">Escanear para buscar venta</h1>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-10 max-w-lg mx-auto text-center">
         <div className="relative w-48 h-32 mx-auto mb-5">
@@ -181,7 +181,7 @@ export default function EscanearVentaPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Entrada manual</h2>
+              <h2 className="ui-section-title">Entrada manual</h2>
               <button onClick={() => setShowManual(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="px-6 py-5 space-y-2">

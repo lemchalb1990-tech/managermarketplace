@@ -228,7 +228,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Ventas</h1>
+        <h1 className="ui-page-title">Ventas</h1>
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (
@@ -241,7 +241,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
       {/* Resumen del día */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Resumen del día</h2>
+          <h2 className="ui-section-title">Resumen del día</h2>
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -329,7 +329,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           </div>
           <button
             onClick={() => loadSales(1)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded-lg"
+            className="ui-btn-secondary !py-1.5"
           >
             Filtrar
           </button>
@@ -345,7 +345,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
       {/* Tabla de ventas */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-gray-800">Historial de ventas</h2>
+          <h2 className="ui-section-title">Historial de ventas</h2>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-gray-500">{total} registros</span>
             {isSuperAdmin && selectedIds.size > 0 && (

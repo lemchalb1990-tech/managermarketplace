@@ -517,7 +517,7 @@ export default function PosPage() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h2 className="font-semibold text-gray-900">
+          <h2 className="ui-section-title">
             Productos <span className="text-sm font-normal text-gray-400">· {totalProducts}</span>
           </h2>
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -664,7 +664,7 @@ export default function PosPage() {
       {/* Carrito */}
       <div className="w-full lg:w-80 lg:shrink-0 min-h-0 flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm">
         <div className="px-4 py-3 border-b border-gray-100 shrink-0">
-          <h2 className="font-semibold text-gray-800">Carrito</h2>
+          <h2 className="ui-section-title">Carrito</h2>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
@@ -772,7 +772,7 @@ export default function PosPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Finalizar compra</h2>
+              <h2 className="ui-section-title">Finalizar compra</h2>
               <button
                 onClick={closeCheckout}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold transition"
@@ -787,7 +787,7 @@ export default function PosPage() {
               {/* Cliente */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Cliente</h3>
+                  <h3 className="ui-subsection-title">Cliente</h3>
                   <button type="button" onClick={() => { setShowNewClient((s) => !s); setClientId(''); }}
                     className="text-xs font-medium text-blue-600 hover:underline">
                     {showNewClient ? 'Usar cliente existente' : '+ Nuevo cliente'}
@@ -906,7 +906,7 @@ export default function PosPage() {
               {/* Tipo de entrega (no aplica a servicios) */}
               {!servicesOnly && (<>
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Tipo de entrega</h3>
+                <h3 className="ui-subsection-title mb-3">Tipo de entrega</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -936,7 +936,7 @@ export default function PosPage() {
               {/* Dirección (solo si DELIVERY) */}
               {fulfillmentType === 'DELIVERY' && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Dirección de despacho</h3>
+                  <h3 className="ui-subsection-title mb-3">Dirección de despacho</h3>
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs text-gray-500 font-medium mb-1">Dirección</label>
@@ -977,7 +977,7 @@ export default function PosPage() {
 
               {/* Método de pago */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Método de pago</h3>
+                <h3 className="ui-subsection-title mb-3">Método de pago</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
                     <button
@@ -1035,7 +1035,7 @@ export default function PosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="ui-section-title">
                 {createdWorkOrder ? 'Orden de trabajo creada' : 'Crear orden de trabajo'}
               </h2>
               <button
@@ -1096,7 +1096,7 @@ export default function PosPage() {
                   </p>
 
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Cliente (opcional)</h3>
+                    <h3 className="ui-subsection-title mb-2">Cliente (opcional)</h3>
                     <select value={clientId} onChange={(e) => setClientId(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white mb-2">
                       <option value="">— Sin cliente registrado —</option>

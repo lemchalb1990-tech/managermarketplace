@@ -290,8 +290,8 @@ export default function PlatformPage({ config }: Props) {
           ), displayName)}
         </div>
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">{displayName}</h1>
-          <p className="text-xs text-gray-500">{displayDescription}</p>
+          <h1 className="ui-page-title">{displayName}</h1>
+          <p className="ui-page-subtitle">{displayDescription}</p>
         </div>
       </div>
 
@@ -302,7 +302,7 @@ export default function PlatformPage({ config }: Props) {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Conexiones activas</h2>
+            <h2 className="ui-section-title">Conexiones activas</h2>
             <button onClick={() => { setShowForm(!showForm); setError(''); }}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
               style={{ background: config.color }}>
@@ -320,7 +320,7 @@ export default function PlatformPage({ config }: Props) {
 
           {showForm && (
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-              <h3 className="font-semibold text-gray-800 mb-1">Conectar tienda de {config.name}</h3>
+              <h3 className="ui-section-title mb-1">Conectar tienda de {config.name}</h3>
               {config.helpText && <p className="text-xs text-gray-500 mb-4">{config.helpText}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2">
@@ -484,7 +484,7 @@ export default function PlatformPage({ config }: Props) {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Editar conexión de {config.name}</h2>
+              <h2 className="ui-section-title">Editar conexión de {config.name}</h2>
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="p-6 space-y-3">

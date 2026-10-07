@@ -128,8 +128,8 @@ export default function WarehousesPage() {
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Bodegas</h1>
-          <p className="text-gray-500 text-xs mt-0.5">
+          <h1 className="ui-page-title">Bodegas</h1>
+          <p className="ui-page-subtitle">
             Dónde está tu mercadería. El detalle por producto, el historial y los traspasos están en{' '}
             <Link href="/dashboard/inventario" className="text-blue-600 hover:underline">Inventario</Link>.
           </p>

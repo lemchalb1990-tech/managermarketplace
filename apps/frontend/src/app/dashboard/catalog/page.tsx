@@ -970,7 +970,7 @@ function LinkListingModal({ state, onChange, onSubmit, onClose, loading, error }
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900 text-base">Vincular publicación existente</h2>
+          <h2 className="ui-section-title">Vincular publicación existente</h2>
           <p className="text-xs text-gray-400 mt-0.5">{state.connectionName}</p>
         </div>
         <div className="p-5 space-y-3">
@@ -1041,7 +1041,7 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900 text-base">
+          <h2 className="ui-section-title">
             {isError ? 'Mercado Libre rechazó la publicación' : 'Verificación antes de publicar'}
           </h2>
         </div>
@@ -2346,7 +2346,7 @@ export default function CatalogPage() {
   return (
     <div>
       {isSuperAdmin && !selectedCompanyId && (
-        <h1 className="text-[1.375rem] font-bold text-gray-900 mb-3">Catálogo de productos</h1>
+        <h1 className="ui-page-title mb-3">Catálogo de productos</h1>
       )}
 
       {listNotice && (
@@ -2374,7 +2374,7 @@ export default function CatalogPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">¿Desde qué publicación?</h2>
+              <h2 className="ui-section-title">¿Desde qué publicación?</h2>
               <button onClick={() => setPullPicker({ open: false, options: [] })}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">
                 ×
@@ -2404,7 +2404,7 @@ export default function CatalogPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">Cargar stock y precios</h2>
+              <h2 className="ui-section-title">Cargar stock y precios</h2>
               <button onClick={() => setImportModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">
                 ×
@@ -2481,7 +2481,7 @@ export default function CatalogPage() {
       <>
       {/* Título, tipo de vista y, a la derecha, las acciones: una sola línea para ahorrar espacio */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
-        <h1 className="text-lg sm:text-[1.375rem] font-bold text-gray-900 mr-1">Catálogo de productos</h1>
+        <h1 className="ui-page-title mr-1">Catálogo de productos</h1>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           {([
             { key: 'list', label: 'Lista' },
@@ -2619,7 +2619,7 @@ export default function CatalogPage() {
         </div>
         <button
           onClick={() => loadProducts(1)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          className="ui-btn-secondary"
         >
           Filtrar
         </button>
@@ -2629,7 +2629,7 @@ export default function CatalogPage() {
         >
           Limpiar
         </button>
-        <span className="ml-auto text-xs text-gray-500 self-center">{total} producto(s)</span>
+        <span className="ml-auto text-sm text-[var(--text-2)] self-center"><b className="font-semibold text-[var(--text)]">{total.toLocaleString('es-CL')}</b> producto(s)</span>
       </div>
       </div>
       {stockFilter === 'critical' && (
@@ -2660,7 +2660,7 @@ export default function CatalogPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
               <div>
-                <h2 className="font-bold text-gray-900 text-base">Seleccionar varios productos</h2>
+                <h2 className="ui-section-title">Seleccionar varios productos</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Pega SKU o N° de publicación, uno por línea (o separados por coma/espacio).</p>
               </div>
               <button onClick={() => setCodePicker(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8">×</button>
@@ -3044,10 +3044,10 @@ export default function CatalogPage() {
                 {selected.id ? (
                   <>
                     <p className="font-mono text-xs text-gray-400 mb-0.5">{selected.sku}</p>
-                    <h3 className="font-semibold text-gray-900">{selected.name}</h3>
+                    <h3 className="ui-section-title">{selected.name}</h3>
                   </>
                 ) : (
-                  <h3 className="font-semibold text-gray-900">Nuevo producto</h3>
+                  <h3 className="ui-section-title">Nuevo producto</h3>
                 )}
               </div>
               <button

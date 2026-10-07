@@ -121,8 +121,8 @@ export default function RegistrosSinConexionPage() {
       </div>
 
       <div>
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Registros sin conexión</h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <h1 className="ui-page-title">Registros sin conexión</h1>
+        <p className="ui-page-subtitle">
           Ventas de un canal con cuenta (Mercado Libre, Shopify, etc.) cuya conexión ya fue desconectada.
           Se conservan en el historial y en los totales de ventas, pero no se mezclan en ningún desglose por canal/tienda.
           Solo Super Admin las ve acá para revisarlas o eliminarlas si corresponde.

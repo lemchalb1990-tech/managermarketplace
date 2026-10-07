@@ -376,7 +376,7 @@ export default function MercadoLibrePage() {
       </div>
       <div className="flex items-center gap-3">
         <div className="w-14 h-9 rounded-xl overflow-hidden shrink-0">{resolvePlatformLogo(logoMap, 'mercadolibre', Logos.mercadolibre, 'Mercado Libre')}</div>
-        <h1 className="text-[1.375rem] font-bold text-gray-900">Mercado Libre</h1>
+        <h1 className="ui-page-title">Mercado Libre</h1>
       </div>
 
       {isSuperAdmin && !selectedCompanyId ? (
@@ -386,7 +386,7 @@ export default function MercadoLibrePage() {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Tiendas</h2>
+            <h2 className="ui-section-title">Tiendas</h2>
             <button
               onClick={() => { setShowConnect(!showConnect); setError(''); }}
               className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg text-sm font-semibold"
@@ -409,7 +409,7 @@ export default function MercadoLibrePage() {
 
           {showConnect && (
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-              <h3 className="font-semibold text-gray-800 mb-1">Guardar credenciales de Mercado Libre</h3>
+              <h3 className="ui-section-title mb-1">Guardar credenciales de Mercado Libre</h3>
               <p className="text-sm text-gray-500 mb-4">
                 Cada tienda tiene sus propias credenciales. Se guardan primero y luego autorizas desde la lista
                 — así, si algo falla, no tienes que volver a escribirlas.
@@ -611,7 +611,7 @@ export default function MercadoLibrePage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Editar tienda</h2>
+              <h2 className="ui-section-title">Editar tienda</h2>
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none w-8 h-8 flex items-center justify-center">×</button>
             </div>
             <div className="p-6 space-y-3">

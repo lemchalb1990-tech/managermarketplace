@@ -123,7 +123,7 @@ export default function MlCalificacionesPage() {
         <StatTile label="Negativas" value={counts.NEGATIVE} tone="danger" />
       </StatRow>
 
-      <h2 className="text-sm font-semibold text-[var(--text)] mt-6 mb-3">Calificaciones recientes de compradores</h2>
+      <h2 className="ui-section-title mt-6 mb-3">Calificaciones recientes de compradores</h2>
       {loading ? (
         <SkeletonList count={5} />
       ) : feedback.length === 0 ? (

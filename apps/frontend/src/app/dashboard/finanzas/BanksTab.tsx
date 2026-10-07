@@ -148,7 +148,7 @@ export default function BanksTab({ companyId, version, onChanged }: { companyId?
       {selected && (
         <div className="bg-white border border-gray-200 rounded-2xl">
           <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold text-gray-800 mr-2">{selected.name}</h2>
+            <h2 className="ui-section-title mr-2">{selected.name}</h2>
             <button onClick={() => setImporting(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold">Importar cartola</button>
             <button onClick={autoMatch} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50">Conciliar automáticamente</button>
             <button onClick={() => setBankForm({ ...selected, initialBalance: String(Math.round(Number(selected.initialBalance))), initialDate: String(selected.initialDate).slice(0, 10) })}
@@ -213,7 +213,7 @@ export default function BanksTab({ companyId, version, onChanged }: { companyId?
 
       {transfers.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4">
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">Traspasos entre cuentas</h3>
+          <h3 className="ui-subsection-title mb-2">Traspasos entre cuentas</h3>
           <ul className="divide-y divide-gray-100 text-sm">
             {transfers.map((t) => (
               <li key={t.id} className="py-1.5 flex items-center gap-3">
@@ -301,7 +301,7 @@ function Modal({ title, children, onClose, onSave, saveLabel = 'Guardar', wide }
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className={`bg-white rounded-2xl shadow-xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} p-6 space-y-3 max-h-[90vh] overflow-y-auto`}>
-        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <h3 className="ui-section-title">{title}</h3>
         {children}
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} disabled={saving} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">

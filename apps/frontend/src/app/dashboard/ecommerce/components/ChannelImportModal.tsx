@@ -243,7 +243,7 @@ export function ChannelImportModal({
         )}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
-            <h3 className="font-semibold text-gray-900">Importar catálogo de "{connectionName}"</h3>
+            <h3 className="ui-section-title">Importar catálogo de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">Trae los datos (y fotos, si el canal las expone) de productos ya publicados en {platformLabel}, y unifícalos con el catálogo.</p>
           </div>
           <button onClick={onClose} disabled={importing || loading} className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>

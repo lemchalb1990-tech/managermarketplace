@@ -79,8 +79,8 @@ export default function BillingPage() {
     <div className="max-w-4xl">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900 mb-1">Facturación Electrónica</h1>
-          <p className="text-gray-500 text-xs">
+          <h1 className="ui-page-title mb-1">Facturación Electrónica</h1>
+          <p className="ui-page-subtitle">
             Conecta con tu proveedor DTE autorizado por el SII y emite facturas, boletas y notas de crédito directamente desde la plataforma.
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function BillingPage() {
                     {resolvePlatformLogo(logoMap, p.id, BillingLogos[p.id], displayName)}
                   </div>
                 </div>
-                <h2 className="font-semibold text-gray-900 mb-1">{displayName}</h2>
+                <h2 className="ui-section-title mb-1">{displayName}</h2>
                 <p className="text-xs text-gray-500 leading-relaxed">{displayDescription}</p>
                 <p className={`mt-3 text-xs font-semibold group-hover:underline ${
                   isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'

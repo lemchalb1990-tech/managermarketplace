@@ -170,10 +170,10 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
         <Link href="/dashboard/despachos" className="mt-1 text-gray-400 hover:text-gray-600 text-sm">← Volver</Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold text-gray-900">{route.name}</h1>
+            <h1 className="ui-page-title">{route.name}</h1>
             <span className={`text-xs px-2 py-1 rounded-full font-semibold ${cfg.color}`}>{cfg.label}</span>
           </div>
-          <p className="text-sm text-gray-400 capitalize mt-0.5">{dateStr}</p>
+          <p className="ui-page-subtitle capitalize">{dateStr}</p>
           {route.dispatcher && <p className="text-xs text-gray-400 mt-0.5">Despachador: {route.dispatcher.name}</p>}
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -190,7 +190,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
             <button
               onClick={() => act(() => api.dispatch.optimizeRoute(id, token))}
               disabled={acting}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+              className="ui-btn-secondary !rounded-xl"
             >
               Optimizar
             </button>
@@ -241,7 +241,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
         {/* Stops list */}
         <div className="lg:col-span-3 bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Paradas</h2>
+            <h2 className="ui-section-title">Paradas</h2>
             {stops.length > 0 && (
               <div className="h-1.5 flex-1 mx-4 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -319,7 +319,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-screen overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white">
-              <h2 className="text-base font-bold text-gray-900">Agregar parada</h2>
+              <h2 className="ui-section-title">Agregar parada</h2>
               <button onClick={() => setShowAddStop(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-lg flex items-center justify-center">×</button>
             </div>
             <form onSubmit={handleAddStop} className="px-6 py-5 space-y-4">

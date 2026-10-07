@@ -480,8 +480,8 @@ export default function DropshippingPage() {
             <span className="text-gray-300">/</span>
             <span className="text-sm text-gray-600 font-medium">Dropshipping</span>
           </div>
-          <h1 className="text-[1.375rem] font-bold text-gray-900">Dropshipping</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="ui-page-title">Dropshipping</h1>
+          <p className="ui-page-subtitle">
             Vende productos que despacha un proveedor externo directo al cliente. El stock propio nunca se toca.
           </p>
         </div>
@@ -911,7 +911,7 @@ export default function DropshippingPage() {
         return (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-xl w-full max-w-md p-6">
-              <h3 className="font-semibold text-gray-900">{progressTarget.title}</h3>
+              <h3 className="ui-section-title">{progressTarget.title}</h3>
               <p className="text-sm text-gray-500 mt-1">{progressInfo?.message || 'Conectando con el proveedor...'}</p>
               <div className="mt-4 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                 {percent != null ? (
@@ -951,7 +951,7 @@ export default function DropshippingPage() {
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-gray-900">Mapeo de columnas — {mappingSupplier.supplier?.name}</h3>
+                <h3 className="ui-section-title">Mapeo de columnas — {mappingSupplier.supplier?.name}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Asocia cada campo nuestro con la columna que entrega el feed de este proveedor.</p>
               </div>
               <button onClick={() => setMappingSupplier(null)} disabled={mappingSaving}
@@ -1009,7 +1009,7 @@ export default function DropshippingPage() {
           <div className="bg-white rounded-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900">Credenciales — {credentialsSupplier.supplier?.name}</h3>
+                <h3 className="ui-section-title">Credenciales — {credentialsSupplier.supplier?.name}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Acceso a la API de Noriega. Se guardan en el servidor, no se muestran de vuelta.</p>
               </div>
               <button onClick={() => setCredentialsSupplier(null)} disabled={credentialsSaving}
@@ -1061,7 +1061,7 @@ export default function DropshippingPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Logo del proveedor</h3>
+              <h3 className="ui-section-title">Logo del proveedor</h3>
               <button onClick={() => setEditingLogoKey(null)} disabled={logoSaving}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
             </div>
@@ -1109,7 +1109,7 @@ export default function DropshippingPage() {
           <div className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-gray-900">Agregar productos — {catalogSupplier.supplier?.name}</h3>
+                <h3 className="ui-section-title">Agregar productos — {catalogSupplier.supplier?.name}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Busca en el catálogo del proveedor y elige solo los productos que quieres vender.</p>
               </div>
               <button onClick={() => setCatalogSupplier(null)} disabled={catalogImporting}

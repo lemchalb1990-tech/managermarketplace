@@ -169,8 +169,8 @@ export default function EmailsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Correos y Plantillas</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Personaliza los correos automáticos que reciben tus clientes</p>
+        <h1 className="ui-page-title">Correos y Plantillas</h1>
+        <p className="ui-page-subtitle">Personaliza los correos automáticos que reciben tus clientes</p>
       </div>
 
       {/* Tabs */}
@@ -338,7 +338,7 @@ export default function EmailsPage() {
       {tab === 'smtp' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <h2 className="font-semibold text-gray-800 mb-1">Servidor de correo saliente</h2>
+            <h2 className="ui-section-title mb-1">Servidor de correo saliente</h2>
             <p className="text-sm text-gray-400 mb-5">Configura el servidor SMTP para enviar correos automáticos a tus clientes.</p>
 
             {loadingSmtp ? (
@@ -421,7 +421,7 @@ export default function EmailsPage() {
           {/* Right: test + info */}
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-2xl p-6">
-              <h3 className="font-semibold text-gray-800 mb-1">Probar configuración</h3>
+              <h3 className="ui-section-title mb-1">Probar configuración</h3>
               <p className="text-sm text-gray-400 mb-4">Envía un correo de prueba para verificar que el servidor SMTP funciona correctamente.</p>
               <div className="flex gap-2">
                 <input

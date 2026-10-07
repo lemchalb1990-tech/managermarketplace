@@ -115,7 +115,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between shrink-0">
           <div>
-            <h2 className="font-bold text-gray-900 text-base">Unificar {products.length} productos</h2>
+            <h2 className="ui-section-title">Unificar {products.length} productos</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               {blocked
                 ? 'Hay un conflicto que impide unificar este grupo.'

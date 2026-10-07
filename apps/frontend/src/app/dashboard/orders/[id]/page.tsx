@@ -352,7 +352,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
     <div className="max-w-7xl">
       {/* Título + empresa gestionada en la misma línea */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-x-2 gap-y-0.5 flex-wrap min-w-0">
+        <h1 className="ui-page-title flex items-center gap-x-2 gap-y-0.5 flex-wrap min-w-0">
           <a href="/dashboard/orders" className="hover:text-blue-600">Detalle de orden</a>
           <span className="text-gray-300 font-normal">/</span>
           <span className="font-mono break-all">{isPack ? 'Pack' : 'N°'} {shortId}</span>
@@ -519,7 +519,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           {/* Verificación de productos */}
           <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-800">
+              <h2 className="ui-section-title">
                 Productos
                 {totalItems > 0 && (
                   <span className="ml-2 text-xs font-normal text-gray-400">
@@ -657,7 +657,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           {(order.status === 'READY' || order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') && (
             <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-800">
+                <h2 className="ui-section-title">
                   Fotos del pedido
                   {order.photos.length > 0 && (
                     <span className="ml-2 text-xs font-normal text-gray-400">{order.photos.length} foto(s)</span>
@@ -725,7 +725,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         <div className="space-y-4 sm:space-y-6 min-w-0">
           <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-800">
+              <h2 className="ui-section-title">
                 {isDelivery ? 'Datos de despacho' : 'Datos del cliente'}
               </h2>
               {!isDone && isAdmin && !editShipment && (
@@ -867,7 +867,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           {order.sale && (
             <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-800 text-sm">Venta de origen</h2>
+                <h2 className="ui-section-title">Venta de origen</h2>
                 {isMlOrder && isAdmin && (
                   <div className="flex items-center gap-3">
                     <button onClick={handleRefreshFromMl} disabled={labelLoading || reimporting}
@@ -956,7 +956,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         <div className="min-w-0">
           <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-800">Historial de la orden</h2>
+              <h2 className="ui-section-title">Historial de la orden</h2>
             </div>
             <ol className="relative border-l border-gray-200 ml-2 space-y-4">
               {timeline.map((ev) => {
