@@ -3167,17 +3167,19 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center border-b border-gray-200 px-3 sm:px-6">
+            <div className="flex flex-nowrap sm:flex-wrap items-center overflow-x-auto border-b border-gray-200 px-2 sm:px-6">
               {(selected.id
                 ? (['edit', 'images', 'connections', 'stock'] as Tab[])
                     .filter((t) => t !== 'connections' || connectionGroups.length > 0)
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
-                  className={`shrink-0 whitespace-nowrap py-3 px-3 sm:px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  className={`shrink-0 whitespace-nowrap py-3 px-2.5 sm:px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
-                  {t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conexiones' : 'Movimientos'}
+                  {/* En celular, nombres resumidos para que las pestañas quepan en una línea */}
+                  <span className="sm:hidden">{t === 'edit' ? 'Info' : t === 'images' ? `Imág (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conex' : 'Mov'}</span>
+                  <span className="hidden sm:inline">{t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conexiones' : 'Movimientos'}</span>
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar — se guardan solos al cambiar de pestaña" />
                   )}
