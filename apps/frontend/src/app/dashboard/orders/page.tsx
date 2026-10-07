@@ -301,7 +301,6 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
         <div className="min-w-0">
           <h1 className="ui-page-title">Órdenes</h1>
-          <p className="ui-page-subtitle">Preparación y despacho de los pedidos de marketplaces y punto de venta.</p>
         </div>
       </div>
 
