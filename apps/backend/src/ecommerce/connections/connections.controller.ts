@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards,
-  UseInterceptors, UploadedFile, BadRequestException,
+  UseInterceptors, UploadedFile, BadRequestException, Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { StorageService } from '../../common/storage/storage.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -260,6 +261,18 @@ export class ConnectionsController {
     @Param('id') id: string, @Query('from') from: string, @Query('to') to: string, @CurrentUser() user: any,
   ) {
     return this.service.previewSalesImport(id, user, from || undefined, to || undefined);
+  }
+
+  // Etiqueta de despacho de una orden de JumpSeller (?detail=1 agrega la página de productos).
+  @Get('orders/:orderId/label')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  async printChannelLabel(
+    @Param('orderId') orderId: string, @Query('detail') detail: string, @CurrentUser() user: any, @Res() res: Response,
+  ) {
+    const buffer = await this.service.printChannelLabel(orderId, user, detail === '1' || detail === 'true');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="etiqueta-envio.pdf"');
+    res.send(buffer);
   }
 
   // Crea la Orden de despacho de una venta ya importada que quedó solo como historial.

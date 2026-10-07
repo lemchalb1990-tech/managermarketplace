@@ -654,6 +654,9 @@ export const api = {
     export: (token: string, f: ActivityFilters) => apiDownload(`/activity/export?${activityQuery(f)}`, token, 'historial-actividad.xlsx'),
   },
   connections: {
+    // Etiqueta de despacho de una orden de JumpSeller (PDF), igual que la de Mercado Libre.
+    printLabel: (orderId: string, token: string, withDetail = false) =>
+      apiOpenPdf(`/ecommerce/connections/orders/${orderId}/label${withDetail ? '?detail=1' : ''}`, token),
     // Check "Sincronizar" de la tienda (también conexiones de Mercado Libre).
     setSync: (id: string, enabled: boolean, token: string) =>
       apiFetch<{ id: string; syncEnabled: boolean }>(`/ecommerce/connections/${id}/sync`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, token),

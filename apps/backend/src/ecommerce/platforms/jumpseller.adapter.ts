@@ -87,6 +87,27 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return { Authorization: `Basic ${basic}` };
   }
 
+  // Etiqueta de despacho del pedido (PDF de Starken, Bluexpress, etc.): se toma el último
+  // despacho (fulfillment) del pedido y JumpSeller entrega una URL firmada de 24 h al PDF.
+  async getShippingLabelPdf(conn: any, externalOrderId: string): Promise<Buffer> {
+    const list = await this.request(conn, `/order/${encodeURIComponent(externalOrderId)}/fulfillments.json`).catch(() => []);
+    const fulfillments = (Array.isArray(list) ? list : []).map((f: any) => f?.order_fulfillment || f?.fulfillment || f).filter((f: any) => f?.id);
+    if (!fulfillments.length) {
+      throw new Error(`El pedido #${externalOrderId} todavía no tiene despacho en JumpSeller: genera el envío en JumpSeller y vuelve a intentar.`);
+    }
+    const last = fulfillments.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    let url: string;
+    try {
+      url = (await this.request(conn, `/fulfillments/${last.id}/label.json`))?.url;
+    } catch {
+      throw new Error(`JumpSeller no tiene etiqueta para el despacho del pedido #${externalOrderId} (${last.type || 'courier'}).`);
+    }
+    if (!url) throw new Error(`JumpSeller no devolvió la etiqueta del pedido #${externalOrderId}.`);
+    const pdf = await fetch(url);
+    if (!pdf.ok) throw new Error(`No se pudo descargar la etiqueta del pedido #${externalOrderId} (HTTP ${pdf.status}).`);
+    return Buffer.from(await pdf.arrayBuffer());
+  }
+
   // Método de pago legible del pedido: el nombre que configuró la tienda ("Mercado Pago",
   // "Transferencia bancaria") o, si no viene, el tipo técnico (mercado_pago → "Mercado Pago").
   paymentLabel(o: any): string | null {

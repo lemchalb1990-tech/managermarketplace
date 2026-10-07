@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { buildLabelsPdf } from '../mercadolibre/label-detail';
 import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { MarketplaceType, ListingStatus, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -523,6 +524,29 @@ export class ConnectionsService {
   }
 
   // Mercado Libre tiene su propio flujo (cliente, envío y etiqueta de Mercado Envíos).
+  // Etiqueta de despacho de una orden de JumpSeller (igual que la de Mercado Libre): solo la
+  // etiqueta, o la etiqueta + una página con los productos del pedido (withDetail).
+  async printChannelLabel(orderId: string, user: any, withDetail = false): Promise<Buffer> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { sale: { include: { connection: true } } },
+    });
+    if (!order) throw new NotFoundException('Orden no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) throw new ForbiddenException();
+    const conn = order.sale?.connection;
+    if (!conn || conn.marketplace !== MarketplaceType.JUMPSELLER || !order.sale?.externalId) {
+      throw new BadRequestException('La etiqueta solo está disponible para órdenes de JumpSeller.');
+    }
+    let label: Buffer;
+    try {
+      label = await this.jumpseller.getShippingLabelPdf(conn, order.sale.externalId);
+    } catch (err: any) {
+      throw new BadRequestException(err.message);
+    }
+    if (!withDetail) return label;
+    return buildLabelsPdf([{ label, detail: await this.mercadolibre.loadLabelDetail(order.id) }]);
+  }
+
   async createOrderForExistingSale(saleId: string, user: any, opts: { withoutStock?: boolean } = {}) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId }, select: { channel: true } });
     if (sale?.channel === SaleChannel.MERCADO_LIBRE) return this.mercadolibre.createOrderForExistingSale(saleId, user, opts);

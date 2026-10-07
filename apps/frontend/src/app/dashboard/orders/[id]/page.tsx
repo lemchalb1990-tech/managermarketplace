@@ -125,10 +125,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setLabelMode(withDetail ? 'detail' : 'pack');
     try {
       const token = getToken()!;
-      await api.marketplace.printLabel(id, token, withDetail);
+      if (order?.sale?.channel === 'JUMPSELLER') await api.connections.printLabel(id, token, withDetail);
+      else await api.marketplace.printLabel(id, token, withDetail);
       await load();
     } catch (err: any) {
-      setLabelError(err.message || 'No se pudo obtener la etiqueta de Mercado Libre.');
+      setLabelError(err.message || 'No se pudo obtener la etiqueta.');
     } finally {
       setLabelLoading(false);
       setLabelMode(null);
@@ -286,6 +287,8 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   const packOrderIds: string[] = isPack ? [order.sale.externalId, ...(order.sale.mlMergedOrderIds || [])].filter(Boolean) : [];
 
   const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
+  // JumpSeller también entrega la etiqueta del courier (Starken, Bluexpress...) del despacho.
+  const isJsOrder = order.sale?.channel === 'JUMPSELLER';
   // Venta de ML sin Mercado Envíos ("acordar con el vendedor"): no hay etiqueta ni seguimiento
   // de ML, así que el avance (preparación, despacho, entrega) se gestiona desde el panel.
   const mlToAgree = isMlOrder && !order.sale?.mlShippingId;
@@ -406,6 +409,39 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           </div>
 
           <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto sm:shrink-0 border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
+            {isAdmin && isJsOrder && ['PENDING', 'PREPARING'].includes(order.status) && (
+              <div className="flex flex-col items-stretch sm:items-end gap-1">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button onClick={() => handlePrintLabel(false)} disabled={labelLoading}
+                    title="La etiqueta del courier que generó JumpSeller, para pegar en el paquete"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
+                    {labelMode === 'pack' ? 'Obteniendo etiqueta...' : '🏷 Etiqueta de embalaje'}
+                  </button>
+                  <button onClick={() => handlePrintLabel(true)} disabled={labelLoading}
+                    title="La etiqueta + una página con los productos del pedido (foto, nombre, SKU y cantidad)"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50">
+                    {labelMode === 'detail' ? 'Generando...' : '📋 Etiqueta con detalle'}
+                  </button>
+                </div>
+                {labelError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>}
+              </div>
+            )}
+            {isAdmin && isJsOrder && ['READY', 'IN_TRANSIT', 'DELIVERED'].includes(order.status) && (
+              <div className="flex flex-col items-stretch sm:items-end gap-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:justify-end text-sm sm:text-xs">
+                  <span className="text-gray-500">Reimprimir:</span>
+                  <button onClick={() => handlePrintLabel(false)} disabled={labelLoading}
+                    className="py-2 sm:py-0 text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50">
+                    {labelMode === 'pack' ? 'Obteniendo...' : 'Etiqueta de embalaje'}
+                  </button>
+                  <button onClick={() => handlePrintLabel(true)} disabled={labelLoading}
+                    className="py-2 sm:py-0 text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50">
+                    {labelMode === 'detail' ? 'Generando...' : 'Etiqueta con detalle'}
+                  </button>
+                </div>
+                {labelError && <p className="text-xs text-red-600 sm:max-w-xs sm:text-right">{labelError}</p>}
+              </div>
+            )}
             {isAdmin && mlShipped && order.status === 'PENDING' && (
               <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <div className="flex flex-col sm:flex-row gap-2">

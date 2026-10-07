@@ -856,8 +856,6 @@ export class MercadolibreService {
     await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
 
-    const primaryImage = product.images.find((i: any) => i.isPrimary) || product.images[0];
-
     const categoryId = (product as any).mlCategoryId || await this.settings.get('ML_DEFAULT_CATEGORY');
     if (!categoryId) {
       throw new BadRequestException(
@@ -909,7 +907,12 @@ export class MercadolibreService {
       // Semilla inicial nada más — el envío real y definitivo de la descripción (con
       // soporte HTML si la categoría lo permite) ocurre después vía upsertMlDescription.
       description: { plain_text: this.stripHtmlTags((product.mlDescription || product.description || product.name || '').trim()) || product.name },
-      pictures: primaryImage ? [{ source: toAbsolute(primaryImage.url) }] : [],
+      // Todo el set de fotos del producto: la principal primero y luego en su orden
+      // (Mercado Libre admite hasta 10 por publicación).
+      pictures: [...product.images]
+        .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
+        .slice(0, 10)
+        .map((img: any) => ({ source: toAbsolute(img.url) })),
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
         ...packageAttributes,
@@ -3747,7 +3750,8 @@ export class MercadolibreService {
   }
 
   // Datos de la página "detalle del pedido" que acompaña a la etiqueta (ver label-detail.ts).
-  private async loadLabelDetail(orderId: string): Promise<LabelDetailOrder | null> {
+  // Público: también lo usa la etiqueta con detalle de JumpSeller.
+  async loadLabelDetail(orderId: string): Promise<LabelDetailOrder | null> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
