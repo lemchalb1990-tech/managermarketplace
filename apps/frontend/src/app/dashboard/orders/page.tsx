@@ -365,10 +365,15 @@ export default function OrdersPage() {
 
       <FilterBar
         search={{ label: 'Buscar orden', value: search, onChange: setSearch, placeholder: 'N° de orden o pack, seguimiento o cliente...' }}
-        activeCount={channelFilter ? 1 : 0}
-        onClear={() => { setSearch(''); if (channelFilter) changeChannel(''); }}
+        activeCount={[channelFilter, statusFilter].filter(Boolean).length}
+        onClear={() => { setSearch(''); if (channelFilter) changeChannel(''); if (statusFilter) changeTab(''); }}
         summary={<FilterCount n={total} label="orden(es)" />}
       >
+        <FilterField label="Estado">
+          <select value={statusFilter} onChange={(e) => changeTab(e.target.value)} className={filterSelectCls}>
+            {STATUS_TABS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+        </FilterField>
         {activeMarketplaces.length > 0 && (
           <FilterField label="Marketplace">
             <select value={channelFilter} onChange={(e) => changeChannel(e.target.value)} className={filterSelectCls}>
@@ -496,20 +501,6 @@ export default function OrdersPage() {
           </form>
         </div>
       )}
-
-      {/* Status tabs */}
-      <div className="flex items-center gap-1 mb-4 overflow-x-auto sm:flex-wrap -mx-1 px-1 pb-1">
-        {STATUS_TABS.map((t) => (
-          <button key={t.key} onClick={() => changeTab(t.key)}
-            className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              statusFilter === t.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       {selectedIds.size > 0 && (
         <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">
