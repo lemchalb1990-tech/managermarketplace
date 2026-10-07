@@ -318,7 +318,7 @@ export default function CompaniesPage() {
                   <span className="block text-sm font-medium text-gray-800">Sincronización con marketplaces</span>
                   <span className="block text-xs text-gray-500 mt-0.5">
                     Envía stock y precios a todas las tiendas conectadas y trae sus ventas, preguntas, reclamos y cambios de estado.
-                    Desactivada, la empresa no mueve nada con los marketplaces.
+                    Desactivada, la empresa no mueve nada con los marketplaces. Cada tienda se puede pausar por separado con su check “Sincronizar” en Mis conexiones.
                   </span>
                 </span>
               </label>

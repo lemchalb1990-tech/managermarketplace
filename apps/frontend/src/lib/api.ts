@@ -654,6 +654,9 @@ export const api = {
     export: (token: string, f: ActivityFilters) => apiDownload(`/activity/export?${activityQuery(f)}`, token, 'historial-actividad.xlsx'),
   },
   connections: {
+    // Check "Sincronizar" de la tienda (también conexiones de Mercado Libre).
+    setSync: (id: string, enabled: boolean, token: string) =>
+      apiFetch<{ id: string; syncEnabled: boolean }>(`/ecommerce/connections/${id}/sync`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, token),
     list: (token: string, params?: { marketplace?: string; companyId?: string }) => {
       const q = new URLSearchParams();
       if (params?.marketplace) q.set('marketplace', params.marketplace);

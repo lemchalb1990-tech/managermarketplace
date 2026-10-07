@@ -77,6 +77,13 @@ export class ConnectionsController {
     return this.service.setSendInvoiceToPlatform(id, dto.enabled, user);
   }
 
+  // Check "Sincronizar" de la tienda: apaga o enciende su sincronización sin desconectarla.
+  @Patch(':id/sync')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  setSync(@Param('id') id: string, @Body() dto: SetInvoicePushDto, @CurrentUser() user: any) {
+    return this.service.setSyncEnabled(id, dto.enabled, user);
+  }
+
   @Post(':connectionId/products/:productId/publish')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   publish(

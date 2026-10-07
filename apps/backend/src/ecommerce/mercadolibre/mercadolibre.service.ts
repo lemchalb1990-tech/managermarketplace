@@ -458,7 +458,7 @@ export class MercadolibreService {
       where,
       select: {
         id: true, name: true, marketplace: true, mlClientId: true, active: true, accessToken: true,
-        expiresAt: true, createdAt: true, mlUserId: true, mlNickname: true,
+        expiresAt: true, createdAt: true, mlUserId: true, mlNickname: true, syncEnabled: true,
         company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -4129,7 +4129,7 @@ export class MercadolibreService {
       // activa y nos quedamos con la que puede leer la orden (las demás dan 401/403/404).
       // Así el webhook nunca resuelve la venta contra la cuenta/empresa equivocada.
       const mlConnections = await this.prisma.marketplaceConnection.findMany({
-        where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' }, company: { autoSyncSales: true } },
+        where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' }, syncEnabled: true, company: { autoSyncSales: true } },
       });
 
       let order: any = null;

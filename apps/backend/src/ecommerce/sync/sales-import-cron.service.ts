@@ -47,6 +47,7 @@ export class SalesImportCronService {
       const connections = await this.prisma.marketplaceConnection.findMany({
         where: {
           active: true,
+          syncEnabled: true,
           // Solo Mercado Libre usa accessToken (OAuth); el resto guarda credenciales y lo deja vacío.
           OR: [
             { marketplace: { not: MarketplaceType.MERCADO_LIBRE } },

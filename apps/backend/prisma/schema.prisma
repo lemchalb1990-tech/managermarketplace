@@ -294,6 +294,9 @@ model MarketplaceConnection {
   // dos tiendas autorizadas con la MISMA cuenta (la otra tienda nunca recibiría sus ventas).
   mlUserId          String?
   mlNickname        String?
+  // Check "Sincronizar" de la tienda: con la empresa sincronizando, cada tienda puede apagarse
+  // por separado (no envía stock/precio ni trae ventas, preguntas ni estados).
+  syncEnabled       Boolean         @default(true)
   accessToken       String          @default("")
   refreshToken      String?
   expiresAt         DateTime?

@@ -84,7 +84,7 @@ export class ConnectionsService {
         id: true, name: true, marketplace: true, active: true, createdAt: true,
         credentials: false, // no exponer credenciales en listado
         expiresAt: true,
-        sendInvoiceToPlatform: true,
+        sendInvoiceToPlatform: true, syncEnabled: true,
         company: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -354,6 +354,16 @@ export class ConnectionsService {
       where: { id: conn.id },
       data: { sendInvoiceToPlatform: enabled },
       select: { id: true, sendInvoiceToPlatform: true },
+    });
+  }
+
+  // Check "Sincronizar" de la tienda (Mis conexiones). Sirve también para Mercado Libre.
+  async setSyncEnabled(connectionId: string, enabled: boolean, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    return this.prisma.marketplaceConnection.update({
+      where: { id: conn.id },
+      data: { syncEnabled: enabled },
+      select: { id: true, syncEnabled: true },
     });
   }
 

@@ -52,7 +52,7 @@ export class SyncService {
     if (integrationsDisabled()) return;
     const listings = await this.prisma.listing.findMany({
       // Solo empresas con "Sincronización con marketplaces" activa.
-      where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] }, connection: { company: { autoSyncSales: true } } },
+      where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] }, connection: { syncEnabled: true, company: { autoSyncSales: true } } },
       include: { connection: true, product: { select: { price: true, mlPrice: true } } },
     });
     if (!listings.length) return;

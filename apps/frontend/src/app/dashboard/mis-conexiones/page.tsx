@@ -77,6 +77,7 @@ type Row = {
   name: string;
   active: boolean;
   authorized: boolean;
+  syncEnabled?: boolean;
   createdAt: string;
   settingsHref: string;
 };
@@ -91,6 +92,21 @@ export default function MisConexionesPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [syncBusyId, setSyncBusyId] = useState<string | null>(null);
+
+  // Check "Sincronizar" de una tienda: se guarda al instante; si falla, vuelve atrás.
+  async function handleToggleSync(row: Row, enabled: boolean) {
+    setSyncBusyId(row.id);
+    setRows((prev) => prev.map((r) => (r.id === row.id && r.kind === row.kind ? { ...r, syncEnabled: enabled } : r)));
+    try {
+      await api.connections.setSync(row.id, enabled, getToken()!);
+    } catch (err: any) {
+      setRows((prev) => prev.map((r) => (r.id === row.id && r.kind === row.kind ? { ...r, syncEnabled: !enabled } : r)));
+      setError(err.message || 'No se pudo cambiar la sincronización de la tienda.');
+    } finally {
+      setSyncBusyId(null);
+    }
+  }
 
   const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
   const showContent = !isSuperAdmin || !!selectedCompanyId;
@@ -111,14 +127,14 @@ export default function MisConexionesPage() {
       const mlRows: Row[] = (ml as any[]).map((c) => ({
         id: c.id, kind: 'ml', code: 'MERCADO_LIBRE', key: 'mercadolibre',
         platformLabel: MARKETPLACE_LABEL.MERCADO_LIBRE, name: c.name,
-        active: c.active, authorized: c.authorized ?? true, createdAt: c.createdAt,
+        active: c.active, authorized: c.authorized ?? true, createdAt: c.createdAt, syncEnabled: c.syncEnabled !== false,
         settingsHref: '/dashboard/ecommerce/mercadolibre',
       }));
 
       const otherRows: Row[] = (other as any[]).map((c) => ({
         id: c.id, kind: 'ecommerce', code: c.marketplace, key: MARKETPLACE_KEY[c.marketplace] || c.marketplace.toLowerCase(),
         platformLabel: MARKETPLACE_LABEL[c.marketplace] || c.marketplace, name: c.name,
-        active: c.active, authorized: true, createdAt: c.createdAt,
+        active: c.active, authorized: true, createdAt: c.createdAt, syncEnabled: c.syncEnabled !== false,
         settingsHref: `/dashboard/ecommerce/${MARKETPLACE_KEY[c.marketplace] || c.marketplace.toLowerCase()}`,
       }));
 
@@ -291,13 +307,14 @@ export default function MisConexionesPage() {
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Canal</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Cuenta</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
+                  <th className="text-left px-4 py-3 text-gray-600 font-medium" title="Envía stock y precios y trae ventas, preguntas y estados de esta tienda">Sincronizar</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Conectada el</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && (
-                  <SkeletonRows cols={5} />
+                  <SkeletonRows cols={6} />
                 )}
                 {!loading && filtered.map((r) => (
                   <tr key={`${r.kind}-${r.id}`} className="hover:bg-gray-50">
@@ -316,6 +333,18 @@ export default function MisConexionesPage() {
                       }`}>
                         {r.authorized && r.active ? 'Activa' : r.authorized ? 'Inactiva' : 'Pendiente de autorizar'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.kind === 'ml' || r.kind === 'ecommerce' ? (
+                        <label className="inline-flex items-center gap-2 cursor-pointer text-xs text-gray-600">
+                          <input type="checkbox" checked={r.syncEnabled !== false} disabled={syncBusyId === r.id}
+                            onChange={(e) => handleToggleSync(r, e.target.checked)}
+                            className="w-4 h-4 accent-blue-600" />
+                          {r.syncEnabled !== false ? 'Activa' : 'Pausada'}
+                        </label>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {new Date(r.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
@@ -341,7 +370,7 @@ export default function MisConexionesPage() {
                 ))}
                 {!loading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                    <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
                       <p className="text-sm mb-1">Sin conexiones</p>
                       <p className="text-xs">Conecta un canal desde alguna de las categorías de arriba.</p>
                     </td>
