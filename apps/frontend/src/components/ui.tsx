@@ -113,12 +113,12 @@ export function SectionCard({
   return (
     <div className={`ui-card ${className}`} style={style}>
       {(title || actions) && (
-        <div className={`flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 sm:py-3.5 border-b border-[var(--border-soft)] ${compactHeader ? 'max-sm:pb-1.5' : ''} ${centerHeaderMobile ? 'max-sm:justify-center max-sm:text-center' : ''}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 sm:py-3.5 border-b border-[var(--border-soft)] ${compactHeader ? 'pb-1.5 sm:pb-2' : ''} ${centerHeaderMobile ? 'max-sm:justify-center max-sm:text-center' : ''}`}>
           {title && <h2 className={`font-semibold text-[var(--text)] text-sm ${centerHeaderMobile ? 'max-sm:w-full' : ''}`}>{title}</h2>}
           {actions}
         </div>
       )}
-      <div className={`p-3 sm:p-5 ${compactHeader ? 'max-sm:pt-1.5' : ''}`}>{children}</div>
+      <div className={`p-3 sm:p-5 ${compactHeader ? 'pt-1.5 sm:pt-2' : ''}`}>{children}</div>
     </div>
   );
 }

@@ -66,7 +66,7 @@ function KpiCard({
   centerValue?: boolean;
 }) {
   const content = (
-    <div className={`group relative ui-card px-3 py-2 sm:p-5 flex items-center sm:items-start gap-2.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
       {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
@@ -74,7 +74,7 @@ function KpiCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
-        <p className={`text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight ${centerValue ? 'max-sm:text-center' : 'max-sm:text-right'}`}>{value}</p>
+        <p className={`text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight ${centerValue ? 'text-center' : 'text-right'}`}>{value}</p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
@@ -356,9 +356,9 @@ export default function DashboardPage() {
           style={CARD_SHADOW}
         >
           {/* Celular: etiqueta y valor en una sola línea (la mitad de alto). */}
-          <div className="mb-0 sm:mb-3 max-sm:flex max-sm:items-baseline max-sm:gap-2">
+          <div className="mb-0 sm:mb-1 flex items-baseline gap-2">
             <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
-            <p className="text-base sm:text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
+            <p className="text-base sm:text-lg font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
           </div>
 
           {reportData.length === 0 ? (
@@ -544,7 +544,7 @@ export default function DashboardPage() {
                   <Link
                     key={order.id}
                     href={`/dashboard/orders/${order.id}`}
-                    className="group relative flex items-center gap-3 px-2.5 py-[5px] sm:py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                    className="group relative flex items-center gap-3 px-2.5 py-[5px] -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -599,7 +599,7 @@ export default function DashboardPage() {
                 <Link
                   key={sale.id}
                   href="/dashboard/sales"
-                  className="group relative flex items-center gap-3 px-2.5 py-[5px] sm:py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                  className="group relative flex items-center gap-3 px-2.5 py-[5px] -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                 >
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 overflow-hidden">
                     {photoUrl ? (

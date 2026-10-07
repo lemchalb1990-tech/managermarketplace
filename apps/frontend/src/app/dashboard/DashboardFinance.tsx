@@ -14,7 +14,7 @@ import { clp, trafficLight } from './finanzas/finance-utils';
 const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)' };
 // Altura mínima común de todas las tarjetas de la grilla de indicadores (con y sin línea extra).
 // En celular las tarjetas van de a 2 por fila y sin alto mínimo (más compactas).
-export const DASHBOARD_CARD_MIN_H = 'sm:min-h-[104px]';
+export const DASHBOARD_CARD_MIN_H = '';
 const MONTHS_FULL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const ALERT_CLS: Record<string, string> = {
   danger: 'bg-red-50 border-red-200 text-red-700',
@@ -62,17 +62,17 @@ export function FinanceCards({ data }: { data: any }) {
         const pct = c.budget ? Math.round((c.actual / c.budget) * 100) : null;
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
-            <div className={`ui-card px-3 py-2 sm:p-5 flex items-center sm:items-start gap-2.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+            <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
               {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{c.label}</p>
-                <p className={`text-lg sm:text-2xl font-bold leading-tight tracking-tight max-sm:text-right ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
+                <p className={`text-lg sm:text-2xl font-bold leading-tight tracking-tight text-right ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
                   {clp(c.actual)}
                 </p>
                 {/* Solo con presupuesto definido (sin él no se muestra nada). */}
                 {c.budget ? (
-                  <div className="flex flex-wrap items-center max-sm:justify-end gap-x-2 gap-y-1 mt-1">
+                  <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 mt-1">
                     <span className="text-[11px] text-[var(--text-muted)]">
                       Presupuesto {clp(c.budget)}{pct != null ? ` · ${pct} %` : ''}
                     </span>
