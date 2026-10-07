@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, FormEvent, useRef } from 'react';
+import { useEffect, useState, FormEvent, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { ImportProgress } from '@/components/ImportProgress';
@@ -12,7 +12,7 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
-import ChannelPublicationsCard, { GenericChannelActions } from './ChannelPublicationsCard';
+import ChannelPublicationsCard, { GenericChannelActions, PublicationsController, PublicationsSaver } from './ChannelPublicationsCard';
 import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
@@ -1508,6 +1508,17 @@ export default function CatalogPage() {
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  // Pestaña Conexiones: un solo guardado para precios y títulos de todos los marketplaces.
+  const pubSaversRef = useRef(new Map<string, PublicationsSaver>());
+  const [pubDirty, setPubDirty] = useState<Record<string, boolean>>({});
+  const [pubSaving, setPubSaving] = useState(false);
+  const [pubMessage, setPubMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const pubController = useMemo<PublicationsController>(() => ({
+    register: (key, saver) => { if (saver) pubSaversRef.current.set(key, saver); else pubSaversRef.current.delete(key); },
+    onDirtyChange: (key, dirty) => setPubDirty((d) => (!!d[key] === dirty ? d : { ...d, [key]: dirty })),
+  }), []);
+  const connectionsDirty = Object.values(pubDirty).some(Boolean);
+  useEffect(() => { setPubDirty({}); setPubMessage(null); }, [selected?.id]);
   const [autoSaveNotice, setAutoSaveNotice] = useState('');
   const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -2138,7 +2149,37 @@ export default function CatalogPage() {
     return checks;
   }
 
+  async function saveAllPublications() {
+    setPubSaving(true);
+    setPubMessage(null);
+    const errors: string[] = [];
+    let saved = 0;
+    for (const saver of Array.from(pubSaversRef.current.values())) {
+      if (!saver.isDirty()) continue;
+      const r = await saver.save();
+      saved++;
+      if (!r.ok) errors.push(r.text);
+    }
+    if (selected?.id) await refreshSelected(selected.id);
+    setPubDirty({});
+    setPubSaving(false);
+    setPubMessage(errors.length ? { ok: false, text: errors.join(' · ') } : { ok: true, text: saved ? '✓ Precios y títulos guardados' : 'No había cambios' });
+    if (!errors.length) setTimeout(() => setPubMessage(null), 3000);
+  }
+  function cancelAllPublications() {
+    for (const saver of Array.from(pubSaversRef.current.values())) saver.reset();
+    setPubDirty({});
+    setPubMessage(null);
+  }
+  // Con cambios de precios/títulos pendientes no se sale sin guardar o cancelar.
+  async function guardPublications(): Promise<boolean> {
+    if (!connectionsDirty) return true;
+    await alertDialog('Tienes cambios sin guardar en precios y títulos. Usa "Guardar precios y títulos" o "Cancelar cambios" antes de salir.');
+    return false;
+  }
+
   async function changeTab(newTab: Tab) {
+    if (newTab !== tab && tab === 'connections' && !(await guardPublications())) return;
     if (newTab !== tab && tab === 'edit' && isDirty && selected?.id) {
       // Autoguardado en vez de preguntar/descartar — el usuario no debe perder cambios de
       // "Información" solo por ir a mirar "Paris"/"Ripley"/"Mercado Libre"/etc.
@@ -3116,6 +3157,7 @@ export default function CatalogPage() {
               </div>
               <button
                 onClick={async () => {
+                  if (tab === 'connections' && !(await guardPublications())) return;
                   if (tab === 'edit' && isDirty && selected.id) await saveEditChanges();
                   setSelected(null);
                   setPendingPublishTargets([]);
@@ -3718,6 +3760,7 @@ export default function CatalogPage() {
                       const activeCount = selected.listings?.filter((l: any) => g.connections.some((c: any) => c.id === l.connectionId) && (l.status === 'ACTIVE' || l.status === 'PAUSED')).length || 0;
                       return (
                         <ChannelPublicationsCard key={key} title="Mercado Libre" isMl product={selected} connections={g.connections} onSaved={refresh}
+                          controller={pubController} controllerKey="MERCADO_LIBRE"
                           headerActions={activeCount > 0 ? (
                             <button onClick={() => handleSyncAll(selected.id)} disabled={syncAllLoading === selected.id}
                               className="px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
@@ -3793,6 +3836,7 @@ export default function CatalogPage() {
                     return (
                       <ChannelPublicationsCard key={key} title={MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace} isMl={false}
                         product={selected} connections={g.connections} onSaved={refresh}
+                        controller={pubController} controllerKey={g.marketplace}
                         renderDetail={detail}
                         detailLabel={detail ? `Ficha y publicación en ${MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace}` : undefined}
                         renderActions={detail ? undefined : (conn, listing) => (
@@ -3800,6 +3844,18 @@ export default function CatalogPage() {
                         )} />
                     );
                   })}
+                  {/* Un solo guardado para precios y títulos de todos los marketplaces */}
+                  <div className={`sticky bottom-0 -mx-1 px-3 py-3 rounded-xl border flex flex-wrap items-center gap-2 ${connectionsDirty ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                    <button onClick={saveAllPublications} disabled={pubSaving || !connectionsDirty}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                      {pubSaving ? 'Guardando...' : 'Guardar precios y títulos'}
+                    </button>
+                    {connectionsDirty && (
+                      <button onClick={cancelAllPublications} disabled={pubSaving} className="ui-btn-secondary">Cancelar cambios</button>
+                    )}
+                    {connectionsDirty && !pubSaving && <span className="text-xs text-amber-800">Hay cambios sin guardar</span>}
+                    {pubMessage && <span className={`text-xs ${pubMessage.ok ? 'text-green-700' : 'text-red-600'}`}>{pubMessage.text}</span>}
+                  </div>
                 </div>
               )}
             </div>

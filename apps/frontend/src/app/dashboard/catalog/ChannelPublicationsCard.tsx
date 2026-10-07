@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { confirmDialog } from '../ConfirmDialog';
@@ -23,9 +23,23 @@ const STATUS_COLOR: Record<string, string> = {
 
 type Row = { mode: 'base' | 'own'; price: string; titleMode: 'base' | 'own'; title: string };
 
+// Guardado único de la pestaña Conexiones: cada tarjeta se registra y el padre guarda todas
+// juntas con un solo botón (o descarta los cambios de todas).
+export interface PublicationsSaver {
+  isDirty: () => boolean;
+  save: () => Promise<{ ok: boolean; text: string }>;
+  reset: () => void;
+}
+export interface PublicationsController {
+  register: (key: string, saver: PublicationsSaver | null) => void;
+  onDirtyChange: (key: string, dirty: boolean) => void;
+}
+
 export default function ChannelPublicationsCard({
-  title, isMl, product, connections, onSaved, headerActions, renderActions, renderDetail, detailLabel,
+  title, isMl, product, connections, onSaved, headerActions, renderActions, renderDetail, detailLabel, controller, controllerKey,
 }: {
+  controller?: PublicationsController;
+  controllerKey?: string;
   title: string;
   isMl: boolean;
   product: any;
@@ -57,6 +71,10 @@ export default function ChannelPublicationsCard({
       titleMode: l.title ? 'own' : 'base', title: l.title || '',
     }])));
   const [openDetail, setOpenDetail] = useState<Record<string, boolean>>({});
+  // Punto de partida para saber si hay cambios sin guardar (se fija al cargar, también después
+  // de traer de ML los títulos de publicaciones con ventas).
+  const baselineRef = useRef<string | null>(null);
+  const [baselineTick, setBaselineTick] = useState(0);
 
   // ML en vivo: las publicaciones con ventas no pueden cambiar título (queda el de ML).
   const [info, setInfo] = useState<Record<string, { mlTitle: string; mlPrice: number; sold: number }>>({});
@@ -81,6 +99,7 @@ export default function ChannelPublicationsCard({
         for (const i of sold) if (i.slot > 0 && next[i.listingId]) next[i.listingId] = { ...next[i.listingId], ...titled(i) };
         return next;
       });
+      setBaselineTick((t) => t + 1);
     }).catch(() => {});
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,19 +118,42 @@ export default function ChannelPublicationsCard({
     listing && !sold(listing) ? { title: r?.titleMode === 'own' && r.title.trim() ? r.title.trim() : null } : {};
   const ownPrice = (r: Row | undefined, equalize: boolean) => (!equalize && r?.mode === 'own' && Number(r.price) > 0 ? Number(r.price) : null);
 
-  async function save(equalizeAll = false) {
+  const snapshot = JSON.stringify({ base, rows, extraRows });
+  useEffect(() => { baselineRef.current = snapshot; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [baselineTick]);
+  const dirty = baselineRef.current != null && baselineRef.current !== snapshot;
+  useEffect(() => { if (controller && controllerKey) controller.onDirtyChange(controllerKey, dirty); }, [dirty, controller, controllerKey]);
+  useEffect(() => {
+    if (!controller || !controllerKey) return;
+    controller.register(controllerKey, {
+      isDirty: () => baselineRef.current != null && baselineRef.current !== snapshotRef.current,
+      save: () => save(false, true),
+      reset: () => {
+        if (!baselineRef.current) return;
+        const b = JSON.parse(baselineRef.current);
+        setBase(b.base); setRows(b.rows); setExtraRows(b.extraRows); setMessage(null);
+      },
+    });
+    return () => controller.register(controllerKey, null);
+  });
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+
+  // skipRefresh: lo usa el guardado único del padre, que refresca una sola vez al final.
+  async function save(equalizeAll = false, skipRefresh = false): Promise<{ ok: boolean; text: string }> {
     setSaving(true);
     setMessage(null);
     const token = getToken()!;
+    let result = { ok: true, text: 'Guardado.' };
     try {
       if (isMl) {
         const accounts = connections.map((c) => ({ connectionId: c.id, price: ownPrice(rows[c.id], equalizeAll), ...titleOf(rows[c.id], listingOf(c.id)) }));
         const publications = extras.map((l) => ({ listingId: l.id, price: ownPrice(extraRows[l.id], equalizeAll), ...titleOf(extraRows[l.id], l) }));
         const res = await api.marketplace.setAccountPrices(product.id, { basePrice: Number(base) > 0 ? Number(base) : null, accounts, publications }, token);
         const failed = [...res.pushed, ...(res.titles || [])].filter((p) => !p.ok);
-        setMessage(failed.length
+        result = failed.length
           ? { ok: false, text: `Guardado. No se pudo actualizar en: ${failed.map((f) => `${f.connection} (${f.error})`).join('; ')}` }
-          : { ok: true, text: `Guardado${res.pushed.length ? ` y enviado a ${res.pushed.length} publicación(es)` : ''}.` });
+          : { ok: true, text: `Guardado${res.pushed.length ? ` y enviado a ${res.pushed.length} publicación(es)` : ''}.` };
+        setMessage(result);
       } else {
         // Precio propio por cuenta (ChannelPrice) y se envía a las publicaciones de ese canal.
         const failed: string[] = [];
@@ -131,19 +173,23 @@ export default function ChannelPublicationsCard({
             await api.connections.sync(l.connectionId, product.id, token, l.id).catch((e: any) => failed.push(`${name} ${l.externalId} (${e.message})`));
           }
         }
-        setMessage(failed.length ? { ok: false, text: `Guardado. No se pudo actualizar en: ${failed.join('; ')}` } : { ok: true, text: 'Guardado.' });
+        result = failed.length ? { ok: false, text: `Guardado. No se pudo actualizar en: ${failed.join('; ')}` } : { ok: true, text: 'Guardado.' };
+        setMessage(result);
       }
       if (equalizeAll) {
         const reset = (r: Record<string, Row>) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, { ...v, mode: 'base' as const, price: '' }]));
         setRows(reset);
         setExtraRows(reset);
       }
-      await onSaved();
+      baselineRef.current = JSON.stringify({ base, rows, extraRows });
+      if (!skipRefresh) await onSaved();
     } catch (err: any) {
-      setMessage({ ok: false, text: err.message || 'No se pudo guardar.' });
+      result = { ok: false, text: err.message || 'No se pudo guardar.' };
+      setMessage(result);
     } finally {
       setSaving(false);
     }
+    return result;
   }
 
   // Estado, ID (copiar), link y error de una publicación.
@@ -305,13 +351,15 @@ export default function ChannelPublicationsCard({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {!controller && <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => save(false)} disabled={saving}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
           {saving ? 'Guardando...' : isMl ? 'Guardar precios y títulos' : 'Guardar precios'}
         </button>
         {message && <p className={`text-xs ${message.ok ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>}
-      </div>
+      </div>}
+      {controller && message && <p className={`text-xs ${message.ok ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>}
+      {controller && dirty && <p className="text-xs text-amber-700">● Cambios sin guardar en {title}</p>}
     </div>
   );
 }
