@@ -66,11 +66,15 @@ function KpiCard({
   const content = (
     <div className={`group relative ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
-      <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${colorClass}`}>
-        {icon}
+      {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
+      <div className="flex items-center gap-2 w-full sm:contents">
+        <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${colorClass}`}>
+          {icon}
+        </div>
+        <p className="sm:hidden text-[11px] text-[var(--text-muted)] font-medium leading-tight line-clamp-2">{title}</p>
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] sm:text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{title}</p>
+        <p className="hidden sm:block text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{title}</p>
         <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
       </div>
       {sub && (
@@ -355,7 +359,7 @@ export default function DashboardPage() {
           {reportData.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
-            <div className="flex items-end gap-1.5">
+            <div className="flex items-end gap-0.5 sm:gap-1.5">
               {/* Con muchas columnas (30 días) no entra un valor permanente por barra sin
                   truncarse a algo ilegible — ahí el valor solo aparece al pasar el mouse,
                   con su propio fondo, para poder mostrarse completo sin chocar con los vecinos. */}
@@ -368,13 +372,13 @@ export default function DashboardPage() {
                 const isCurrent = i === reportData.length - 1;
                 return (
                   <div key={d.month || d.date || i}
-                    className="group flex-1 flex flex-col items-center gap-1.5 rounded-lg px-1 pt-1 pb-1.5 transition-colors hover:bg-[var(--brand-light)]">
+                    className="group flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-lg px-0.5 sm:px-1 pt-1 pb-1.5 transition-colors hover:bg-[var(--brand-light)]">
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {h > 0 && (
                         <span
-                          className={isDense
+                          className={'max-sm:hidden ' + (isDense
                             ? 'absolute left-1/2 -translate-x-1/2 z-20 whitespace-nowrap rounded-md border border-[var(--border-soft)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text)] shadow-sm opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100'
-                            : 'absolute inset-x-0 text-center text-[10px] font-semibold text-[var(--text-2)] truncate px-0.5 transition-colors group-hover:text-[var(--text)]'
+                            : 'absolute inset-x-0 text-center text-[10px] font-semibold text-[var(--text-2)] truncate px-0.5 transition-colors group-hover:text-[var(--text)]')
                           }
                           style={{
                             bottom: reportChartReady ? `${h + 4}px` : '4px',
@@ -393,9 +397,10 @@ export default function DashboardPage() {
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
                       )}
                     </div>
-                    <p className={`text-xs leading-tight capitalize transition-colors group-hover:text-[var(--text)] ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
+                    <p className={`w-full text-center truncate text-[9px] sm:text-xs leading-tight capitalize transition-colors group-hover:text-[var(--text)] ${isCurrent ? 'font-semibold' : 'text-[var(--text-muted)]'}`}
                       style={isCurrent ? { color: 'var(--info)' } : undefined}>
-                      {d.label}
+                      <span className="sm:hidden">{d.month ? String(d.label).replace('.', '').slice(0, 3) : d.label}</span>
+                      <span className="hidden sm:inline">{d.label}</span>
                     </p>
                   </div>
                 );

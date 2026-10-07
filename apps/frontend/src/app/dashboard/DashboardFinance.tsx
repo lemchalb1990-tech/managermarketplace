@@ -63,9 +63,13 @@ export function FinanceCards({ data }: { data: any }) {
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
             <div className={`ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
-              <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${c.color}`}>{c.icon}</div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] sm:text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{c.label}</p>
+              {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
+              <div className="flex items-center gap-2 w-full sm:contents">
+                <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${c.color}`}>{c.icon}</div>
+                <p className="sm:hidden text-[11px] text-[var(--text-muted)] font-medium leading-tight line-clamp-2">{c.label}</p>
+              </div>
+              <div className="min-w-0 flex-1 w-full">
+                <p className="hidden sm:block text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{c.label}</p>
                 <p className={`text-lg sm:text-2xl font-bold leading-tight tracking-tight ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
                   {clp(c.actual)}
                 </p>
