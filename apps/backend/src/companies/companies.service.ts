@@ -52,8 +52,7 @@ export class CompaniesService {
 
   findAll() {
     return this.prisma.company.findMany({
-      // Las con baja en curso siguen visibles para que el super admin pueda revertirla.
-      where: { OR: [{ active: true }, { closureScheduledFor: { not: null } }] },
+      // Todas, también las desactivadas: el super admin las sigue viendo para reactivarlas.
       include: { _count: { select: { users: true, products: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -76,10 +75,6 @@ export class CompaniesService {
     const before = await this.findOne(id);
 
     const data: any = { ...dto };
-    // Mantiene el flag legacy autoSyncSales alineado con la lista de plataformas.
-    if (dto.autoSyncSalesPlatforms !== undefined) {
-      data.autoSyncSales = Array.isArray(dto.autoSyncSalesPlatforms) && dto.autoSyncSalesPlatforms.length > 0;
-    }
 
     const updated = await this.prisma.company.update({ where: { id }, data });
 

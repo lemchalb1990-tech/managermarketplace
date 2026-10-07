@@ -106,6 +106,9 @@ export class ConnectionsService {
         accessToken: '',
         active: true,
         companyId,
+        // La sincronización automática trae solo ventas desde que se conecta la tienda: las
+        // anteriores se importan como historial (sin descontar stock) desde "Importar ventas".
+        lastSalesImportAt: new Date(),
       },
     });
 

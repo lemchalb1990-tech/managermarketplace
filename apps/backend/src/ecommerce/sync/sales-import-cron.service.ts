@@ -14,9 +14,8 @@ const SYSTEM_USER = { role: Role.SUPER_ADMIN } as any;
 
 // Contraparte entrante de SyncService (que empuja stock/precio hacia las plataformas):
 // este servicio trae de vuelta ventas, preguntas y reclamos/devoluciones nuevas desde
-// las plataformas. Cada empresa elige qué plataformas auto-sincronizar en
-// Company.autoSyncSalesPlatforms (lista de MarketplaceType) — mismo interruptor y mismo
-// intervalo para las tres cosas, no hay un toggle aparte para preguntas/devoluciones.
+// las plataformas. Un solo interruptor por empresa, "Sincronización con marketplaces"
+// (Company.autoSyncSales), cubre todas sus tiendas conectadas y las tres cosas.
 // Implementado para Mercado Libre, Paris, Ripley, Falabella, Walmart y JumpSeller; el resto se agrega
 // sumando un caso al switch de abajo (el check ya queda disponible en la UI).
 //
@@ -56,15 +55,14 @@ export class SalesImportCronService {
           company: { active: true },
         },
         include: {
-          company: { select: { autoSyncIntervalMinutes: true, autoSyncSalesPlatforms: true } },
+          company: { select: { autoSyncIntervalMinutes: true, autoSyncSales: true } },
         },
       });
 
       const now = Date.now();
       for (const connection of connections) {
-        const platforms = connection.company.autoSyncSalesPlatforms;
-        const enabled = Array.isArray(platforms) && platforms.includes(connection.marketplace);
-        if (!enabled) continue;
+        // "Sincronización con marketplaces" de la empresa: un solo interruptor para todas sus tiendas.
+        if (!connection.company.autoSyncSales) continue;
 
         const intervalMinutes = Math.max(1, connection.company.autoSyncIntervalMinutes || 1);
         const dueAt = connection.lastSalesImportAt

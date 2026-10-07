@@ -28,21 +28,9 @@ const ALL_COMPANY_MODULES = [
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 
-// Plataformas con auto-importación de ventas (valores del enum MarketplaceType).
-const SYNC_SALE_PLATFORMS: { key: string; label: string }[] = [
-  { key: 'MERCADO_LIBRE', label: 'Mercado Libre' },
-  { key: 'SHOPIFY', label: 'Shopify' },
-  { key: 'WOOCOMMERCE', label: 'WooCommerce' },
-  { key: 'JUMPSELLER', label: 'JumpSeller' },
-  { key: 'FALABELLA', label: 'Falabella' },
-  { key: 'PARIS', label: 'Paris' },
-  { key: 'HITES', label: 'Hites' },
-  { key: 'RIPLEY', label: 'Ripley' },
-  { key: 'WALMART', label: 'Walmart' },
-];
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSalesPlatforms: string[]; autoSyncIntervalMinutes: number } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -193,7 +181,7 @@ export default function CompaniesPage() {
         active: editing.active,
         maxUsers: editing.maxUsers,
         modules: editing.modules,
-        autoSyncSalesPlatforms: editing.autoSyncSalesPlatforms,
+        autoSyncSales: editing.autoSyncSales,
         autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
       }, token);
       if (result?.bootstrap) {
@@ -321,42 +309,28 @@ export default function CompaniesPage() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-gray-600">Auto-sync por plataforma</label>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Trae solo, sin apretar ningún botón: ventas, preguntas y reclamos/devoluciones nuevos.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                {SYNC_SALE_PLATFORMS.map((p) => {
-                  const checked = editing.autoSyncSalesPlatforms.includes(p.key);
-                  return (
-                    <label key={p.key} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                      <input type="checkbox" checked={checked}
-                        onChange={(e) => setEditing(s => s && ({
-                          ...s,
-                          autoSyncSalesPlatforms: e.target.checked
-                            ? [...s.autoSyncSalesPlatforms, p.key]
-                            : s.autoSyncSalesPlatforms.filter((k) => k !== p.key),
-                        }))}
-                        className="w-4 h-4 accent-blue-600" />
-                      {p.label}
-                    </label>
-                  );
-                })}
-              </div>
-              {editing.autoSyncSalesPlatforms.length > 0 && (
-                <label className="flex items-center gap-2 mt-3">
-                  <span className="text-sm text-gray-600">Revisar cada</span>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={editing.autoSyncSales}
+                  onChange={(e) => setEditing(s => s && ({ ...s, autoSyncSales: e.target.checked }))}
+                  className="w-4 h-4 mt-0.5 accent-blue-600" />
+                <span>
+                  <span className="block text-sm font-medium text-gray-800">Sincronización con marketplaces</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Envía stock y precios a todas las tiendas conectadas y trae sus ventas, preguntas, reclamos y cambios de estado.
+                    Desactivada, la empresa no mueve nada con los marketplaces.
+                  </span>
+                </span>
+              </label>
+              {editing.autoSyncSales && (
+                <label className="flex items-center gap-2 mt-3 ml-6">
+                  <span className="text-sm text-gray-600">Revisar ventas cada</span>
                   <input type="number" min={1} max={1440} value={editing.autoSyncIntervalMinutes}
                     onChange={(e) => setEditing(s => s && ({ ...s, autoSyncIntervalMinutes: Math.max(1, Number(e.target.value)) }))}
                     className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
                   <span className="text-sm text-gray-600">minuto(s)</span>
                 </label>
               )}
-              <p className="text-xs text-gray-400 mt-2">
-                Trae automáticamente las ventas nuevas aunque el webhook falle; descuentan inventario y pausan la publicación al llegar al stock crítico.
-                Hoy solo Mercado Libre tiene la importación implementada; el resto queda listo para activarse.
-              </p>
             </div>
 
             <div>
@@ -417,7 +391,7 @@ export default function CompaniesPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Usuarios / Límite</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Productos</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Auto-sync ML</th>
+              <th className="text-left px-4 py-3 text-gray-600 font-medium">Sincronización</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -446,14 +420,9 @@ export default function CompaniesPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  {(() => {
-                    const n = Array.isArray(c.autoSyncSalesPlatforms) ? c.autoSyncSalesPlatforms.length : 0;
-                    return (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${n > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {n > 0 ? `${n} plataforma${n > 1 ? 's' : ''} (cada ${c.autoSyncIntervalMinutes ?? 1} min)` : 'Inactivo'}
-                      </span>
-                    );
-                  })()}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.autoSyncSales ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {c.autoSyncSales ? `Activa (cada ${c.autoSyncIntervalMinutes ?? 1} min)` : 'Desactivada'}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-right flex gap-3 justify-end">
                   {c.closureScheduledFor && (
@@ -461,7 +430,7 @@ export default function CompaniesPage() {
                       Revertir baja
                     </button>
                   )}
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSalesPlatforms: Array.isArray(c.autoSyncSalesPlatforms) ? c.autoSyncSalesPlatforms : [], autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1 }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1 }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

@@ -178,6 +178,8 @@ export class MercadolibreService {
         mlClientSecret: mlClientSecret.trim(),
         accessToken: '',
         active: false,
+        // Solo ventas desde que se conecta; las anteriores van como historial.
+        lastSalesImportAt: new Date(),
         companyId: cid,
       },
       select: {
@@ -4127,7 +4129,7 @@ export class MercadolibreService {
       // activa y nos quedamos con la que puede leer la orden (las demás dan 401/403/404).
       // Así el webhook nunca resuelve la venta contra la cuenta/empresa equivocada.
       const mlConnections = await this.prisma.marketplaceConnection.findMany({
-        where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' } },
+        where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, accessToken: { not: '' }, company: { autoSyncSales: true } },
       });
 
       let order: any = null;

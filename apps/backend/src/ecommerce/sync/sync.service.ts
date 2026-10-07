@@ -51,7 +51,8 @@ export class SyncService {
   async syncProduct(productId: string, newStock: number, price?: number) {
     if (integrationsDisabled()) return;
     const listings = await this.prisma.listing.findMany({
-      where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] } },
+      // Solo empresas con "Sincronización con marketplaces" activa.
+      where: { productId, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] }, connection: { company: { autoSyncSales: true } } },
       include: { connection: true, product: { select: { price: true, mlPrice: true } } },
     });
     if (!listings.length) return;
