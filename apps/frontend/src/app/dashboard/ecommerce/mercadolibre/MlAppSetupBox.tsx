@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { SkeletonForm } from '@/components/Skeleton';
 
 // Lo que el cliente debe configurar en SU aplicación de Mercado Libre
 // (developers.mercadolibre.cl → Mis aplicaciones → editar), con botones para copiar.
 export default function MlAppSetupBox() {
-  const [data, setData] = useState<Awaited<ReturnType<typeof api.marketplace.appSetup>> | null>(null);
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.marketplace.appSetup>> | null | undefined>(undefined);
   const [copied, setCopied] = useState('');
 
   useEffect(() => {
-    api.marketplace.appSetup(getToken()!).then(setData).catch(() => {});
+    api.marketplace.appSetup(getToken()!).then(setData).catch(() => setData(null));
   }, []);
 
   async function copy(key: string, text: string) {
@@ -22,6 +23,7 @@ export default function MlAppSetupBox() {
     } catch { /* el navegador no permitió copiar: el texto queda visible para copiarlo a mano */ }
   }
 
+  if (data === undefined) return <div className="ui-card p-5"><SkeletonForm fields={3} columns={1} /></div>;
   if (!data) return null;
   const row = (key: string, label: string, value: string | null) => (
     <div>

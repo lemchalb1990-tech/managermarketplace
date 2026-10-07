@@ -7,6 +7,7 @@ import { PageHeader, SectionCard, StatTile, StatRow, Badge } from '@/components/
 import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { SkeletonList } from '@/components/Skeleton';
 
 const RATING_LABEL: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
   POSITIVE: { label: 'Positiva', tone: 'ok' },
@@ -124,7 +125,7 @@ export default function MlCalificacionesPage() {
 
       <h2 className="text-sm font-semibold text-[var(--text)] mt-6 mb-3">Calificaciones recientes de compradores</h2>
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={5} />
       ) : feedback.length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin calificaciones registradas todavía</p></SectionCard>
       ) : (

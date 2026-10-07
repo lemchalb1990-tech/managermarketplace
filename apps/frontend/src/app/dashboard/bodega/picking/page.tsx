@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { onActivity } from '@/lib/activityBus';
+import { SkeletonList } from '@/components/Skeleton';
 
 const MANAGER = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'];
 
@@ -111,7 +112,7 @@ export default function PickingPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} avatar />
       ) : orders.length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin pedidos por pickear</p></SectionCard>
       ) : (

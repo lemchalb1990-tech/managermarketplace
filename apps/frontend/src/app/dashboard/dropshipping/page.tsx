@@ -7,6 +7,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { usePlatformLogos, resolvePlatformLogo, invalidatePlatformLogosCache } from '@/lib/platformLogos';
 import { confirmDialog } from '../ConfirmDialog';
+import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
 // Clave de logo por conector API dropship (misma convención que /settings/platforms/:platform),
 // para que el Super Admin le ponga el logo del proveedor una vez que el conector queda
@@ -509,7 +510,7 @@ export default function DropshippingPage() {
       {notice && <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{notice}</div>}
       {blocked && <p className="text-sm text-gray-400 py-10 text-center">Selecciona una empresa para ver su dropshipping.</p>}
 
-      {!blocked && loading && <p className="text-sm text-gray-400 py-10 text-center">Cargando…</p>}
+      {!blocked && loading && <div className="space-y-4"><SkeletonCards count={3} className="grid grid-cols-1 md:grid-cols-3 gap-3" /><div className="ui-card"><SkeletonTable rows={6} cols={5} /></div></div>}
 
       {!blocked && !loading && tab === 'suppliers' && (
         <div>
@@ -959,9 +960,9 @@ export default function DropshippingPage() {
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {mappingLoading && (
-                <div className="p-10 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
-                  <div className="w-8 h-8 border-4 border-gray-200 border-t-teal-500 rounded-full animate-spin" />
-                  <p>Leyendo el catálogo del proveedor...</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-400">Leyendo el catálogo del proveedor...</p>
+                  <SkeletonTable rows={6} cols={4} />
                 </div>
               )}
 
@@ -1139,9 +1140,9 @@ export default function DropshippingPage() {
                 <div className="m-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{catalogError}</div>
               )}
               {catalogLoading && (
-                <div className="p-10 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
-                  <div className="w-8 h-8 border-4 border-gray-200 border-t-teal-500 rounded-full animate-spin" />
-                  <p>Consultando el catálogo del proveedor...</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-400">Consultando el catálogo del proveedor...</p>
+                  <SkeletonTable rows={6} cols={4} />
                 </div>
               )}
               {!catalogLoading && !catalogError && (

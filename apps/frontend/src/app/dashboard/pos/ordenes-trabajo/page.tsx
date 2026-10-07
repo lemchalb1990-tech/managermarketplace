@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
+import { SkeletonRows } from '@/components/Skeleton';
 
 interface LineItem {
   productId?: string;
@@ -407,7 +408,7 @@ export default function WorkOrdersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {loading && <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>}
+                {loading && <SkeletonRows cols={6} />}
                 {!loading && workOrders.map((wo) => {
                   const woTotal = wo.items.reduce((s: number, i: any) => s + i.quantity * Number(i.unitPrice), 0);
                   return (

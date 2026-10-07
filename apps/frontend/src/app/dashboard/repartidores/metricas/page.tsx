@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge } from '@/components/ui';
+import { SkeletonCards } from '@/components/Skeleton';
 
 const OUTCOME_LABEL: Record<string, string> = {
   DELIVERED: 'Entregado', ABSENT: 'Cliente ausente', REFUSED: 'Rechazado',
@@ -43,7 +44,7 @@ export default function MetricasPage() {
       />
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonCards count={4} />
       ) : data && (
         <div className="space-y-5">
           <StatRow>

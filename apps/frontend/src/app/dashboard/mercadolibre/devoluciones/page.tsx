@@ -8,6 +8,7 @@ import { useMlCompany } from '../MlCompanyContext';
 import { onActivity } from '@/lib/activityBus';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { confirmDialog } from '../../ConfirmDialog';
+import { SkeletonList } from '@/components/Skeleton';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -115,7 +116,7 @@ export default function MlDevolucionesPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} avatar />
       ) : (data?.returns || []).length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">
           {tab === 'pending' ? 'Nada por recepcionar' : 'Sin devoluciones recibidas'}

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const CHANNEL_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -170,7 +171,7 @@ export default function RegistrosSinConexionPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+              <SkeletonRows cols={7} />
             )}
             {!loading && sales.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50">

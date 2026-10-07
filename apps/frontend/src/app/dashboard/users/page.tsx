@@ -4,6 +4,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Toast } from '@/components/ui';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const ALL_ROLES = [
   { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
@@ -53,6 +54,7 @@ const emptyEdit = { name: '', role: '', password: '', active: true, modules: nul
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [companies, setCompanies] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -85,6 +87,7 @@ export default function UsersPage() {
     setCurrentUser(me);
     const data = await api.users.list(token);
     setUsers(data);
+    setUsersLoaded(true);
     api.accessProfiles.list(token).then(setProfiles).catch(() => setProfiles([]));
     if (me.role === 'SUPER_ADMIN') {
       const comps = await api.companies.list(token);
@@ -373,7 +376,8 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
+            {!usersLoaded && <SkeletonRows cols={7} rows={5} />}
+            {usersLoaded && users.length === 0 && (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Sin usuarios registrados</td></tr>
             )}
           </tbody>

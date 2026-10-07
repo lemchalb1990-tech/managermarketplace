@@ -12,6 +12,7 @@ import { onActivity } from '@/lib/activityBus';
 import { can } from '@/lib/permissions';
 import { hasModule } from '@/lib/modules';
 import { useDashboardFinance, FinanceCards, FinanceAlerts, DASHBOARD_CARD_MIN_H } from './DashboardFinance';
+import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
 // "1804k" (el número completo pegado a una "k" minúscula) se leía ambiguo — ¿mil ochocientos
 // cuatro, o 1804 "k" de algo? Notación compacta estándar (1,8 M / 450 k) separa el número de
@@ -242,9 +243,13 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm">Cargando dashboard...</p>
+      <div className="space-y-4">
+        <SkeletonCards count={4} />
+        <SkeletonCards count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="ui-card"><SkeletonTable rows={5} cols={3} /></div>
+          <div className="ui-card"><SkeletonTable rows={5} cols={3} /></div>
+        </div>
       </div>
     );
   }

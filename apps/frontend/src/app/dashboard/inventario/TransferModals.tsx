@@ -7,6 +7,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { Modal, FormError, btnPrimary, btnSecondary, btnDanger, inputCls, labelCls } from '@/components/ui/Modal';
 import { confirmDialog } from '../ConfirmDialog';
 import { TRANSFER_STATUS, fmtDateTime, fmtQty, useDebounced, type InventoryContext } from './shared';
+import { Skeleton, SkeletonTable } from '@/components/Skeleton';
 
 type Line = { productId: string; sku: string; name: string; quantity: string; stock?: InventoryRow['stock'] };
 
@@ -134,7 +135,7 @@ export function TransferFormModal({ ctx, prefill, editing, onClose, onSaved }: {
               placeholder={fromId ? 'Busca por SKU o nombre (con stock en origen)' : 'Primero elige la bodega de origen'} className={inputCls} />
             {(results.length > 0 || searching) && (
               <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {searching && <p className="px-3 py-2 text-xs text-gray-400">Buscando...</p>}
+                {searching && <div className="p-2 space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-7" />)}</div>}
                 {results.map((r) => (
                   <button key={r.id} type="button" onClick={() => addProduct(r)}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex justify-between gap-3">
@@ -402,7 +403,7 @@ export function TransferDetailModal({ ctx, id, onClose, onChanged }: {
         </>}
       </> : undefined}>
       {!doc ? (
-        error ? <FormError message={error} /> : <p className="text-sm text-gray-400">Cargando...</p>
+        error ? <FormError message={error} /> : <SkeletonTable rows={4} cols={4} />
       ) : (
         <div className="space-y-5">
           <ol className="grid grid-cols-2 sm:grid-cols-4 gap-2">

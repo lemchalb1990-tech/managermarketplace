@@ -8,6 +8,7 @@ import { inputCls } from '@/components/ui/Modal';
 import { AdjustModal } from './AdjustModal';
 import { TransferFormModal } from './TransferModals';
 import { fmtMoney, fmtQty, useDebounced, type InventoryContext } from './shared';
+import { SkeletonTable } from '@/components/Skeleton';
 
 export function AvailabilityTab({ ctx }: { ctx: InventoryContext }) {
   const tz = useDashboardTimezone();
@@ -126,7 +127,7 @@ export function AvailabilityTab({ ctx }: { ctx: InventoryContext }) {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading && !data ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={8} cols={6} />
         ) : !data || data.rows.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400 text-sm">No hay productos con estos filtros.</div>
         ) : (

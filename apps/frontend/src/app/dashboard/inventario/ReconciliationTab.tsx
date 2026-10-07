@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Modal, FormError, btnPrimary, btnSecondary } from '@/components/ui/Modal';
 import { fmtQty, type InventoryContext } from './shared';
+import { SkeletonTable } from '@/components/Skeleton';
 
 type Mismatch = { id: string; sku: string; name: string; total: number; warehousesSum: number; difference: number };
 
@@ -63,7 +64,7 @@ export function ReconciliationTab({ ctx }: { ctx: InventoryContext }) {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Revisando...</div>
+          <SkeletonTable rows={6} cols={6} />
         ) : rows.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400">
             <p className="text-sm font-medium text-green-700 mb-1">Todo cuadra</p>

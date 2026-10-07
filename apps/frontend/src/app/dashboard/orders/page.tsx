@@ -10,6 +10,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { onActivity } from '@/lib/activityBus';
 import ImageViewer from './[id]/ImageViewer';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -474,7 +475,7 @@ export default function OrdersPage() {
       )}
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+        <div className="bg-white rounded-xl border border-gray-200"><SkeletonTable rows={8} cols={6} /></div>
       ) : orders.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-12 text-center text-gray-400">
           <p className="text-sm mb-1">Sin órdenes</p>

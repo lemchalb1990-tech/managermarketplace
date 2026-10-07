@@ -7,6 +7,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { alertDialog } from '../../ConfirmDialog';
+import { SkeletonDetail } from '@/components/Skeleton';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -101,7 +102,7 @@ export default function MiRutaDetailPage({ params }: { params: Promise<{ id: str
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Cargando ruta...</p>
+      <SkeletonDetail />
     </div>
   );
   if (error || !route) return (

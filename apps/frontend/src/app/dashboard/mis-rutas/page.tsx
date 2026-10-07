@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+import { SkeletonList } from '@/components/Skeleton';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -46,7 +47,7 @@ export default function MisRutasPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-400 text-sm">Cargando rutas...</p>
+        <SkeletonList count={3} />
       </div>
     );
   }

@@ -9,6 +9,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -258,7 +259,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         </div>
 
         {summaryLoading ? (
-          <p className="text-gray-400 text-sm">Cargando...</p>
+          <SkeletonCards count={4} className="grid grid-cols-2 md:grid-cols-4 gap-4" height={80} />
         ) : summary ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-gray-50 rounded-xl p-4">
@@ -376,7 +377,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         )}
 
         {loading ? (
-          <p className="text-gray-400 text-sm text-center py-10">Cargando...</p>
+          <SkeletonTable rows={8} cols={6} />
         ) : sales.length === 0 ? (
           <p className="text-gray-400 text-sm text-center py-10">Sin ventas para los filtros seleccionados.</p>
         ) : (

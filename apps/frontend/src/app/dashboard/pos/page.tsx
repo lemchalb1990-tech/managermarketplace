@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { SkeletonCards } from '@/components/Skeleton';
 
 interface CartItem {
   productId: string;
@@ -540,7 +541,7 @@ export default function PosPage() {
 
         <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-2xl bg-white">
           {productsLoading && (
-            <p className="text-gray-400 text-sm text-center py-12">Cargando productos...</p>
+            <SkeletonCards count={9} className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3" height={150} />
           )}
 
           {!productsLoading && view === 'grid' && (

@@ -9,6 +9,7 @@ import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
+import { SkeletonDetail } from '@/components/Skeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700',   border: 'border-amber-300' },
@@ -264,7 +265,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
     }
   }
 
-  if (loading) return <div className="text-gray-400 text-sm py-10 text-center">Cargando...</div>;
+  if (loading) return <SkeletonDetail />;
   if (error) return <div className="text-red-600 text-sm py-10 text-center">{error}</div>;
   if (!order) return null;
 

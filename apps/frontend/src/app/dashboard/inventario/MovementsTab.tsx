@@ -6,6 +6,7 @@ import { api, type InventoryMovements } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { inputCls } from '@/components/ui/Modal';
 import { MOVEMENT_TYPES, fmtDateTime, fmtMoney, fmtQty, movementTypeCls, useDebounced, type InventoryContext } from './shared';
+import { SkeletonTable } from '@/components/Skeleton';
 
 // Kardex: todos los movimientos de stock con fecha, documento, bodega, entrada/salida y
 // saldo de la bodega después del movimiento. Filtrable por producto, bodega, tipo,
@@ -125,7 +126,7 @@ export function MovementsTab({ ctx }: { ctx: InventoryContext }) {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading && !data ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={8} cols={6} />
         ) : !data || data.items.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400 text-sm">No hay movimientos con estos filtros.</div>
         ) : (

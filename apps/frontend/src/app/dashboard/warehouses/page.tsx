@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { Modal, FormError, btnPrimary, btnSecondary, inputCls, labelCls } from '@/components/ui/Modal';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const emptyForm = { name: '', description: '' };
 const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
@@ -154,7 +155,7 @@ export default function WarehousesPage() {
         {blocked ? (
           <div className="px-4 py-12 text-center text-gray-400 text-sm">Selecciona una empresa arriba para ver sus bodegas.</div>
         ) : loading ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={4} cols={5} />
         ) : warehouses.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400">
             <div className="text-4xl mb-3">🏭</div>

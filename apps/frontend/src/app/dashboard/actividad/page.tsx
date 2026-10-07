@@ -6,6 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, ActivityFilters, ActivityItem } from '@/lib/api';
 import { PageHeader, Badge } from '@/components/ui';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const inputCls = 'border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
@@ -152,7 +153,7 @@ export default function ActivityPage() {
               </thead>
               <tbody>
                 {loading && !data && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Cargando…</td></tr>
+                  <SkeletonRows cols={5} />
                 )}
                 {data && data.items.length === 0 && (
                   <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No hay actividad con estos filtros.</td></tr>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge } from '@/components/ui';
+import { SkeletonList } from '@/components/Skeleton';
 
 const LEVEL: Record<string, { label: string; tone: 'danger' | 'warn' | 'neutral'; bar: string }> = {
   alta: { label: 'Alta demanda', tone: 'danger', bar: 'var(--danger)' },
@@ -50,7 +51,7 @@ export default function ZonasPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} />
       ) : (
         <SectionCard title={`Comunas por demanda (${data?.zones?.length || 0})`}>
           {(!data?.zones || data.zones.length === 0) ? (

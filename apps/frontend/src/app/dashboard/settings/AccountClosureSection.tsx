@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSession, getToken } from '@/lib/auth';
 import { api, apiDownload } from '@/lib/api';
+import { SkeletonForm } from '@/components/Skeleton';
 
 // Zona de peligro del administrador de la empresa: descargar un respaldo y dar de baja la
 // cuenta. La baja bloquea el acceso de inmediato y borra todos los datos a los 30 días.
 export default function AccountClosureSection() {
   const router = useRouter();
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<any>(undefined);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -19,7 +20,7 @@ export default function AccountClosureSection() {
 
   useEffect(() => {
     const token = getToken();
-    if (token) api.companyAccount.closureStatus(token).then(setStatus).catch(() => {});
+    if (token) api.companyAccount.closureStatus(token).then(setStatus).catch(() => setStatus(null));
   }, []);
 
   async function download() {
@@ -48,6 +49,7 @@ export default function AccountClosureSection() {
     }
   }
 
+  if (status === undefined) return <div className="ui-card p-5"><SkeletonForm fields={2} columns={1} /></div>;
   if (!status) return null;
   const canSubmit = form.understood && form.companyName.trim().toLowerCase() === status.name.trim().toLowerCase() && form.password;
 

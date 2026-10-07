@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
+import { SkeletonList } from '@/components/Skeleton';
 
 const PAY_MODELS = [
   { key: 'FLAT', label: 'Tarifa plana (por día con reparto)' },
@@ -70,7 +71,7 @@ export default function FlotaPage() {
       {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm text-[var(--danger)] bg-[var(--danger-bg)]">{error}</div>}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} />
       ) : drivers.length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">
           Sin repartidores. Crea usuarios con perfil "Despachador" en Colaboradores → Usuarios.

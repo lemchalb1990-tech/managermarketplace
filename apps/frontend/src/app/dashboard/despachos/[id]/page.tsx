@@ -8,6 +8,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
+import { SkeletonDetail, SkeletonList } from '@/components/Skeleton';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
@@ -138,7 +139,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
     await act(() => api.dispatch.removeStop(id, stopId, token));
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><p className="text-gray-400 text-sm">Cargando ruta...</p></div>;
+  if (loading) return <SkeletonDetail />;
   if (error || !route) return (
     <div className="text-center py-16">
       <p className="text-red-500 font-medium">{error || 'Ruta no encontrada'}</p>
@@ -325,7 +326,7 @@ export default function DespachoDetailPage({ params }: { params: Promise<{ id: s
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Orden *</label>
                 {loadingOrders ? (
-                  <p className="text-xs text-gray-400">Cargando órdenes disponibles...</p>
+                  <SkeletonList count={3} className="space-y-2" />
                 ) : availableOrders.length === 0 ? (
                   <p className="text-xs text-amber-600">Sin órdenes disponibles (deben estar en estado READY y ser tipo DESPACHO)</p>
                 ) : (

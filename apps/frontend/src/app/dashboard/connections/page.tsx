@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const MARKETPLACE_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -194,7 +195,7 @@ export default function ConnectionsPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+              <SkeletonRows cols={8} />
             )}
             {!loading && filtered.map((r) => {
               const expired = r.expiresAt && new Date(r.expiresAt) < new Date();

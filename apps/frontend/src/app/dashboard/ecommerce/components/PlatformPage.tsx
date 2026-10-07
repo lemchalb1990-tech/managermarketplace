@@ -10,6 +10,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import { ChannelImportModal } from './ChannelImportModal';
 import { ChannelSalesImportModal } from './ChannelSalesImportModal';
+import { SkeletonRows } from '@/components/Skeleton';
 
 export interface PlatformField {
   key: string;
@@ -68,6 +69,7 @@ export default function PlatformPage({ config }: Props) {
   const displayDescription = resolvePlatformDescription(logoMap, logoKey, config.description);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [connections, setConnections] = useState<any[]>([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
   const [formFields, setFormFields] = useState<Record<string, string>>({});
@@ -97,6 +99,7 @@ export default function PlatformPage({ config }: Props) {
       companyId: companyId || undefined,
     }).catch(() => []);
     setConnections(data);
+    setConnectionsLoaded(true);
   }
 
   async function init() {
@@ -106,6 +109,8 @@ export default function PlatformPage({ config }: Props) {
     setCurrentUser(me);
     if (me.role !== 'SUPER_ADMIN') {
       await loadConnections();
+    } else if (!selectedCompanyId) {
+      setConnectionsLoaded(true);
     }
   }
 
@@ -445,7 +450,8 @@ export default function PlatformPage({ config }: Props) {
                     </td>
                   </tr>
                 ))}
-                {connections.length === 0 && (
+                {!connectionsLoaded && <SkeletonRows cols={config.supportsInvoicePush ? 6 : 5} rows={3} />}
+                {connectionsLoaded && connections.length === 0 && (
                   <tr>
                     <td colSpan={config.supportsInvoicePush ? 6 : 5} className="px-4 py-10 text-center text-gray-400">
                       <p className="text-sm mb-1">Sin conexiones</p>

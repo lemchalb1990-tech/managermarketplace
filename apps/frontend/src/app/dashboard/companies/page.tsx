@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const ALL_COMPANY_MODULES = [
   { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
@@ -45,6 +46,7 @@ type EditState = { id: string; name: string; active: boolean; maxUsers: number; 
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
+  const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -65,6 +67,7 @@ export default function CompaniesPage() {
     if (!token) return;
     const data = await api.companies.list(token);
     setCompanies(data);
+    setCompaniesLoaded(true);
   }
 
   // La gestión de empresas es solo de Super Admin (el backend también lo exige).
@@ -475,7 +478,8 @@ export default function CompaniesPage() {
                 </td>
               </tr>
             ))}
-            {companies.length === 0 && (
+            {!companiesLoaded && <SkeletonRows cols={7} rows={5} />}
+            {companiesLoaded && companies.length === 0 && (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Sin empresas registradas</td></tr>
             )}
           </tbody>

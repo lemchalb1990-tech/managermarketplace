@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, BrandButton } from '@/components/ui';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { onActivity } from '@/lib/activityBus';
+import { SkeletonList } from '@/components/Skeleton';
 
 const roleShort: Record<string, string> = {
   COMPANY_ADMIN: 'Admin', CATALOG_MANAGER: 'Catálogo', VENDEDOR: 'Vendedor', SUPER_ADMIN: 'Super',
@@ -84,7 +85,7 @@ export default function BodegaBoardPage() {
       {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm text-[var(--danger)] bg-[var(--danger-bg)]">{error}</div>}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} />
       ) : board && (
         <div className="space-y-5">
           <StatRow>

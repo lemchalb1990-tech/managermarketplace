@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { Skeleton } from '@/components/Skeleton';
 
 // Buscador de productos por nombre o SKU (hasta 20 coincidencias por búsqueda), en vez de una
 // lista desplegable con todo el catálogo: con miles de productos, cargarlos todos tardaba varios
@@ -53,7 +54,7 @@ export default function ProductSearchPicker({ companyId, value, label, onChange 
           {query.trim().length < 2 ? (
             <p className="px-3 py-2 text-xs text-gray-400">Escribe al menos 2 letras del nombre o el SKU.</p>
           ) : loading ? (
-            <p className="px-3 py-2 text-xs text-gray-400">Buscando…</p>
+            <div className="p-2 space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8" />)}</div>
           ) : results.length === 0 ? (
             <p className="px-3 py-2 text-xs text-gray-400">Sin coincidencias.</p>
           ) : results.map((p) => (

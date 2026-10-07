@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { MONTHS, PAYMENT_LABEL, TYPE_LABEL, clp, flattenTree, monthRange, todayKey } from './finance-utils';
+import { SkeletonRows } from '@/components/Skeleton';
 
 // amount = lo que se pagó; con withIva se separa en neto (presupuesto) + IVA (crédito fiscal).
 const emptyForm = { accountId: '', date: todayKey(), amount: '', withIva: false, description: '', counterparty: '', paymentMethod: '', reference: '', bankAccountId: '' };
@@ -167,7 +168,7 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+                <SkeletonRows cols={5} />
               ) : !data?.items.length ? (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Sin movimientos en el período.</td></tr>
               ) : data.items.map((m) => (

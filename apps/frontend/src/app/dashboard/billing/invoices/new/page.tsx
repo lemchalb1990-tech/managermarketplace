@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import InvoiceDocument from '../../components/InvoiceDocument';
 import { useBillingCompany } from '../../BillingCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { Skeleton, SkeletonForm } from '@/components/Skeleton';
 
 const DTE_TYPES = [
   { value: 'FACTURA', label: 'Factura Electrónica (33)', taxed: true },
@@ -407,7 +408,7 @@ export default function NewInvoicePage() {
 
       <h1 className="text-[1.375rem] font-bold text-gray-900 mb-6">{draftId ? 'Editar borrador' : 'Emitir Documento Tributario'}</h1>
       {draftLoadingInitial && (
-        <p className="text-sm text-gray-400 mb-4">Cargando datos...</p>
+        <SkeletonForm fields={6} className="mb-6" />
       )}
 
       {copiedFrom && (
@@ -421,7 +422,7 @@ export default function NewInvoicePage() {
       {saleId && (
         <div className="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
           {saleLoading ? (
-            'Cargando datos de la venta...'
+            <Skeleton className="h-4 w-72 max-w-full" />
           ) : sale ? (
             <>
               Facturando la venta del{' '}

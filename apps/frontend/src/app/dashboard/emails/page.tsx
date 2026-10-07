@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../ConfirmDialog';
+import { SkeletonForm, SkeletonList } from '@/components/Skeleton';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; trigger: string }> = {
   ORDER_CONFIRMED:        { label: 'Orden confirmada',       icon: '🎉', trigger: 'Al crear una orden' },
@@ -190,7 +191,7 @@ export default function EmailsPage() {
           {/* Left: template list */}
           <div className="space-y-2">
             {loadingTemplates ? (
-              <p className="text-gray-400 text-sm text-center py-8">Cargando...</p>
+              <SkeletonList count={4} />
             ) : templates.map(tpl => {
               const cfg = TYPE_LABELS[tpl.type];
               const isSelected = selectedType === tpl.type;
@@ -341,7 +342,7 @@ export default function EmailsPage() {
             <p className="text-sm text-gray-400 mb-5">Configura el servidor SMTP para enviar correos automáticos a tus clientes.</p>
 
             {loadingSmtp ? (
-              <p className="text-gray-400 text-sm">Cargando configuración...</p>
+              <SkeletonForm fields={6} />
             ) : (
               <form onSubmit={handleSaveSmtp} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

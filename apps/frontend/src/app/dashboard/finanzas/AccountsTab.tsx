@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { TYPE_LABEL, flattenTree } from './finance-utils';
+import { SkeletonTable } from '@/components/Skeleton';
 
 type Draft = { mode: 'new' | 'edit'; id?: string; parentId: string; type: string; name: string; code: string };
 
@@ -78,7 +79,7 @@ export default function AccountsTab({ companyId, onChanged }: { companyId?: stri
     }
   }
 
-  if (loading) return <div className="p-10 text-center text-gray-400 text-sm">Cargando...</div>;
+  if (loading) return <SkeletonTable rows={8} cols={4} />;
   if (error) return <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>;
 
   const draftType = draft?.parentId ? accounts.find((a) => a.id === draft.parentId)?.type : draft?.type;

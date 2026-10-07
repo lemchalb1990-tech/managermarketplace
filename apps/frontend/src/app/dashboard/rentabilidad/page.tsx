@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { calcProfit, calcVeredicto, effectiveMyPrice, formatCLP } from '@/lib/profitability-calc';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMADO: 'Confirmado',
@@ -346,7 +347,7 @@ export default function RentabilidadPage() {
           <p>Selecciona una empresa arriba para ver su comparador de rentabilidad.</p>
         </div>
       ) : loading ? (
-        <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+        <SkeletonTable rows={8} cols={7} />
       ) : (
       <>
         {/* KPIs */}

@@ -13,6 +13,7 @@ import MergeModal from './MergeModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
 import ChannelPublicationsCard, { GenericChannelActions } from './ChannelPublicationsCard';
+import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1280,7 +1281,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
             ))}
           </div>
           <div className="max-h-52 overflow-y-auto">
-            {browseLoading && <p className="text-xs text-gray-400 text-center py-4">Cargando...</p>}
+            {browseLoading && <div className="p-2 space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-7" />)}</div>}
             {!browseLoading && browsePath.length > 0 && (
               <button type="button" onClick={() => onChange(browsePath[browsePath.length - 1].id)}
                 className="w-full text-left px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 border-b border-gray-100">
@@ -2847,7 +2848,7 @@ export default function CatalogPage() {
             <div className="col-span-full py-10 text-center text-gray-400 text-sm">Sin productos que coincidan con los filtros.</div>
           )}
           {loading && (
-            <div className="col-span-full py-10 text-center text-gray-400 text-sm">Cargando...</div>
+            <SkeletonCards count={8} className="col-span-full grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3" height={220} />
           )}
         </div>
         ) : (
@@ -3006,7 +3007,7 @@ export default function CatalogPage() {
               <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <SkeletonRows cols={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} />
             )}
           </tbody>
         </table>
@@ -3561,7 +3562,7 @@ export default function CatalogPage() {
                     </button>
                   </div>
                   {stockMovLoading ? (
-                    <p className="text-sm text-gray-400 text-center py-8">Cargando movimientos...</p>
+                    <SkeletonTable rows={4} cols={5} />
                   ) : stockMovements.length === 0 ? (
                     <p className="text-sm text-gray-400 text-center py-8">Sin movimientos registrados para este producto.</p>
                   ) : (

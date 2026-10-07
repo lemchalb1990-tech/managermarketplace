@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
 import { confirmDialog } from '../ConfirmDialog';
+import { SkeletonList } from '@/components/Skeleton';
 
 type Group = { key: string; label: string; items: { key: string; label: string }[] };
 type Profile = {
@@ -143,7 +144,7 @@ export default function AccessProfilesPage() {
 
       <SectionCard>
         {loading ? (
-          <p className="text-sm text-[var(--text-muted)] py-6 text-center">Cargando…</p>
+          <SkeletonList count={4} />
         ) : (
           <div className="overflow-x-auto -m-5">
             <table className="w-full text-sm">

@@ -8,6 +8,7 @@ import InvoiceDocument from '../components/InvoiceDocument';
 import { useBillingCompany } from '../BillingCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const EXEMPT_DTE_TYPES = new Set(['BOLETA', 'FACTURA_EXENTA']);
 
@@ -250,7 +251,7 @@ export default function InvoicesPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+              <SkeletonRows cols={10} />
             ) : invoices.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-10 text-center text-gray-400">

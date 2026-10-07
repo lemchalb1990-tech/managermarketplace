@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { TYPE_LABEL, clp, flattenTree, todayKey } from './finance-utils';
 import { ColumnMap, buildLines, guessColumns } from './statement-parse';
+import { Skeleton, SkeletonCards } from '@/components/Skeleton';
 
 const BANK_TYPE: Record<string, string> = { BANK: 'Cuenta bancaria', CASH: 'Caja', CREDIT_CARD: 'Tarjeta de crédito', WALLET: 'Billetera digital' };
 const STATUS_LABEL: Record<string, string> = { PENDING: 'Por conciliar', MATCHED: 'Conciliadas', IGNORED: 'Ya contabilizadas', '': 'Todas' };
@@ -118,7 +119,7 @@ export default function BanksTab({ companyId, version, onChanged }: { companyId?
         )}
       </div>
 
-      {loading ? <div className="p-10 text-center text-gray-400 text-sm">Cargando...</div> : !banks.length ? (
+      {loading ? <SkeletonCards count={3} className="grid grid-cols-1 md:grid-cols-3 gap-3" /> : !banks.length ? (
         <div className="p-10 text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl">
           Registra tus cuentas bancarias, caja, tarjetas o billeteras (Mercado Pago) para ver sus saldos y conciliar las cartolas.
         </div>
@@ -448,7 +449,7 @@ function ReconcileModal({ line, accounts, onClose, onDone }: { line: any; accoun
 
       <div>
         <p className="text-xs font-semibold text-gray-700 mb-1">1. Coincide con un movimiento o traspaso ya registrado</p>
-        {!cands ? <p className="text-xs text-gray-400">Buscando...</p> : !cands.movements.length && !cands.transfers.length ? (
+        {!cands ? <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8" />)}</div> : !cands.movements.length && !cands.transfers.length ? (
           <p className="text-xs text-gray-400">No hay movimientos del mismo monto en ±10 días.</p>
         ) : (
           <ul className="space-y-1">

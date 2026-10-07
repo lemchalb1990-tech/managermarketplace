@@ -8,6 +8,7 @@ import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
 import { invalidateNotificationSoundsCache } from '@/lib/notificationSounds';
 import { confirmDialog } from '../ConfirmDialog';
 import { useNotifications } from '../Notifications';
+import { SkeletonForm } from '@/components/Skeleton';
 
 const NOTIF_SOUND_KEYS = ['NOTIF_SOUND_SALE', 'NOTIF_SOUND_QUESTION', 'NOTIF_SOUND_CLAIM'];
 
@@ -158,7 +159,7 @@ export default function SettingsPage() {
     });
   }
 
-  if (loading) return <p className="text-gray-400 text-sm">Cargando configuración...</p>;
+  if (loading) return <SkeletonForm fields={10} />;
 
   return (
     <div className="max-w-2xl">

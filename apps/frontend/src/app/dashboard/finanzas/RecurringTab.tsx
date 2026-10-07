@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { PAYMENT_LABEL, TYPE_LABEL, clp, flattenTree, todayKey } from './finance-utils';
+import { SkeletonRows } from '@/components/Skeleton';
 
 const INTERVALS: Record<number, string> = { 1: 'Mensual', 2: 'Bimestral', 3: 'Trimestral', 6: 'Semestral', 12: 'Anual' };
 const emptyForm = {
@@ -121,7 +122,7 @@ export default function RecurringTab({ companyId, version, onChanged }: { compan
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+              <SkeletonRows cols={6} />
             ) : !items.length ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sin gastos recurrentes.</td></tr>
             ) : items.map((r) => (

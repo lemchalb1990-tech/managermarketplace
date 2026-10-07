@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useBillingCompany } from '../BillingCompanyContext';
+import { SkeletonForm } from '@/components/Skeleton';
 
 const emptyForm = {
   razonSocial: '', rut: '', giro: '', address: '', commune: '', city: '',
@@ -127,7 +128,7 @@ export default function BillingProfilePage() {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5"><SkeletonForm fields={8} /></div>
       ) : (
       <form onSubmit={handleSave} className="space-y-6">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { MONTHS, clp, trafficLight } from './finance-utils';
+import { SkeletonCards } from '@/components/Skeleton';
 
 const ALERT_CLS: Record<string, string> = {
   danger: 'bg-red-50 border-red-200 text-red-700',
@@ -25,7 +26,7 @@ export default function FinanceSummary({ companyId, compact, version = 0 }: { co
   }, [companyId, version]);
 
   if (error) return compact ? null : <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>;
-  if (!data) return <div className="p-6 text-center text-gray-400 text-sm">Cargando finanzas...</div>;
+  if (!data) return <SkeletonCards count={4} />;
 
   const kpis = [
     { label: 'Ingresos', ...data.income, type: 'INCOME' },

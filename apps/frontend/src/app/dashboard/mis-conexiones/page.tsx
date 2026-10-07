@@ -9,6 +9,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { Logos } from '../ecommerce/components/logos';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
+import { SkeletonRows } from '@/components/Skeleton';
 
 // Mapeo enum del backend -> slug usado en las rutas /dashboard/ecommerce/<slug> y en Logos.
 const MARKETPLACE_KEY: Record<string, string> = {
@@ -296,7 +297,7 @@ export default function MisConexionesPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">Cargando...</td></tr>
+                  <SkeletonRows cols={5} />
                 )}
                 {!loading && filtered.map((r) => (
                   <tr key={`${r.kind}-${r.id}`} className="hover:bg-gray-50">

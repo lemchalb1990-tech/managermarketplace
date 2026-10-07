@@ -7,6 +7,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { inputCls } from '@/components/ui/Modal';
 import { TransferDetailModal, TransferFormModal } from './TransferModals';
 import { TRANSFER_STATUS, fmtDateTime, fmtQty, useDebounced, type InventoryContext } from './shared';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const FILTERS: Array<{ key: '' | TransferStatus; label: string }> = [
   { key: '', label: 'Todos' },
@@ -86,7 +87,7 @@ export function TransfersTab({ ctx }: { ctx: InventoryContext }) {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading && docs.length === 0 ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={6} cols={6} />
         ) : docs.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400">
             <p className="text-sm font-medium mb-1">Sin traspasos</p>

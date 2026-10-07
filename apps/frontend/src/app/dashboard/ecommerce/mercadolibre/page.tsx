@@ -14,6 +14,7 @@ import { useAdminCompany } from '../../AdminCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
+import { SkeletonList } from '@/components/Skeleton';
 
 export default function MercadoLibrePage() {
   const { selectedCompanyId } = useAdminCompany();
@@ -21,6 +22,7 @@ export default function MercadoLibrePage() {
   const logoMap = usePlatformLogos();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [connections, setConnections] = useState<any[]>([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
 
   const [showConnect, setShowConnect] = useState(false);
   const [connName, setConnName] = useState('');
@@ -145,6 +147,7 @@ export default function MercadoLibrePage() {
     const token = getToken()!;
     const conns = await api.marketplace.connections(token, companyId).catch(() => []);
     setConnections(conns);
+    setConnectionsLoaded(true);
   }
 
   async function init() {
@@ -154,6 +157,8 @@ export default function MercadoLibrePage() {
     setCurrentUser(me);
     if (me.role !== 'SUPER_ADMIN') {
       await loadConnections();
+    } else if (!selectedCompanyId) {
+      setConnectionsLoaded(true);
     }
   }
 
@@ -456,7 +461,9 @@ export default function MercadoLibrePage() {
             </div>
           )}
 
-          {connections.length === 0 ? (
+          {!connectionsLoaded ? (
+            <SkeletonList count={2} />
+          ) : connections.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 px-4 py-10 text-center text-gray-400">
               <p className="text-sm mb-1">Sin tiendas registradas</p>
               <p className="text-xs">Haz clic en "+ Agregar tienda" para guardar las credenciales de una cuenta de Mercado Libre.</p>

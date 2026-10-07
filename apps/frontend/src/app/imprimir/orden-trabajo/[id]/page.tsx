@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { SkeletonDetail } from '@/components/Skeleton';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Presupuesto pendiente', CONVERTED: 'Cobrada', REJECTED: 'Rechazada', CANCELLED: 'Anulada',
@@ -40,7 +41,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
     return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#b91c1c' }}>{error}</div>;
   }
   if (!workOrder) {
-    return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#64748b' }}>Cargando...</div>;
+    return <div style={{ padding: 40 }}><SkeletonDetail /></div>;
   }
 
   const total = workOrder.items.reduce((s: number, i: any) => s + i.quantity * Number(i.unitPrice), 0);

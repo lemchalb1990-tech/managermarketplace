@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
+import { SkeletonList } from '@/components/Skeleton';
 
 const STATUS_CFG: Record<string, { label: string; color: string; dot: string }> = {
   PENDING:     { label: 'Pendiente',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
@@ -119,7 +120,7 @@ export default function DespachosPage() {
 
       {/* Routes list */}
       {loading ? (
-        <p className="text-gray-400 text-sm text-center py-12">Cargando...</p>
+        <SkeletonList count={4} />
       ) : routes.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
           <p className="text-3xl mb-2">🚚</p>

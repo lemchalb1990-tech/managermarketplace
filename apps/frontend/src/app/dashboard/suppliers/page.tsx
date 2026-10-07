@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const emptyForm = { name: '', taxId: '', email: '', phone: '', address: '' };
 
@@ -176,7 +177,7 @@ export default function SuppliersPage() {
       <>
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={6} cols={5} />
         ) : suppliers.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400">
             <div className="text-4xl mb-3">🏢</div>

@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { confirmDialog } from '../ConfirmDialog';
+import { SkeletonList } from '@/components/Skeleton';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -131,7 +132,7 @@ export default function DevolucionesPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} />
       ) : (data?.returns || []).length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">
           {tab === 'pending' ? 'Nada por recepcionar' : 'Sin devoluciones recibidas'}

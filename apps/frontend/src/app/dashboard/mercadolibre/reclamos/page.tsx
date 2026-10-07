@@ -9,6 +9,7 @@ import { onActivity } from '@/lib/activityBus';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { confirmDialog } from '../../ConfirmDialog';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { SkeletonForm, SkeletonList } from '@/components/Skeleton';
 
 const PLAYER_TYPE_LABEL: Record<string, string> = {
   buyer: 'Comprador', seller: 'Vendedor', internal: 'Mercado Libre',
@@ -131,7 +132,7 @@ export default function MlReclamosPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={4} avatar />
       ) : (data?.claims || []).length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin reclamos para mostrar</p></SectionCard>
       ) : (
@@ -183,7 +184,7 @@ export default function MlReclamosPage() {
             </div>
             <div className="px-6 py-4 flex-1 overflow-y-auto">
               {detailLoading ? (
-                <p className="text-sm text-[var(--text-muted)] text-center py-6">Cargando detalle…</p>
+                <SkeletonForm fields={4} columns={2} />
               ) : (
                 <>
                   {detail?.detail && (

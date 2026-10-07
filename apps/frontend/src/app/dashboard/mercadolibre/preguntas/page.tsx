@@ -8,6 +8,7 @@ import { useMlCompany } from '../MlCompanyContext';
 import { ProductThumb, PhotoLightbox, type LightboxImage } from '../PhotoLightbox';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
+import { SkeletonList } from '@/components/Skeleton';
 
 const TABS = [
   { key: 'UNANSWERED', label: 'Sin responder' },
@@ -86,7 +87,7 @@ export default function MlPreguntasPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p>
+        <SkeletonList count={5} avatar />
       ) : (data?.questions || []).length === 0 ? (
         <SectionCard><p className="text-sm text-[var(--text-muted)] text-center py-6">Sin preguntas para mostrar</p></SectionCard>
       ) : (

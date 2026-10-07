@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { MONTHS, TYPE_LABEL, clp, flattenTree } from './finance-utils';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const key = (accountId: string, month: number) => `${accountId}:${month}`;
 const parse = (v: string) => Number(String(v).replace(/[^\d]/g, '')) || 0;
@@ -94,7 +95,7 @@ export default function BudgetTab({ year, companyId, version, onSaved }: { year:
     }
   }
 
-  if (loading) return <div className="p-10 text-center text-gray-400 text-sm">Cargando...</div>;
+  if (loading) return <SkeletonTable rows={8} cols={6} />;
   if (error) return <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>;
 
   return (

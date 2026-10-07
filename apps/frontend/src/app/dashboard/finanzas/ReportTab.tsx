@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { MONTHS, clp, flattenTree, sum, trafficLight } from './finance-utils';
+import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
 type Period = 'month' | 'ytd' | 'year';
 
@@ -36,7 +37,7 @@ export default function ReportTab({ year, companyId, version }: { year: number; 
       .filter((a) => !a.archived || a.b || a.r);
   }, [data, from, to, hideEmpty]);
 
-  if (loading) return <div className="p-10 text-center text-gray-400 text-sm">Cargando...</div>;
+  if (loading) return <div className="space-y-4"><SkeletonCards count={4} /><SkeletonTable rows={6} cols={5} /></div>;
   if (error) return <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>;
   if (!data) return null;
 

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton } from '@/components/ui';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const money = (n: any) => `$${Number(n || 0).toLocaleString('es-CL')}`;
 
@@ -59,7 +60,7 @@ export default function RemuneracionPage() {
       />
       {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm text-[var(--danger)] bg-[var(--danger-bg)]">{error}</div>}
 
-      {loading ? <p className="text-sm text-[var(--text-muted)] py-8 text-center">Cargando…</p> : (
+      {loading ? <div className="ui-card"><SkeletonTable rows={5} cols={5} /></div> : (
         <div className="space-y-5">
           <SectionCard title="Pendiente por repartidor">
             <div className="overflow-x-auto -m-5">

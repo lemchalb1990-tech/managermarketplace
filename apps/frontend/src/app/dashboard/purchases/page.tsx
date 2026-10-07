@@ -8,6 +8,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import Link from 'next/link';
 import { Modal, FormError, btnPrimary, btnSecondary } from '@/components/ui/Modal';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const emptyPurchaseForm = { supplierId: '', warehouseId: '', documentNumber: '', notes: '' };
 const emptyItem = { productId: '', productLabel: '', quantity: '1', unitCost: '' };
@@ -217,7 +218,7 @@ export default function PurchasesPage() {
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {loading ? (
-              <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+              <SkeletonTable rows={8} cols={6} />
             ) : purchases.length === 0 ? (
               <div className="px-4 py-12 text-center text-gray-400">
                 <div className="text-4xl mb-3">📦</div>

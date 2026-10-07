@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { SkeletonTable } from '@/components/Skeleton';
 
 const emptyForm = { name: '', rut: '', giro: '', email: '', phone: '', address: '', commune: '', city: '', creditLimit: '' };
 
@@ -214,7 +215,7 @@ export default function ClientsPage() {
       ) : (
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         {loading ? (
-          <div className="px-4 py-10 text-center text-gray-400 text-sm">Cargando...</div>
+          <SkeletonTable rows={8} cols={5} />
         ) : clients.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-400">
             <div className="text-4xl mb-3">🧑‍💼</div>
@@ -460,7 +461,7 @@ export default function ClientsPage() {
             </div>
             <div className="overflow-y-auto px-6 py-5 space-y-6">
               {historyLoading ? (
-                <p className="text-sm text-gray-400 text-center py-8">Cargando...</p>
+                <SkeletonTable rows={4} cols={4} />
               ) : !historyData ? (
                 <p className="text-sm text-red-500 text-center py-8">No se pudo cargar el historial.</p>
               ) : (

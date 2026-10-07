@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { ImportProgress } from '@/components/ImportProgress';
+import { SkeletonList } from '@/components/Skeleton';
 
 type PreviewItem = {
   externalId: string;
@@ -239,9 +240,9 @@ export function ImportModal({
 
         <div className="flex-1 overflow-y-auto">
           {loading && (
-            <div className="p-16 flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
-              <div className="w-8 h-8 border-4 border-gray-200 border-t-yellow-500 rounded-full animate-spin" />
-              <p>Buscando publicaciones en Mercado Libre...</p>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-400">Buscando publicaciones en Mercado Libre...</p>
+              <SkeletonList count={5} avatar className="space-y-2" />
             </div>
           )}
 

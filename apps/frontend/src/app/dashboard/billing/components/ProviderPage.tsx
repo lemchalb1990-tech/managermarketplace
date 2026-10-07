@@ -7,6 +7,7 @@ import { useBillingCompany } from '../BillingCompanyContext';
 import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
+import { SkeletonRows } from '@/components/Skeleton';
 
 export interface ProviderField {
   key: string;
@@ -39,6 +40,7 @@ export default function ProviderPage({ config }: Props) {
   const displayName = resolvePlatformName(logoMap, logoKey, config.name);
   const displayDescription = resolvePlatformDescription(logoMap, logoKey, config.description);
   const [connections, setConnections] = useState<any[]>([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
   const [formFields, setFormFields] = useState<Record<string, string>>({});
@@ -57,6 +59,7 @@ export default function ProviderPage({ config }: Props) {
       companyId: companyId || undefined,
     }).catch(() => []);
     setConnections(data);
+    setConnectionsLoaded(true);
   }
 
   useEffect(() => {
@@ -274,7 +277,8 @@ export default function ProviderPage({ config }: Props) {
                     </td>
                   </tr>
                 ))}
-                {connections.length === 0 && (
+                {!connectionsLoaded && <SkeletonRows cols={5} rows={3} />}
+                {connectionsLoaded && connections.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
                       <p className="text-sm mb-1">Sin conexiones</p>
