@@ -3,7 +3,7 @@ import {
   Injectable, NotFoundException, ForbiddenException,
   BadRequestException, ConflictException, Logger,
 } from '@nestjs/common';
-import { OrderStatus, FulfillmentType, PrepStage, Role, OrderEventSource } from '@prisma/client';
+import { OrderStatus, FulfillmentType, PrepStage, Role, OrderEventSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateOrderDto, UpdateOrderDto, UpdateStatusDto, CheckItemDto, FindOrdersDto } from './dto/order.dto';
@@ -132,10 +132,7 @@ export class OrdersService {
       ];
     }
 
-    const [orders, total] = await Promise.all([
-      this.prisma.order.findMany({
-        where,
-        include: {
+    const include = {
           warehouse: { select: { id: true, name: true } },
           sale: {
             select: {
@@ -160,13 +157,46 @@ export class OrdersService {
             orderBy: { productName: 'asc' },
           },
           _count: { select: { itemChecks: true, photos: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-      }),
-      this.prisma.order.count({ where }),
-    ]);
+    } satisfies Prisma.OrderInclude;
+    const skip = (page - 1) * PAGE_SIZE;
+
+    let orders: any[];
+    let total: number;
+    const dir = query.sortDir === 'asc' ? 'asc' : 'desc';
+    const SORTS: Record<string, Prisma.OrderOrderByWithRelationInput[]> = {
+      order: [{ sale: { externalId: dir } }],
+      customer: [{ customerName: dir }],
+      channel: [{ sale: { channel: dir } }],
+      status: [{ status: dir }],
+      total: [{ sale: { total: dir } }],
+      date: [{ createdAt: dir }],
+    };
+    if (query.sortBy && SORTS[query.sortBy]) {
+      // Orden elegido por el usuario (clic en el título de la columna).
+      [orders, total] = await Promise.all([
+        this.prisma.order.findMany({ where, include, orderBy: [...SORTS[query.sortBy], { createdAt: 'desc' }], skip, take: PAGE_SIZE }),
+        this.prisma.order.count({ where }),
+      ]);
+    } else {
+      // Por defecto: primero las pendientes de despachar (de cualquier marketplace), de la más
+      // antigua a la más nueva; después el resto, de la más reciente a la más antigua.
+      const OPEN = [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY];
+      const openWhere = { AND: [where, { status: { in: OPEN } }] };
+      const restWhere = { AND: [where, { status: { notIn: OPEN } }] };
+      const [openCount, restCount] = await Promise.all([
+        this.prisma.order.count({ where: openWhere }),
+        this.prisma.order.count({ where: restWhere }),
+      ]);
+      const openPart = skip < openCount
+        ? await this.prisma.order.findMany({ where: openWhere, include, orderBy: { createdAt: 'asc' }, skip, take: Math.min(PAGE_SIZE, openCount - skip) })
+        : [];
+      const remaining = PAGE_SIZE - openPart.length;
+      const restPart = remaining > 0
+        ? await this.prisma.order.findMany({ where: restWhere, include, orderBy: { createdAt: 'desc' }, skip: Math.max(0, skip - openCount), take: remaining })
+        : [];
+      orders = [...openPart, ...restPart];
+      total = openCount + restCount;
+    }
 
     for (const o of orders) for (const ev of o.statusEvents) ev.title = displayMlEventTitle(ev);
     return { orders, total, page, pages: Math.ceil(total / PAGE_SIZE) };

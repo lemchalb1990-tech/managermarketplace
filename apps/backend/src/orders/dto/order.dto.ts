@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsInt, Min, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, IsInt, Min, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { OrderStatus, FulfillmentType, SaleChannel } from '@prisma/client';
 
@@ -141,6 +141,15 @@ export class FindOrdersDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  // Orden por columna (clic en el título). Sin sortBy: pendientes más antiguas primero.
+  @IsOptional()
+  @IsIn(['order', 'customer', 'channel', 'status', 'total', 'date'])
+  sortBy?: string;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortDir?: 'asc' | 'desc';
 
   // Marketplace de origen (canal de la venta): MERCADO_LIBRE, JUMPSELLER, RIPLEY...
   @IsOptional()

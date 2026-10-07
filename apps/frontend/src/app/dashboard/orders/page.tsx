@@ -123,6 +123,10 @@ export default function OrdersPage() {
   // Solo los marketplaces con alguna tienda activa en la empresa.
   const [activeMarketplaces, setActiveMarketplaces] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  // Orden por columna (clic en el título). Vacío = pendientes más antiguas primero.
+  const [sort, setSort] = useState<{ by: string; dir: 'asc' | 'desc' } | null>(null);
+  const sortRef = useRef(sort);
+  sortRef.current = sort;
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [deletingId, setDeletingId] = useState('');
 
@@ -152,7 +156,7 @@ export default function OrdersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await api.orders.list(token, { status: status || undefined, channel: channel || undefined, page: p, companyId, search: q || undefined });
+      const res = await api.orders.list(token, { status: status || undefined, channel: channel || undefined, page: p, companyId, search: q || undefined, sortBy: sortRef.current?.by, sortDir: sortRef.current?.dir });
       setOrders(res.orders);
       setTotal(res.total);
       setPage(res.page);
@@ -212,6 +216,27 @@ export default function OrdersPage() {
   function changeTab(key: string) {
     setStatusFilter(key);
     load(1, key);
+  }
+
+  // Clic en un título: ordena por esa columna (asc → desc → orden por defecto).
+  function toggleSort(by: string) {
+    const cur = sortRef.current;
+    const next = !cur || cur.by !== by ? { by, dir: 'asc' as const } : cur.dir === 'asc' ? { by, dir: 'desc' as const } : null;
+    setSort(next);
+    sortRef.current = next;
+    load(1);
+  }
+  function SortTh({ by, label, align = 'left' }: { by: string; label: string; align?: 'left' | 'right' }) {
+    const active = sort?.by === by;
+    return (
+      <th className={`text-${align} px-3 py-3 text-gray-600 font-medium`}>
+        <button type="button" onClick={() => toggleSort(by)} title="Ordenar"
+          className={`inline-flex items-center gap-1 uppercase tracking-[inherit] hover:text-[var(--text)] ${active ? 'text-[var(--text)]' : ''}`}>
+          {label}
+          <span className="text-[9px]">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+        </button>
+      </th>
+    );
   }
 
   function changeChannel(key: string) {
@@ -621,13 +646,13 @@ export default function OrdersPage() {
                       checked={mlOrdersOnPage.length > 0 && mlOrdersOnPage.every((o) => selectedIds.has(o.id))}
                       onChange={toggleSelectAll} disabled={mlOrdersOnPage.length === 0} />
                   </th>
-                  <th className="text-left px-3 py-3 text-gray-600 font-medium"># Orden</th>
-                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Cliente</th>
+                  <SortTh by="order" label="# Orden" />
+                  <SortTh by="customer" label="Cliente" />
                   <th className="text-left px-3 py-3 text-gray-600 font-medium min-w-[16rem]">Productos</th>
-                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Canal</th>
-                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Estado</th>
-                  <th className="text-right px-3 py-3 text-gray-600 font-medium">Total</th>
-                  <th className="text-left px-3 py-3 text-gray-600 font-medium">Fecha</th>
+                  <SortTh by="channel" label="Canal" />
+                  <SortTh by="status" label="Estado" />
+                  <SortTh by="total" label="Total" align="right" />
+                  <SortTh by="date" label="Fecha" />
                   <th className="px-3 py-3"></th>
                 </tr>
               </thead>
