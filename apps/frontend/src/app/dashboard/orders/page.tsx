@@ -96,18 +96,6 @@ const STATUS_TABS = [
   { key: 'CANCELLED', label: 'Canceladas' },
 ];
 
-const emptyCreate = {
-  fulfillmentType: 'DELIVERY',
-  saleId: '',
-  warehouseId: '',
-  customerName: '',
-  customerEmail: '',
-  customerPhone: '',
-  address: '',
-  commune: '',
-  city: '',
-  notes: '',
-};
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -130,12 +118,6 @@ export default function OrdersPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [deletingId, setDeletingId] = useState('');
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [recentSales, setRecentSales] = useState<any[]>([]);
-  const [createForm, setCreateForm] = useState(emptyCreate);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState('');
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkPrinting, setBulkPrinting] = useState(false);
@@ -175,13 +157,9 @@ export default function OrdersPage() {
     if (!token) return;
     load(1, '');
     Promise.all([
-      api.warehouses.list(token, companyId).catch(() => []),
-      api.pos.listSales({ companyId }, token).catch(() => ({ sales: [] })),
       api.marketplace.connections(token, companyId).catch(() => []),
       api.connections.list(token, { companyId }).catch(() => []),
-    ]).then(([whs, sales, mlConns, otherConns]) => {
-      setWarehouses(whs);
-      setRecentSales(sales.sales || []);
+    ]).then(([mlConns, otherConns]) => {
       const types = new Set<string>([
         ...(mlConns as any[]).filter((c) => c.active).map(() => 'MERCADO_LIBRE'),
         ...(otherConns as any[]).filter((c) => c.active).map((c) => c.marketplace),
@@ -284,34 +262,6 @@ export default function OrdersPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreateError('');
-    setCreateLoading(true);
-    try {
-      const token = getToken()!;
-      await api.orders.create({
-        fulfillmentType: createForm.fulfillmentType,
-        companyId,
-        saleId: createForm.saleId || undefined,
-        warehouseId: createForm.warehouseId || undefined,
-        customerName: createForm.customerName || undefined,
-        customerEmail: createForm.customerEmail || undefined,
-        customerPhone: createForm.customerPhone || undefined,
-        address: createForm.address || undefined,
-        commune: createForm.commune || undefined,
-        city: createForm.city || undefined,
-        notes: createForm.notes || undefined,
-      }, token);
-      setCreateForm(emptyCreate);
-      setShowCreate(false);
-      load(1, statusFilter);
-    } catch (err: any) {
-      setCreateError(err.message || 'Error al crear la orden');
-    } finally {
-      setCreateLoading(false);
-    }
-  }
 
   const shortId = (id: string) => id.slice(-6).toUpperCase();
   // Carrito de ML: el número de la venta es el del pack (el que muestra Mercado Libre).
@@ -351,16 +301,8 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
         <div className="min-w-0">
           <h1 className="ui-page-title">Órdenes</h1>
-          <p className="ui-page-subtitle">Gestiona la preparación y despacho de pedidos.</p>
+          <p className="ui-page-subtitle">Preparación y despacho de los pedidos de marketplaces y punto de venta.</p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => { setShowCreate(!showCreate); setCreateError(''); }}
-            className="shrink-0 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            + Nueva orden
-          </button>
-        )}
       </div>
 
       <FilterBar
@@ -386,121 +328,6 @@ export default function OrdersPage() {
         )}
       </FilterBar>
 
-      {showCreate && isAdmin && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <h2 className="ui-section-title mb-4">Nueva orden</h2>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de entrega *</label>
-                <select
-                  value={createForm.fulfillmentType}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, fulfillmentType: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                >
-                  <option value="DELIVERY">Despacho a domicilio</option>
-                  <option value="PICKUP">Retiro en bodega</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>
-                <select
-                  value={createForm.warehouseId}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, warehouseId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                >
-                  <option value="">— Sin bodega asignada —</option>
-                  {warehouses.filter((w) => w.active).map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Venta de origen</label>
-                <select
-                  value={createForm.saleId}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, saleId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                >
-                  <option value="">— Sin venta asociada (manual) —</option>
-                  {recentSales.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      #{s.id.slice(-6).toUpperCase()} · {CHANNEL_LABEL[s.channel] || s.channel} · ${Number(s.total).toLocaleString('es-CL')}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Al vincular una venta, los productos se cargan automáticamente.</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold text-gray-700 mb-3">Datos del cliente</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
-                  <input value={createForm.customerName}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, customerName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-                  <input value={createForm.customerPhone}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, customerPhone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                  <input type="email" value={createForm.customerEmail}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, customerEmail: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
-                {createForm.fulfillmentType === 'DELIVERY' && (
-                  <>
-                    <div className="col-span-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
-                      <input value={createForm.address}
-                        onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Comuna</label>
-                      <input value={createForm.commune}
-                        onChange={(e) => setCreateForm((f) => ({ ...f, commune: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Ciudad</label>
-                      <input value={createForm.city}
-                        onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    </div>
-                  </>
-                )}
-                <div className={createForm.fulfillmentType === 'DELIVERY' ? '' : 'col-span-3'}>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Notas internas</label>
-                  <input value={createForm.notes}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
-              </div>
-            </div>
-
-            {createError && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
-            )}
-            <div className="flex gap-2">
-              <button type="submit" disabled={createLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {createLoading ? 'Creando...' : 'Crear orden'}
-              </button>
-              <button type="button" onClick={() => setShowCreate(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {selectedIds.size > 0 && (
         <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">
@@ -531,7 +358,7 @@ export default function OrdersPage() {
       ) : orders.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-12 text-center text-gray-400">
           <p className="text-sm mb-1">Sin órdenes</p>
-          {isAdmin && <p className="text-xs">Crea la primera orden con el botón &quot;+ Nueva orden&quot;</p>}
+          <p className="text-xs">Las órdenes se crean solas con cada venta de los marketplaces o del punto de venta.</p>
         </div>
       ) : (
         <>
