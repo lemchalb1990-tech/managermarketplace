@@ -152,7 +152,7 @@ export function ChannelSalesImportModal({
   const pageCount = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const pagedOrders = orders.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   const hasCharges = orders.some((o) => o.charges);
-  const colCount = hasCharges ? 10 : 6;
+  const colCount = hasCharges ? 11 : 7;
   const withCharges = orders.filter((o) => o.charges);
   const periodNet = withCharges.reduce((s, o) => s + o.charges!.netAmount, 0);
   const periodProfit = withCharges.every((o) => o.profit != null) ? withCharges.reduce((s, o) => s + (o.profit ?? 0), 0) : null;
@@ -270,6 +270,7 @@ export function ChannelSalesImportModal({
                           onChange={toggleAll} />
                       </th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
+                      <th className="px-2 py-2 text-left text-gray-600 font-medium">N° orden</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
                       <th className="px-2 py-2 text-right text-gray-600 font-medium" title="Pagado por el comprador, con IVA">Total</th>
                       {hasCharges && (
@@ -299,6 +300,7 @@ export function ChannelSalesImportModal({
                             <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
                               {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                             </td>
+                            <td className="px-2 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">{o.externalId}</td>
                             <td className="px-2 py-2 text-gray-800 font-medium">
                               {o.buyerName || '—'}
                               {o.marketplaceStatus && <span className="block text-[11px] font-normal text-purple-700">{platformLabel}: {o.marketplaceStatus}</span>}
@@ -338,6 +340,7 @@ export function ChannelSalesImportModal({
                           {isOpen && (
                             <tr>
                               <td colSpan={colCount} className="bg-gray-50 px-6 py-3">
+                                <p className="text-xs text-gray-500 mb-2">N° de orden en {platformLabel}: <span className="font-mono font-semibold text-gray-800">{o.externalId}</span></p>
                                 <p className="text-xs font-semibold text-gray-600 mb-1.5">
                                   Productos{o.items.some((it) => it.net != null) && ' — montos sin IVA'}
                                 </p>

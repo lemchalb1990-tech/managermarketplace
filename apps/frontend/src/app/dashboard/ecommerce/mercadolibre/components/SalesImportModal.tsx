@@ -225,6 +225,7 @@ export function SalesImportModal({
                           onChange={toggleAll} />
                       </th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Fecha</th>
+                      <th className="px-2 py-2 text-left text-gray-600 font-medium">N° orden</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Comprador</th>
                       <th className="px-2 py-2 text-right text-gray-600 font-medium">Total</th>
                       <th className="px-2 py-2 text-left text-gray-600 font-medium">Estado</th>
@@ -246,6 +247,7 @@ export function SalesImportModal({
                             <td className="px-2 py-2 text-gray-700 whitespace-nowrap">
                               {new Date(o.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz })}
                             </td>
+                            <td className="px-2 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">{o.externalId}</td>
                             <td className="px-2 py-2 text-gray-800 font-medium">{o.buyerNickname || '—'}</td>
                             <td className="px-2 py-2 text-right text-gray-700">${Math.round(o.total).toLocaleString('es-CL')}</td>
                             <td className="px-2 py-2">
@@ -261,7 +263,8 @@ export function SalesImportModal({
                           </tr>
                           {isOpen && (
                             <tr>
-                              <td colSpan={6} className="bg-gray-50 px-6 py-3">
+                              <td colSpan={7} className="bg-gray-50 px-6 py-3">
+                                <p className="text-xs text-gray-500 mb-2">N° de orden en Mercado Libre: <span className="font-mono font-semibold text-gray-800">{o.externalId}</span></p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                   <div>
                                     <p className="text-xs font-semibold text-gray-600 mb-1.5">Productos</p>
