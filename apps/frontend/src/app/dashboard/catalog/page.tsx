@@ -3737,13 +3737,14 @@ export default function CatalogPage() {
                             <button onClick={() => handleSync(conn.id)} disabled={syncBusy}
                               className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
                               title="Envía el precio, descripción y stock del producto hacia la publicación en Mercado Libre">
-                              {syncBusy ? 'Sincronizando...' : 'Sincronizar'}
+                              {syncBusy ? 'Sincronizando...' : '↻ Sincronizar'}
                             </button>
                           )}
                           {canToggle && (
                             <button
                               onClick={() => handleToggleListing(conn.id)}
                               disabled={toggleBusy}
+                              title={isActive ? 'Pausar la publicación en Mercado Libre' : 'Activar la publicación en Mercado Libre'}
                               className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors ${
                                 isActive
                                   ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100'
@@ -3752,20 +3753,23 @@ export default function CatalogPage() {
                             >
                               {toggleBusy
                                 ? (isActive ? 'Pausando...' : 'Activando...')
-                                : (isActive ? 'Pausar publicación' : 'Activar publicación')}
+                                : (isActive ? '⏸ Pausar' : '▶ Activar')}
                             </button>
                           )}
-                          <button onClick={() => openLinkModal(conn.id, conn.name)}
-                            title="Asociar este producto a una publicación que ya existe en la plataforma, sin crear una nueva ni importar catálogo"
-                            className="px-3 py-1.5 border border-gray-300 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-50">
-                            {listing ? 'Editar vínculo' : 'Vincular manualmente'}
-                          </button>
+                          {/* Ya publicado: no se edita el vínculo (solo se vincula a mano si aún no hay publicación). */}
+                          {!listing?.externalId && (
+                            <button onClick={() => openLinkModal(conn.id, conn.name)}
+                              title="Asociar este producto a una publicación que ya existe en la plataforma, sin crear una nueva ni importar catálogo"
+                              className="px-3 py-1.5 border border-gray-300 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-50">
+                              🔗 Vincular
+                            </button>
+                          )}
                           {listing && (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
                             <button onClick={() => handleDeleteListing(conn.id)}
                               disabled={mlLoading[`delete_${conn.id}`]}
                               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
                               className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
-                              {mlLoading[`delete_${conn.id}`] ? 'Eliminando...' : 'Eliminar publicación'}
+                              {mlLoading[`delete_${conn.id}`] ? 'Eliminando...' : '🗑 Eliminar'}
                             </button>
                           )}
                               </>

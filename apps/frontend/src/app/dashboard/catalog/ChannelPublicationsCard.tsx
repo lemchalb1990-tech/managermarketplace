@@ -355,17 +355,17 @@ export function GenericChannelActions({ conn, listing, productId, productStock, 
         <button onClick={() => run('sync', () => api.connections.sync(conn.id, productId, token(), listingId))} disabled={!!busy}
           title="Envía el precio y stock del producto a la publicación"
           className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
-          {busy === 'sync' ? 'Sincronizando...' : 'Sincronizar'}
+          {busy === 'sync' ? 'Sincronizando...' : '↻ Sincronizar'}
         </button>
       )}
       {canToggle && (
         <button onClick={() => run('toggle', () => api.connections.toggle(conn.id, productId, token(), listingId))}
           disabled={!!busy || (!isActive && productStock === 0)}
-          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : undefined}
+          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : isActive ? 'Pausar la publicación' : 'Activar la publicación'}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
             isActive ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
           }`}>
-          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? 'Pausar publicación' : 'Activar publicación'}
+          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? '⏸ Pausar' : '▶ Activar'}
         </button>
       )}
       {listing?.externalId && REMOTE_DELETE_CHANNELS[conn.marketplace] && (
@@ -374,12 +374,13 @@ export function GenericChannelActions({ conn, listing, productId, productStock, 
             if (!(await confirmDialog(`¿Eliminar esta publicación de ${REMOTE_DELETE_CHANNELS[conn.marketplace]}? El producto se borra de tu tienda y deja de estar a la venta ahí. No se puede deshacer.`, { danger: true }))) return;
             await run('remote', () => api.connections.deleteRemote(conn.id, productId, token(), listing.id));
           }}
-          title="Borra el producto en la tienda y el vínculo"
+          title={`Eliminar la publicación de ${REMOTE_DELETE_CHANNELS[conn.marketplace]} (borra el producto en la tienda)`}
           className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
-          {busy === 'remote' ? 'Eliminando...' : `Eliminar de ${REMOTE_DELETE_CHANNELS[conn.marketplace]}`}
+          {busy === 'remote' ? 'Eliminando...' : '🗑 Eliminar'}
         </button>
       )}
-      {listing && (
+      {/* JumpSeller: el vínculo no se quita a mano (se elimina junto con la publicación). */}
+      {listing && conn.marketplace !== 'JUMPSELLER' && (
         <button disabled={!!busy}
           onClick={async () => {
             if (!(await confirmDialog('¿Quitar el vínculo con esta publicación? La publicación sigue en la tienda tal como está; el sistema solo deja de sincronizarla.', { danger: true }))) return;
@@ -387,7 +388,7 @@ export function GenericChannelActions({ conn, listing, productId, productStock, 
           }}
           title="Deja de sincronizar la publicación sin tocar la tienda"
           className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
-          {busy === 'delete' ? 'Quitando...' : 'Quitar vínculo'}
+          {busy === 'delete' ? 'Quitando...' : '🔗 Quitar vínculo'}
         </button>
       )}
       {err && <span className="text-xs text-red-600">{err}</span>}
@@ -426,17 +427,17 @@ function ExtraListingActions({ isMl, productId, productStock, conn, listing, onD
         <button onClick={() => run('sync', () => api.marketplace.sync(productId, conn.id, token(), listing.id))} disabled={!!busy}
           title="Envía el precio, descripción y stock del producto a esta publicación"
           className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
-          {busy === 'sync' ? 'Sincronizando...' : 'Sincronizar'}
+          {busy === 'sync' ? 'Sincronizando...' : '↻ Sincronizar'}
         </button>
       )}
       {canToggle && (
         <button onClick={() => run('toggle', () => api.marketplace.toggleListing(productId, conn.id, token(), listing.id))}
           disabled={!!busy || (!isActive && productStock === 0)}
-          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : undefined}
+          title={!isActive && productStock === 0 ? 'Sin stock no se puede activar' : isActive ? 'Pausar la publicación' : 'Activar la publicación'}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
             isActive ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
           }`}>
-          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? 'Pausar publicación' : 'Activar publicación'}
+          {busy === 'toggle' ? (isActive ? 'Pausando...' : 'Activando...') : isActive ? '⏸ Pausar' : '▶ Activar'}
         </button>
       )}
       <button disabled={!!busy}
@@ -446,7 +447,7 @@ function ExtraListingActions({ isMl, productId, productStock, conn, listing, onD
         }}
         title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
         className="px-3 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50">
-        {busy === 'delete' ? 'Eliminando...' : 'Eliminar publicación'}
+        {busy === 'delete' ? 'Eliminando...' : '🗑 Eliminar'}
       </button>
       {warn && <span className="text-xs text-amber-700">{warn}</span>}
       {err && <span className="text-xs text-red-600">{err}</span>}
