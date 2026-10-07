@@ -27,7 +27,8 @@ export function FilterBar({
   onApply,
   onClear,
   summary,
-  sticky = false,
+  // Fija arriba al hacer scroll, igual que el Catálogo.
+  sticky = true,
   className = '',
 }: {
   // Búsqueda principal, siempre visible.
