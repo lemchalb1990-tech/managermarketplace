@@ -8,6 +8,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 const CHANNEL_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -129,25 +130,24 @@ export default function RegistrosSinConexionPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <select
-          value={companyFilter}
-          onChange={(e) => handleCompanyFilterChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[220px]"
-        >
-          <option value="">Todas las empresas</option>
-          {companies.map((c: any) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-
-        {selectedIds.size > 0 && (
+      <FilterBar
+        className="!mb-0"
+        primary={
+          <FilterField label="Empresa">
+            <select value={companyFilter} onChange={(e) => handleCompanyFilterChange(e.target.value)} className={`${filterSelectCls} min-w-[220px]`}>
+              <option value="">Todas las empresas</option>
+              {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FilterField>
+        }
+        onClear={companyFilter ? () => handleCompanyFilterChange('') : undefined}
+        summary={selectedIds.size > 0 ? (
           <button onClick={handleBulkDelete} disabled={bulkDeleting}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
             {bulkDeleting ? 'Eliminando...' : `Eliminar seleccionados (${selectedIds.size})`}
           </button>
-        )}
-      </div>
+        ) : null}
+      />
 
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
 import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
@@ -15,6 +16,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
   MERCADO_LIBRE: 'Mercado Libre',
   WALMART: 'Walmart', RIPLEY: 'Ripley', PARIS: 'Paris', FALABELLA: 'Falabella',
+  JUMPSELLER: 'JumpSeller', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce', HITES: 'Hites',
   MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
 
@@ -284,63 +286,26 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
       </div>
 
       {/* Filtros */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Canal</label>
-            <select
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todos</option>
-              <option value="POS">Punto de Venta</option>
-              <option value="MERCADO_LIBRE">Mercado Libre</option>
-              <option value="MANUAL">Manual</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Desde</label>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Hasta</label>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-xs text-gray-500 block mb-1">Buscar orden, producto o comprador</label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') loadSales(1); }}
-              placeholder="N° de orden o pack, producto, SKU o comprador..."
-              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            onClick={() => loadSales(1)}
-            className="ui-btn-secondary !py-1.5"
-          >
-            Filtrar
-          </button>
-          <button
-            onClick={() => { setChannel(''); setFrom(''); setTo(''); setSearch(''); }}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded-lg"
-          >
-            Limpiar
-          </button>
-        </div>
-      </div>
+      <FilterBar
+        search={{ label: 'Buscar orden, producto o comprador', value: search, onChange: setSearch, onSubmit: () => loadSales(1), placeholder: 'N° de orden o pack, producto, SKU o comprador...' }}
+        activeCount={[channel, from, to].filter(Boolean).length}
+        onApply={() => loadSales(1)}
+        onClear={() => { setChannel(''); setFrom(''); setTo(''); setSearch(''); }}
+        summary={<FilterCount n={total} label="venta(s)" />}
+      >
+        <FilterField label="Canal">
+          <select value={channel} onChange={(e) => setChannel(e.target.value)} className={filterSelectCls}>
+            <option value="">Todos</option>
+            {Object.entries(CHANNEL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </FilterField>
+        <FilterField label="Desde">
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Hasta">
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+      </FilterBar>
 
       {/* Tabla de ventas */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">

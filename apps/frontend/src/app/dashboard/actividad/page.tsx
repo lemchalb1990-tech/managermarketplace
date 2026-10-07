@@ -6,9 +6,9 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, ActivityFilters, ActivityItem } from '@/lib/api';
 import { PageHeader, Badge } from '@/components/ui';
 import { useAdminCompany } from '../AdminCompanyContext';
+import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
 import { SkeletonRows } from '@/components/Skeleton';
 
-const inputCls = 'border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 // Color del tipo de acción: eliminaciones y alertas en rojo.
 function actionTone(action: string): 'ok' | 'warn' | 'danger' | 'info' | 'neutral' {
@@ -98,45 +98,45 @@ export default function ActivityPage() {
         </div>
       ) : (
         <>
-          <div className="bg-white border border-gray-200 rounded-2xl p-5">
-            <div className="flex flex-wrap gap-3 items-end">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Usuario</label>
-                <select value={userId} onChange={(e) => setUserId(e.target.value)} className={inputCls}>
+          <FilterBar
+            primary={
+              <FilterField label="Usuario">
+                <select value={userId} onChange={(e) => setUserId(e.target.value)} className={filterSelectCls}>
                   <option value="">Todos</option>
                   {options.users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
                   <option value="system">Sistema (acciones automáticas)</option>
                 </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Desde</label>
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Hasta</label>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Módulo</label>
-                <select value={module} onChange={(e) => setModule(e.target.value)} className={inputCls}>
-                  <option value="">Todos</option>
-                  {options.modules.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Tipo de acción</label>
-                <select value={action} onChange={(e) => setAction(e.target.value)} className={inputCls}>
-                  <option value="">Todas</option>
-                  {options.actions.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-                </select>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700 pb-1.5 cursor-pointer select-none">
-                <input type="checkbox" checked={automatic || userId === 'system'} disabled={userId === 'system'}
-                  onChange={(e) => setAutomatic(e.target.checked)} />
-                Mostrar acciones automáticas
-              </label>
-            </div>
-          </div>
+              </FilterField>
+            }
+            activeCount={[from, to, module, action, automatic ? '1' : ''].filter(Boolean).length}
+            onClear={() => { setUserId(''); setFrom(''); setTo(''); setModule(''); setAction(''); setAutomatic(false); }}
+            summary={data ? <FilterCount n={data.total} label="registro(s)" /> : null}
+            className="!mb-0"
+          >
+            <FilterField label="Desde">
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={filterSelectCls} />
+            </FilterField>
+            <FilterField label="Hasta">
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={filterSelectCls} />
+            </FilterField>
+            <FilterField label="Módulo">
+              <select value={module} onChange={(e) => setModule(e.target.value)} className={filterSelectCls}>
+                <option value="">Todos</option>
+                {options.modules.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </FilterField>
+            <FilterField label="Tipo de acción">
+              <select value={action} onChange={(e) => setAction(e.target.value)} className={filterSelectCls}>
+                <option value="">Todas</option>
+                {options.actions.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+            </FilterField>
+            <label className="flex items-center gap-2 text-sm text-gray-700 pb-2 cursor-pointer select-none">
+              <input type="checkbox" checked={automatic || userId === 'system'} disabled={userId === 'system'}
+                onChange={(e) => setAutomatic(e.target.checked)} />
+              Mostrar acciones automáticas
+            </label>
+          </FilterBar>
 
           {error && <div className="text-sm text-[var(--danger)]">{error}</div>}
 

@@ -8,6 +8,7 @@ import { useAdminCompany } from '../../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
+import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
 
 interface LineItem {
   productId?: string;
@@ -381,19 +382,23 @@ export default function WorkOrdersPage() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-              <option value="">Todos los estados</option>
-              <option value="PENDING">Pendientes</option>
-              <option value="CONVERTED">Cobradas</option>
-              <option value="REJECTED">Rechazadas</option>
-              <option value="CANCELLED">Anuladas</option>
-            </select>
-            <input value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por N°, cliente o nombre..."
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 min-w-[200px]" />
-          </div>
+          <FilterBar
+            className="!mb-0"
+            search={{ label: 'Buscar orden de trabajo', value: search, onChange: setSearch, placeholder: 'N°, cliente o nombre...' }}
+            activeCount={statusFilter ? 1 : 0}
+            onClear={() => { setSearch(''); setStatusFilter(''); }}
+            summary={<FilterCount n={total} label="orden(es) de trabajo" />}
+          >
+            <FilterField label="Estado">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterSelectCls}>
+                <option value="">Todos los estados</option>
+                <option value="PENDING">Pendientes</option>
+                <option value="CONVERTED">Cobradas</option>
+                <option value="REJECTED">Rechazadas</option>
+                <option value="CANCELLED">Anuladas</option>
+              </select>
+            </FilterField>
+          </FilterBar>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">

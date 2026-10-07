@@ -10,6 +10,7 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { Logos } from '../ecommerce/components/logos';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 import { SkeletonRows } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 // Mapeo enum del backend -> slug usado en las rutas /dashboard/ecommerce/<slug> y en Logos.
 const MARKETPLACE_KEY: Record<string, string> = {
@@ -283,18 +284,17 @@ export default function MisConexionesPage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button onClick={load} disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              ↻ Actualizar
-            </button>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar canal..."
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 min-w-[220px]"
-            />
-          </div>
+          <FilterBar
+            className="!mb-0"
+            search={{ label: 'Buscar canal', value: search, onChange: setSearch, placeholder: 'Plataforma o nombre de la cuenta...' }}
+            onClear={() => setSearch('')}
+            summary={
+              <button onClick={load} disabled={loading}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                ↻ Actualizar
+              </button>
+            }
+          />
 
           {error && (
             <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>

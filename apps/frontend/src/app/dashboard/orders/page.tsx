@@ -11,8 +11,7 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { onActivity } from '@/lib/activityBus';
 import ImageViewer from './[id]/ImageViewer';
 import { SkeletonTable } from '@/components/Skeleton';
-import { Logos } from '../ecommerce/components/logos';
-import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
+import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
 
 // Marketplaces que se pueden filtrar (enum del backend → slug del logo y nombre visible).
 const MARKETPLACE_FILTERS: { key: string; slug: string; label: string }[] = [
@@ -123,7 +122,6 @@ export default function OrdersPage() {
   const [channelFilter, setChannelFilter] = useState('');
   // Solo los marketplaces con alguna tienda activa en la empresa.
   const [activeMarketplaces, setActiveMarketplaces] = useState<string[]>([]);
-  const logoMap = usePlatformLogos();
   const [search, setSearch] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [deletingId, setDeletingId] = useState('');
@@ -340,15 +338,23 @@ export default function OrdersPage() {
         )}
       </div>
 
-      <div className="mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por N° de orden o pack, seguimiento o cliente..."
-          className="w-full sm:w-96 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      <FilterBar
+        search={{ label: 'Buscar orden', value: search, onChange: setSearch, placeholder: 'N° de orden o pack, seguimiento o cliente...' }}
+        activeCount={channelFilter ? 1 : 0}
+        onClear={() => { setSearch(''); if (channelFilter) changeChannel(''); }}
+        summary={<FilterCount n={total} label="orden(es)" />}
+      >
+        {activeMarketplaces.length > 0 && (
+          <FilterField label="Marketplace">
+            <select value={channelFilter} onChange={(e) => changeChannel(e.target.value)} className={filterSelectCls}>
+              <option value="">Todos</option>
+              {MARKETPLACE_FILTERS.filter((m) => activeMarketplaces.includes(m.key)).map((m) => (
+                <option key={m.key} value={m.key}>{m.label}</option>
+              ))}
+            </select>
+          </FilterField>
+        )}
+      </FilterBar>
 
       {showCreate && isAdmin && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
@@ -478,30 +484,7 @@ export default function OrdersPage() {
             {t.label}
           </button>
         ))}
-        <span className="ml-auto pl-2 shrink-0 text-xs text-gray-400 self-center">{total} órdenes</span>
       </div>
-
-      {/* Filtro por marketplace: solo los que la empresa tiene activos */}
-      {activeMarketplaces.length > 0 && (
-        <div className="flex items-center gap-1.5 mb-4 overflow-x-auto sm:flex-wrap -mx-1 px-1 pb-1">
-          <span className="shrink-0 text-xs text-[var(--text-muted)] mr-1">Marketplace</span>
-          {[{ key: '', slug: '', label: 'Todos' }, ...MARKETPLACE_FILTERS.filter((m) => activeMarketplaces.includes(m.key))].map((m) => (
-            <button key={m.key || 'all'} onClick={() => changeChannel(m.key)}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                channelFilter === m.key
-                  ? 'border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--text)]'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-              }`}>
-              {m.slug && (
-                <span className="w-4 h-4 rounded overflow-hidden shrink-0 inline-flex">
-                  {resolvePlatformLogo(logoMap, m.slug, (Logos as any)[m.slug], m.label)}
-                </span>
-              )}
-              {m.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {selectedIds.size > 0 && (
         <div className="fixed md:static bottom-0 inset-x-0 z-30 md:z-auto flex flex-wrap items-center gap-2 sm:gap-3 md:mb-3 px-4 py-3 md:py-2 bg-amber-50 border-t md:border border-amber-200 md:rounded-lg shadow-lg md:shadow-none">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonRows } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 const MARKETPLACE_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -155,23 +156,20 @@ export default function ConnectionsPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as any)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-        >
-          <option value="all">Todos los tipos</option>
-          <option value="ecommerce">E-commerce</option>
-          <option value="billing">Facturación</option>
-        </select>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por empresa, plataforma o nombre..."
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 min-w-[220px]"
-        />
-      </div>
+      <FilterBar
+        className="!mb-0"
+        search={{ label: 'Buscar conexión', value: search, onChange: setSearch, placeholder: 'Empresa, plataforma o nombre...' }}
+        activeCount={typeFilter !== 'all' ? 1 : 0}
+        onClear={() => { setSearch(''); setTypeFilter('all' as any); }}
+      >
+        <FilterField label="Tipo">
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)} className={filterSelectCls}>
+            <option value="all">Todos los tipos</option>
+            <option value="ecommerce">E-commerce</option>
+            <option value="billing">Facturación</option>
+          </select>
+        </FilterField>
+      </FilterBar>
 
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

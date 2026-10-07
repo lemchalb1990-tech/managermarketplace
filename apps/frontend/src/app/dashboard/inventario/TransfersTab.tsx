@@ -8,6 +8,7 @@ import { inputCls } from '@/components/ui/Modal';
 import { TransferDetailModal, TransferFormModal } from './TransferModals';
 import { TRANSFER_STATUS, fmtDateTime, fmtQty, useDebounced, type InventoryContext } from './shared';
 import { SkeletonTable } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 const FILTERS: Array<{ key: '' | TransferStatus; label: string }> = [
   { key: '', label: 'Todos' },
@@ -74,14 +75,18 @@ export function TransfersTab({ ctx }: { ctx: InventoryContext }) {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 flex flex-wrap gap-3">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por N° (TR-000012), producto u observación"
-          className={`${inputCls} flex-1 min-w-[220px]`} />
-        <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={`${inputCls} w-52`}>
-          <option value="">Todas las bodegas</option>
-          {ctx.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select>
-      </div>
+      <FilterBar
+        search={{ label: 'Buscar traspaso', value: search, onChange: setSearch, placeholder: 'N° (TR-000012), producto u observación' }}
+        activeCount={warehouseId ? 1 : 0}
+        onClear={() => { setSearch(''); if (warehouseId) ctx.setQuery({ warehouseId: undefined }, true); }}
+      >
+        <FilterField label="Bodega">
+          <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={filterSelectCls}>
+            <option value="">Todas las bodegas</option>
+            {ctx.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        </FilterField>
+      </FilterBar>
 
       {error && <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 

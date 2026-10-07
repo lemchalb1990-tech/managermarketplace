@@ -9,6 +9,7 @@ import { AdjustModal } from './AdjustModal';
 import { TransferFormModal } from './TransferModals';
 import { fmtMoney, fmtQty, useDebounced, type InventoryContext } from './shared';
 import { SkeletonTable } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 export function AvailabilityTab({ ctx }: { ctx: InventoryContext }) {
   const tz = useDashboardTimezone();
@@ -79,44 +80,43 @@ export function AvailabilityTab({ ctx }: { ctx: InventoryContext }) {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Buscar</label>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SKU o nombre" className={inputCls} />
-        </div>
-        <div className="w-44">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Bodega</label>
-          <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={inputCls}>
+      <FilterBar
+        search={{ label: 'Buscar', value: search, onChange: setSearch, placeholder: 'SKU o nombre' }}
+        activeCount={[warehouseId, category, at, onlyStock ? '1' : '', belowCritical ? '1' : ''].filter(Boolean).length}
+        onClear={() => { setSearch(''); setCategory(''); setAt(''); setOnlyStock(false); setBelowCritical(false); if (warehouseId) ctx.setQuery({ warehouseId: undefined }, true); }}
+        summary={
+          <span className="flex gap-2">
+            <button onClick={exportCsv} disabled={exporting} className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              {exporting ? 'Exportando...' : 'Exportar Excel'}
+            </button>
+            {ctx.perms.transfer && (
+              <button onClick={() => setTransferFor({})} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                Nuevo traspaso
+              </button>
+            )}
+          </span>
+        }
+      >
+        <FilterField label="Bodega">
+          <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={filterSelectCls}>
             <option value="">Todas</option>
             {ctx.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
-        </div>
-        <div className="w-44">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Categoría</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+        </FilterField>
+        <FilterField label="Categoría">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className={filterSelectCls}>
             <option value="">Todas</option>
             {(data?.categories ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-        </div>
-        <div className="w-40">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1" title="Reconstruido desde el historial de movimientos">Stock al día</label>
-          <input type="date" value={at} max={dateKeyInTz(tz)} onChange={(e) => setAt(e.target.value)} className={inputCls} />
-        </div>
+        </FilterField>
+        <FilterField label="Stock al día" title="Reconstruido desde el historial de movimientos">
+          <input type="date" value={at} max={dateKeyInTz(tz)} onChange={(e) => setAt(e.target.value)} className={filterSelectCls} />
+        </FilterField>
         <div className="flex flex-col gap-1 text-xs text-gray-600 pb-1">
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyStock} onChange={(e) => setOnlyStock(e.target.checked)} /> Solo con stock</label>
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={belowCritical} onChange={(e) => setBelowCritical(e.target.checked)} /> Bajo stock crítico</label>
         </div>
-        <div className="flex gap-2 ml-auto">
-          <button onClick={exportCsv} disabled={exporting} className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {exporting ? 'Exportando...' : 'Exportar Excel'}
-          </button>
-          {ctx.perms.transfer && (
-            <button onClick={() => setTransferFor({})} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
-              Nuevo traspaso
-            </button>
-          )}
-        </div>
-      </div>
+      </FilterBar>
 
       {historical && (
         <div className="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">

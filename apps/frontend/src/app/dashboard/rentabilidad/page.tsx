@@ -7,6 +7,7 @@ import { calcProfit, calcVeredicto, effectiveMyPrice, formatCLP } from '@/lib/pr
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { SkeletonTable } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMADO: 'Confirmado',
@@ -399,27 +400,18 @@ export default function RentabilidadPage() {
         )}
 
         {/* Buscador + filtros */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre..."
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#1F5E47]"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {FILTER_CHIPS.map((c) => (
-              <button
-                key={c.key}
-                onClick={() => setFilter(c.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
-                  filter === c.key ? 'bg-[#1F5E47] text-white border-[#1F5E47]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <FilterBar
+          className="!mb-3"
+          search={{ label: 'Buscar producto', value: search, onChange: setSearch, placeholder: 'Nombre del producto...' }}
+          activeCount={filter !== 'todos' ? 1 : 0}
+          onClear={() => { setSearch(''); setFilter('todos'); }}
+        >
+          <FilterField label="Mostrar">
+            <select value={filter} onChange={(e) => setFilter(e.target.value as FilterChip)} className={filterSelectCls}>
+              {FILTER_CHIPS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </FilterField>
+        </FilterBar>
 
         {/* Tabla principal */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-6">

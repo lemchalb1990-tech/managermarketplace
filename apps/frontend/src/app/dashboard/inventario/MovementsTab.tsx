@@ -7,6 +7,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { inputCls } from '@/components/ui/Modal';
 import { MOVEMENT_TYPES, fmtDateTime, fmtMoney, fmtQty, movementTypeCls, useDebounced, type InventoryContext } from './shared';
 import { SkeletonTable } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 // Kardex: todos los movimientos de stock con fecha, documento, bodega, entrada/salida y
 // saldo de la bodega después del movimiento. Filtrable por producto, bodega, tipo,
@@ -76,44 +77,39 @@ export function MovementsTab({ ctx }: { ctx: InventoryContext }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-3 mb-4 flex flex-wrap items-end gap-3">
-        {!productId && (
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">Producto</label>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SKU o nombre" className={inputCls} />
-          </div>
-        )}
-        <div className="w-44">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Bodega</label>
-          <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={inputCls}>
+      <FilterBar
+        search={productId ? undefined : { label: 'Producto', value: search, onChange: setSearch, placeholder: 'SKU o nombre' }}
+        activeCount={[warehouseId, type, document, from, to].filter(Boolean).length}
+        onClear={() => { setSearch(''); setType(''); setDocument(''); setFrom(''); setTo(''); if (warehouseId) ctx.setQuery({ warehouseId: undefined }, true); }}
+        summary={
+          <button onClick={exportCsv} disabled={exporting} className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {exporting ? 'Exportando...' : 'Exportar Excel'}
+          </button>
+        }
+      >
+        <FilterField label="Bodega">
+          <select value={warehouseId} onChange={(e) => ctx.setQuery({ warehouseId: e.target.value || undefined }, true)} className={filterSelectCls}>
             <option value="">Todas</option>
             {ctx.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
-        </div>
-        <div className="w-44">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Tipo</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} className={inputCls}>
+        </FilterField>
+        <FilterField label="Tipo">
+          <select value={type} onChange={(e) => setType(e.target.value)} className={filterSelectCls}>
             <option value="">Todos</option>
             <option value="TRANSFER_OUT,TRANSFER_IN">Traspasos (entrada y salida)</option>
             {MOVEMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
-        </div>
-        <div className="w-40">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Documento</label>
-          <input value={document} onChange={(e) => setDocument(e.target.value)} placeholder="TR-000012, N° venta..." className={inputCls} />
-        </div>
-        <div className="w-36">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Desde</label>
-          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
-        </div>
-        <div className="w-36">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">Hasta</label>
-          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={inputCls} />
-        </div>
-        <button onClick={exportCsv} disabled={exporting} className="ml-auto px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-          {exporting ? 'Exportando...' : 'Exportar Excel'}
-        </button>
-      </div>
+        </FilterField>
+        <FilterField label="Documento">
+          <input value={document} onChange={(e) => setDocument(e.target.value)} placeholder="TR-000012, N° venta..." className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Desde">
+          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Hasta">
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+      </FilterBar>
 
       {data && (
         <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">

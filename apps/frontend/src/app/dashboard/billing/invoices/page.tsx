@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api, openDocumentUrl } from '@/lib/api';
+import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
 import InvoiceDocument from '../components/InvoiceDocument';
 import { useBillingCompany } from '../BillingCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
@@ -201,31 +202,33 @@ export default function InvoicesPage() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3">
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-          <option value="">Todos los tipos</option>
-          {Object.entries(DTE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-          <option value="">Todos los estados</option>
-          {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-        <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-        <button onClick={() => load(1)}
-          className="ui-btn-secondary">
-          Buscar
-        </button>
-        <button onClick={() => { setFilterType(''); setFilterStatus(''); setFilterFrom(''); setFilterTo(''); setTimeout(() => load(1), 0); }}
-          className="px-3 py-2 border border-gray-300 text-gray-500 rounded-lg text-sm hover:bg-gray-50">
-          Limpiar
-        </button>
-        <span className="ml-auto text-xs text-gray-400 self-center">{total} documentos</span>
-      </div>
+      <FilterBar
+        primary={
+          <FilterField label="Tipo de documento">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={filterSelectCls}>
+              <option value="">Todos los tipos</option>
+              {Object.entries(DTE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </FilterField>
+        }
+        activeCount={[filterStatus, filterFrom, filterTo].filter(Boolean).length}
+        onApply={() => load(1)}
+        onClear={() => { setFilterType(''); setFilterStatus(''); setFilterFrom(''); setFilterTo(''); setTimeout(() => load(1), 0); }}
+        summary={<FilterCount n={total} label="documento(s)" />}
+      >
+        <FilterField label="Estado">
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={filterSelectCls}>
+            <option value="">Todos los estados</option>
+            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </FilterField>
+        <FilterField label="Desde">
+          <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Hasta">
+          <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} className={filterSelectCls} />
+        </FilterField>
+      </FilterBar>
 
       {actionError && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">

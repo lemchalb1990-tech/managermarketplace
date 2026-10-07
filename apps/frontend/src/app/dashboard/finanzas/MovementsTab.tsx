@@ -6,6 +6,7 @@ import { api, imgUrl } from '@/lib/api';
 import { alertDialog, confirmDialog } from '../ConfirmDialog';
 import { MONTHS, PAYMENT_LABEL, TYPE_LABEL, clp, flattenTree, monthRange, todayKey } from './finance-utils';
 import { SkeletonRows } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 // amount = lo que se pagó; con withIva se separa en neto (presupuesto) + IVA (crédito fiscal).
 const emptyForm = { accountId: '', date: todayKey(), amount: '', withIva: false, description: '', counterparty: '', paymentMethod: '', reference: '', bankAccountId: '' };
@@ -120,33 +121,32 @@ export default function MovementsTab({ companyId, version, onChanged }: { compan
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-wrap items-end gap-3 text-sm">
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Desde</p>
-          <input type="date" value={filters.from} onChange={(e) => setFilter({ from: e.target.value })} className="border border-gray-300 rounded-lg px-2 py-1.5" />
-        </div>
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Hasta</p>
-          <input type="date" value={filters.to} onChange={(e) => setFilter({ to: e.target.value })} className="border border-gray-300 rounded-lg px-2 py-1.5" />
-        </div>
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Cuenta</p>
-          <select value={filters.accountId} onChange={(e) => setFilter({ accountId: e.target.value })} className="border border-gray-300 rounded-lg px-2 py-1.5 max-w-[240px]">
+      <FilterBar
+        className="!mb-0"
+        search={{ label: 'Buscar', value: filters.search, onChange: (v) => setFilter({ search: v }), placeholder: 'Descripción, proveedor, n° documento' }}
+        activeCount={[filters.accountId, filters.from !== initial.from ? '1' : '', filters.to !== initial.to ? '1' : ''].filter(Boolean).length}
+        onClear={() => setFilter({ from: initial.from, to: initial.to, accountId: '', search: '' })}
+        summary={
+          <button onClick={openNew} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+            + Nuevo movimiento
+          </button>
+        }
+      >
+        <FilterField label="Desde">
+          <input type="date" value={filters.from} onChange={(e) => setFilter({ from: e.target.value })} className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Hasta">
+          <input type="date" value={filters.to} onChange={(e) => setFilter({ to: e.target.value })} className={filterSelectCls} />
+        </FilterField>
+        <FilterField label="Cuenta">
+          <select value={filters.accountId} onChange={(e) => setFilter({ accountId: e.target.value })} className={`${filterSelectCls} max-w-[240px]`}>
             <option value="">Todas</option>
             {tree.filter((a) => !a.archived).map((a) => (
-              <option key={a.id} value={a.id}>{' '.repeat(a.depth * 3)}{a.name}</option>
+              <option key={a.id} value={a.id}>{' '.repeat(a.depth * 3)}{a.name}</option>
             ))}
           </select>
-        </div>
-        <div className="flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-500 mb-1">Buscar</p>
-          <input value={filters.search} onChange={(e) => setFilter({ search: e.target.value })} placeholder="Descripción, proveedor, n° documento"
-            className="w-full border border-gray-300 rounded-lg px-2 py-1.5" />
-        </div>
-        <button onClick={openNew} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
-          + Nuevo movimiento
-        </button>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {error && <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 

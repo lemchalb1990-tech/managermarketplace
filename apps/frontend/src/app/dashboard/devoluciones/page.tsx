@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { confirmDialog } from '../ConfirmDialog';
 import { SkeletonList } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 const CONDITIONS = [
   { key: 'GOOD', label: 'Buen estado' },
@@ -121,11 +122,11 @@ export default function DevolucionesPage() {
           <BrandButton type="submit">Buscar</BrandButton>
         </form>
       )}
-      <form onSubmit={(e) => { e.preventDefault(); load(); }} className="mb-4 flex gap-2 max-w-md">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nº, cliente, SKU…"
-          className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-white" />
-        <button className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-[var(--text-2)] hover:bg-[var(--surface-soft)]">Buscar</button>
-      </form>
+      <FilterBar
+        search={{ label: 'Buscar devolución', value: q, onChange: setQ, onSubmit: () => load(), placeholder: 'Nº, cliente, SKU…' }}
+        onApply={() => load()}
+        onClear={() => setQ('')}
+      />
 
       {flash && (
         <div className={`mb-4 px-4 py-2 rounded-lg text-sm ${flash.ok ? 'text-[var(--ok)] bg-[var(--ok-bg)]' : 'text-[var(--danger)] bg-[var(--danger-bg)]'}`}>{flash.msg}</div>
