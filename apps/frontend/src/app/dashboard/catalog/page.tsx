@@ -1374,7 +1374,7 @@ export default function CatalogPage() {
   const [pendingPublishTargets, setPendingPublishTargets] = useState<string[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Seleccionar varios productos pegando una lista de SKU / N° de publicación.
   const [codePicker, setCodePicker] = useState<{ text: string; loading: boolean; error: string; result: Awaited<ReturnType<typeof api.catalog.resolveCodes>> | null; picked: Set<string> } | null>(null);
@@ -1489,6 +1489,7 @@ export default function CatalogPage() {
       setProducts([]);
       setTotal(0);
       setPages(1);
+      setLoading(false);
       return;
     }
     setLoading(true);

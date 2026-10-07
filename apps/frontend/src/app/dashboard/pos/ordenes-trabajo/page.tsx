@@ -50,7 +50,7 @@ export default function WorkOrdersPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
 
@@ -69,7 +69,7 @@ export default function WorkOrdersPage() {
 
   const loadWorkOrders = useCallback(async (p = 1) => {
     if (!token) return;
-    if (isSuperAdmin && !selectedCompanyId) { setWorkOrders([]); setTotal(0); setPages(1); return; }
+    if (isSuperAdmin && !selectedCompanyId) { setWorkOrders([]); setTotal(0); setPages(1); setLoading(false); return; }
     setLoading(true);
     try {
       const res = await api.pos.workOrders.list({

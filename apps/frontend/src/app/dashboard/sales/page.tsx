@@ -57,7 +57,7 @@ export default function SalesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
@@ -188,7 +188,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
 
   const loadSales = useCallback(async (p = 1) => {
     if (!token) return;
-    if (isSuperAdmin && !selectedCompanyId) { setSales([]); setTotal(0); setPages(1); return; }
+    if (isSuperAdmin && !selectedCompanyId) { setSales([]); setTotal(0); setPages(1); setLoading(false); return; }
     setLoading(true);
     try {
       const res = await api.pos.listSales({
