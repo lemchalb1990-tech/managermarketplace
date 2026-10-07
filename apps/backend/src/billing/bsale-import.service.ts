@@ -54,17 +54,24 @@ export class BsaleImportService {
     return null;
   }
 
-  private async findSale(companyId: string, channel: SaleChannel, orderId: string) {
-    const exact = await this.prisma.sale.findFirst({
-      where: { companyId, channel, OR: [{ externalId: orderId }, { externalAltId: orderId }] },
-      select: { id: true },
+  // Índice en memoria de las ventas de marketplaces de la empresa (canal|n° de orden → id),
+  // para no consultar la base por cada documento.
+  private async saleIndex(companyId: string) {
+    const sales = await this.prisma.sale.findMany({
+      where: { companyId, channel: { in: Object.values(PREFIX_CHANNEL) } },
+      select: { id: true, channel: true, externalId: true, externalAltId: true },
     });
-    if (exact) return exact;
-    // Paris: los documentos antiguos traen la orden sin el sufijo de la suborden ("ecl18174293").
-    if (channel === SaleChannel.PARIS) {
-      return this.prisma.sale.findFirst({ where: { companyId, channel, externalId: { startsWith: `${orderId}-` } }, select: { id: true } });
+    const idx = new Map<string, string>();
+    for (const s of sales) {
+      if (s.externalId) {
+        idx.set(`${s.channel}|${s.externalId}`, s.id);
+        // Paris: los documentos antiguos traen la orden sin el sufijo de la suborden ("ecl18174293").
+        const base = s.channel === SaleChannel.PARIS ? s.externalId.replace(/-\d+$/, '') : null;
+        if (base && !idx.has(`${s.channel}|${base}`)) idx.set(`${s.channel}|${base}`, s.id);
+      }
+      if (s.externalAltId) idx.set(`${s.channel}|${s.externalAltId}`, s.id);
     }
-    return null;
+    return idx;
   }
 
   async importForConnection(connectionId: string, user: any, days = 120): Promise<BsaleImportResult> {
@@ -84,15 +91,20 @@ export class BsaleImportService {
     const docs = await this.bsale.listDocuments(creds, from, to, types.map((t) => t.id));
 
     const result: BsaleImportResult = { scanned: docs.length, marketplace: 0, linked: 0, alreadyLoaded: 0, withoutSale: 0, byChannel: {} };
+    const sales = await this.saleIndex(conn.companyId);
+    const loaded = new Set(
+      (await this.prisma.invoice.findMany({ where: { connectionId: conn.id, externalId: { not: null } }, select: { externalId: true } }))
+        .map((i) => i.externalId as string),
+    );
     for (const doc of docs) {
       const ref = this.orderRef(doc);
       if (!ref) continue; // sin referencia de marketplace (venta directa, Mercado Libre, etc.)
       result.marketplace++;
       const externalId = String(doc.id);
-      const exists = await this.prisma.invoice.findFirst({ where: { connectionId: conn.id, externalId }, select: { id: true } });
-      if (exists) { result.alreadyLoaded++; continue; }
-      const sale = await this.findSale(conn.companyId, ref.channel, ref.orderId);
-      if (!sale) { result.withoutSale++; continue; }
+      if (loaded.has(externalId)) { result.alreadyLoaded++; continue; }
+      const saleId = sales.get(`${ref.channel}|${ref.orderId}`);
+      if (!saleId) { result.withoutSale++; continue; }
+      const sale = { id: saleId };
 
       const sii = typeSii.get(Number(doc.document_type?.id)) || String(doc.document_type?.codeSii || '');
       const client = doc.client || {};
@@ -129,6 +141,7 @@ export class BsaleImportService {
           saleId: sale.id,
         },
       });
+      loaded.add(externalId);
       result.linked++;
       result.byChannel[ref.channel] = (result.byChannel[ref.channel] || 0) + 1;
     }
