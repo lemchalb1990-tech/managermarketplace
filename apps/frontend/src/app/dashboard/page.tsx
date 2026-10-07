@@ -71,10 +71,10 @@ function KpiCard({
         <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${colorClass}`}>
           {icon}
         </div>
-        <p className="sm:hidden text-[11px] text-[var(--text-muted)] font-medium leading-tight line-clamp-2">{title}</p>
+        <p className="sm:hidden text-[11px] text-[var(--text-2)] font-bold leading-tight line-clamp-2">{title}</p>
       </div>
       <div className="min-w-0 max-sm:w-full max-sm:text-center">
-        <p className="hidden sm:block text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{title}</p>
+        <p className="hidden sm:block text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight">{title}</p>
         <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
       </div>
       {sub && (
