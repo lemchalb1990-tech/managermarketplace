@@ -194,6 +194,20 @@ export class ParisAdapter implements PlatformAdapter {
     return data;
   }
 
+  // Etiqueta de despacho de la suborden: Paris la genera (Bluexpress, etc.) y la deja en
+  // shipments[].label con una URL pública al PDF (y otra al ZPL).
+  async getShippingLabelPdf(conn: any, subOrderNumber: string): Promise<Buffer> {
+    const r = await this.request(conn, `/v2/sub-orders?limit=1&offset=0&subOrderNumber=${encodeURIComponent(subOrderNumber)}`);
+    const sub = (r?.data || [])[0];
+    if (!sub) throw new Error(`Paris no encontró la suborden ${subOrderNumber}.`);
+    const shipments: any[] = Array.isArray(sub.shipments) ? sub.shipments : [];
+    const url = shipments.map((s) => (s.label || []).find((l: any) => String(l.format).toLowerCase() === 'pdf')?.url).find(Boolean);
+    if (!url) throw new Error(`Paris todavía no generó la etiqueta de la orden ${subOrderNumber}: vuelve a intentar en unos minutos.`);
+    const pdf = await fetch(url);
+    if (!pdf.ok) throw new Error(`No se pudo descargar la etiqueta de la orden ${subOrderNumber} (HTTP ${pdf.status}).`);
+    return Buffer.from(await pdf.arrayBuffer());
+  }
+
   async testConnection(conn: any): Promise<{ success: boolean; message?: string }> {
     try {
       tokenCache.delete(conn.id);

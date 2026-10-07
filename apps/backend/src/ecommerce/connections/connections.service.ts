@@ -553,7 +553,7 @@ export class ConnectionsService {
   }
 
   // Mercado Libre tiene su propio flujo (cliente, envío y etiqueta de Mercado Envíos).
-  // Etiqueta de despacho de una orden de JumpSeller (igual que la de Mercado Libre): solo la
+  // Etiqueta de despacho de una orden de JumpSeller o Paris (igual que la de Mercado Libre): solo la
   // etiqueta, o la etiqueta + una página con los productos del pedido (withDetail).
   async printChannelLabel(orderId: string, user: any, withDetail = false): Promise<Buffer> {
     const order = await this.prisma.order.findUnique({
@@ -563,12 +563,14 @@ export class ConnectionsService {
     if (!order) throw new NotFoundException('Orden no encontrada');
     if (user.role !== Role.SUPER_ADMIN && order.companyId !== user.companyId) throw new ForbiddenException();
     const conn = order.sale?.connection;
-    if (!conn || conn.marketplace !== MarketplaceType.JUMPSELLER || !order.sale?.externalId) {
-      throw new BadRequestException('La etiqueta solo está disponible para órdenes de JumpSeller.');
+    const labelAdapter = conn?.marketplace === MarketplaceType.JUMPSELLER ? this.jumpseller
+      : conn?.marketplace === MarketplaceType.PARIS ? this.paris : null;
+    if (!conn || !labelAdapter || !order.sale?.externalId) {
+      throw new BadRequestException('La etiqueta solo está disponible para órdenes de JumpSeller y Paris.');
     }
     let label: Buffer;
     try {
-      label = await this.jumpseller.getShippingLabelPdf(conn, order.sale.externalId);
+      label = await labelAdapter.getShippingLabelPdf(conn, order.sale.externalId);
     } catch (err: any) {
       throw new BadRequestException(err.message);
     }

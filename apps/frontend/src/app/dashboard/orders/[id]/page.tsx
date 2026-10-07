@@ -125,7 +125,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setLabelMode(withDetail ? 'detail' : 'pack');
     try {
       const token = getToken()!;
-      if (order?.sale?.channel === 'JUMPSELLER') await api.connections.printLabel(id, token, withDetail);
+      if (order?.sale?.channel === 'JUMPSELLER' || order?.sale?.channel === 'PARIS') await api.connections.printLabel(id, token, withDetail);
       else await api.marketplace.printLabel(id, token, withDetail);
       await load();
     } catch (err: any) {
@@ -287,8 +287,8 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
   const packOrderIds: string[] = isPack ? [order.sale.externalId, ...(order.sale.mlMergedOrderIds || [])].filter(Boolean) : [];
 
   const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
-  // JumpSeller también entrega la etiqueta del courier (Starken, Bluexpress...) del despacho.
-  const isJsOrder = order.sale?.channel === 'JUMPSELLER';
+  // JumpSeller y Paris también entregan la etiqueta del courier (Starken, Bluexpress...) del despacho.
+  const isJsOrder = order.sale?.channel === 'JUMPSELLER' || order.sale?.channel === 'PARIS';
   // Venta de ML sin Mercado Envíos ("acordar con el vendedor"): no hay etiqueta ni seguimiento
   // de ML, así que el avance (preparación, despacho, entrega) se gestiona desde el panel.
   const mlToAgree = isMlOrder && !order.sale?.mlShippingId;
@@ -410,7 +410,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
               <div className="flex flex-col items-stretch sm:items-end gap-1">
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button onClick={() => handlePrintLabel(false)} disabled={labelLoading}
-                    title="La etiqueta del courier que generó JumpSeller, para pegar en el paquete"
+                    title={`La etiqueta del courier que generó ${order.sale?.channel === 'PARIS' ? 'Paris' : 'JumpSeller'}, para pegar en el paquete`}
                     className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
                     {labelMode === 'pack' ? 'Obteniendo etiqueta...' : '🏷 Etiqueta de embalaje'}
                   </button>
