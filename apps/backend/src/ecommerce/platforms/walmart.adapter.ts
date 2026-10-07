@@ -773,6 +773,7 @@ export class WalmartAdapter implements PlatformAdapter {
             data: {
               channel: SaleChannel.WALMART,
               externalId: id,
+              externalAltId: o.customerOrderId ? String(o.customerOrderId) : null,
               total: b.total,
               ...b.charges,
               companyId,

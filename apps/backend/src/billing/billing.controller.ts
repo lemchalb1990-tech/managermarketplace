@@ -8,6 +8,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { BillingService } from './billing.service';
+import { BsaleImportService } from './bsale-import.service';
 import {
   CreateBillingConnectionDto, UpdateBillingConnectionDto, IssueInvoiceDto, IssueDraftDto, ListInvoicesDto,
   MarkInvoicePaidDto, UpsertBillingProfileDto,
@@ -28,7 +29,7 @@ const logoStorage = diskStorage({
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
 export class BillingController {
-  constructor(private service: BillingService, private readonly storage: StorageService) {}
+  constructor(private service: BillingService, private readonly storage: StorageService, private bsaleImport: BsaleImportService) {}
 
   // ── Connections ──────────────────────────────────────────────────
 
@@ -58,6 +59,12 @@ export class BillingController {
   @Roles(Role.SUPER_ADMIN)
   updateConnection(@Param('id') id: string, @Body() dto: UpdateBillingConnectionDto, @CurrentUser() user: any) {
     return this.service.updateConnection(id, dto, user);
+  }
+
+  // Bsale: carga las boletas/facturas ya emitidas para las ventas de marketplaces (no ML).
+  @Post('connections/:id/import-marketplace-docs')
+  importMarketplaceDocs(@Param('id') id: string, @Body() body: { days?: number }, @CurrentUser() user: any) {
+    return this.bsaleImport.importForConnection(id, user, Math.min(365, Math.max(1, Number(body?.days) || 120)));
   }
 
   @Post('connections/:id/test')

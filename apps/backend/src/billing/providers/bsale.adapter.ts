@@ -31,6 +31,35 @@ export class BsaleAdapter implements BillingAdapter {
     }
   }
 
+  // Documentos emitidos en un rango de fechas, con tipo, cliente, referencias y detalle. Bsale
+  // identifica la venta de un marketplace en `salesId` (PAR…, WAL…, FAL…) y en la referencia.
+  async listDocuments(creds: Record<string, string>, from: Date, to: Date, documentTypeIds: number[]): Promise<any[]> {
+    const out: any[] = [];
+    const range = `[${Math.floor(from.getTime() / 1000)},${Math.floor(to.getTime() / 1000)}]`;
+    for (const typeId of documentTypeIds) {
+      for (let offset = 0; ; offset += 50) {
+        const url = `${BASE_URL}/documents.json?limit=50&offset=${offset}&documenttypeid=${typeId}&emissiondaterange=${range}&expand=[document_type,client,references,details]`;
+        const res = await fetch(url, { headers: this.headers(creds) });
+        if (!res.ok) throw new Error(`Bsale documentos (HTTP ${res.status})`);
+        const data: any = await res.json();
+        const items: any[] = data.items || [];
+        out.push(...items);
+        if (items.length < 50) break;
+      }
+    }
+    return out;
+  }
+
+  // Ids de los tipos de documento de la cuenta según su código SII (39 boleta, 33 factura…).
+  async documentTypeIds(creds: Record<string, string>, codesSii: string[]): Promise<{ id: number; codeSii: string }[]> {
+    const res = await fetch(`${BASE_URL}/document_types.json?limit=50&state=0`, { headers: this.headers(creds) });
+    if (!res.ok) throw new Error(`Bsale tipos de documento (HTTP ${res.status})`);
+    const data: any = await res.json();
+    return (data.items || [])
+      .filter((t: any) => codesSii.includes(String(t.codeSii)))
+      .map((t: any) => ({ id: Number(t.id), codeSii: String(t.codeSii) }));
+  }
+
   async issueDte(creds: Record<string, string>, payload: IssueDtePayload): Promise<DteResult> {
     const typeCode = DTE_TYPE_CODE[payload.dteType] ?? 39;
 

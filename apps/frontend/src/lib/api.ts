@@ -811,6 +811,10 @@ export const api = {
         apiFetch<any>(`/billing/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       test: (id: string, token: string) =>
         apiFetch<{ success: boolean; message?: string }>(`/billing/connections/${id}/test`, { method: 'POST' }, token),
+      // Bsale: carga las boletas/facturas ya emitidas para ventas de marketplaces (no Mercado Libre).
+      importMarketplaceDocs: (id: string, token: string, days = 120) =>
+        apiFetch<{ scanned: number; marketplace: number; linked: number; alreadyLoaded: number; withoutSale: number; byChannel: Record<string, number> }>(
+          `/billing/connections/${id}/import-marketplace-docs`, { method: 'POST', body: JSON.stringify({ days }) }, token),
     },
     invoices: {
       list: (token: string, params?: { page?: number; dteType?: string; status?: string; from?: string; to?: string; connectionId?: string; companyId?: string }) => {

@@ -151,6 +151,32 @@ export default function ProviderPage({ config }: Props) {
     }
   }
 
+  const [importingId, setImportingId] = useState<string | null>(null);
+  // Bsale: trae las boletas/facturas que Bsale ya emitió para ventas de marketplaces y las
+  // asocia a su venta/orden (solo lectura en Bsale).
+  async function handleImportDocs(id: string) {
+    setImportingId(id);
+    try {
+      const r = await api.billing.connections.importMarketplaceDocs(id, getToken()!);
+      const detail = Object.entries(r.byChannel).map(([ch, n]) => `${ch}: ${n}`).join(', ');
+      await alertDialog(
+        `Documentos de Bsale revisados (últimos 120 días): ${r.scanned}
+` +
+        `De marketplaces (sin Mercado Libre): ${r.marketplace}
+` +
+        `Cargados ahora en su orden: ${r.linked}${detail ? ` (${detail})` : ''}
+` +
+        `Ya estaban cargados: ${r.alreadyLoaded}
+` +
+        `Sin venta en el sistema: ${r.withoutSale}`,
+      );
+    } catch (e: any) {
+      await alertDialog(e.message || 'No se pudieron traer los documentos de Bsale');
+    } finally {
+      setImportingId(null);
+    }
+  }
+
   async function handleTest(id: string) {
     const token = getToken()!;
     const result = await api.billing.connections.test(id, token)
@@ -269,6 +295,13 @@ export default function ProviderPage({ config }: Props) {
                       {isSuperAdmin && (
                         <button onClick={() => openEdit(c)} disabled={editLoading}
                           className="text-xs text-indigo-500 hover:text-indigo-700 font-medium disabled:opacity-50">Editar</button>
+                      )}
+                      {config.provider === 'BSALE' && (
+                        <button onClick={() => handleImportDocs(c.id)} disabled={importingId === c.id}
+                          title="Carga en cada orden de marketplace (no Mercado Libre) la boleta o factura que Bsale ya emitió"
+                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50">
+                          {importingId === c.id ? 'Trayendo...' : 'Traer documentos de marketplaces'}
+                        </button>
                       )}
                       <button onClick={() => handleTest(c.id)}
                         className="text-xs text-blue-500 hover:text-blue-700 font-medium">Probar</button>

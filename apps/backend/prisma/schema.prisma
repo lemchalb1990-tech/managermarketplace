@@ -875,6 +875,9 @@ model Sale {
   // Método de pago que informa el marketplace (Mercado Pago, tarjeta, Webpay...). Texto libre,
   // distinto de paymentMethod (efectivo/tarjeta/transferencia del punto de venta).
   paymentMethodName String?
+  // Segundo identificador de la orden en el marketplace (Walmart: customerOrderId, el que
+  // usa Bsale en sus documentos). externalId guarda el principal (purchaseOrderId).
+  externalAltId String?
   notes           String?
   customerName    String?
   // Seudónimo (nickname) del comprador en el marketplace (Mercado Libre), aparte del nombre real.
@@ -918,6 +921,7 @@ model Sale {
   @@unique([channel, externalId])
   @@index([channel, mlPackId])
   @@index([channel, mlShippingId])
+  @@index([companyId, externalAltId])
   @@map("sales")
 }
 
