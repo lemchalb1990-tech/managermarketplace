@@ -106,13 +106,22 @@ export default function OrderInvoicesCard({ invoices, marketplace, canManage, fm
                   {inv.razonSocial} · ${Number(inv.totalAmount).toLocaleString('es-CL')}
                   {inv.issuedAt ? ` · ${fmtDateTime(inv.issuedAt)}` : ''}
                 </p>
-                {pushLabel && issued && (
-                  <p className={`mt-1 ${inv.marketplaceError ? 'text-red-600' : inv.marketplaceSentAt ? 'text-green-700' : 'text-gray-400'}`}>
-                    {inv.marketplaceError
-                      ? `No se pudo enviar a ${pushLabel}: ${inv.marketplaceError}`
-                      : inv.marketplaceSentAt
-                        ? `Enviada a ${pushLabel} el ${fmtDateTime(inv.marketplaceSentAt)}`
-                        : `Aún no se envía a ${pushLabel}`}
+                {/* ¿El marketplace recibió el documento? ✓ si se le envió y lo aceptó; ✗ si el envío
+                    falló o aún no se envía; Paris y Walmart no informan la recepción por su API. */}
+                {marketplace && marketplace !== 'MERCADO_LIBRE' && issued && (
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <span className="text-gray-500">Recibido por el marketplace:</span>
+                    {pushLabel ? (
+                      inv.marketplaceSentAt && !inv.marketplaceError ? (
+                        <span className="font-semibold text-green-700" title={`Enviado a ${pushLabel} el ${fmtDateTime(inv.marketplaceSentAt)}`}>✓</span>
+                      ) : (
+                        <span className="font-semibold text-red-600" title={inv.marketplaceError ? `Error: ${inv.marketplaceError}` : `Aún no se envía a ${pushLabel}`}>
+                          ✗{inv.marketplaceError ? <span className="font-normal"> ({inv.marketplaceError})</span> : null}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-gray-400" title="Este marketplace no informa por su API si recibió el documento">— sin confirmación del marketplace</span>
+                    )}
                   </p>
                 )}
 
