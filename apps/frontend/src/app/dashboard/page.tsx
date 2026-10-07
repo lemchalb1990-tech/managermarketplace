@@ -351,9 +351,10 @@ export default function DashboardPage() {
           }
           style={CARD_SHADOW}
         >
-          <div className="mb-0 sm:mb-3">
+          {/* Celular: etiqueta y valor en una sola línea (la mitad de alto). */}
+          <div className="mb-0 sm:mb-3 max-sm:flex max-sm:items-baseline max-sm:gap-2">
             <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
-            <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
+            <p className="text-base sm:text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
           </div>
 
           {reportData.length === 0 ? (
