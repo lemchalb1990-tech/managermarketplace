@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { SettingsService } from '../../settings/settings.service';
+import { toAbsoluteUrl } from '../../common/absolute-url.util';
 import { buildLabelsPdf } from '../mercadolibre/label-detail';
 import { assertIntegrationsEnabled } from '../../common/integrations.util';
 import { MarketplaceType, ListingStatus, Role, SaleChannel } from '@prisma/client';
@@ -41,6 +43,7 @@ export class ConnectionsService {
     private catalog: CatalogService,
     private channelOrders: ChannelOrdersService,
     private mercadolibre: MercadolibreService,
+    private settings: SettingsService,
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
@@ -190,8 +193,12 @@ export class ConnectionsService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
 
-    const product = await this.catalog.findOne(productId, user);
+    const product: any = await this.catalog.findOne(productId, user);
     const adapter = this.getAdapter(conn.marketplace as MarketplaceType);
+    // Todo el set de fotos (principal primero) con URL absoluta, para los canales que las
+    // reciben por URL al crear el producto (Shopify, WooCommerce).
+    const sorted = [...(product.images || [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0));
+    product.imageUrls = await Promise.all(sorted.map((img: any) => toAbsoluteUrl(this.settings, img.url))).catch(() => []);
 
     const result = await adapter.publishProduct(conn, product);
 

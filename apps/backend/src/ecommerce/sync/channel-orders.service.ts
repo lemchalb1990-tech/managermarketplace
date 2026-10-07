@@ -198,6 +198,9 @@ export class ChannelOrdersService {
         courier: state.courier || null,
         trackingCode: state.trackingCode || null,
         deliveredAt: status === OrderStatus.DELIVERED ? (state.deliveredAt ?? new Date()) : null,
+        // La orden lleva la fecha de la venta: así Órdenes queda de la más reciente a la más
+        // antigua aunque la orden se cree después (importación de historial).
+        createdAt: (sale as any).createdAt ?? undefined,
         companyId: sale.companyId,
         saleId: sale.id,
         warehouseId,

@@ -52,6 +52,8 @@ export class ShopifyAdapter implements PlatformAdapter {
           inventory_management: 'shopify',
           fulfillment_service: 'manual',
         }],
+        // Todas las fotos del producto (Shopify las descarga desde la URL).
+        ...(product.imageUrls?.length ? { images: product.imageUrls.map((src: string, i: number) => ({ src, position: i + 1 })) } : {}),
       },
     };
 

@@ -3232,6 +3232,8 @@ export class MercadolibreService {
           courier: toAgree ? ML_TO_AGREE_COURIER : shippingInfo.method,
           trackingCode: shippingInfo.trackingCode,
           notes: toAgree && buyerContact ? this.mlToAgreeNote(mlOrder, buyerContact) : undefined,
+          // Fecha de la venta, para que Órdenes siga el orden de las ventas (más reciente primero).
+          createdAt: sale.createdAt,
           companyId: sale.companyId,
           saleId: sale.id,
           warehouseId: warehouseId || undefined,

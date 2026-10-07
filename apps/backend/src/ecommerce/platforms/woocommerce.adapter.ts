@@ -43,6 +43,8 @@ export class WooCommerceAdapter implements PlatformAdapter {
         manage_stock: true,
         stock_quantity: product.stock,
         status: 'publish',
+        // Todas las fotos del producto (WooCommerce las descarga desde la URL; la primera es la principal).
+        ...(product.imageUrls?.length ? { images: product.imageUrls.map((src: string, i: number) => ({ src, position: i })) } : {}),
       }),
     });
     if (!res.ok) {
