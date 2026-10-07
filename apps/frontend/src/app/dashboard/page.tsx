@@ -64,7 +64,7 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className={`group relative ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-1.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
       {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
       <div className="flex items-center gap-2 w-full sm:contents">
@@ -73,7 +73,7 @@ function KpiCard({
         </div>
         <p className="sm:hidden text-[11px] text-[var(--text-muted)] font-medium leading-tight line-clamp-2">{title}</p>
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 max-sm:w-full max-sm:text-center">
         <p className="hidden sm:block text-xs text-[var(--text-muted)] font-medium mb-0.5 leading-tight">{title}</p>
         <p className="text-lg sm:text-2xl font-bold text-[var(--text)] leading-tight tracking-tight">{value}</p>
       </div>
