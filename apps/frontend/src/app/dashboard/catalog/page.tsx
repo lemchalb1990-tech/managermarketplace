@@ -1325,7 +1325,7 @@ function channelPriceMap(product: any): Record<string, string> {
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
   stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '',
-  packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '',
+  packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '', noBarcode: false,
   channelPrices: {} as Record<string, string>,
 };
 
@@ -1738,7 +1738,8 @@ export default function CatalogPage() {
       JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
       JSON.stringify(editForm.channelPrices || {}) !== orig.channelPrices ||
       editForm.warehouseId !== orig.warehouseId ||
-      (editForm.barcode || '') !== (orig.barcode || '');
+      (editForm.barcode || '') !== (orig.barcode || '') ||
+      !!editForm.noBarcode !== !!orig.noBarcode;
     setIsDirty(dirty);
   }, [editForm]);
 
@@ -1788,6 +1789,7 @@ export default function CatalogPage() {
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
       barcode: product.barcode || '',
+      noBarcode: !!product.noBarcode,
       channelPrices: channelPriceMap(product),
     });
     setTab('edit');
@@ -1815,6 +1817,7 @@ export default function CatalogPage() {
       packageLength: product.packageLength != null ? String(Number(product.packageLength)) : '',
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
       barcode: product.barcode || '',
+      noBarcode: !!product.noBarcode,
       channelPrices: JSON.stringify(channelPriceMap(product)),
     };
     setMlCategoryAttrs([]);
@@ -1884,7 +1887,8 @@ export default function CatalogPage() {
         packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
         packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
-        barcode: (editForm.barcode || '').trim() || undefined,
+        barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
+        noBarcode: !!editForm.noBarcode,
       };
       await api.catalog.update(selected.id, payload, token);
       await saveWebChannelPrices(selected.id, editForm.channelPrices || {}, channelPriceMap(selected), token);
@@ -1934,7 +1938,8 @@ export default function CatalogPage() {
         packageWidth: editForm.packageWidth !== '' ? parseFloat(editForm.packageWidth) : undefined,
         packageLength: editForm.packageLength !== '' ? parseFloat(editForm.packageLength) : undefined,
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
-        barcode: (editForm.barcode || '').trim() || undefined,
+        barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
+        noBarcode: !!editForm.noBarcode,
         ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
       };
       const created = await api.catalog.create(payload, token);
@@ -3262,11 +3267,20 @@ export default function CatalogPage() {
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Código de barras (GTIN/EAN)</label>
-                    <input value={editForm.barcode || ''} inputMode="numeric"
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-medium text-gray-600">Código de barras (GTIN/EAN)</label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+                        <input type="checkbox" checked={!!editForm.noBarcode}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, noBarcode: e.target.checked, ...(e.target.checked ? { barcode: '' } : {}) }))}
+                          className="w-3.5 h-3.5 accent-blue-600" />
+                        No tiene
+                      </label>
+                    </div>
+                    <input value={editForm.noBarcode ? '' : (editForm.barcode || '')} inputMode="numeric"
+                      disabled={!!editForm.noBarcode}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, barcode: e.target.value.replace(/[^0-9]/g, '') }))}
-                      placeholder="Obligatorio para publicar en Walmart"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                      placeholder={editForm.noBarcode ? 'Sin código de barras' : 'Obligatorio para publicar en Walmart'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>

@@ -360,6 +360,8 @@ model Product {
   sku           String
   // Código de barras (GTIN/EAN/UPC). Walmart lo exige para publicar.
   barcode       String?
+  // "No tiene código de barras": campo GTIN desactivado; en ML se declara EMPTY_GTIN_REASON.
+  noBarcode     Boolean  @default(false)
   name          String
   type          ProductType @default(ARTICULO)
   description   String?     @db.Text

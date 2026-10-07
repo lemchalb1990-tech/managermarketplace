@@ -902,9 +902,12 @@ export class MercadolibreService {
     // Nunca se envía un GTIN de ejemplo o inválido: ML lo rechaza si la cuenta ya lo usó en
     // otra categoría. Sin GTIN válido se declara que el producto no tiene código registrado.
     const { attrs: cleanedAttrs, removed: removedGtins } = cleanGtinAttributes(rawAttrs);
-    const userAttrs = removedGtins.length && !cleanedAttrs.some((a: any) => a.id === 'GTIN' || a.id === 'EMPTY_GTIN_REASON')
-      ? [...cleanedAttrs, { id: 'EMPTY_GTIN_REASON', value_id: '17055160' }]
-      : cleanedAttrs;
+    // Producto marcado "No tiene código de barras": nunca se envía GTIN.
+    const noBarcode = !!(product as any).noBarcode;
+    const baseAttrs = noBarcode ? cleanedAttrs.filter((a: any) => a.id !== 'GTIN' && a.id !== 'EMPTY_GTIN_REASON') : cleanedAttrs;
+    const userAttrs = (noBarcode || removedGtins.length) && !baseAttrs.some((a: any) => a.id === 'GTIN' || a.id === 'EMPTY_GTIN_REASON')
+      ? [...baseAttrs, { id: 'EMPTY_GTIN_REASON', value_id: '17055160' }]
+      : baseAttrs;
 
     const mlItem = {
       title: accountTitle,
