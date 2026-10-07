@@ -64,7 +64,7 @@ function KpiCard({
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
 }) {
   const content = (
-    <div className={`group relative ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-1.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card px-3 py-2 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-0.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
       {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
       <div className="flex items-center gap-2 w-full sm:contents">
@@ -351,7 +351,7 @@ export default function DashboardPage() {
           }
           style={CARD_SHADOW}
         >
-          <div className="mb-3">
+          <div className="mb-0 sm:mb-3">
             <p className="text-[11.5px] text-[var(--text-muted)]">{isDailyPeriod ? 'Promedio por día' : 'Promedio por mes'}</p>
             <p className="text-[22px] font-extrabold text-[var(--text)] leading-tight">${Math.round(reportAvg).toLocaleString('es-CL')}</p>
           </div>
@@ -359,7 +359,7 @@ export default function DashboardPage() {
           {reportData.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)] text-center py-12">Sin datos de ventas</p>
           ) : (
-            <div className="flex items-end gap-0.5 sm:gap-1.5">
+            <div className="flex items-end gap-0.5 sm:gap-1.5 max-sm:-mt-4">
               {/* Con muchas columnas (30 días) no entra un valor permanente por barra sin
                   truncarse a algo ilegible — ahí el valor solo aparece al pasar el mouse,
                   con su propio fondo, para poder mostrarse completo sin chocar con los vecinos. */}
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                   <Link
                     key={order.id}
                     href={`/dashboard/orders/${order.id}`}
-                    className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                    className="group relative flex items-center gap-3 px-2.5 py-[5px] sm:py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -580,7 +580,7 @@ export default function DashboardPage() {
                 <Link
                   key={sale.id}
                   href="/dashboard/sales"
-                  className="group relative flex items-center gap-3 px-2.5 py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
+                  className="group relative flex items-center gap-3 px-2.5 py-[5px] sm:py-2.5 -mx-2.5 rounded-xl transition-shadow duration-150 hover:shadow-md hover:z-10"
                 >
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 overflow-hidden">
                     {photoUrl ? (

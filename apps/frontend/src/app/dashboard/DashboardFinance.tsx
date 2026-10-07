@@ -62,7 +62,7 @@ export function FinanceCards({ data }: { data: any }) {
         const pct = c.budget ? Math.round((c.actual / c.budget) * 100) : null;
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
-            <div className={`ui-card p-3 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-1.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+            <div className={`ui-card px-3 py-2 sm:p-5 flex flex-col sm:flex-row items-start max-sm:justify-center gap-0.5 sm:gap-4 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
               {/* Celular: ícono al lado del título (hasta 2 líneas) y el número debajo. */}
               <div className="flex items-center gap-2 w-full sm:contents">
                 <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${c.color}`}>{c.icon}</div>
