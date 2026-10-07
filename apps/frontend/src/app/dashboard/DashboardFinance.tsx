@@ -64,10 +64,14 @@ export function FinanceCards({ data }: { data: any }) {
           <Link key={c.key} href="/dashboard/finanzas" className="block">
             <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2.5 sm:gap-3 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
               {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
+              <div className={`xl:hidden w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}>{c.icon}</div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{c.label}</p>
-                <p className={`text-lg sm:text-2xl font-bold leading-tight tracking-tight text-right ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
+                {/* Pantallas anchas (8 tarjetas en una fila): ícono chico al lado del título. */}
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`hidden xl:inline-flex w-7 h-7 rounded-lg items-center justify-center text-sm shrink-0 ${c.color}`}>{c.icon}</span>
+                  <p className="text-[11px] sm:text-xs text-[var(--text-2)] font-bold leading-tight line-clamp-2">{c.label}</p>
+                </div>
+                <p className={`text-lg sm:text-2xl xl:text-lg font-bold leading-tight tracking-tight text-right ${c.key === 'RESULT' && c.actual < 0 ? 'text-red-600' : 'text-[var(--text)]'}`}>
                   {clp(c.actual)}
                 </p>
                 {/* Solo con presupuesto definido (sin él no se muestra nada). */}
