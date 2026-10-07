@@ -693,7 +693,7 @@ export class FalabellaAdapter implements PlatformAdapter {
   // Etiqueta de despacho (documentación oficial "Obtener Etiqueta": GetDocument con
   // DocumentType=shippingParcel y los OrderItemIds de la orden; devuelve el archivo en BASE64
   // con su MimeType). Falabella la genera cuando los ítems ya están listos para despacho (E034
-  // si aún no se empaquetan). Sin probar en vivo: ninguna conexión tenía credenciales válidas.
+  // si aún no se empaquetan). Probado en vivo con HABITA2: devuelve application/pdf.
   async getShippingLabelPdf(conn: any, orderId: string): Promise<Buffer> {
     const itemsData = await this.call(conn, 'GetOrderItems', { OrderId: orderId });
     const raw = itemsData?.OrderItems?.OrderItem;
@@ -705,6 +705,9 @@ export class FalabellaAdapter implements PlatformAdapter {
       body = await this.call(conn, 'GetDocument', { DocumentType: 'shippingParcel', OrderItemIds: JSON.stringify(ids) });
     } catch (err: any) {
       const msg = String(err?.message || '');
+      // E125: la etiqueta se libera 24 h antes de la fecha de despacho (confirmado en vivo).
+      const when = msg.match(/i\.e\s+(.+?)\s*$/s)?.[1];
+      if (/E125/.test(msg)) throw new Error(`Falabella libera la etiqueta de la orden ${orderId} 24 horas antes del despacho${when ? ` (desde el ${when.replace(/\s+/g, ' ')})` : ''}.`);
       if (/E034|packed|ready/i.test(msg)) throw new Error(`La orden ${orderId} todavía no está lista para despacho en Falabella: márcala como lista para enviar y vuelve a intentar.`);
       throw err;
     }
