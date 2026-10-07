@@ -190,6 +190,9 @@ export default function DashboardPage() {
   useEffect(() => onActivity(['sale'], loadReport), [loadReport]);
 
   const [reportChartReady, setReportChartReady] = useState(false);
+  // Celular: columna tocada del historial (muestra su valor en una etiqueta flotante).
+  const [activeBar, setActiveBar] = useState<number | null>(null);
+  useEffect(() => { setActiveBar(null); }, [reportData]);
   useEffect(() => {
     if (reportLoading) { setReportChartReady(false); return; }
     const raf = requestAnimationFrame(() => setReportChartReady(true));
@@ -370,6 +373,7 @@ export default function DashboardPage() {
                 const isCurrent = i === reportData.length - 1;
                 return (
                   <div key={d.month || d.date || i}
+                    onClick={() => setActiveBar((a) => (a === i ? null : i))}
                     className="group flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-lg px-0.5 sm:px-1 pt-1 pb-1.5 transition-colors hover:bg-[var(--brand-light)]">
                     <div className="w-full h-32 flex flex-col justify-end relative">
                       {h > 0 && (
@@ -384,6 +388,16 @@ export default function DashboardPage() {
                             transitionDuration: isDense ? '150ms' : '700ms',
                             transitionDelay: isDense ? '0ms' : `${i * 25}ms`,
                           }}
+                        >
+                          {fmtCompactCLP(d.total)}
+                        </span>
+                      )}
+                      {activeBar === i && (
+                        <span
+                          className={`sm:hidden absolute z-30 whitespace-nowrap rounded-md border border-[var(--border-soft)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text)] shadow-sm pointer-events-none ${
+                            i < 2 ? 'left-0' : i > reportData.length - 3 ? 'right-0' : 'left-1/2 -translate-x-1/2'
+                          }`}
+                          style={{ bottom: `${Math.min(h + 4, 92)}px` }}
                         >
                           {fmtCompactCLP(d.total)}
                         </span>
@@ -410,6 +424,7 @@ export default function DashboardPage() {
         <SectionCard
           title={<span className="font-bold text-sm text-[var(--text)]">Ventas por Canal - Tienda</span>}
           style={CARD_SHADOW}
+          centerHeaderMobile
           actions={
             <div className="flex items-center gap-1 bg-white rounded-full p-1">
               {DASHBOARD_PERIODS.map((p) => (
@@ -505,6 +520,7 @@ export default function DashboardPage() {
         <SectionCard
           title="Órdenes urgentes"
           style={CARD_SHADOW}
+          compactHeader
           actions={
             <Link href="/dashboard/orders" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
@@ -557,6 +573,7 @@ export default function DashboardPage() {
         <SectionCard
           title="Últimas ventas"
           style={CARD_SHADOW}
+          compactHeader
           actions={
             <Link href="/dashboard/sales" className="text-xs text-blue-500 hover:text-blue-700 font-medium">
               Ver todas →
