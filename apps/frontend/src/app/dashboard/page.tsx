@@ -477,9 +477,10 @@ export default function DashboardPage() {
 
               {/* Tabla real (no un grid por fila) para que las columnas de todas las
                   filas — y el encabezado — queden alineadas entre sí. */}
-              <div className="w-full flex-1 min-w-0 overflow-x-auto">
+              {/* 4 canales a la vista; el resto con barra de desplazamiento (encabezado fijo). */}
+              <div className="w-full flex-1 min-w-0 overflow-x-auto overflow-y-auto max-h-[176px]">
                 <table className="w-full text-xs border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-[var(--surface)]">
                     <tr className="text-[11px] font-medium text-[var(--text-muted)]">
                       <th className="text-left font-medium pb-2 pr-2">Canal</th>
                       <th className="text-right font-medium pb-2 px-2">Órdenes</th>
