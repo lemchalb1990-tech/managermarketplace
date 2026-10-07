@@ -41,6 +41,8 @@ const COUNT_LABELS: { key: string; label: string }[] = [
 
 interface MergeModalProps {
   products: any[];
+  // "Precio proveedor" solo si la empresa tiene el módulo Dropshipping.
+  showSupplierPrice?: boolean;
   connectionConflicts: { connectionId: string; connectionName: string; products: { id: string; name: string }[] }[];
   onClose: () => void;
   onConfirm: (dto: {
@@ -55,7 +57,8 @@ interface MergeModalProps {
   error: string;
 }
 
-export default function MergeModal({ products, connectionConflicts, onClose, onConfirm, submitting, error }: MergeModalProps) {
+export default function MergeModal({ products, connectionConflicts, onClose, onConfirm, submitting, error, showSupplierPrice = true }: MergeModalProps) {
+  const fields = MERGE_FIELDS.filter((f) => showSupplierPrice || f.key !== 'supplierPrice');
   const [step, setStep] = useState<'fields' | 'confirm'>('fields');
   const [fieldSources, setFieldSources] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -156,7 +159,7 @@ export default function MergeModal({ products, connectionConflicts, onClose, onC
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {MERGE_FIELDS.map((f) => (
+                    {fields.map((f) => (
                       <tr key={f.key}>
                         <td className="px-3 py-2 font-medium text-gray-600 align-top whitespace-nowrap">{f.label}</td>
                         {products.map((p) => (

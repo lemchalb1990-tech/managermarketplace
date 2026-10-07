@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { ImportProgress } from '@/components/ImportProgress';
 import { api, imgUrl, ApiError } from '@/lib/api';
-import { hasModule } from '@/lib/modules';
+import { hasModule, matchesModule } from '@/lib/modules';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
@@ -1359,7 +1359,7 @@ const listingChipDefaultColor = 'bg-red-100 text-red-700';
 
 export default function CatalogPage() {
   const searchParams = useSearchParams();
-  const { selectedCompanyId } = useAdminCompany();
+  const { selectedCompanyId, companies: adminCompanies } = useAdminCompany();
   const tz = useDashboardTimezone();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -1435,10 +1435,14 @@ export default function CatalogPage() {
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const hasMlModule = hasModule(currentUser, 'ecommerce_ml');
-  const hasPosModule = hasModule(currentUser, 'pos');
-  const hasPurchasesModule = hasModule(currentUser, 'purchases');
-  const hasDropshippingModule = hasModule(currentUser, 'dropshipping');
+  // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
+  // (antes el Super Admin veía todo, p. ej. "Precio proveedor" en empresas sin Dropshipping).
+  const activeCompany = isSuperAdmin ? (adminCompanies || []).find((c: any) => c.id === selectedCompanyId) : null;
+  const companyHas = (key: string) => (isSuperAdmin ? !!activeCompany && matchesModule(activeCompany.modules, key) : hasModule(currentUser, key));
+  const hasMlModule = companyHas('ecommerce_ml');
+  const hasPosModule = companyHas('pos');
+  const hasPurchasesModule = companyHas('purchases');
+  const hasDropshippingModule = companyHas('dropshipping');
 
   const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
   const mlChecked = connections.some((c) => publishTargets[c.id]);
@@ -3821,6 +3825,7 @@ export default function CatalogPage() {
           connectionConflicts={mergeCandidates.connectionConflicts}
           onClose={() => { setMergeCandidates(null); setMergeError(''); }}
           onConfirm={handleConfirmMerge}
+          showSupplierPrice={hasDropshippingModule}
           submitting={mergeSubmitting}
           error={mergeError}
         />
