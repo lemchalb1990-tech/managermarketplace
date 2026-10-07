@@ -2462,7 +2462,7 @@ export class MercadolibreService {
       const shippingInfo = await this.getMlShippingInfo(order, token);
       if (shippingInfo.sellerCost != null) charges.shippingCost = shippingInfo.sellerCost;
       charges.totalPaid = this.computeSellerNetAmount(order, charges);
-      await this.prisma.sale.create({
+      const historySale = await this.prisma.sale.create({
         data: {
           channel: SaleChannel.MERCADO_LIBRE,
           externalId: orderId,
@@ -2482,6 +2482,9 @@ export class MercadolibreService {
           items: { create: resolvedItems },
         },
       });
+      // Toda venta importada queda con su orden de despacho, sin mover stock (historial).
+      await this.createOrderForExistingSale(historySale.id, { role: Role.SUPER_ADMIN }, { withoutStock: true }).catch((err) =>
+        this.logger.warn(`Venta ML ${orderId} importada sin orden de despacho: ${err?.message || err}`));
       imported++;
     }
 
@@ -3160,7 +3163,9 @@ export class MercadolibreService {
   // stock; en cambio se recrea solo la orden con los datos actuales de ML (cliente, envío,
   // productos) y luego se sincroniza su estado/historial. El stock se descuenta solo si esta
   // venta nunca lo descontó y el envío sigue pendiente.
-  async createOrderForExistingSale(saleId: string, user: any) {
+  // withoutStock: crea la orden sin descontar stock (también si está cancelada en ML: queda
+  // Cancelada al sincronizar). Se usa para las ventas importadas como historial.
+  async createOrderForExistingSale(saleId: string, user: any, opts: { withoutStock?: boolean } = {}) {
     const sale = await this.prisma.sale.findUnique({
       where: { id: saleId },
       include: {
@@ -3181,7 +3186,7 @@ export class MercadolibreService {
       throw new BadRequestException(`No se pudo consultar la orden #${sale.externalId} en Mercado Libre (HTTP ${orderRes.status}).`);
     }
     const mlOrder = await orderRes.json() as any;
-    if (mlOrder.status === 'cancelled') {
+    if (mlOrder.status === 'cancelled' && !opts.withoutStock) {
       throw new BadRequestException(`La orden #${sale.externalId} está cancelada en Mercado Libre: no se crea orden de despacho.`);
     }
 
@@ -3200,7 +3205,7 @@ export class MercadolibreService {
       if (sr?.ok) shipmentStatus = ((await sr.json()) as any)?.status || null;
     }
     const notShippedYet = !shipmentStatus || ['pending', 'handling', 'ready_to_ship'].includes(shipmentStatus);
-    const deductStock = alreadyMoved === 0 && notShippedYet;
+    const deductStock = !opts.withoutStock && alreadyMoved === 0 && notShippedYet;
 
     const warehouseCounts: Record<string, number> = {};
     for (const i of sale.items) {

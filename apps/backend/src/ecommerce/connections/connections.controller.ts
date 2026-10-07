@@ -265,8 +265,8 @@ export class ConnectionsController {
   // Crea la Orden de despacho de una venta ya importada que quedó solo como historial.
   @Post('sales/:saleId/order')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
-  createOrderForSale(@Param('saleId') saleId: string, @CurrentUser() user: any) {
-    return this.service.createOrderForExistingSale(saleId, user);
+  createOrderForSale(@Param('saleId') saleId: string, @Body() body: { withoutStock?: boolean }, @CurrentUser() user: any) {
+    return this.service.createOrderForExistingSale(saleId, user, { withoutStock: !!body?.withoutStock });
   }
 
   // Walmart: qué fuente entrega las fotos de un ítem (diagnóstico) y completar las faltantes.

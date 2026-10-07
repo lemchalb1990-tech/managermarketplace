@@ -523,10 +523,10 @@ export class ConnectionsService {
   }
 
   // Mercado Libre tiene su propio flujo (cliente, envío y etiqueta de Mercado Envíos).
-  async createOrderForExistingSale(saleId: string, user: any) {
+  async createOrderForExistingSale(saleId: string, user: any, opts: { withoutStock?: boolean } = {}) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId }, select: { channel: true } });
-    if (sale?.channel === SaleChannel.MERCADO_LIBRE) return this.mercadolibre.createOrderForExistingSale(saleId, user);
-    return this.channelOrders.createOrderForExistingSale(saleId, user);
+    if (sale?.channel === SaleChannel.MERCADO_LIBRE) return this.mercadolibre.createOrderForExistingSale(saleId, user, opts);
+    return this.channelOrders.createOrderForExistingSale(saleId, user, opts);
   }
 
   async confirmSalesImport(connectionId: string, user: any, externalIds: string[], createOrders = false) {

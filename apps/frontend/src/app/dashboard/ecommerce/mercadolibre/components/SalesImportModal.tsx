@@ -46,7 +46,8 @@ export function SalesImportModal({
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [createDispatchOrder, setCreateDispatchOrder] = useState(false);
+  // Importar a mano: siempre crea la orden de despacho y nunca descuenta stock.
+  const createDispatchOrder = true;
 
   function toggleExpanded(externalId: string) {
     setExpanded((prev) => {
@@ -132,7 +133,7 @@ export function SalesImportModal({
           <div>
             <h3 className="ui-section-title">Importar ventas de "{connectionName}"</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Trae ventas ya realizadas en Mercado Libre como historial. No descuenta stock ni genera movimientos de inventario.
+              Trae ventas ya realizadas en Mercado Libre. Cada venta queda con su orden de despacho en el estado que informa Mercado Libre, sin descontar stock.
             </p>
           </div>
           {!importing && (
@@ -336,15 +337,6 @@ export function SalesImportModal({
             </>
           ) : (
             <div className="w-full space-y-2">
-              <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
-                <input type="checkbox" checked={createDispatchOrder} disabled={importing}
-                  onChange={(e) => setCreateDispatchOrder(e.target.checked)}
-                  className="mt-0.5 rounded" />
-                <span>
-                  Crear también la Orden de despacho (aparece en Órdenes/bodega y admite imprimir su etiqueta ML).
-                  Nunca descuenta stock — úsalo para recuperar una venta reciente que el webhook no alcanzó a procesar, no para reimportar historial ya despachado.
-                </span>
-              </label>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">{selected.size} seleccionada(s)</span>
                 <div className="flex gap-2">

@@ -80,7 +80,12 @@ export class ChannelOrdersService {
   async confirmSalesImport(conn: any, externalIds: string[], createOrders: boolean) {
     const ch = this.channelOf(conn.marketplace);
     if (!ch) throw new Error(`${conn.marketplace} no soporta importación de ventas`);
-    if (!createOrders) return ch.adapter.confirmSalesImport(conn, conn.companyId, externalIds);
+    // Importación como historial: la venta igual queda con su orden de despacho (en el estado
+    // que informa el marketplace, también cancelada), pero sin mover stock.
+    if (!createOrders) {
+      return ch.adapter.confirmSalesImport(conn, conn.companyId, externalIds, (tx, created) =>
+        this.createOrderForSale(tx, created, ch.platform, new Set<string>(), false, { keepCancelled: true }));
+    }
     const touched = new Set<string>();
     const result = await ch.adapter.confirmSalesImport(conn, conn.companyId, externalIds, (tx, created) =>
       this.createOrderForSale(tx, created, ch.platform, touched, created.state.status === 'PENDING'));
@@ -91,7 +96,9 @@ export class ChannelOrdersService {
   // Venta importada antes (solo historial) que todavía no tiene Orden: se consulta su estado
   // actual en el marketplace y se crea con la misma regla que la importación manual — descuenta
   // stock solo si sigue pendiente de despacho; si está cancelada no se crea.
-  async createOrderForExistingSale(saleId: string, user: any) {
+  // withoutStock: crea la orden sin descontar stock (también si la venta está cancelada, en estado
+  // Cancelada). Se usa para completar ventas importadas como historial.
+  async createOrderForExistingSale(saleId: string, user: any, opts: { withoutStock?: boolean } = {}) {
     const sale = await this.prisma.sale.findUnique({
       where: { id: saleId },
       include: { items: { select: { id: true, productId: true, quantity: true } }, order: { select: { id: true } }, connection: true },
@@ -106,17 +113,17 @@ export class ChannelOrdersService {
 
     const state = (await ch.adapter.getOrderStates(sale.connection, [sale.externalId])).get(sale.externalId);
     if (!state) throw new BadRequestException(`No se encontró la orden #${sale.externalId} en ${ch.platform}`);
-    if (state.status === 'CANCELLED') {
+    if (state.status === 'CANCELLED' && !opts.withoutStock) {
       throw new BadRequestException(`La orden #${sale.externalId} está cancelada en ${ch.platform}: no se crea orden de despacho`);
     }
 
-    const deductStock = state.status === 'PENDING';
+    const deductStock = !opts.withoutStock && state.status === 'PENDING';
     const touched = new Set<string>();
     try {
       await this.prisma.$transaction((tx) => this.createOrderForSale(tx, {
         sale, externalId: sale.externalId!, state, cancelledProductIds: [],
         customer: { name: sale.customerName, email: sale.customerEmail, phone: sale.customerPhone, address: sale.address, commune: sale.commune, region: sale.city },
-      }, ch.platform, touched, deductStock));
+      }, ch.platform, touched, deductStock, { keepCancelled: !!opts.withoutStock, logImport: false }));
     } catch (err: any) {
       // Otra solicitud creó la orden de esta venta al mismo tiempo (Order.saleId es único).
       if (err?.code === 'P2002') throw new BadRequestException('Esta venta ya tiene su orden de despacho');
@@ -130,14 +137,22 @@ export class ChannelOrdersService {
 
   // ─── Orden + stock de una venta nueva ─────────────────────────────────────────
 
-  private async createOrderForSale(tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>, deductStock = true) {
+  // keepCancelled: una venta que llegó cancelada igual queda con su orden (Cancelada, sin stock).
+  // logImport: false cuando la venta ya existía (solo se le crea la orden).
+  private async createOrderForSale(
+    tx: Tx, created: CreatedChannelSale, platform: string, touched: Set<string>, deductStock = true,
+    opts: { keepCancelled?: boolean; logImport?: boolean } = {},
+  ) {
     const { sale, externalId, state } = created;
-    this.activity.logImport({
+    if (opts.logImport !== false) this.activity.logImport({
       companyId: sale.companyId, module: 'Ventas', action: 'IMPORTAR', entity: 'sale', entityId: sale.id, entityLabel: externalId,
       summary: `Venta importada de ${platform} n° ${externalId}${state.status === 'CANCELLED' ? ' (llegó cancelada)' : ''}`, href: '/dashboard/sales',
     });
-    // Llegó ya cancelada: queda como venta en el historial, sin orden ni movimiento de stock.
-    if (state.status === 'CANCELLED') return;
+    // Llegó ya cancelada: sin movimiento de stock; la orden solo se crea si se pide (historial).
+    if (state.status === 'CANCELLED') {
+      if (!opts.keepCancelled) return;
+      deductStock = false;
+    }
 
     const cancelled = new Set(created.cancelledProductIds);
     const products = await tx.product.findMany({
@@ -167,9 +182,10 @@ export class ChannelOrdersService {
     }
     const warehouseId = Object.entries(warehouseUnits).sort(([, a], [, b]) => b - a)[0]?.[0];
 
-    const status = state.status === 'DELIVERED' ? OrderStatus.DELIVERED
-      : state.status === 'SHIPPED' ? OrderStatus.IN_TRANSIT
-        : OrderStatus.PREPARING;
+    const status = state.status === 'CANCELLED' ? OrderStatus.CANCELLED
+      : state.status === 'DELIVERED' ? OrderStatus.DELIVERED
+        : state.status === 'SHIPPED' ? OrderStatus.IN_TRANSIT
+          : OrderStatus.PREPARING;
     const order = await tx.order.create({
       data: {
         status,
