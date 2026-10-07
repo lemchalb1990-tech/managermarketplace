@@ -375,7 +375,7 @@ export default async function Home() {
 
       <footer className="border-t border-[var(--border)]">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-xs text-[var(--text-muted)]">
-          <span>© {year} Admin Marketplace</span>
+          <span>Creado por OnDataSolution</span>
           <div className="flex gap-5">
             <a href="#canales" className="hover:text-[var(--text)]">Canales</a>
             <a href="#modulos" className="hover:text-[var(--text)]">Módulos</a>
