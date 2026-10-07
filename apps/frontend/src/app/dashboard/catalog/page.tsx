@@ -1035,7 +1035,10 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
   const hasErrors = state.checks.some(c => c.status === 'error');
   const isError = state.phase === 'error';
   const isPublishing = state.phase === 'publishing';
-  const missingSaleTerm = state.saleTerms.some((t) => t.required && !state.saleTermsValues[t.id]);
+  // Las condiciones de venta no se muestran: se envían solas las que tienen una única opción y,
+  // si una cuenta exige otra, Mercado Libre lo informa en el error de la publicación.
+  const missingSaleTerm = false;
+  const showSaleTerms = false;
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -1074,11 +1077,11 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
             ))
           )}
 
-          {!isError && state.saleTermsLoading && (
+          {showSaleTerms && !isError && state.saleTermsLoading && (
             <p className="text-xs text-gray-400">Consultando condiciones de venta de la categoría...</p>
           )}
 
-          {!isError && !state.saleTermsLoading && state.saleTerms.length > 0 && (
+          {showSaleTerms && !isError && !state.saleTermsLoading && state.saleTerms.length > 0 && (
             <div className="pt-2 mt-2 border-t border-gray-100 space-y-2.5">
               <p className="text-xs font-semibold text-gray-600">Condiciones de venta que exige esta categoría</p>
               {state.saleTerms.map((t) => {
