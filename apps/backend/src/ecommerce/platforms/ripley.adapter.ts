@@ -281,16 +281,45 @@ export class RipleyAdapter implements PlatformAdapter {
   // expone fotos del producto; las fotos salen del índice de fotos (PhotoIndexService:
   // catálogo, reportes de importación de Ripley, Falabella y Paris) al confirmar.
 
-  // Todas las ofertas (sku → título), para el índice de fotos.
-  async listOffers(conn: any): Promise<{ sku: string; title: string }[]> {
-    const out: { sku: string; title: string }[] = [];
-    for (let offset = 0; ; offset += 100) {
-      const data = await this.request(conn, `/api/offers?max=100&offset=${offset}`);
-      const offers: any[] = data?.offers || [];
-      out.push(...offers.map((o) => ({ sku: String(o.shop_sku || ''), title: String(o.product_title || '') })));
-      if (!offers.length || out.length >= (data.total_count || 0)) break;
+  // Todas las ofertas (OF21 paginado). Ripley limita fuerte esta consulta (429 con
+  // retry-after de ~45 s tras unas pocas páginas), así que se recorre una sola vez esperando lo
+  // que pida y queda en memoria 30 min para el índice de fotos y la confirmación de importación.
+  private offersCache = new Map<string, { at: number; promise: Promise<any[]> }>();
+
+  allOffers(conn: any): Promise<any[]> {
+    const hit = this.offersCache.get(conn.id);
+    if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.promise;
+    const promise = (async () => {
+      const out: any[] = [];
+      for (let offset = 0; ; offset += 100) {
+        const data = await this.requestPatient(conn, `/api/offers?max=100&offset=${offset}`);
+        const offers: any[] = data?.offers || [];
+        out.push(...offers);
+        if (!offers.length || out.length >= (data.total_count || 0)) break;
+      }
+      return out;
+    })();
+    promise.catch(() => this.offersCache.delete(conn.id));
+    this.offersCache.set(conn.id, { at: Date.now(), promise });
+    return promise;
+  }
+
+  // Como request(), pero ante 429 espera el retry-after completo (hasta ~20 intentos).
+  private async requestPatient(conn: any, path: string): Promise<any> {
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetch(`${BASE}${path}`, { headers: { Accept: 'application/json', Authorization: this.creds(conn).apiKey } });
+      if (res.ok) return res.json();
+      if ((res.status === 429 || res.status >= 502) && attempt < 20) {
+        const wait = Number(res.headers.get('retry-after')) || 30;
+        await new Promise((r) => setTimeout(r, (wait + 1) * 1000));
+        continue;
+      }
+      throw new BadRequestException(`Ripley respondió HTTP ${res.status} en ${path}`);
     }
-    return out;
+  }
+
+  async listOffers(conn: any): Promise<{ sku: string; title: string }[]> {
+    return (await this.allOffers(conn)).map((o) => ({ sku: String(o.shop_sku || ''), title: String(o.product_title || '') }));
   }
 
   // Fotos originales de las publicaciones: la API de ofertas no las trae, pero los reportes de
@@ -377,19 +406,11 @@ export class RipleyAdapter implements PlatformAdapter {
     let imported = 0, linked = 0, skipped = 0;
     const errors: string[] = [];
 
-    // OF21 solo filtra por `sku` (el shop_sku) de a uno: `shop_sku=` y las listas se ignoran y
-    // devuelven las primeras ofertas del catálogo (verificado en vivo). Se piden de a 5.
-    const offers: any[] = [];
-    for (let i = 0; i < externalIds.length; i += 5) {
-      const found = await Promise.all(externalIds.slice(i, i + 5).map((id) =>
-        this.request(conn, `/api/offers?max=10&sku=${encodeURIComponent(id)}`).catch(() => null)));
-      found.forEach((d: any, k) => {
-        const id = externalIds[i + k];
-        const offer = (d?.offers || []).find((o: any) => o.shop_sku === id);
-        if (offer) offers.push(offer);
-        else errors.push(`${id}: no se encontró en Ripley`);
-      });
-    }
+    // OF21 no filtra por lista de SKU (shop_sku= se ignora) y por `sku` es de a uno con un
+    // límite de consultas muy bajo: se usa la lista completa en memoria (allOffers).
+    const wanted = new Set(externalIds);
+    const offers: any[] = (await this.allOffers(conn)).filter((o) => wanted.has(o.shop_sku));
+    for (const id of externalIds) if (!offers.some((o) => o.shop_sku === id)) errors.push(`${id}: no se encontró en Ripley`);
 
     const skuCountsInBatch = new Map<string, number>();
     for (const o of offers) if (o.shop_sku) skuCountsInBatch.set(o.shop_sku, (skuCountsInBatch.get(o.shop_sku) || 0) + 1);
