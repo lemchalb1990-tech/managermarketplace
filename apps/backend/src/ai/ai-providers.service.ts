@@ -43,9 +43,9 @@ export class AiProvidersService {
     return p.adapter.fix!(p.key, p.model, image, title);
   }
 
-  async generatePhoto(title: string): Promise<ImageData> {
+  async generatePhoto(title: string, description?: string | null): Promise<ImageData> {
     const p = await this.taskProvider('PHOTO_GENERATE');
-    return p.adapter.generate!(p.key, p.model, title);
+    return p.adapter.generate!(p.key, p.model, title, description);
   }
 
   // ── Configuración (Super Admin) ──────────────────────────────────────────

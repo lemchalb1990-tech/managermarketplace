@@ -47,13 +47,16 @@ export function checkPromptWithJson(ctx: PhotoCheckContext) {
   return `${checkPrompt(ctx)}\nResponde solo con un objeto JSON con estas claves: matches (boolean), confidence ("alta" | "media" | "baja"), shows (string), problems (arreglo de strings, vacío si no hay), suggestion (string, vacío si está bien), suggestedTitle (string de máximo 60 caracteres, vacío si el título calza).`;
 }
 
-export function generatePrompt(title: string) {
+export function generatePrompt(title: string, description?: string | null) {
+  // La descripción da forma, color, material, medidas y lo que incluye: la imagen sale más fiel.
+  const desc = (description || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
   return [
     `Fotografía de producto de referencia para una tienda online. Producto: "${title}".`,
+    desc ? `Descripción del producto (respeta forma, color, material, medidas y lo que incluye): ${desc}` : '',
     'Producto solo, completo y centrado, ocupando cerca del 85% del cuadro, sobre fondo blanco puro (#FFFFFF).',
     'Estilo realista de estudio, iluminación suave y una sombra sutil.',
-    'Sin textos, sin logos ni marcas comerciales, sin marcas de agua, sin personas y sin accesorios que el título no mencione.',
-  ].join(' ');
+    'Sin textos, sin logos ni marcas comerciales, sin marcas de agua, sin personas y sin accesorios que el título o la descripción no mencionen.',
+  ].filter(Boolean).join(' ');
 }
 
 export function fixPrompt(title: string) {

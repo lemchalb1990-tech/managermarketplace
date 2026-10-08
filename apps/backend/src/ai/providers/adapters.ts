@@ -11,7 +11,7 @@ export interface ProviderAdapter {
   check?(key: string, model: string, image: ImageData, ctx: PhotoCheckContext): Promise<PhotoVerdict>;
   fix?(key: string, model: string, image: ImageData, title: string): Promise<ImageData>;
   /** Crea una imagen de referencia solo desde el título. */
-  generate?(key: string, model: string, title: string): Promise<ImageData>;
+  generate?(key: string, model: string, title: string, description?: string | null): Promise<ImageData>;
   /** Verifica la API key con una llamada que no gasta créditos. */
   test(key: string): Promise<void>;
 }
@@ -82,9 +82,9 @@ const openai: ProviderAdapter = {
     return fail('OpenAI', 'no pudo corregir la foto.');
   },
 
-  async generate(key, model, title) {
+  async generate(key, model, title, description) {
     const params: Record<string, string> = {
-      model, prompt: generatePrompt(title), size: '1024x1024', quality: 'medium', background: 'opaque', output_format: 'jpeg',
+      model, prompt: generatePrompt(title, description), size: '1024x1024', quality: 'medium', background: 'opaque', output_format: 'jpeg',
     };
     for (let attempt = 0; attempt < 4; attempt++) {
       const res = await fetch(`${OPENAI_API}/images/generations`, {
@@ -203,9 +203,9 @@ const gemini: ProviderAdapter = {
     return { bytes: Buffer.from(inline.data, 'base64'), mime: inline.mimeType || inline.mime_type || 'image/png' };
   },
 
-  async generate(key, model, title) {
+  async generate(key, model, title, description) {
     const parts = await geminiGenerate(key, model, {
-      contents: [{ role: 'user', parts: [{ text: generatePrompt(title) }] }],
+      contents: [{ role: 'user', parts: [{ text: generatePrompt(title, description) }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     });
     const img = parts.find((p) => p.inlineData?.data || p.inline_data?.data);

@@ -204,7 +204,12 @@ export class MlPhotoService {
       || product.name).trim();
     const usageId = await this.credits.consume(product.companyId, user, 'PHOTO_GENERATE', productId);
     try {
-      const img = await this.ai.generatePhoto(finalTitle);
+      // Título + descripción (la detallada de ML sin HTML y la corta) para una imagen más fiel.
+      const stripHtml = (h?: string | null) => (h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+      const description = [stripHtml(product.mlDescription), stripHtml(product.description)]
+        .filter((d, i, all) => d && all.indexOf(d) === i)
+        .join('. ');
+      const img = await this.ai.generatePhoto(finalTitle, description);
       const ext = img.mime === 'image/png' ? 'png' : 'jpg';
       const { url } = await this.storage.put(img.bytes, `ai-gen-${productId}-${Date.now()}.${ext}`, img.mime, { folder: GENERATED_FOLDER });
       return { url, credits: await this.credits.status(product.companyId) };
