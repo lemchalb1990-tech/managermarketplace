@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/auth';
 import { api, type AiUsageReport, type PlanFeature } from '@/lib/api';
-import { PageHeader, SectionCard } from '@/components/ui';
+import { SectionCard } from '@/components/ui';
+import { Skeleton, SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
@@ -74,11 +75,19 @@ export default function UsagePage() {
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <PageHeader title="Uso" crumbs={[{ label: 'Ajustes del sistema' }, { label: 'Uso' }]} />
-      <p className="ui-page-subtitle -mt-2">Tu plan, los créditos disponibles y lo que se ha usado en la revisión de fotos.</p>
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      {!data && !error && <p className="text-sm text-[var(--text-muted)]">Cargando…</p>}
+      {!data && !error && (
+        // Mismo esqueleto de carga que las demás vistas.
+        <div className="space-y-4">
+          <SkeletonCards count={3} className="grid grid-cols-1 md:grid-cols-3 gap-3" height={120} />
+          <div className="ui-card p-3 sm:p-5"><SkeletonCards count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" height={130} /></div>
+          <div className="ui-card p-3 sm:p-5 flex flex-wrap gap-2">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-7 w-40 rounded-full" />)}
+          </div>
+          <div className="ui-card"><SkeletonTable rows={6} cols={5} /></div>
+        </div>
+      )}
 
       {data && (
         <>
