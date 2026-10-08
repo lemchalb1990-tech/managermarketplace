@@ -12,6 +12,10 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
+import {
+  type PreflightCheck, type CheckStatus, PreflightRows, PublishCheckModal, MissingBanner, MissingNotice,
+  fieldDomId, fieldBorder, isFieldInvalid, focusField,
+} from './publishCheck';
 import ChannelPublicationsCard, { GenericChannelActions, PublicationsController, PublicationsSaver } from './ChannelPublicationsCard';
 import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
 
@@ -80,8 +84,8 @@ function MlDescriptionEditor({ value, productId, onChange, images }: {
   );
 }
 
-function ParisAttributeInput({ connectionId, attribute, value, onChange }: {
-  connectionId: string; attribute: any; value: any; onChange: (v: any) => void;
+function ParisAttributeInput({ connectionId, attribute, value, onChange, invalid, domId }: {
+  connectionId: string; attribute: any; value: any; onChange: (v: any) => void; invalid?: boolean; domId?: string;
 }) {
   const isList = attribute.dataType === 'list';
   const [options, setOptions] = useState<any[]>(attribute.options || []);
@@ -105,7 +109,7 @@ function ParisAttributeInput({ connectionId, attribute, value, onChange }: {
   }
 
   return (
-    <div>
+    <div id={domId}>
       <label className="block text-xs font-medium text-gray-600 mb-1">{attribute.name}{attribute.required ? ' *' : ''}</label>
       {isList ? (
         <>
@@ -113,14 +117,14 @@ function ParisAttributeInput({ connectionId, attribute, value, onChange }: {
             onChange={(e) => search(e.target.value)}
             onBlur={(e) => pick(e.target.value)}
             placeholder="Buscar opción..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            className={`w-full px-3 py-2 border ${fieldBorder(!!invalid)} rounded-lg text-sm`} />
           <datalist id={`paris-attr-${attribute.id}`}>
             {options.map((o) => <option key={o.id} value={o.name} />)}
           </datalist>
         </>
       ) : (
         <input value={value?.value || ''} onChange={(e) => onChange({ value: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          className={`w-full px-3 py-2 border ${fieldBorder(!!invalid)} rounded-lg text-sm`} />
       )}
     </div>
   );
@@ -164,6 +168,9 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
   const [syncing, setSyncing] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [err, setErr] = useState('');
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  // Con la verificación iniciada, los campos obligatorios faltantes se marcan en rojo (en vivo).
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     const token = getToken()!;
@@ -275,6 +282,28 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
   const listingImages = listing?.images || [];
   const descriptionImages = listingImages.length ? listingImages : (product.images || []);
 
+  const photoCount = listingImages.length || (product.images?.length ?? 0);
+  const checks: PreflightCheck[] = [
+    { label: 'Título en Paris', value: title.trim() || null, status: title.trim() ? 'ok' : 'error', field: `${connection.id}-title` },
+    { label: 'Familia', value: familyName || null, status: familyId ? 'ok' : 'error', field: `${connection.id}-family` },
+    { label: 'Categoría', value: categoryPath || null, status: categoryId ? 'ok' : 'error', field: `${connection.id}-category` },
+    ...requiredAttrs.map((a) => {
+      const v = attrValues[a.id];
+      const ok = !!(v?.value || v?.optionId);
+      return { label: a.name, value: v?.optionName || v?.value || null, status: (ok ? 'ok' : 'error') as 'ok' | 'error', field: `${connection.id}-attr-${a.id}` };
+    }),
+    { label: 'Fotos', value: photoCount > 0 ? `${photoCount} foto(s)` : null, status: (photoCount > 0 ? 'ok' : 'error') as 'ok' | 'error', field: `${connection.id}-photos` },
+  ];
+  const k = (key: string) => `${connection.id}-${key}`;
+  const missingCount = checks.filter((c) => c.status === 'error').length;
+  const bad = (key: string) => isFieldInvalid(checks, k(key), verifying);
+  function startVerify() { setVerifying(true); setVerifyOpen(true); }
+  function goTo(c: PreflightCheck) {
+    setVerifyOpen(false);
+    setExpanded(true);
+    setTimeout(() => focusField(c.field), 120);
+  }
+
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -301,6 +330,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
         </div>
       )}
       {err && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{err}</div>}
+      {verifying && !verifyOpen && <MissingBanner count={missingCount} onVerify={() => setVerifyOpen(true)} />}
 
       <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs font-medium text-blue-600 hover:text-blue-700">
         {expanded ? '– Ocultar campos de la publicación' : '+ Campos de la publicación'}
@@ -313,7 +343,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
             <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder={product.name.slice(0, 100)}
               maxLength={100}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              id={fieldDomId(k('title'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('title'))} rounded-lg text-sm`} />
             <p className="text-xs text-gray-400 mt-0.5">
               No se reutiliza el nombre del catálogo — es un título propio de esta publicación (máx. 100 caracteres).
             </p>
@@ -334,7 +364,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
               <input list={`paris-families-${connection.id}`} defaultValue={familyName}
                 onBlur={(e) => selectFamilyByName(e.target.value)}
                 placeholder="Buscar familia..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                id={fieldDomId(k('family'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('family'))} rounded-lg text-sm`} />
               <datalist id={`paris-families-${connection.id}`}>
                 {families.map((f) => <option key={f.id} value={f.name} />)}
               </datalist>
@@ -345,7 +375,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
                 disabled={!familyId}
                 onBlur={(e) => selectCategoryByPath(e.target.value)}
                 placeholder={familyId ? 'Buscar categoría...' : 'Elige primero la familia'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50" />
+                id={fieldDomId(k('category'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('category'))} rounded-lg text-sm disabled:bg-gray-50`} />
               <datalist id={`paris-categories-${connection.id}`}>
                 {categories.map((c) => <option key={c.id} value={c.path} />)}
               </datalist>
@@ -357,6 +387,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
               <p className="text-xs font-semibold text-gray-700">Atributos obligatorios de Paris</p>
               {requiredAttrs.map((a) => (
                 <ParisAttributeInput key={a.id} connectionId={connection.id} attribute={a}
+                  domId={fieldDomId(k(`attr-${a.id}`))} invalid={bad(`attr-${a.id}`)}
                   value={attrValues[a.id]} onChange={(v) => setAttrValues((prev) => ({ ...prev, [a.id]: v }))} />
               ))}
             </div>
@@ -390,7 +421,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
             </div>
           </div>
 
-          <div>
+          <div id={fieldDomId(k('photos'))} className={bad('photos') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}>
             <p className="text-xs font-medium text-gray-600 mb-1">Fotos Paris</p>
             <div className="flex flex-wrap gap-2">
               {listingImages.map((img: any) => (
@@ -421,7 +452,7 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
       )}
 
       <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
-        <button type="button" onClick={handlePublish} disabled={publishing}
+        <button type="button" onClick={startVerify} disabled={publishing}
           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
           {publishing ? 'Publicando...' : listing?.externalId ? 'Republicar' : 'Publicar'}
         </button>
@@ -440,6 +471,11 @@ function ParisListingCard({ product, connection, currentUser, onRefresh }: {
           </button>
         )}
       </div>
+      {verifyOpen && (
+        <PublishCheckModal marketplace="Paris" checks={checks} isRepublish={!!listing?.externalId} busy={publishing}
+          onGo={goTo} onClose={() => setVerifyOpen(false)}
+          onConfirm={() => { setVerifyOpen(false); setVerifying(false); handlePublish(); }} />
+      )}
     </div>
   );
 }
@@ -472,6 +508,9 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
   const [uploadingImg, setUploadingImg] = useState(false);
   const [deletingListing, setDeletingListing] = useState(false);
   const [err, setErr] = useState('');
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  // Con la verificación iniciada, los campos obligatorios faltantes se marcan en rojo (en vivo).
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     const token = getToken()!;
@@ -569,6 +608,23 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
 
   const listingImages = listing?.images || [];
 
+  const photoCount = listingImages.length || (product.images?.length ?? 0);
+  const checks: PreflightCheck[] = [
+    { label: 'Título en Ripley', value: title.trim() || null, status: title.trim() ? 'ok' : 'error', field: `${connection.id}-title` },
+    { label: 'Categoría', value: categoryLabel || null, status: categoryCode ? 'ok' : 'error', field: `${connection.id}-category` },
+    { label: 'Fotos', value: photoCount > 0 ? `${photoCount} foto(s)` : null, status: (photoCount > 0 ? 'ok' : 'error') as 'ok' | 'error', field: `${connection.id}-photos` },
+    { label: 'Marca', value: brand.trim() || null, status: (brand.trim() ? 'ok' : 'warn') as 'ok' | 'warn', field: `${connection.id}-brand` },
+  ];
+  const k = (key: string) => `${connection.id}-${key}`;
+  const missingCount = checks.filter((c) => c.status === 'error').length;
+  const bad = (key: string) => isFieldInvalid(checks, k(key), verifying);
+  function startVerify() { setVerifying(true); setVerifyOpen(true); }
+  function goTo(c: PreflightCheck) {
+    setVerifyOpen(false);
+    setExpanded(true);
+    setTimeout(() => focusField(c.field), 120);
+  }
+
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -595,6 +651,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
         </div>
       )}
       {err && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{err}</div>}
+      {verifying && !verifyOpen && <MissingBanner count={missingCount} onVerify={() => setVerifyOpen(true)} />}
 
       <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs font-medium text-pink-600 hover:text-pink-700">
         {expanded ? '– Ocultar campos de la publicación' : '+ Campos de la publicación'}
@@ -606,7 +663,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
             <label className="block text-xs font-medium text-gray-600 mb-1">Título en Ripley *</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder={product.name.slice(0, 100)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              id={fieldDomId(k('title'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('title'))} rounded-lg text-sm`} />
             <p className="text-xs text-gray-400 mt-0.5">No se reutiliza el nombre del catálogo — es un título propio de esta publicación.</p>
           </div>
 
@@ -622,7 +679,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
               <input list={`ripley-categories-${connection.id}`} defaultValue={categoryLabel}
                 onBlur={(e) => selectCategoryByLabel(e.target.value)}
                 placeholder="Buscar categoría..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                id={fieldDomId(k('category'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('category'))} rounded-lg text-sm`} />
               <datalist id={`ripley-categories-${connection.id}`}>
                 {categories.map((c) => <option key={c.code} value={c.label} />)}
               </datalist>
@@ -630,7 +687,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Marca</label>
               <input value={brand} onChange={(e) => setBrand(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                id={fieldDomId(k('brand'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('brand'))} rounded-lg text-sm`} />
             </div>
           </div>
 
@@ -647,7 +704,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
             </div>
           </div>
 
-          <div>
+          <div id={fieldDomId(k('photos'))} className={bad('photos') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}>
             <p className="text-xs font-medium text-gray-600 mb-1">Fotos Ripley</p>
             <div className="flex flex-wrap gap-2">
               {listingImages.map((img: any) => (
@@ -678,7 +735,7 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
       )}
 
       <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
-        <button type="button" onClick={handlePublish} disabled={publishing}
+        <button type="button" onClick={startVerify} disabled={publishing}
           className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
           {publishing ? 'Publicando...' : listing?.externalId ? 'Republicar' : 'Publicar'}
         </button>
@@ -697,6 +754,11 @@ function RipleyListingCard({ product, connection, currentUser, onRefresh }: {
           </button>
         )}
       </div>
+      {verifyOpen && (
+        <PublishCheckModal marketplace="Ripley" checks={checks} isRepublish={!!listing?.externalId} busy={publishing}
+          onGo={goTo} onClose={() => setVerifyOpen(false)}
+          onConfirm={() => { setVerifyOpen(false); setVerifying(false); handlePublish(); }} />
+      )}
     </div>
   );
 }
@@ -728,6 +790,9 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
   const [uploadingImg, setUploadingImg] = useState(false);
   const [deletingListing, setDeletingListing] = useState(false);
   const [err, setErr] = useState('');
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  // Con la verificación iniciada, los campos obligatorios faltantes se marcan en rojo (en vivo).
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     const token = getToken()!;
@@ -819,6 +884,23 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
 
   const listingImages = listing?.images || [];
 
+  const photoCount = listingImages.length || (product.images?.length ?? 0);
+  const checks: PreflightCheck[] = [
+    { label: 'Título en Falabella', value: title.trim() || null, status: title.trim() ? 'ok' : 'error', field: `${connection.id}-title` },
+    { label: 'Categoría', value: categoryName || null, status: categoryId ? 'ok' : 'error', field: `${connection.id}-category` },
+    { label: 'Fotos', value: photoCount > 0 ? `${photoCount} foto(s)` : null, status: (photoCount > 0 ? 'ok' : 'error') as 'ok' | 'error', field: `${connection.id}-photos` },
+    { label: 'Marca', value: brand.trim() || null, status: (brand.trim() ? 'ok' : 'warn') as 'ok' | 'warn', field: `${connection.id}-brand` },
+  ];
+  const k = (key: string) => `${connection.id}-${key}`;
+  const missingCount = checks.filter((c) => c.status === 'error').length;
+  const bad = (key: string) => isFieldInvalid(checks, k(key), verifying);
+  function startVerify() { setVerifying(true); setVerifyOpen(true); }
+  function goTo(c: PreflightCheck) {
+    setVerifyOpen(false);
+    setExpanded(true);
+    setTimeout(() => focusField(c.field), 120);
+  }
+
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -845,6 +927,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
         </div>
       )}
       {err && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{err}</div>}
+      {verifying && !verifyOpen && <MissingBanner count={missingCount} onVerify={() => setVerifyOpen(true)} />}
 
       <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs font-medium text-lime-700 hover:text-lime-800">
         {expanded ? '– Ocultar campos de la publicación' : '+ Campos de la publicación'}
@@ -856,7 +939,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
             <label className="block text-xs font-medium text-gray-600 mb-1">Título en Falabella *</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder={product.name.slice(0, 100)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              id={fieldDomId(k('title'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('title'))} rounded-lg text-sm`} />
             <p className="text-xs text-gray-400 mt-0.5">No se reutiliza el nombre del catálogo — es un título propio de esta publicación.</p>
           </div>
 
@@ -872,7 +955,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
               <input list={`falabella-categories-${connection.id}`} defaultValue={categoryName}
                 onBlur={(e) => selectCategoryByName(e.target.value)}
                 placeholder="Buscar categoría..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                id={fieldDomId(k('category'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('category'))} rounded-lg text-sm`} />
               <datalist id={`falabella-categories-${connection.id}`}>
                 {categories.map((c) => <option key={c.id} value={c.name} />)}
               </datalist>
@@ -880,7 +963,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Marca</label>
               <input value={brand} onChange={(e) => setBrand(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                id={fieldDomId(k('brand'))} className={`w-full px-3 py-2 border ${fieldBorder(bad('brand'))} rounded-lg text-sm`} />
             </div>
           </div>
 
@@ -897,7 +980,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
             </div>
           </div>
 
-          <div>
+          <div id={fieldDomId(k('photos'))} className={bad('photos') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}>
             <p className="text-xs font-medium text-gray-600 mb-1">Fotos Falabella</p>
             <div className="flex flex-wrap gap-2">
               {listingImages.map((img: any) => (
@@ -928,7 +1011,7 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
       )}
 
       <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
-        <button type="button" onClick={handlePublish} disabled={publishing}
+        <button type="button" onClick={startVerify} disabled={publishing}
           className="px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50">
           {publishing ? 'Publicando...' : listing?.externalId ? 'Republicar' : 'Publicar'}
         </button>
@@ -947,6 +1030,11 @@ function FalabellaListingCard({ product, connection, currentUser, onRefresh }: {
           </button>
         )}
       </div>
+      {verifyOpen && (
+        <PublishCheckModal marketplace="Falabella" checks={checks} isRepublish={!!listing?.externalId} busy={publishing}
+          onGo={goTo} onClose={() => setVerifyOpen(false)}
+          onConfirm={() => { setVerifyOpen(false); setVerifying(false); handlePublish(); }} />
+      )}
     </div>
   );
 }
@@ -1008,8 +1096,6 @@ function LinkListingModal({ state, onChange, onSubmit, onClose, loading, error }
   );
 }
 
-type CheckStatus = 'ok' | 'warn' | 'error';
-interface PreflightCheck { label: string; value?: string | null; status: CheckStatus; }
 interface SaleTermOption { id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[]; }
 interface PublishModalState {
   connectionId: string;
@@ -1024,12 +1110,11 @@ interface PublishModalState {
   saleTermsValues: Record<string, { value_id?: string; value_name?: string }>;
 }
 
-const checkIcon: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️', error: '❌' };
-
-function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
+function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo }: {
   state: PublishModalState;
   onConfirm: () => void;
   onClose: () => void;
+  onGo: (c: PreflightCheck) => void;
   onSaleTermChange: (id: string, value: { value_id?: string; value_name?: string }) => void;
 }) {
   const hasErrors = state.checks.some(c => c.status === 'error');
@@ -1068,13 +1153,7 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
               <p className="text-xs text-gray-400 pt-1">Corrige los campos y vuelve a intentarlo.</p>
             </div>
           ) : (
-            state.checks.map((c, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <span className="w-5 shrink-0 text-base leading-none">{checkIcon[c.status]}</span>
-                <span className="text-gray-700 flex-1">{c.label}</span>
-                {c.value && <span className="text-gray-400 text-xs text-right max-w-[140px] truncate">{c.value}</span>}
-              </div>
-            ))
+            <PreflightRows checks={state.checks} onGo={onGo} />
           )}
 
           {showSaleTerms && !isError && state.saleTermsLoading && (
@@ -1120,13 +1199,9 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange }: {
 
         {!isError && (hasErrors || missingSaleTerm) && (
           <div className="px-5 pb-2">
-            <p className="text-xs text-red-600 font-medium">
-              {hasErrors && missingSaleTerm
-                ? 'Completa los campos obligatorios (❌) y las condiciones de venta antes de publicar.'
-                : hasErrors
-                  ? 'Completa los campos obligatorios (❌) antes de publicar.'
-                  : 'Completa las condiciones de venta obligatorias (*) antes de publicar.'}
-            </p>
+            {hasErrors && !missingSaleTerm
+              ? <MissingNotice count={state.checks.filter(c => c.status === 'error').length} />
+              : <p className="text-xs text-red-600 font-medium">Completa las condiciones de venta obligatorias (*) antes de publicar.</p>}
           </div>
         )}
 
@@ -1504,6 +1579,8 @@ export default function CatalogPage() {
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
+  // Verificación de Mercado Libre en curso: mientras exista, los obligatorios faltantes se marcan en rojo (en vivo).
+  const [mlVerify, setMlVerify] = useState<{ connectionId: string; isRepublish: boolean; productId: string } | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState('');
@@ -2115,35 +2192,42 @@ export default function CatalogPage() {
         label: 'Categoría ML',
         value: editForm.mlCategoryId || null,
         status: editForm.mlCategoryId ? 'ok' : 'error',
+        field: 'mlCategory',
       },
       {
         label: 'Largo del nombre',
         value: titleLimits.MERCADO_LIBRE?.max != null ? `${nameLength} / ${titleLimits.MERCADO_LIBRE.max}` : `${nameLength}`,
         status: titleLimits.MERCADO_LIBRE?.max != null && nameLength > titleLimits.MERCADO_LIBRE.max ? 'error' : 'ok',
+        field: 'name',
       },
       {
         label: 'Precio ML',
         value: mlPrice ? `$${Number(mlPrice).toLocaleString('es-CL')}` : null,
         status: Number(mlPrice) > 0 ? 'ok' : 'error',
+        field: ['mlPrice', 'price'],
       },
       {
         label: 'Stock',
         value: `${editForm.stock ?? 0} unidades`,
         status: Number(editForm.stock) > 0 ? 'ok' : 'warn',
+        field: 'stock',
       },
       {
         label: 'Imagen principal',
         value: selected?.images?.length > 0 ? `${selected.images.length} imagen(es)` : null,
         status: selected?.images?.length > 0 ? 'ok' : 'warn',
+        field: 'images',
+        tab: 'images',
       },
       ...requiredAttrs.map((a: any) => {
         const found = attrs.find((x: any) => x.id === a.id && x.value_name);
-        return { label: a.name, value: found?.value_name || null, status: (found ? 'ok' : 'error') as CheckStatus };
+        return { label: a.name, value: found?.value_name || null, status: (found ? 'ok' : 'error') as CheckStatus, field: `mlattr-${a.id}` };
       }),
       {
         label: 'Descripción detallada ML',
         value: editForm.mlDescription ? 'Configurada' : null,
         status: (editForm.mlDescription ? 'ok' : 'warn') as CheckStatus,
+        field: 'mlDescription',
       },
     ];
     return checks;
@@ -2201,6 +2285,7 @@ export default function CatalogPage() {
   }
 
   function openPublishModal(connectionId: string, isRepublish: boolean) {
+    setMlVerify({ connectionId, isRepublish, productId: selected?.id });
     setPublishModal({
       connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [], isRepublish,
       saleTerms: [], saleTermsLoading: !!editForm.mlCategoryId, saleTermsValues: {},
@@ -2227,6 +2312,7 @@ export default function CatalogPage() {
   async function confirmPublish() {
     if (!publishModal) return;
     const { connectionId } = publishModal;
+    setMlVerify(null);
     const saleTerms = Object.entries(publishModal.saleTermsValues)
       .filter(([, v]) => v.value_id || v.value_name)
       .map(([id, v]) => ({ id, ...v }));
@@ -2433,6 +2519,19 @@ export default function CatalogPage() {
 
   const primaryImage = (p: any) => p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
   const costLockedByLots = hasPurchasesModule && !!selected?.id && (selected?._count?.purchaseItems ?? 0) > 0;
+
+
+  // Verificación de Mercado Libre en vivo: marca en rojo los obligatorios faltantes y se limpia al completarlos.
+  const mlVerifyActive = !!mlVerify && !!selected?.id && selected.id === mlVerify.productId && !!editForm;
+  const mlLiveChecks: PreflightCheck[] = mlVerifyActive ? buildPreflightChecks() : [];
+  const mlBad = (key: string) => isFieldInvalid(mlLiveChecks, key);
+  const mlMissingCount = mlLiveChecks.filter((c) => c.status === 'error').length;
+  async function goToCheck(c: PreflightCheck) {
+    setPublishModal(null);
+    const target = c.tab || 'edit';
+    if (tab !== target) await changeTab(target);
+    setTimeout(() => focusField(c.field), 200);
+  }
 
   return (
     <div>
@@ -3208,6 +3307,22 @@ export default function CatalogPage() {
 
             <div className="p-4 sm:p-6 max-h-[70vh] sm:max-h-[65vh] overflow-y-auto">
 
+              {mlVerifyActive && !publishModal && tab !== 'connections' && (
+                <div className="mb-3">
+                  {mlMissingCount > 0 ? (
+                    <MissingBanner count={mlMissingCount} onVerify={() => openPublishModal(mlVerify!.connectionId, mlVerify!.isRepublish)} />
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                      <span className="flex-1 min-w-[180px]">Ya completaste los campos obligatorios.</span>
+                      <button type="button" onClick={() => openPublishModal(mlVerify!.connectionId, mlVerify!.isRepublish)}
+                        className="px-2.5 py-1 rounded-md bg-white border border-green-300 font-semibold hover:bg-green-100">
+                        Verificar y publicar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {!selected.id && activeConnections.length > 0 && (
@@ -3291,7 +3406,7 @@ export default function CatalogPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
-                      required className={`w-full px-3 py-2 border rounded-lg text-sm ${titleOver.length ? 'border-red-400' : 'border-gray-300'}`} />
+                      id={fieldDomId('name')} required className={`w-full px-3 py-2 border rounded-lg text-sm ${fieldBorder(mlBad('name'), titleOver.length ? 'border-red-400' : 'border-gray-300')}`} />
                     {/* Conteo de caracteres frente al límite de cada marketplace activo */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                       <span className="text-gray-500 mr-1">{nameLength} caracteres</span>
@@ -3366,7 +3481,7 @@ export default function CatalogPage() {
                     </label>
                     <input type="number" step="0.01" min="0" value={editForm.price}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
-                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      id={fieldDomId('price')} required className={`w-full px-3 py-2 border ${fieldBorder(mlBad('price'))} rounded-lg text-sm`} />
                   </div>
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div>
@@ -3376,7 +3491,7 @@ export default function CatalogPage() {
                       <input type="number" step="0.01" min="0" value={editForm.mlPrice}
                         onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
                         placeholder="Igual al de venta directa si se deja vacío"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        id={fieldDomId('mlPrice')} className={`w-full px-3 py-2 border ${fieldBorder(mlBad('mlPrice'))} rounded-lg text-sm`} />
                     </div>
                   )}
                   {webPriceConnections.map((c) => (
@@ -3427,7 +3542,7 @@ export default function CatalogPage() {
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
                       disabled={editForm.type === 'SERVICIO'}
-                      required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                      id={fieldDomId('stock')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
                     {editForm.type !== 'SERVICIO' && selected?.id && (
                       <p className="mt-1 text-[11px] text-gray-400">
                         Un cambio queda como ajuste en su bodega.{' '}
@@ -3467,7 +3582,7 @@ export default function CatalogPage() {
                     </div>
                   )}
                   {hasMlModule && (selected.id || mlChecked) && (
-                    <div>
+                    <div id={fieldDomId('mlCategory')} className={mlBad('mlCategory') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
                       <CategoryPicker
                         value={editForm.mlCategoryId}
@@ -3537,13 +3652,13 @@ export default function CatalogPage() {
                           });
                         };
                         return (
-                          <div key={attr.id} className="flex gap-2 items-center">
+                          <div key={attr.id} id={fieldDomId(`mlattr-${attr.id}`)} className="flex gap-2 items-center">
                             <span className="w-28 sm:w-44 shrink-0 text-xs text-gray-600 font-medium truncate">
                               {attr.name}{attr.required && <span className="text-red-500 ml-0.5">*</span>}
                             </span>
                             {attr.values.length > 0 ? (
                               <select value={val} onChange={e => updateAttr(e.target.value)}
-                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs">
+                                className={`flex-1 px-2 py-1.5 border ${fieldBorder(mlBad(`mlattr-${attr.id}`))} rounded-lg text-xs`}>
                                 <option value="">Seleccionar...</option>
                                 {attr.values.map((v: any) => (
                                   <option key={v.id} value={v.name}>{v.name}</option>
@@ -3552,7 +3667,7 @@ export default function CatalogPage() {
                             ) : (
                               <input value={val} onChange={e => updateAttr(e.target.value)}
                                 placeholder={attr.name}
-                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs" />
+                                className={`flex-1 px-2 py-1.5 border ${fieldBorder(mlBad(`mlattr-${attr.id}`))} rounded-lg text-xs`} />
                             )}
                           </div>
                         );
@@ -3597,7 +3712,7 @@ export default function CatalogPage() {
                   )}
 
                   {hasMlModule && (selected.id || mlChecked) && (
-                  <div className="sm:col-span-2">
+                  <div id={fieldDomId('mlDescription')} className={`sm:col-span-2 ${mlBad('mlDescription') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}`}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Descripción detallada para Mercado Libre
                     </label>
@@ -3833,7 +3948,7 @@ export default function CatalogPage() {
                         : g.marketplace === 'FALABELLA'
                           ? (conn: any) => <FalabellaListingCard product={selected} connection={conn} currentUser={currentUser} onRefresh={refresh} />
                           : g.marketplace === 'WALMART'
-                            ? (conn: any) => <WalmartListingCard product={selected} connection={conn} onRefresh={refresh} />
+                            ? (conn: any) => <WalmartListingCard product={selected} connection={conn} onRefresh={refresh} onGoImages={() => changeTab('images')} />
                             : undefined;
                     return (
                       <ChannelPublicationsCard key={key} title={MARKETPLACE_LABELS[g.marketplace] ?? g.marketplace} isMl={false}
@@ -3868,8 +3983,9 @@ export default function CatalogPage() {
         <PrePublishModal
           state={publishModal}
           onConfirm={confirmPublish}
-          onClose={() => setPublishModal(null)}
+          onClose={() => { setPublishModal(null); setMlVerify(null); }}
           onSaleTermChange={updateSaleTermValue}
+          onGo={goToCheck}
         />
       )}
       {linkModal && (

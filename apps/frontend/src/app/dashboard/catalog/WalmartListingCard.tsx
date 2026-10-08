@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { confirmDialog } from '../ConfirmDialog';
+import { type PreflightCheck, PublishCheckModal, MissingBanner, fieldDomId, fieldBorder, isFieldInvalid, focusField } from './publishCheck';
 
 // Publicación del producto en una tienda de Walmart Chile.
 // - Publicado (externalId): estado, precio propio del canal, sincronizar y desvincular.
@@ -41,8 +42,8 @@ function defaultsFrom(product: any): Attrs {
   };
 }
 
-export default function WalmartListingCard({ product, connection, onRefresh }: {
-  product: any; connection: any; onRefresh: () => void | Promise<void>;
+export default function WalmartListingCard({ product, connection, onRefresh, onGoImages }: {
+  product: any; connection: any; onRefresh: () => void | Promise<void>; onGoImages?: () => void;
 }) {
   const listing = (product.listings || []).find((l: any) => l.connectionId === connection.id);
   const published = !!listing?.externalId && listing.status !== 'DRAFT' && listing.status !== 'ERROR';
@@ -57,6 +58,9 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
   const [attrs, setAttrs] = useState<Attrs>(() => ({ ...defaultsFrom(product), ...saved }));
   const [busy, setBusy] = useState<'' | 'sync' | 'price' | 'link' | 'unlink' | 'save' | 'publish' | 'status'>('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  // Con la verificación iniciada, los obligatorios faltantes se marcan en rojo (en vivo).
+  const [verifying, setVerifying] = useState(false);
 
   const set = (k: string, v: any) => setAttrs((a) => ({ ...a, [k]: v }));
   const token = () => getToken()!;
@@ -81,12 +85,55 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
   void _omit;
   const saveDraft = () => api.connections.upsertListing(connection.id, product.id, { title, description, channelAttributes: attrsToSave }, token());
 
+  // ── Verificación antes de publicar (mismos requisitos que valida el servidor + los campos marcados con *)
+  const wk = (key: string) => `wm-${connection.id}-${key}`;
+  const filled = (v: any) => String(v ?? '').trim() !== '';
+  const E = (label: string, ok: boolean, field: string, value?: any, warnOnly = false): PreflightCheck => ({
+    label, value: filled(value) ? String(value) : null, status: ok ? 'ok' : warnOnly ? 'warn' : 'error', field: wk(field),
+  });
+  const gtinDigits = String(attrs.gtin || product.barcode || '').replace(/\D/g, '');
+  const imgCount = (listing?.images?.length) || (product.images?.length ?? 0);
+  const checks: PreflightCheck[] = [
+    E('Título', filled(title), 'title', title),
+    E('Descripción corta', filled(description), 'description'),
+    E('Descripción larga', filled(attrs.keyFeatures), 'keyFeatures'),
+    E('Categoría', filled(attrs.category), 'category', attrs.category),
+    E('Código de barras (GTIN/EAN)', gtinDigits.length >= 8, 'gtin', gtinDigits),
+    E('Marca', filled(attrs.brand), 'brand', attrs.brand),
+    E('Modelo', filled(attrs.modelNumber), 'modelNumber', attrs.modelNumber),
+    E('País de origen', filled(attrs.countryOfOrigin), 'countryOfOrigin', attrs.countryOfOrigin),
+    E('Color', filled(attrs.color), 'color', attrs.color),
+    E('Material', filled(attrs.material), 'material', attrs.material),
+    E('Alto armado', Number(attrs.heightCm) > 0, 'heightCm', attrs.heightCm),
+    E('Ancho armado', Number(attrs.widthCm) > 0, 'widthCm', attrs.widthCm),
+    E('Largo armado', Number(attrs.lengthCm) > 0, 'lengthCm', attrs.lengthCm),
+    E('Peso armado', Number(attrs.weightKg) > 0, 'weightKg', attrs.weightKg),
+    E('Alto de envío', Number(attrs.shipHeightCm) > 0, 'shipHeightCm', attrs.shipHeightCm),
+    E('Ancho de envío', Number(attrs.shipWidthCm) > 0, 'shipWidthCm', attrs.shipWidthCm),
+    E('Profundidad de envío', Number(attrs.shipDepthCm) > 0, 'shipDepthCm', attrs.shipDepthCm),
+    E('Peso de envío', Number(attrs.shippingWeightKg) > 0, 'shippingWeightKg', attrs.shippingWeightKg, true),
+    ...(attrs.warrantyEnabled !== false ? [
+      E('Garantía: duración (meses)', Number(attrs.warrantyMonths) > 0, 'warrantyMonths', attrs.warrantyMonths),
+      E('Garantía: texto', filled(attrs.warrantyText), 'warrantyText', attrs.warrantyText),
+      E('Garantía: condiciones', filled(attrs.warrantyCondition), 'warrantyCondition', attrs.warrantyCondition),
+    ] : []),
+    { ...E('Fotos (mínimo 2)', imgCount >= 2, 'photos', imgCount > 0 ? `${imgCount} foto(s)` : null), tab: 'images' },
+  ];
+  const missingCount = checks.filter((c) => c.status === 'error').length;
+  const bad = (key: string) => isFieldInvalid(checks, wk(key), verifying);
+  function startVerify() { setVerifying(true); setVerifyOpen(true); }
+  function goTo(c: PreflightCheck) {
+    setVerifyOpen(false);
+    if (c.tab === 'images') { onGoImages?.(); return; }
+    setTimeout(() => focusField(c.field), 120);
+  }
+
   const input = (k: string, label: string, opts: { type?: string; placeholder?: string; list?: string; hint?: string } = {}) => (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input type={opts.type || 'text'} value={attrs[k] ?? ''} list={opts.list} placeholder={opts.placeholder}
+      <input id={fieldDomId(wk(k))} type={opts.type || 'text'} value={attrs[k] ?? ''} list={opts.list} placeholder={opts.placeholder}
         onChange={(e) => set(k, e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        className={`w-full px-3 py-2 border ${fieldBorder(bad(k))} rounded-lg text-sm`} />
       {opts.hint && <p className="text-[11px] text-gray-400 mt-0.5">{opts.hint}</p>}
     </div>
   );
@@ -191,22 +238,24 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
             el catálogo de Walmart, Walmart usa su propia ficha (nombre y fotos) y agrega tu oferta.
           </p>
 
+          {verifying && !verifyOpen && <MissingBanner count={missingCount} onVerify={() => setVerifyOpen(true)} />}
+
           <section className="space-y-2">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Producto</p>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Título en Walmart *</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <input id={fieldDomId(wk('title'))} value={title} onChange={(e) => setTitle(e.target.value)} className={`w-full px-3 py-2 border ${fieldBorder(bad('title'))} rounded-lg text-sm`} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta *</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <textarea id={fieldDomId(wk('description'))} value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+                className={`w-full px-3 py-2 border ${fieldBorder(bad('description'))} rounded-lg text-sm`} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción larga (una característica por línea) *</label>
-              <textarea value={attrs.keyFeatures ?? ''} onChange={(e) => set('keyFeatures', e.target.value)} rows={3}
+              <textarea id={fieldDomId(wk('keyFeatures'))} value={attrs.keyFeatures ?? ''} onChange={(e) => set('keyFeatures', e.target.value)} rows={3}
                 placeholder={'Estructura de madera maciza\nTapiz de lino lavable'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                className={`w-full px-3 py-2 border ${fieldBorder(bad('keyFeatures'))} rounded-lg text-sm`} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {input('category', 'Categoría de Walmart *', { list: 'wm-categories', hint: 'Validada: Muebles' })}
@@ -255,7 +304,7 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
             )}
           </section>
 
-          <p className="text-[11px] text-gray-500">
+          <p id={fieldDomId(wk('photos'))} className={`text-[11px] ${bad('photos') ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
             Fotos: se usan las de la pestaña &quot;Imágenes&quot; ({product.images?.length ?? 0}); Walmart exige al menos 2. Precio:
             {' '}{fmt(effectivePrice)}{channelPrice ? ' (precio propio de Walmart)' : ' (precio de venta)'}.
           </p>
@@ -266,10 +315,7 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
               {busy === 'save' ? 'Guardando...' : 'Guardar borrador'}
             </button>
             <button disabled={!!busy}
-              onClick={() => run('publish', async () => {
-                await saveDraft();
-                await api.connections.walmartPublish(connection.id, product.id, token());
-              }, 'Enviado a Walmart. Presiona "Revisar estado" en unos minutos para ver si lo aceptó.')}
+              onClick={startVerify}
               className="flex-1 sm:flex-none px-4 py-2 bg-[#0071CE] hover:bg-[#005fa8] text-white rounded-lg text-xs font-semibold disabled:opacity-50">
               {busy === 'publish' ? 'Enviando...' : 'Publicar en Walmart'}
             </button>
@@ -295,6 +341,18 @@ export default function WalmartListingCard({ product, connection, onRefresh }: {
 
       {message && (
         <p className={`text-xs ${message.ok ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>
+      )}
+      {verifyOpen && (
+        <PublishCheckModal marketplace="Walmart" checks={checks} busy={busy === 'publish'}
+          onGo={goTo} onClose={() => setVerifyOpen(false)}
+          onConfirm={() => {
+            setVerifyOpen(false);
+            setVerifying(false);
+            run('publish', async () => {
+              await saveDraft();
+              await api.connections.walmartPublish(connection.id, product.id, token());
+            }, 'Enviado a Walmart. Presiona "Revisar estado" en unos minutos para ver si lo aceptó.');
+          }} />
       )}
     </div>
   );
