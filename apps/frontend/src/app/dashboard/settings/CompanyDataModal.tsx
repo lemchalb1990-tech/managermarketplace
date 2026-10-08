@@ -5,10 +5,12 @@ import { getToken, getUser, saveSession } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { confirmDialog } from '../ConfirmDialog';
+import LogoAdjustModal from './LogoAdjustModal';
+import { LOGO_SIZE_LABEL, type LogoSize } from '@/app/imprimir/printLayout';
 
 const FIELDS = [
   'companyName', 'razonSocial', 'rut', 'giro', 'address', 'commune', 'city',
-  'phone', 'email', 'resolutionNumber', 'resolutionDate', 'footerText',
+  'phone', 'email', 'resolutionNumber', 'resolutionDate', 'footerText', 'logoSize',
 ] as const;
 type Form = Record<(typeof FIELDS)[number], string>;
 
@@ -16,6 +18,7 @@ function toForm(profile: any): Form {
   const f = {} as Form;
   FIELDS.forEach((k) => { f[k] = profile?.[k] || ''; });
   f.resolutionDate = profile?.resolutionDate ? profile.resolutionDate.slice(0, 10) : '';
+  f.logoSize = profile?.logoSize || 'MEDIUM';
   return f;
 }
 
@@ -32,6 +35,8 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState('');
+  // Imagen abierta en el modal de ajuste (archivo recién elegido o el logo actual).
+  const [adjust, setAdjust] = useState<{ src: string; objectUrl: boolean } | null>(null);
 
   const field = (key: keyof Form) => ({
     value: form[key],
@@ -61,6 +66,7 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
         resolutionNumber: val(form.resolutionNumber),
         resolutionDate: form.resolutionDate || null,
         footerText: val(form.footerText),
+        logoSize: form.logoSize,
       }, token, companyId);
       // El nombre de la empresa del admin también se muestra en el panel: se actualiza la sesión.
       const u = getUser();
@@ -74,19 +80,33 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
     }
   }
 
-  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setError('');
+    if (!/^image\/(jpeg|png|webp|svg\+xml)$/.test(file.type)) { setError('Usa una imagen PNG, JPG, WebP o SVG.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('El archivo supera el límite de 5 MB.'); return; }
+    setAdjust({ src: URL.createObjectURL(file), objectUrl: true });
+  }
+
+  function closeAdjust() {
+    if (adjust?.objectUrl) URL.revokeObjectURL(adjust.src);
+    setAdjust(null);
+  }
+
+  // Sube el logo ya ajustado y guarda el tamaño elegido (ambos al momento).
+  async function handleAdjusted({ file, size }: { file: File; size: LogoSize }) {
+    const token = getToken()!;
     setUploadingLogo(true);
     try {
-      const p = await api.billing.profile.uploadLogo(file, getToken()!, companyId);
+      const p = await api.billing.profile.uploadLogo(file, token, companyId);
+      if (size !== form.logoSize) await api.billing.profile.save({ logoSize: size }, token, companyId);
       setLogoUrl(p.logoUrl || null);
-    } catch (err: any) {
-      setError(err.message || 'Error al subir el logo');
+      setForm((f) => ({ ...f, logoSize: size }));
+      closeAdjust();
     } finally {
       setUploadingLogo(false);
-      e.target.value = '';
     }
   }
 
@@ -111,7 +131,7 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
       title="Datos de la empresa"
       subtitle="Se imprimen en tickets, órdenes de trabajo y comprobantes, y se usan como emisor en boletas y facturas."
       size="lg"
-      busy={busy}
+      busy={busy || !!adjust}
       onClose={onClose}
       onSubmit={handleSave}
       footer={(
@@ -138,14 +158,34 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
                 disabled={uploadingLogo} onChange={handleLogoChange} />
             </label>
             {logoUrl && (
+              <button type="button" onClick={() => setAdjust({ src: imgUrl(logoUrl), objectUrl: false })} disabled={uploadingLogo}
+                className={btnSecondary}>
+                Ajustar
+              </button>
+            )}
+            {logoUrl && (
               <button type="button" onClick={handleRemoveLogo} disabled={uploadingLogo}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
                 Quitar logo
               </button>
             )}
-            <span className="text-xs text-gray-400 w-full">PNG, JPG, WebP o SVG, máx. 5 MB.</span>
+            <span className="text-xs text-gray-400 w-full">PNG, JPG, WebP o SVG, máx. 5 MB. Al elegirlo podrás recortarlo y ver cómo sale.</span>
           </div>
         </div>
+
+        {logoUrl && (
+          <div>
+            <label className={labelCls}>Tamaño del logo en los documentos</label>
+            <div className="flex gap-1.5 max-w-sm">
+              {(Object.keys(LOGO_SIZE_LABEL) as LogoSize[]).map((sz) => (
+                <button key={sz} type="button" onClick={() => setForm((f) => ({ ...f, logoSize: sz }))}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs border ${form.logoSize === sz ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                  {LOGO_SIZE_LABEL[sz]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className={labelCls}>Nombre de la empresa *</label>
@@ -212,6 +252,16 @@ export default function CompanyDataModal({ profile, companyId, onClose, onSaved 
 
         <FormError message={error} />
       </div>
+
+      {adjust && (
+        <LogoAdjustModal
+          src={adjust.src}
+          size={(form.logoSize as LogoSize) || 'MEDIUM'}
+          companyName={form.companyName}
+          onClose={closeAdjust}
+          onConfirm={handleAdjusted}
+        />
+      )}
     </Modal>
   );
 }

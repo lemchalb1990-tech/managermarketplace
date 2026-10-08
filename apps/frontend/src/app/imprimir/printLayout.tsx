@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { imgUrl } from '@/lib/api';
 
 // Formato de impresión configurado por la empresa (Ajustes del POS). 'TICKET' es el de
@@ -16,6 +16,23 @@ export const PRINT_FORMAT_LABEL: Record<PrintFormat, string> = {
 export const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro',
 };
+
+export type LogoSize = 'SMALL' | 'MEDIUM' | 'LARGE';
+
+export const LOGO_SIZE_LABEL: Record<LogoSize, string> = { SMALL: 'Pequeño', MEDIUM: 'Mediano', LARGE: 'Grande' };
+
+// Alto del logo (px) por formato y tamaño elegido en Datos de la empresa. El ancho se ajusta
+// solo (logos horizontales) con tope en el ancho disponible.
+const LOGO_HEIGHT: Record<PrintFormat, Record<LogoSize, number>> = {
+  TICKET_58: { SMALL: 24, MEDIUM: 36, LARGE: 54 },
+  TICKET: { SMALL: 32, MEDIUM: 48, LARGE: 72 },
+  CARTA: { SMALL: 48, MEDIUM: 72, LARGE: 100 },
+};
+
+export function logoStyle(format: PrintFormat, size?: string | null): CSSProperties {
+  const s: LogoSize = size === 'SMALL' || size === 'LARGE' ? size : 'MEDIUM';
+  return { height: LOGO_HEIGHT[format][s], width: 'auto', maxWidth: format === 'CARTA' ? 240 : '100%', objectFit: 'contain' };
+}
 
 export const fmtCLP = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
 
@@ -76,12 +93,11 @@ export interface DocHeaderData {
 /** Encabezado del ticket: logo, nombre comercial, datos legales, vendedor, fecha, hora y pago. */
 export function TicketHeader({ h, format }: { h: DocHeaderData; format: PrintFormat }) {
   const p = h.profile;
-  const logo = format === 'TICKET_58' ? 32 : 44;
   const showRazon = p?.razonSocial && p.razonSocial.trim().toLowerCase() !== h.commercialName.trim().toLowerCase();
   return (
     <>
       <div style={{ textAlign: 'center' }}>
-        {p?.logoUrl && <img src={imgUrl(p.logoUrl)} alt="" style={{ width: logo, height: logo, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} />}
+        {p?.logoUrl && <img src={imgUrl(p.logoUrl)} alt="" style={{ ...logoStyle(format, p.logoSize), display: 'block', margin: '0 auto 4px' }} />}
         <p style={{ fontWeight: 'bold', fontSize: '1.15em' }}>{h.commercialName}</p>
         {showRazon && <p>{p.razonSocial}</p>}
         {p?.rut && <p>RUT {p.rut}</p>}
@@ -109,7 +125,7 @@ export function LetterHeader({ h, subtitle }: { h: DocHeaderData; subtitle?: str
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        {p?.logoUrl && <img src={imgUrl(p.logoUrl)} alt="" style={{ width: 64, height: 64, objectFit: 'contain' }} />}
+        {p?.logoUrl && <img src={imgUrl(p.logoUrl)} alt="" style={logoStyle('CARTA', p.logoSize)} />}
         <div>
           <h1 style={{ fontSize: 20, margin: 0 }}>{h.commercialName}</h1>
           {subtitle && <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>{subtitle}</p>}

@@ -616,6 +616,7 @@ export class BillingService {
         resolutionNumber: data.resolutionNumber,
         resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : data.resolutionDate === null ? null : undefined,
         footerText: data.footerText,
+        logoSize: data.logoSize,
       },
       update: {
         razonSocial: data.razonSocial,
@@ -629,6 +630,7 @@ export class BillingService {
         resolutionNumber: data.resolutionNumber,
         resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : data.resolutionDate === null ? null : undefined,
         footerText: data.footerText,
+        logoSize: data.logoSize,
       },
     });
     const company = name !== undefined ? { name } : await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });

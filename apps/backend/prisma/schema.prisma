@@ -1725,6 +1725,8 @@ model BillingProfile {
   phone            String?
   email            String?
   logoUrl          String?
+  // Tamaño del logo en tickets, órdenes de trabajo y comprobantes: SMALL | MEDIUM | LARGE.
+  logoSize         String    @default("MEDIUM")
   resolutionNumber String?
   resolutionDate   DateTime?
   footerText       String?
