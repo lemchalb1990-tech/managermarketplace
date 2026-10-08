@@ -868,6 +868,8 @@ export const api = {
         apiFetch<any>('/billing/profile', { method: 'PUT', body: JSON.stringify({ ...data, companyId }) }, token),
       uploadLogo: (file: File, token: string, companyId?: string) =>
         apiUpload<any>(`/billing/profile/logo${companyId ? `?companyId=${companyId}` : ''}`, file, token),
+      removeLogo: (token: string, companyId?: string) =>
+        apiFetch<any>(`/billing/profile/logo${companyId ? `?companyId=${companyId}` : ''}`, { method: 'DELETE' }, token),
     },
   },
   orders: {
@@ -1026,12 +1028,8 @@ export const api = {
       get: (token: string, companyId?: string) =>
         apiFetch<{
           workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
-          userPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' | null;
           printFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
         }>(`/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-      updateMyTicketFormat: (format: 'CARTA' | 'TICKET' | 'TICKET_58' | null, token: string) =>
-        apiFetch<{ userPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' | null }>(
-          '/pos/my-ticket-format', { method: 'PATCH', body: JSON.stringify({ format }) }, token),
       update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }, token: string, companyId?: string) =>
         apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(
           `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`,

@@ -135,9 +135,11 @@ export class BillingController {
     return this.service.resendInvoiceToMarketplace(id, user);
   }
 
-  // ── Perfil de facturación (solo administradores) ────────────────────
+  // ── Datos de la empresa / perfil de facturación (editan solo administradores) ──
 
+  // Lectura abierta también al vendedor: el ticket de su venta lleva logo, RUT y dirección.
   @Get('profile')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getProfile(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
     return this.service.getProfile(user, companyId);
   }
@@ -163,5 +165,11 @@ export class BillingController {
     }
     const { url } = await this.storage.persist(file);
     return this.service.saveProfileLogo(url, user, companyId);
+  }
+
+  @Delete('profile/logo')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
+  removeLogo(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.saveProfileLogo(null, user, companyId);
   }
 }

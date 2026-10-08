@@ -19,15 +19,6 @@ export class PosController {
     return this.service.getSettings(user, companyId);
   }
 
-  @Patch('my-ticket-format')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
-  updateMyTicketFormat(
-    @Body() dto: { format: 'CARTA' | 'TICKET' | 'TICKET_58' | null },
-    @CurrentUser() user: any,
-  ) {
-    return this.service.updateMyTicketFormat(user, dto.format ?? null);
-  }
-
   @Patch('settings')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   updateSettings(

@@ -1,6 +1,6 @@
 import {
   IsString, IsEnum, IsOptional, IsEmail, IsArray,
-  ValidateNested, IsNumber, Min, IsPositive, IsDateString, IsBoolean,
+  ValidateNested, IsNumber, Min, IsPositive, IsDateString, IsBoolean, MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BillingProvider, DteType, PaymentMethod, PaymentCondition } from '@prisma/client';
@@ -72,6 +72,8 @@ export class ListInvoicesDto {
 }
 
 export class UpsertBillingProfileDto {
+  // Nombre comercial de la empresa (Company.name): encabeza tickets, órdenes y correos.
+  @IsOptional() @IsString() @MaxLength(120) companyName?: string;
   @IsOptional() @IsString() razonSocial?: string;
   @IsOptional() @IsString() rut?: string;
   @IsOptional() @IsString() giro?: string;

@@ -582,15 +582,26 @@ export class BillingService {
 
   // ── Perfil de facturación (identidad de la empresa emisora) ────────────────
 
+  // Incluye companyName (Company.name), el nombre comercial que encabeza los documentos.
   async getProfile(user: any, companyId?: string) {
     const cId = this.resolveCompanyId(user, { companyId });
-    return this.prisma.billingProfile.findUnique({ where: { companyId: cId } });
+    const [profile, company] = await Promise.all([
+      this.prisma.billingProfile.findUnique({ where: { companyId: cId } }),
+      this.prisma.company.findUnique({ where: { id: cId }, select: { name: true } }),
+    ]);
+    return { ...(profile ?? {}), companyName: company?.name ?? null };
   }
 
   async upsertProfile(dto: UpsertBillingProfileDto, user: any) {
     const companyId = this.resolveCompanyId(user, dto);
-    const { companyId: _omit, ...data } = dto;
-    return this.prisma.billingProfile.upsert({
+    const { companyId: _omit, companyName, ...data } = dto;
+    let name: string | undefined;
+    if (companyName !== undefined) {
+      name = companyName.trim();
+      if (!name) throw new BadRequestException('El nombre de la empresa no puede quedar vacío');
+      await this.prisma.company.update({ where: { id: companyId }, data: { name } });
+    }
+    const profile = await this.prisma.billingProfile.upsert({
       where: { companyId },
       create: {
         companyId,
@@ -603,7 +614,7 @@ export class BillingService {
         phone: data.phone,
         email: data.email,
         resolutionNumber: data.resolutionNumber,
-        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : undefined,
+        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : data.resolutionDate === null ? null : undefined,
         footerText: data.footerText,
       },
       update: {
@@ -616,13 +627,15 @@ export class BillingService {
         phone: data.phone,
         email: data.email,
         resolutionNumber: data.resolutionNumber,
-        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : undefined,
+        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate) : data.resolutionDate === null ? null : undefined,
         footerText: data.footerText,
       },
     });
+    const company = name !== undefined ? { name } : await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    return { ...profile, companyName: company?.name ?? null };
   }
 
-  async saveProfileLogo(logoUrl: string, user: any, companyId?: string) {
+  async saveProfileLogo(logoUrl: string | null, user: any, companyId?: string) {
     const cId = this.resolveCompanyId(user, { companyId });
     return this.prisma.billingProfile.upsert({
       where: { companyId: cId },

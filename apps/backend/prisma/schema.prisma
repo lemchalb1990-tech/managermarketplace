@@ -249,7 +249,8 @@ model User {
 
   modules Json?
 
-  // Formato de impresión predeterminado del usuario (configuración de ticket). null = el de la empresa.
+  // Legado: formato de ticket por usuario. Ya no se usa — el formato es de la empresa
+  // (Company.workOrderPrintFormat).
   ticketFormat WorkOrderPrintFormat?
 
   // Perfil de acceso opcional: si está seteado, define los permisos finos del
