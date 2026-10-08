@@ -55,11 +55,12 @@ export class AiController {
   @Get('providers')
   @Roles(Role.SUPER_ADMIN)
   async listProviders() {
-    const [overview, costs] = await Promise.all([
+    const [overview, costs, stats] = await Promise.all([
       this.providers.overview(),
       Promise.all([this.credits.cost('PHOTO_CHECK'), this.credits.cost('PHOTO_FIX'), this.credits.cost('PHOTO_GENERATE')]),
+      this.credits.usageStats(),
     ]);
-    return { ...overview, costs: { PHOTO_CHECK: costs[0], PHOTO_FIX: costs[1], PHOTO_GENERATE: costs[2] } };
+    return { ...overview, costs: { PHOTO_CHECK: costs[0], PHOTO_FIX: costs[1], PHOTO_GENERATE: costs[2] }, stats };
   }
 
   @Patch('providers/:id')

@@ -7,7 +7,7 @@ import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '
 import { confirmDialog } from '../ConfirmDialog';
 import ProvidersSection from './ProvidersSection';
 
-type CompanyRow = { id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number };
+type CompanyRow = { id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number; mlDiagnosedMonth: number };
 type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredits: string; features: PlanFeature[] };
 
 const ALL_FEATURES = Object.keys(PLAN_FEATURE_INFO) as PlanFeature[];
@@ -161,7 +161,7 @@ export default function AiPlansPage() {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
           <h2 className="ui-section-title">Empresas</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Plan asignado y créditos usados hoy y este mes.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Plan asignado, fotos diagnosticadas por Mercado Libre este mes y créditos de IA usados.</p>
         </div>
         {loading ? <p className="px-5 py-4 text-sm text-gray-400">Cargando…</p> : (
           <div className="overflow-x-auto">
@@ -170,8 +170,9 @@ export default function AiPlansPage() {
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
                   <th className="px-5 py-2 font-medium">Empresa</th>
                   <th className="px-3 py-2 font-medium">Plan</th>
-                  <th className="px-3 py-2 font-medium text-right">Hoy</th>
-                  <th className="px-5 py-2 font-medium text-right">Mes</th>
+                  <th className="px-3 py-2 font-medium text-right">Fotos ML (mes)</th>
+                  <th className="px-3 py-2 font-medium text-right">Créditos hoy</th>
+                  <th className="px-5 py-2 font-medium text-right">Créditos mes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -187,6 +188,7 @@ export default function AiPlansPage() {
                           {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">{c.mlDiagnosedMonth ?? 0}</td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
                         {c.usedToday}{plan?.dailyCredits != null ? ` / ${plan.dailyCredits}` : ''}
                       </td>

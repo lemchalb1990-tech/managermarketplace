@@ -104,6 +104,34 @@ export class AiCreditsService {
     return { PHOTO_CHECK: await this.cost('PHOTO_CHECK'), PHOTO_FIX: await this.cost('PHOTO_FIX'), PHOTO_GENERATE: await this.cost('PHOTO_GENERATE') };
   }
 
+  /** Registra usos que no descuentan créditos (p. ej. fotos diagnosticadas por Mercado Libre). */
+  async recordFree(companyId: string, user: any, kind: string, productId: string | undefined, count: number) {
+    await this.prisma.aiUsage.createMany({
+      data: Array.from({ length: count }, () => ({ companyId, userId: user.id ?? null, kind, credits: 0, productId: productId ?? null })),
+    });
+  }
+
+  /** Cuántas veces se usó cada tarea: hoy, este mes y en total (toda la plataforma). */
+  async usageStats() {
+    const tz = await this.settings.getTimezone();
+    const monthStart = startOfDayInTz(tz, `${dateKeyStringInTz(new Date(), tz).slice(0, 7)}-01`);
+    const dayStart = startOfDayInTz(tz);
+    const [total, month, day] = await Promise.all([
+      this.prisma.aiUsage.groupBy({ by: ['kind'], _count: { _all: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { createdAt: { gte: monthStart } }, _count: { _all: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { createdAt: { gte: dayStart } }, _count: { _all: true } }),
+    ]);
+    const stats: Record<string, { today: number; month: number; total: number }> = {};
+    for (const kind of ['ML_DIAGNOSTIC', 'PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE']) {
+      stats[kind] = {
+        today: day.find((r) => r.kind === kind)?._count._all ?? 0,
+        month: month.find((r) => r.kind === kind)?._count._all ?? 0,
+        total: total.find((r) => r.kind === kind)?._count._all ?? 0,
+      };
+    }
+    return stats;
+  }
+
   async refund(usageId: string) {
     await this.prisma.aiUsage.delete({ where: { id: usageId } }).catch(() => {});
   }
@@ -142,13 +170,15 @@ export class AiCreditsService {
     const tz = await this.settings.getTimezone();
     const monthStart = startOfDayInTz(tz, `${dateKeyStringInTz(new Date(), tz).slice(0, 7)}-01`);
     const dayStart = startOfDayInTz(tz);
-    const [month, day] = await Promise.all([
+    const [month, day, mlMonth] = await Promise.all([
       this.prisma.aiUsage.groupBy({ by: ['companyId'], where: { createdAt: { gte: monthStart } }, _sum: { credits: true } }),
       this.prisma.aiUsage.groupBy({ by: ['companyId'], where: { createdAt: { gte: dayStart } }, _sum: { credits: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['companyId'], where: { kind: 'ML_DIAGNOSTIC', createdAt: { gte: monthStart } }, _count: { _all: true } }),
     ]);
     const m = new Map(month.map((r) => [r.companyId, r._sum.credits ?? 0]));
     const d = new Map(day.map((r) => [r.companyId, r._sum.credits ?? 0]));
-    return companies.map((c) => ({ ...c, usedToday: d.get(c.id) ?? 0, usedMonth: m.get(c.id) ?? 0 }));
+    const ml = new Map(mlMonth.map((r) => [r.companyId, r._count._all]));
+    return companies.map((c) => ({ ...c, usedToday: d.get(c.id) ?? 0, usedMonth: m.get(c.id) ?? 0, mlDiagnosedMonth: ml.get(c.id) ?? 0 }));
   }
 
   private planData(data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {

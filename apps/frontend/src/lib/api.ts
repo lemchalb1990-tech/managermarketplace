@@ -249,7 +249,7 @@ export const api = {
       remove: (id: string, token: string) => apiFetch<any>(`/ai/plans/${id}`, { method: 'DELETE' }, token),
     },
     companies: (token: string) =>
-      apiFetch<{ id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number }[]>('/ai/companies', {}, token),
+      apiFetch<{ id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number; mlDiagnosedMonth: number }[]>('/ai/companies', {}, token),
     assignPlan: (companyId: string, aiPlanId: string | null, token: string) =>
       apiFetch<AiCreditsStatus>(`/ai/companies/${companyId}/plan`, { method: 'PATCH', body: JSON.stringify({ aiPlanId }) }, token),
   },
@@ -1458,6 +1458,8 @@ export interface AiProvidersOverview {
   providers: AiProviderInfo[];
   tasks: Record<AiTask, { label: string; description: string; providerId: string | null }>;
   costs?: Record<AiTask, number>;
+  // Usos por tarea (ML_DIAGNOSTIC = fotos diagnosticadas por Mercado Libre).
+  stats?: Record<AiTask | 'ML_DIAGNOSTIC', { today: number; month: number; total: number }>;
 }
 
 export interface PhotoVerdict {

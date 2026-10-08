@@ -162,6 +162,10 @@ export class MlPhotoService {
     })();
 
     await Promise.all([mlTask, aiTask]);
+    // Registro de las fotos que Mercado Libre diagnosticó (no descuentan créditos), para
+    // cuantificarlas en Administrador de plataforma → Inteligencia artificial.
+    const diagnosed = results.filter((r) => r.ml?.available).length;
+    if (diagnosed) await this.credits.recordFree(product.companyId, user, 'ML_DIAGNOSTIC', productId, diagnosed);
     return {
       title,
       categoryId,

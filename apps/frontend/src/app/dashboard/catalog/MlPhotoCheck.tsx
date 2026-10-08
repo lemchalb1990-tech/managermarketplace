@@ -51,17 +51,29 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
   const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE;
   const canCheck = mlOn || aiEnabled;
 
+  const [creditsLoaded, setCreditsLoaded] = useState(false);
+  const [autoRan, setAutoRan] = useState(false);
+
   useEffect(() => {
     setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN');
     const token = getToken();
-    if (token) api.ai.credits(token, companyId).then(setCredits).catch(() => {});
+    if (token) api.ai.credits(token, companyId).then(setCredits).catch(() => {}).finally(() => setCreditsLoaded(true));
   }, [companyId]);
 
-  async function runCheck() {
+  // El diagnóstico de Mercado Libre no usa créditos: corre solo al abrir la verificación.
+  // La revisión con IA (descuenta créditos) queda a pedido.
+  useEffect(() => {
+    if (!creditsLoaded || autoRan || !mlOn) return;
+    setAutoRan(true);
+    runCheck(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creditsLoaded, mlOn, autoRan]);
+
+  async function runCheck(useAi: boolean) {
     setChecking(true);
     setError('');
     try {
-      const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi: aiEnabled });
+      const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi });
       setResult(r);
       if (r.credits) setCredits(r.credits);
     } catch (e: any) {
@@ -180,10 +192,20 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
           {creditsLine(credits) && <p className="text-[11px] text-gray-400 mt-0.5">{creditsLine(credits)}</p>}
         </div>
         {(canCheck || fixEnabled) && (
-          <button type="button" onClick={runCheck} disabled={checking || !!busyId}
-            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 ${highlight ? 'bg-red-600 hover:bg-red-700 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
-            {checking ? (canCheck ? 'Revisando...' : 'Cargando...') : canCheck ? (result ? 'Volver a revisar' : 'Revisar fotos') : 'Ver fotos para corregir'}
-          </button>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {aiEnabled && (
+              <button type="button" onClick={() => runCheck(true)} disabled={checking || !!busyId}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 ${highlight ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                {checking ? 'Revisando...' : 'Revisar con IA'}
+              </button>
+            )}
+            {(mlOn || !aiEnabled) && (
+              <button type="button" onClick={() => runCheck(false)} disabled={checking || !!busyId}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                {checking && !aiEnabled ? 'Revisando...' : mlOn ? (result ? 'Volver a revisar' : 'Revisar fotos') : 'Ver fotos para corregir'}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {noPlan && <p className="text-[11px] text-gray-500">Tu empresa no tiene un plan para revisar fotos.</p>}
@@ -268,13 +290,22 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
                           ? <span className={`text-[10px] px-1.5 py-0.5 rounded ${row.ml.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                               ML: {row.ml.ok ? 'OK' : row.ml.issues.join(', ')}
                             </span>
-                          : <span title={row.ml.error} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">ML: sin diagnóstico</span>)}
+                          : <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">ML: sin diagnóstico</span>)}
                         {row.ai && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${row.ai.matches ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                             IA: {row.ai.matches ? 'Coincide con el título' : 'No coincide con el título'}
                           </span>
                         )}
                       </div>
+                      {row.ml && !row.ml.available && row.ml.error && (
+                        <p className="text-[11px] text-gray-500">Mercado Libre no entregó diagnóstico: {row.ml.error}</p>
+                      )}
+                      {isSuperAdmin && row.ml?.raw != null && (
+                        <details className="text-[10px] text-gray-500">
+                          <summary className="cursor-pointer">Ver respuesta de Mercado Libre</summary>
+                          <pre className="mt-1 p-2 bg-gray-50 border border-gray-200 rounded whitespace-pre-wrap break-all max-h-40 overflow-auto">{JSON.stringify(row.ml.raw, null, 2)}</pre>
+                        </details>
+                      )}
                       {row.ai && (
                         <p className="text-[11px] text-gray-600">
                           Se ve: {row.ai.shows}

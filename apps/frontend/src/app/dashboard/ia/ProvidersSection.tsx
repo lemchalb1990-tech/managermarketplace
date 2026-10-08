@@ -79,6 +79,11 @@ export default function ProvidersSection() {
                     : <span className="font-medium text-red-600">Sin asignar</span>}
                   {prov && !ready && <span className="text-red-600"> · falta la API key</span>}
                 </p>
+                {data.stats?.[t] && (
+                  <p className="text-[11px] text-gray-400">
+                    Usos: {data.stats[t].today} hoy · {data.stats[t].month} este mes · {data.stats[t].total} en total
+                  </p>
+                )}
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-gray-500">{t === 'PHOTO_GENERATE' ? 'Créditos por imagen' : 'Créditos por foto'}</label>
                   <input type="number" min={0} value={costs[t]} onChange={(e) => setCosts((c) => ({ ...c, [t]: e.target.value }))}
@@ -102,6 +107,27 @@ export default function ProvidersSection() {
           <p className="text-xs text-gray-400 mt-0.5">Puedes usar varios a la vez: cada tarea la hace el proveedor que elijas. Haz clic en uno para configurarlo.</p>
         </div>
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Mercado Libre: diagnóstico oficial de fotos, sin API key ni créditos. */}
+          <div className="border border-yellow-300 bg-yellow-50/40 rounded-xl p-4 flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold shrink-0 bg-yellow-300 text-gray-900">ML</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-800">Mercado Libre</p>
+                <p className="text-[11px] text-gray-400">Diagnóstico de imágenes</p>
+              </div>
+              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-green-100 text-green-700">Activo</span>
+            </div>
+            <p className="text-xs text-gray-500">Revisa fondo, tamaño, textos/logos y marcas de agua de cada foto con la cuenta de Mercado Libre conectada. No usa API key ni créditos; se incluye en los planes con "Diagnóstico ML".</p>
+            <div className="mt-auto grid grid-cols-3 gap-1 text-center">
+              {(['today', 'month', 'total'] as const).map((k) => (
+                <div key={k} className="bg-white border border-yellow-200 rounded-lg py-1.5">
+                  <p className="text-sm font-bold text-gray-800">{(data.stats?.ML_DIAGNOSTIC?.[k] ?? 0).toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-gray-500">{k === 'today' ? 'Hoy' : k === 'month' ? 'Este mes' : 'Total'}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-400 text-center">Imágenes verificadas</p>
+          </div>
           {data.providers.map((p) => (
             <button key={p.id} type="button" onClick={() => setOpen(p)}
               className="text-left border border-gray-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-sm transition flex flex-col gap-2">
@@ -136,7 +162,7 @@ export default function ProvidersSection() {
           tasks={data.tasks}
           currentFor={(t) => providerName(data.tasks[t].providerId) || null}
           onClose={() => setOpen(null)}
-          onSaved={(d) => { setData((prev) => ({ ...d, costs: prev?.costs })); setOpen(null); }}
+          onSaved={(d) => { setData((prev) => ({ ...d, costs: prev?.costs, stats: prev?.stats })); setOpen(null); }}
         />
       )}
     </>
