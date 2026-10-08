@@ -36,7 +36,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
           api.pos.settings.get(token, wo.companyId).catch(() => null),
         ]);
         setProfile(p);
-        if (s) setPrintFormat(s.workOrderPrintFormat);
+        if (s) setPrintFormat(s.printFormat);
         setWorkOrder(wo);
         setTimeout(() => window.print(), 400);
       })

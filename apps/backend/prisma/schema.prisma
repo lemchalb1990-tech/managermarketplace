@@ -249,6 +249,9 @@ model User {
 
   modules Json?
 
+  // Formato de impresión predeterminado del usuario (configuración de ticket). null = el de la empresa.
+  ticketFormat WorkOrderPrintFormat?
+
   // Perfil de acceso opcional: si está seteado, define los permisos finos del
   // usuario (por página). Si es null, los permisos se derivan de `role`.
   accessProfileId String?

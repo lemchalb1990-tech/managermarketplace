@@ -46,12 +46,31 @@ export class PosService {
 
   async getSettings(user: any, companyId?: string) {
     const cId = this.resolveCompanyId(user, companyId);
-    const company = await this.prisma.company.findUnique({
-      where: { id: cId },
-      select: { workOrderPrintFormat: true },
-    });
+    const [company, me] = await Promise.all([
+      this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true } }),
+      this.prisma.user.findUnique({ where: { id: user.id }, select: { ticketFormat: true } }),
+    ]);
     if (!company) throw new NotFoundException('Empresa no encontrada');
-    return company;
+    // workOrderPrintFormat = predeterminado de la empresa; userPrintFormat = el del usuario
+    // (null si no eligió); printFormat = el que se usa al imprimir.
+    const userPrintFormat = me?.ticketFormat ?? null;
+    return {
+      workOrderPrintFormat: company.workOrderPrintFormat,
+      userPrintFormat,
+      printFormat: userPrintFormat ?? company.workOrderPrintFormat,
+    };
+  }
+
+  async updateMyTicketFormat(user: any, format: WorkOrderPrintFormat | null) {
+    if (format !== null && !Object.values(WorkOrderPrintFormat).includes(format)) {
+      throw new BadRequestException('Formato de impresión no válido');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { ticketFormat: format },
+      select: { ticketFormat: true },
+    });
+    return { userPrintFormat: updated.ticketFormat };
   }
 
   async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat }, companyId?: string) {

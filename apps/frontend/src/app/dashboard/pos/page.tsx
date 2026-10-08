@@ -5,7 +5,6 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
-import { PRINT_FORMAT_LABEL, type PrintFormat } from '@/app/imprimir/printLayout';
 
 interface CartItem {
   productId: string;
@@ -105,11 +104,8 @@ export default function PosPage() {
   const [sendEmailTo, setSendEmailTo] = useState('');
   const [sendingWorkOrderEmail, setSendingWorkOrderEmail] = useState(false);
   const [workOrderEmailMsg, setWorkOrderEmailMsg] = useState('');
-  // Última venta cobrada, para imprimir su comprobante (formato según ajustes del POS).
+  // Última venta cobrada, para imprimir su comprobante (formato según tu configuración de ticket).
   const [lastSaleId, setLastSaleId] = useState('');
-  const [printFormat, setPrintFormat] = useState<PrintFormat | ''>('');
-  const [savingPrintFormat, setSavingPrintFormat] = useState(false);
-  const canManagePrintFormat = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
 
   function closeWorkOrderModal() {
     setShowWorkOrderModal(false);
@@ -124,26 +120,6 @@ export default function PosPage() {
 
   function printSale(id: string) {
     window.open(`/imprimir/venta/${id}`, '_blank');
-  }
-
-  useEffect(() => {
-    if (!token || !canManagePrintFormat) return;
-    if (isSuperAdmin && !selectedCompanyId) { setPrintFormat(''); return; }
-    api.pos.settings.get(token, isSuperAdmin ? selectedCompanyId : undefined)
-      .then((s) => setPrintFormat(s.workOrderPrintFormat))
-      .catch(() => {});
-  }, [token, canManagePrintFormat, isSuperAdmin, selectedCompanyId]);
-
-  async function handlePrintFormatChange(value: PrintFormat) {
-    setPrintFormat(value);
-    setSavingPrintFormat(true);
-    try {
-      await api.pos.settings.update({ workOrderPrintFormat: value }, token, isSuperAdmin ? selectedCompanyId : undefined);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'No se pudo guardar el formato de impresión.');
-    } finally {
-      setSavingPrintFormat(false);
-    }
   }
 
   async function sendWorkOrderEmail() {
@@ -802,17 +778,6 @@ export default function PosPage() {
           >
             Crear orden de trabajo
           </button>
-
-          {canManagePrintFormat && printFormat && (
-            <label className="flex items-center justify-between gap-2 text-xs text-gray-500 pt-1">
-              Formato de impresión
-              <select value={printFormat} disabled={savingPrintFormat}
-                onChange={(e) => handlePrintFormatChange(e.target.value as PrintFormat)}
-                className="px-2 py-1 border border-gray-300 rounded-lg text-xs bg-white disabled:opacity-50">
-                {Object.entries(PRINT_FORMAT_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </label>
-          )}
         </div>
       </div>
 

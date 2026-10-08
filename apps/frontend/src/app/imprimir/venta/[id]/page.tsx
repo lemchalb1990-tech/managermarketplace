@@ -33,7 +33,7 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
           api.pos.settings.get(token, s.companyId).catch(() => null),
         ]);
         setProfile(p);
-        if (settings) setPrintFormat(settings.workOrderPrintFormat);
+        if (settings) setPrintFormat(settings.printFormat);
         setSale(s);
         setTimeout(() => window.print(), 400);
       })
