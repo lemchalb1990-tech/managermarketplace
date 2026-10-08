@@ -170,6 +170,14 @@ model Company {
   // Formato de impresión de las órdenes de trabajo del POS — lo elige cada empresa
   // según si imprime en hoja carta o en una impresora térmica de ticket.
   workOrderPrintFormat    WorkOrderPrintFormat @default(CARTA)
+  // Plan comercial (Emprende, Crece, Escala, Corporativo, Demo): límites de canales,
+  // productos, usuarios y bodegas, y funciones incluidas. null = sin plan (sin límites).
+  subscriptionPlanId      String?
+  subscriptionPlan        SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id], onDelete: SetNull)
+  // MONTHLY | ANNUAL
+  subscriptionBilling     String?
+  // Fin de la prueba gratis (planes de prueba).
+  trialEndsAt             DateTime?
   // Plan de IA (créditos diarios/mensuales para revisar y corregir fotos). null = sin IA.
   aiPlanId                String?
   aiPlan                  AiPlan?  @relation(fields: [aiPlanId], references: [id], onDelete: SetNull)
@@ -2145,4 +2153,35 @@ model AiUsage {
 
   @@index([companyId, createdAt])
   @@map("ai_usages")
+}
+
+// Planes comerciales de la plataforma. Los edita y crea el Super Admin. Límites null = sin
+// límite. features: POS (punto de venta), PURCHASES (compras y costo promedio), PICKING
+// (picking y packing con escaneo), MULTICOMPANY (multiempresa).
+model SubscriptionPlan {
+  id                       String    @id @default(cuid())
+  name                     String
+  description              String?
+  monthlyPrice             Int?
+  annualPrice              Int?
+  // El precio es "desde" (p. ej. Corporativo).
+  priceFrom                Boolean   @default(false)
+  implementationPrice      Int?
+  implementationFreeAnnual Boolean   @default(false)
+  maxChannels              Int?
+  maxProducts              Int?
+  maxUsers                 Int?
+  maxWarehouses            Int?
+  features                 String[]  @default([])
+  // Texto libre de add-ons incluidos (p. ej. "1 a elección", "Todos").
+  addons                   String?
+  isTrial                  Boolean   @default(false)
+  trialDays                Int?
+  sortOrder                Int       @default(0)
+  active                   Boolean   @default(true)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  companies                Company[]
+
+  @@map("subscription_plans")
 }

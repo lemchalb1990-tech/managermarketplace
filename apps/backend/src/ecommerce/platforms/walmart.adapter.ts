@@ -7,6 +7,7 @@ import { getEffectivePrice } from '../../common/effective-price.util';
 import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interface';
 import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 // Walmart Chile (Líder) corre sobre la misma "Global Marketplace API" que Walmart US/CA/MX
 // (`https://marketplace.walmartapis.com`) — NO existe una API propia de Líder aparte.
@@ -47,7 +48,7 @@ export interface WalmartImportItem {
 export class WalmartAdapter implements PlatformAdapter {
   private readonly logger = new Logger(WalmartAdapter.name);
 
-  constructor(private prisma: PrismaService, private settings: SettingsService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService, private subscription: SubscriptionService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -538,6 +539,8 @@ export class WalmartAdapter implements PlatformAdapter {
         if (product && linkedProductIds.has(product.id)) { skipped++; continue; }
 
         if (!product) {
+          // Límite de productos del plan.
+          await this.subscription.assertCanAdd(conn.companyId, 'products');
           product = await this.prisma.product.create({
             data: {
               sku, name: r.name, price: r.price || 0,

@@ -8,6 +8,7 @@ import { SaleBreakdown, ChargeDetailRow, LineCalc, groupChargeRows, round2, sinI
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated, combineLineStatuses, joinLabels } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 // Falabella Seller Center corre sobre la misma familia de API que Lazada/Linio/Dafiti
 // ("Rocket/Kaymu Seller Center API"): un único endpoint con Action=X por query string,
@@ -62,7 +63,7 @@ const PAGE_SIZE = 25;
 export class FalabellaAdapter implements PlatformAdapter {
   private readonly logger = new Logger(FalabellaAdapter.name);
 
-  constructor(private prisma: PrismaService, private settings: SettingsService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService, private subscription: SubscriptionService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -373,6 +374,8 @@ export class FalabellaAdapter implements PlatformAdapter {
         if (product && linkedProductIds.has(product.id)) { skipped++; continue; }
 
         if (!product) {
+          // Límite de productos del plan.
+          await this.subscription.assertCanAdd(conn.companyId, 'products');
           product = await this.prisma.product.create({
             data: {
               sku, name: r.name, description: r.description, price: r.price || 0,

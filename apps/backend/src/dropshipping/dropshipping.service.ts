@@ -12,6 +12,7 @@ import {
 } from './dto/dropshipping.dto';
 import { NoriegaAdapter } from './providers/noriega.adapter';
 import { DropshipCatalogProvider, DropshipCatalogRow, mergeDuplicateSkuRows } from './providers/provider.interface';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 const PAGE_SIZE = 20;
 
@@ -288,6 +289,7 @@ export class DropshippingService {
 
   constructor(
     private prisma: PrismaService,
+    private subscription: SubscriptionService,
     private email: EmailService,
     private noriega: NoriegaAdapter,
   ) {
@@ -890,6 +892,7 @@ export class DropshippingService {
       }
 
       if (cost == null || !row.name) { skipped.push(`${row.sku} (faltan nombre o precio para crear el producto)`); continue; }
+      await this.subscription.assertCanAdd(ds.companyId, 'products');
       await this.prisma.$transaction(async (tx) => {
         const newProduct = await tx.product.create({
           data: {

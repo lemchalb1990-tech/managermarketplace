@@ -107,7 +107,7 @@ export default function AiPlansPage() {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
           <div>
-            <h2 className="ui-section-title">Planes</h2>
+            <h2 className="ui-section-title">Planes de IA</h2>
             <p className="text-xs text-gray-400 mt-0.5">Qué incluye cada plan y cuántos créditos de IA puede usar.</p>
           </div>
           <button type="button" onClick={() => { setFormError(''); setForm({ name: '', dailyCredits: '', monthlyCredits: '', features: ['ML_DIAGNOSTIC', 'AI_CHECK', 'AI_FIX', 'AI_GENERATE'] }); }} className={btnPrimary}>

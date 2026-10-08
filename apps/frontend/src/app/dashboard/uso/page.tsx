@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/auth';
-import { api, type AiUsageReport, type PlanFeature } from '@/lib/api';
+import { api, SUBSCRIPTION_FEATURE_LABEL, type AiUsageReport, type PlanFeature, type SubscriptionFeature, type SubscriptionResource, type SubscriptionUsage } from '@/lib/api';
 import { SectionCard } from '@/components/ui';
 import { Skeleton, SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -53,19 +53,100 @@ function TypeBadge({ kind }: { kind: string }) {
   return <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${t.soft} ${t.text}`}>{t.short}</span>;
 }
 
-// Uso de la empresa: su plan, los créditos de IA que le quedan y lo que ha usado.
+const RESOURCES: { key: SubscriptionResource; label: string }[] = [
+  { key: 'channels', label: 'Canales o cuentas' },
+  { key: 'products', label: 'Productos' },
+  { key: 'users', label: 'Usuarios' },
+  { key: 'warehouses', label: 'Bodegas' },
+];
+const ALL_SUB_FEATURES = Object.keys(SUBSCRIPTION_FEATURE_LABEL) as SubscriptionFeature[];
+
+// Plan comercial: consumo de canales, productos, usuarios y bodegas frente al límite del plan.
+function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }) {
+  const plan = sub.plan;
+  const clp = (v: number | null | undefined) => (v == null ? null : `$${v.toLocaleString('es-CL')}`);
+  const price = !plan ? null
+    : plan.isTrial ? 'Prueba gratis'
+    : sub.billing === 'ANNUAL'
+      ? (plan.annualPrice != null ? `${clp(plan.annualPrice)} al año` : 'Anual a medida')
+      : (plan.monthlyPrice != null ? `${plan.priceFrom ? 'Desde ' : ''}${clp(plan.monthlyPrice)} al mes` : null);
+  return (
+    <SectionCard
+      title="Plan contratado"
+      actions={price ? <span className="text-xs text-[var(--text-muted)]">{price} + IVA</span> : undefined}
+    >
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-lg font-bold text-[var(--text)]">{plan?.name ?? 'Sin plan'}</span>
+        {plan && !plan.isTrial && sub.billing && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)]">{sub.billing === 'ANNUAL' ? 'Anual' : 'Mensual'}</span>
+        )}
+        {plan?.isTrial && sub.trialEndsAt && (
+          <span className={`text-[11px] px-2 py-0.5 rounded-full ${sub.trialExpired ? 'bg-red-50 text-[var(--danger)]' : 'bg-emerald-50 text-emerald-700'}`}>
+            {sub.trialExpired ? 'Prueba vencida el ' : 'Prueba hasta el '}
+            {new Date(sub.trialEndsAt).toLocaleDateString('es-CL', { timeZone: tz })}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {RESOURCES.map((r) => {
+          const u = sub.usage[r.key];
+          const p = u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
+          const full = u.limit != null && u.used >= u.limit;
+          return (
+            <div key={r.key} className="rounded-xl border border-[var(--border-soft)] p-3.5">
+              <p className="ui-stat-label">{r.label}</p>
+              <p className={`text-xl font-bold mt-1 ${full ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
+                {u.used.toLocaleString('es-CL')}
+                <span className="text-sm font-normal text-[var(--text-muted)]"> {u.limit == null ? '' : `de ${u.limit.toLocaleString('es-CL')}`}</span>
+              </p>
+              {u.limit != null ? (
+                <>
+                  <div className="h-1.5 bg-[var(--border-soft)] rounded-full mt-2 overflow-hidden">
+                    <div className={`h-full rounded-full ${p >= 90 ? 'bg-[var(--danger)]' : p >= 70 ? 'bg-[var(--warn)]' : 'bg-[var(--ok)]'}`} style={{ width: `${p}%` }} />
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">{full ? 'Límite alcanzado' : `Quedan ${(u.limit - u.used).toLocaleString('es-CL')}`}</p>
+                </>
+              ) : (
+                <p className="text-[11px] font-semibold text-[var(--ok)] mt-1">Ilimitado</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {plan && (
+        <div className="flex flex-wrap gap-1.5 mt-4">
+          {ALL_SUB_FEATURES.map((f) => {
+            const on = plan.features.includes(f);
+            return (
+              <span key={f} className={`text-[11px] px-2 py-0.5 rounded-full ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400 line-through'}`}>
+                {on ? '✓ ' : ''}{SUBSCRIPTION_FEATURE_LABEL[f]}
+              </span>
+            );
+          })}
+          {plan.addons && <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Add-on: {plan.addons}</span>}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// Uso de la empresa: plan contratado y su consumo, créditos de IA y lo que se ha usado.
 export default function UsagePage() {
   const { isSuperAdmin, selectedCompanyId, companyId } = useAdminCompany();
   const tz = useDashboardTimezone();
   const [data, setData] = useState<AiUsageReport | null>(null);
+  const [sub, setSub] = useState<SubscriptionUsage | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const token = getToken();
     if (!token || (isSuperAdmin && !selectedCompanyId)) return;
     setData(null);
+    setSub(null);
     setError('');
-    api.ai.usage(token, companyId).then(setData).catch((e) => setError(e.message || 'No se pudo cargar el uso.'));
+    Promise.all([api.ai.usage(token, companyId), api.subscription.usage(token, companyId)])
+      .then(([ai, subscription]) => { setData(ai); setSub(subscription); })
+      .catch((e) => setError(e.message || 'No se pudo cargar el uso.'));
   }, [isSuperAdmin, selectedCompanyId, companyId]);
 
   const plan = data?.plan;
@@ -80,6 +161,7 @@ export default function UsagePage() {
       {!data && !error && (
         // Mismo esqueleto de carga que las demás vistas.
         <div className="space-y-4">
+          <div className="ui-card p-3 sm:p-5"><SkeletonCards count={4} className="grid grid-cols-2 lg:grid-cols-4 gap-3" height={110} /></div>
           <SkeletonCards count={3} className="grid grid-cols-1 md:grid-cols-3 gap-3" height={120} />
           <div className="ui-card p-3 sm:p-5"><SkeletonCards count={4} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" height={130} /></div>
           <div className="ui-card p-3 sm:p-5 flex flex-wrap gap-2">
@@ -91,9 +173,10 @@ export default function UsagePage() {
 
       {data && (
         <>
+          {sub && <SubscriptionSection sub={sub} tz={tz} />}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="ui-card p-4 sm:p-5">
-              <p className="ui-stat-label">Plan</p>
+              <p className="ui-stat-label">Plan de revisión de fotos</p>
               <p className="ui-stat-value text-[var(--text)]">{plan?.name ?? 'Sin plan'}</p>
               <div className="flex flex-wrap gap-1 mt-2">
                 {plan

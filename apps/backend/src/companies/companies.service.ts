@@ -53,7 +53,10 @@ export class CompaniesService {
   findAll() {
     return this.prisma.company.findMany({
       // Todas, también las desactivadas: el super admin las sigue viendo para reactivarlas.
-      include: { _count: { select: { users: true, products: true } } },
+      include: {
+        _count: { select: { users: true, products: true } },
+        subscriptionPlan: { select: { id: true, name: true, maxUsers: true, isTrial: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

@@ -29,6 +29,7 @@ import { ProfitabilityModule } from './profitability/profitability.module';
 import { FinanceModule } from './finance/finance.module';
 import { AccessProfilesModule } from './access-profiles/access-profiles.module';
 import { AiModule } from './ai/ai.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 import { WarehouseFlowModule } from './warehouse/warehouse.module';
 import { ReturnsModule } from './returns/returns.module';
 import { DriversModule } from './drivers/drivers.module';
@@ -45,6 +46,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
     }),
     PrismaModule,
     AiModule,
+    SubscriptionModule,
     ActivityModule,
     StorageModule,
     AuthModule,

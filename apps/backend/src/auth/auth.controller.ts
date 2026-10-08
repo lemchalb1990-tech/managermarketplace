@@ -18,6 +18,12 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: any) {
     // Permisos efectivos al día (el token guardado en el navegador puede traer los de su login).
-    return { ...user, permissions: permissionsForUser(user) };
+    // La empresa va con las funciones de su plan comercial, igual que en el login.
+    const { mlClientSecret: _s, subscriptionPlan, ...company } = user.company ?? {};
+    return {
+      ...user,
+      company: user.company ? { ...company, planName: subscriptionPlan?.name ?? null, planFeatures: subscriptionPlan?.features ?? null } : null,
+      permissions: permissionsForUser(user),
+    };
   }
 }

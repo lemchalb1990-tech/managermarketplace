@@ -20,6 +20,7 @@ import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
 import { PhotoIndexService } from './photo-index.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 const NON_ML_TYPES: MarketplaceType[] = [
   MarketplaceType.SHOPIFY, MarketplaceType.WOOCOMMERCE, MarketplaceType.JUMPSELLER,
@@ -33,6 +34,7 @@ export class ConnectionsService {
 
   constructor(
     private prisma: PrismaService,
+    private subscription: SubscriptionService,
     private shopify: ShopifyAdapter,
     private woocommerce: WooCommerceAdapter,
     private jumpseller: JumpSellerAdapter,
@@ -104,6 +106,7 @@ export class ConnectionsService {
       throw new BadRequestException('Plataforma no válida');
     }
 
+    await this.subscription.assertCanAdd(companyId, 'channels');
     const conn = await this.prisma.marketplaceConnection.create({
       data: {
         name: dto.name,

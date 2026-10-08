@@ -9,6 +9,7 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 const USER_SELECT = {
   id: true, email: true, name: true, role: true,
@@ -19,7 +20,7 @@ const USER_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private subscription: SubscriptionService) {}
 
   /**
    * Valida que el perfil de acceso indicado se pueda asignar a un usuario de
@@ -58,17 +59,9 @@ export class UsersService {
         throw new ForbiddenException('No tienes permiso para asignar ese rol');
       }
       dto.companyId = requestingUser.companyId;
-
-      const company = await this.prisma.company.findUnique({
-        where: { id: requestingUser.companyId },
-        select: { maxUsers: true, _count: { select: { users: true } } },
-      });
-      if (company && company._count.users >= company.maxUsers) {
-        throw new ForbiddenException(
-          `Límite de usuarios alcanzado (${company.maxUsers}). Contacta al administrador del sistema.`,
-        );
-      }
     }
+    // Límite de usuarios del plan de la empresa (sin plan, el máximo configurado en la empresa).
+    await this.subscription.assertCanAdd(dto.companyId, 'users');
 
     await this.assertAssignableProfile(dto.accessProfileId, dto.companyId ?? null, requestingUser);
 

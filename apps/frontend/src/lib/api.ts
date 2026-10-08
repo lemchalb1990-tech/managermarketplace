@@ -228,6 +228,20 @@ export const api = {
     notificationSounds: () =>
       apiFetch<{ sale: string | null; question: string | null; claim: string | null }>('/public/notification-sounds', {}),
   },
+  subscription: {
+    usage: (token: string, companyId?: string) =>
+      apiFetch<SubscriptionUsage>(`/subscription/usage${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    plans: {
+      list: (token: string) => apiFetch<SubscriptionPlan[]>('/subscription/plans', {}, token),
+      create: (data: Partial<SubscriptionPlan>, token: string) =>
+        apiFetch<SubscriptionPlan>('/subscription/plans', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: Partial<SubscriptionPlan>, token: string) =>
+        apiFetch<SubscriptionPlan>(`/subscription/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string) => apiFetch<any>(`/subscription/plans/${id}`, { method: 'DELETE' }, token),
+    },
+    assign: (companyId: string, planId: string | null, billing: 'MONTHLY' | 'ANNUAL' | null, token: string) =>
+      apiFetch<SubscriptionUsage>(`/subscription/companies/${companyId}`, { method: 'PATCH', body: JSON.stringify({ planId, billing }) }, token),
+  },
   ai: {
     providers: {
       list: (token: string) => apiFetch<AiProvidersOverview>('/ai/providers', {}, token),
@@ -1503,4 +1517,46 @@ export interface PhotoCheckResult {
   mlSkipped?: string | null;
   features: Record<PlanFeature, boolean>;
   credits: AiCreditsStatus | null;
+}
+
+// ── Planes comerciales ──
+export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY';
+
+export const SUBSCRIPTION_FEATURE_LABEL: Record<SubscriptionFeature, string> = {
+  POS: 'Punto de venta',
+  PURCHASES: 'Compras y costo promedio',
+  PICKING: 'Picking y packing con escaneo',
+  MULTICOMPANY: 'Multiempresa',
+};
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  monthlyPrice: number | null;
+  annualPrice: number | null;
+  priceFrom: boolean;
+  implementationPrice: number | null;
+  implementationFreeAnnual: boolean;
+  maxChannels: number | null;
+  maxProducts: number | null;
+  maxUsers: number | null;
+  maxWarehouses: number | null;
+  features: SubscriptionFeature[];
+  addons: string | null;
+  isTrial: boolean;
+  trialDays: number | null;
+  sortOrder: number;
+  active: boolean;
+  _count?: { companies: number };
+}
+
+export type SubscriptionResource = 'channels' | 'products' | 'users' | 'warehouses';
+
+export interface SubscriptionUsage {
+  plan: SubscriptionPlan | null;
+  billing: 'MONTHLY' | 'ANNUAL' | null;
+  trialEndsAt: string | null;
+  trialExpired: boolean;
+  usage: Record<SubscriptionResource, { used: number; limit: number | null }>;
 }

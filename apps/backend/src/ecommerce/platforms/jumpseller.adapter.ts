@@ -5,6 +5,7 @@ import { PlatformAdapter, SyncPayload, PublishResult } from './platform.interfac
 import { SaleBreakdown, ChargeDetailRow, LineCalc, IVA_RATE, round2, sinIva, buildBreakdown, backfillSale, previewItems } from './sale-breakdown';
 import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated } from './channel-order';
 import { getEffectivePrice } from '../../common/effective-price.util';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 // Doc oficial: https://github.com/jumpseller/api-docs (spec OpenAPI en
 // https://api.jumpseller.com/swagger.json). Confirmado en vivo (tienda "Altiroshopping"):
@@ -75,7 +76,7 @@ export interface JumpSellerImportItem {
 export class JumpSellerAdapter implements PlatformAdapter {
   private readonly logger = new Logger(JumpSellerAdapter.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private subscription: SubscriptionService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -497,6 +498,8 @@ export class JumpSellerAdapter implements PlatformAdapter {
         if (!product) {
           const skuTaken = r.sku ? await this.prisma.product.findUnique({ where: { sku_companyId: { sku: r.sku, companyId } } }) : null;
           const sku = r.sku && !skuTaken ? r.sku : await this.nextSku(companyId);
+          // Límite de productos del plan.
+          await this.subscription.assertCanAdd(conn.companyId, 'products');
           product = await this.prisma.product.create({
             data: {
               sku, name: r.name, price: r.price || 0, stock: Math.max(0, Math.round(r.stock)),

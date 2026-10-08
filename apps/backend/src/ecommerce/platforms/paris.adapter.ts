@@ -8,6 +8,7 @@ import { ChannelOrderState, ChannelOrderStatus, OnSaleCreated } from './channel-
 import { getEffectivePrice } from '../../common/effective-price.util';
 import { toAbsoluteUrl } from '../../common/absolute-url.util';
 import { normalizeRut } from '../../common/rut.util';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 // Paris / Cencosud Marketplace. Doc: https://developers.ecomm.cencosud.com/docs
 // La API de producción es la misma URL sin el "-stg". OJO: probado en vivo, la API Key
@@ -108,7 +109,7 @@ const IMPORT_PAGE_SIZE = 25;
 export class ParisAdapter implements PlatformAdapter {
   private readonly logger = new Logger(ParisAdapter.name);
 
-  constructor(private prisma: PrismaService, private settings: SettingsService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService, private subscription: SubscriptionService) {}
 
   private creds(conn: any): any {
     return (conn.credentials as any) || {};
@@ -614,6 +615,8 @@ export class ParisAdapter implements PlatformAdapter {
         const stockValue = await this.getStock(conn, variantSku);
 
         if (!product) {
+          // Límite de productos del plan.
+          await this.subscription.assertCanAdd(conn.companyId, 'products');
           product = await this.prisma.product.create({
             data: {
               sku, name: item.name, price: Number(priceValue) || 0, stock: stockValue ?? 0,

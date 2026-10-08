@@ -21,6 +21,7 @@ import { SyncService } from '../sync/sync.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
 import { StockLedgerService } from '../../purchases/stock-ledger.service';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
+import { SubscriptionService } from '../../subscription/subscription.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -114,6 +115,7 @@ export class MercadolibreService {
 
   constructor(
     private prisma: PrismaService,
+    private subscription: SubscriptionService,
     private config: ConfigService,
     private catalog: CatalogService,
     private settings: SettingsService,
@@ -171,6 +173,7 @@ export class MercadolibreService {
     if (!mlClientId?.trim() || !mlClientSecret?.trim()) {
       throw new BadRequestException('Client ID y Client Secret son requeridos');
     }
+    await this.subscription.assertCanAdd(cid, 'channels');
     const conn = await this.prisma.marketplaceConnection.create({
       data: {
         name,
@@ -2060,6 +2063,7 @@ export class MercadolibreService {
           linked++;
         } else {
           const mlDesc = await this.fetchMlDescription(item.id, token);
+          await this.subscription.assertCanAdd(conn.companyId, 'products');
           const newProduct = await this.prisma.product.create({
             data: {
               sku,

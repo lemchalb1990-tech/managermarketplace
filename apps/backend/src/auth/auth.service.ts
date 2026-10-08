@@ -6,8 +6,9 @@ import { permissionsForUser } from '../common/permissions';
 
 function sanitizeCompany(company: any) {
   if (!company) return company;
-  const { mlClientSecret: _, ...rest } = company;
-  return rest;
+  const { mlClientSecret: _, subscriptionPlan, ...rest } = company;
+  // Funciones del plan comercial (el menú oculta lo que el plan no incluye). null = sin plan.
+  return { ...rest, planName: subscriptionPlan?.name ?? null, planFeatures: subscriptionPlan?.features ?? null };
 }
 
 function shapeUser(user: any) {
@@ -43,7 +44,7 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await this.prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' }, active: true },
-      include: { company: true, accessProfile: true },
+      include: { company: { include: { subscriptionPlan: true } }, accessProfile: true },
     });
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
 
@@ -58,7 +59,7 @@ export class AuthService {
   async validateToken(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId, active: true },
-      include: { company: true, accessProfile: true },
+      include: { company: { include: { subscriptionPlan: true } }, accessProfile: true },
     });
     if (!user) throw new UnauthorizedException();
     assertCompanyActive(user);

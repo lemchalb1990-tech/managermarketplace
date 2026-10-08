@@ -4,6 +4,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import type { SubscriptionPlan } from '@/lib/api';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
 
@@ -30,7 +31,7 @@ const ALL_COMPANY_MODULES = [
 
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -43,6 +44,8 @@ export default function CompaniesPage() {
   const [listingsLoadingId, setListingsLoadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditState>(null);
+  // Planes comerciales para asignar a la empresa.
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -56,6 +59,7 @@ export default function CompaniesPage() {
     const data = await api.companies.list(token);
     setCompanies(data);
     setCompaniesLoaded(true);
+    api.subscription.plans.list(token).then(setPlans).catch(() => {});
   }
 
   // La gestión de empresas es solo de Super Admin (el backend también lo exige).
@@ -184,6 +188,9 @@ export default function CompaniesPage() {
         autoSyncSales: editing.autoSyncSales,
         autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
       }, token);
+      if (editing.planId !== editing.origPlanId || (editing.planId && editing.billing !== editing.origBilling)) {
+        await api.subscription.assign(editing.id, editing.planId || null, editing.planId ? editing.billing : null, token);
+      }
       if (result?.bootstrap) {
         const { migrated, skipped } = result.bootstrap;
         let msg = `Módulo de Compras activado: se crearon lotes de apertura para ${migrated} producto(s).`;
@@ -309,6 +316,32 @@ export default function CompaniesPage() {
               </div>
             </div>
 
+            <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+              <p className="text-xs font-medium text-gray-600">Plan comercial</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <select value={editing.planId} onChange={(e) => setEditing(s => s && ({ ...s, planId: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[200px]">
+                  <option value="">Sin plan (sin límites)</option>
+                  {plans.filter((p) => p.active || p.id === editing.planId).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}{p.isTrial ? ` (prueba ${p.trialDays} días)` : ''}</option>
+                  ))}
+                </select>
+                {editing.planId && !plans.find((p) => p.id === editing.planId)?.isTrial && (
+                  <div className="flex items-center gap-3 text-sm">
+                    {(['MONTHLY', 'ANNUAL'] as const).map((b) => (
+                      <label key={b} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="billing" checked={editing.billing === b} onChange={() => setEditing(s => s && ({ ...s, billing: b }))} className="accent-blue-600" />
+                        {b === 'MONTHLY' ? 'Mensual' : 'Anual'}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Limita canales, productos, usuarios y bodegas, y oculta del menú lo que el plan no incluye. Con plan, el máximo de usuarios lo define el plan. Los planes se editan en Administrador de plataforma → Planes.
+              </p>
+            </div>
+
             <div className="rounded-lg border border-gray-200 p-3">
               <label className="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" checked={editing.autoSyncSales}
@@ -398,13 +431,24 @@ export default function CompaniesPage() {
           <tbody className="divide-y divide-gray-100">
             {companies.map((c) => (
               <tr key={c.id} className={`hover:bg-gray-50 ${editing?.id === c.id ? 'bg-blue-50' : ''}`}>
-                <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                <td className="px-4 py-3 font-medium text-gray-900">
+                  {c.name}
+                  {c.subscriptionPlan && <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">{c.subscriptionPlan.name}</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-500 font-mono">{c.slug}</td>
                 <td className="px-4 py-3 text-gray-600">
-                  <span className={(c._count?.users ?? 0) >= (c.maxUsers ?? 10) ? 'text-red-600 font-medium' : ''}>
-                    {c._count?.users ?? 0}
-                  </span>
-                  <span className="text-gray-400"> / {c.maxUsers ?? 10}</span>
+                  {(() => {
+                    // Con plan, el límite de usuarios lo define el plan (null = sin límite).
+                    const max = c.subscriptionPlan ? c.subscriptionPlan.maxUsers : (c.maxUsers ?? 10);
+                    return (
+                      <>
+                        <span className={max != null && (c._count?.users ?? 0) >= max ? 'text-red-600 font-medium' : ''}>
+                          {c._count?.users ?? 0}
+                        </span>
+                        <span className="text-gray-400"> / {max ?? '∞'}</span>
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{c._count?.products ?? 0}</td>
                 <td className="px-4 py-3">
@@ -430,7 +474,7 @@ export default function CompaniesPage() {
                       Revertir baja
                     </button>
                   )}
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1 }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY' }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

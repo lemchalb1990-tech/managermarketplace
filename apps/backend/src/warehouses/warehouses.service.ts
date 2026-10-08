@@ -2,10 +2,11 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import { Role, TransferStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouse.dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class WarehousesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private subscription: SubscriptionService) {}
 
   private resolveCompanyId(user: any, companyId?: string): string {
     if (user.role === Role.SUPER_ADMIN) {
@@ -58,6 +59,7 @@ export class WarehousesService {
   async create(dto: CreateWarehouseDto, user: any) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
     const { companyId: _omit, ...data } = dto;
+    await this.subscription.assertCanAdd(companyId, 'warehouses');
     return this.prisma.warehouse.create({
       data: { ...data, companyId },
       include: { _count: { select: { products: true } } },

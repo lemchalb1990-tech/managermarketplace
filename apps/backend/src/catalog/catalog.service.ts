@@ -12,6 +12,7 @@ import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } 
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { StockLedgerService } from '../purchases/stock-ledger.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 const MARKETPLACE_LABELS: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -51,6 +52,7 @@ export interface BulkDeleteFailure {
 export class CatalogService {
   constructor(
     private prisma: PrismaService,
+    private subscription: SubscriptionService,
     private costing: InventoryCostingService,
     private sync: SyncService,
     private ledger: StockLedgerService,
@@ -84,6 +86,7 @@ export class CatalogService {
     });
     if (exists) throw new ConflictException(`El SKU ${dto.sku} ya existe en tu catálogo`);
     await this.validateWarehouseId(dto.warehouseId, companyId);
+    await this.subscription.assertCanAdd(companyId, 'products');
 
     // El stock con que nace el producto queda como saldo inicial en su bodega (kardex).
     return this.prisma.$transaction(async (tx) => {

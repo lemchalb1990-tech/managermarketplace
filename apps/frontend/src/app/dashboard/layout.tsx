@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getToken, getUser, clearSession } from '@/lib/auth';
-import { hasModule } from '@/lib/modules';
+import { getToken, getUser, clearSession, saveSession } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { hasModule, planAllows, type PlanFeature } from '@/lib/modules';
 import { can } from '@/lib/permissions';
 import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
@@ -13,7 +14,8 @@ import { DialogProvider } from './ConfirmDialog';
 
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
 // anyPerm: el ítem se ve con cualquiera de esos permisos (además de `perm`).
-type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean };
+// planFeature: función del plan comercial que debe incluir la empresa (si no, se oculta).
+type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean; planFeature?: PlanFeature };
 type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -84,8 +86,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
       { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
-      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null },
-      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null },
+      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING' },
+      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING' },
     ],
   },
   {
@@ -115,6 +117,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
+      { href: '/dashboard/planes', label: 'Planes', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/ia', label: 'Inteligencia artificial', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
     ],
   },
@@ -230,6 +233,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return;
     }
     setUser(u);
+    // Refresca la sesión guardada (plan, módulos y permisos pueden haber cambiado desde el login).
+    api.me(token)
+      .then((me) => {
+        if (!me?.id) return;
+        const fresh = { ...u, ...me };
+        saveSession(token, fresh);
+        setUser(fresh);
+      })
+      .catch(() => {});
   }, [router]);
 
   useEffect(() => {
@@ -266,7 +278,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navGroups
       .map((g) => ({
         ...g,
-        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles))) && hasModule(user, n.module)),
+        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles))) && hasModule(user, n.module) && planAllows(user, n.planFeature)),
       }))
       .filter((g) => g.items.length > 0);
   }, [user]);
