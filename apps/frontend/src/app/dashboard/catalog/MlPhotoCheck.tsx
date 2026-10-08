@@ -300,12 +300,6 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
                       {row.ml && !row.ml.available && row.ml.error && (
                         <p className="text-[11px] text-gray-500">Mercado Libre no entregó diagnóstico: {row.ml.error}</p>
                       )}
-                      {isSuperAdmin && row.ml?.raw != null && (
-                        <details className="text-[10px] text-gray-500">
-                          <summary className="cursor-pointer">Ver respuesta de Mercado Libre</summary>
-                          <pre className="mt-1 p-2 bg-gray-50 border border-gray-200 rounded whitespace-pre-wrap break-all max-h-40 overflow-auto">{JSON.stringify(row.ml.raw, null, 2)}</pre>
-                        </details>
-                      )}
                       {row.ai && (
                         <p className="text-[11px] text-gray-600">
                           Se ve: {row.ai.shows}
