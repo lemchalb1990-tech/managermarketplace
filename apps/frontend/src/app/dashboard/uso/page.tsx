@@ -7,7 +7,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const KIND_LABEL: Record<string, string> = {
-  ML_DIAGNOSTIC: 'Fotos diagnosticadas por Mercado Libre',
+  ML_DIAGNOSTIC: 'Diagnóstico preliminar',
   PHOTO_CHECK: 'Fotos revisadas con IA',
   PHOTO_FIX: 'Fotos corregidas con IA',
   PHOTO_GENERATE: 'Imágenes de referencia creadas',
