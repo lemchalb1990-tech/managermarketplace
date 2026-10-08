@@ -229,6 +229,15 @@ export const api = {
       apiFetch<{ sale: string | null; question: string | null; claim: string | null }>('/public/notification-sounds', {}),
   },
   ai: {
+    providers: {
+      list: (token: string) => apiFetch<AiProvidersOverview>('/ai/providers', {}, token),
+      update: (id: string, data: { apiKey?: string; removeKey?: boolean; models?: Record<string, string>; tasks?: AiTask[] }, token: string) =>
+        apiFetch<AiProvidersOverview>(`/ai/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      test: (id: string, token: string, apiKey?: string) =>
+        apiFetch<{ ok: boolean; message: string }>(`/ai/providers/${id}/test`, { method: 'POST', body: JSON.stringify(apiKey ? { apiKey } : {}) }, token),
+    },
+    updateCosts: (costs: Partial<Record<AiTask, number>>, token: string) =>
+      apiFetch<Record<AiTask, number>>('/ai/costs', { method: 'PATCH', body: JSON.stringify(costs) }, token),
     credits: (token: string, companyId?: string) =>
       apiFetch<AiCreditsStatus>(`/ai/credits${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     plans: {
@@ -1409,6 +1418,28 @@ export interface AiCreditsStatus {
   remainingToday: number | null;
   remainingMonth: number | null;
   costs: { PHOTO_CHECK: number; PHOTO_FIX: number };
+  ready: Record<AiTask, boolean>;
+}
+
+export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX';
+
+export interface AiProviderInfo {
+  id: string;
+  name: string;
+  company: string;
+  description: string;
+  keyUrl: string;
+  tasks: AiTask[];
+  taskNotes: Partial<Record<AiTask, string>>;
+  configured: boolean;
+  assignedTasks: AiTask[];
+  models: Partial<Record<AiTask, { value: string; default: string; label: string; hint: string }>>;
+}
+
+export interface AiProvidersOverview {
+  providers: AiProviderInfo[];
+  tasks: Record<AiTask, { label: string; description: string; providerId: string | null }>;
+  costs?: Record<AiTask, number>;
 }
 
 export interface PhotoVerdict {

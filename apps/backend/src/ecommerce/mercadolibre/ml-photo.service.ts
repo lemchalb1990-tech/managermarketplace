@@ -5,7 +5,7 @@ import { SettingsService } from '../../settings/settings.service';
 import { CatalogService } from '../../catalog/catalog.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { AiCreditsService } from '../../ai/ai-credits.service';
-import { OpenAiService, type ImageData, type PhotoVerdict } from '../../ai/openai.service';
+import { AiProvidersService, type ImageData, type PhotoVerdict } from '../../ai/ai-providers.service';
 import { MercadolibreService } from './mercadolibre.service';
 
 const ML_API = 'https://api.mercadolibre.com';
@@ -59,7 +59,7 @@ export class MlPhotoService {
     private catalog: CatalogService,
     private storage: StorageService,
     private credits: AiCreditsService,
-    private openai: OpenAiService,
+    private ai: AiProvidersService,
     private ml: MercadolibreService,
   ) {}
 
@@ -114,7 +114,8 @@ export class MlPhotoService {
     let aiBlocked: string | null = null;
     if (opts.useAi) {
       const st = await this.credits.status(product.companyId);
-      if (user.role === Role.SUPER_ADMIN) aiBudget = images.length;
+      if (!st.ready.PHOTO_CHECK) aiBlocked = 'No hay una IA configurada para revisar fotos.';
+      else if (user.role === Role.SUPER_ADMIN) aiBudget = images.length;
       else if (!st.plan) aiBlocked = 'Tu empresa no tiene un plan de IA.';
       else {
         const cost = st.costs.PHOTO_CHECK || 0;
@@ -141,7 +142,7 @@ export class MlPhotoService {
           try {
             usageId = await this.credits.consume(product.companyId, user, 'PHOTO_CHECK', productId);
             const data = await this.download(img.url);
-            results[i].ai = await this.openai.checkPhoto(data, { title, isMain: i === 0 }) as PhotoVerdict;
+            results[i].ai = await this.ai.checkPhoto(data, { title, isMain: i === 0 }) as PhotoVerdict;
           } catch (err: any) {
             if (usageId) await this.credits.refund(usageId);
             results[i].aiError = err?.response?.message || err?.message || 'No se pudo revisar con IA';
@@ -168,7 +169,7 @@ export class MlPhotoService {
     if (!img) throw new NotFoundException('Foto no encontrada');
     const usageId = await this.credits.consume(product.companyId, user, 'PHOTO_FIX', productId);
     try {
-      const fixed = await this.openai.fixPhoto(await this.download(img.url), (title?.trim() || product.name));
+      const fixed = await this.ai.fixPhoto(await this.download(img.url), (title?.trim() || product.name));
       const ext = fixed.mime === 'image/png' ? 'png' : 'jpg';
       const { url } = await this.storage.put(fixed.bytes, `ai-fix-${img.id}-${Date.now()}.${ext}`, fixed.mime, { folder: FIX_FOLDER });
       return { url, credits: await this.credits.status(product.companyId) };

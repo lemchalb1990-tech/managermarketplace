@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { aiSettingDefinitions } from '../ai/providers/catalog';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_TIMEZONE } from '../common/timezone';
@@ -110,29 +111,8 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     hint: 'Necesaria para el mapa de "Zonas de demanda". Se obtiene en Google Cloud Console (Maps JavaScript API).',
     sensitive: true,
   },
-  {
-    key: 'OPENAI_API_KEY',
-    label: 'API Key de OpenAI',
-    group: 'ia',
-    hint: 'Para revisar si las fotos coinciden con el título y corregirlas antes de publicar en Mercado Libre. Se obtiene en platform.openai.com.',
-    sensitive: true,
-  },
-  {
-    key: 'OPENAI_VISION_MODEL',
-    label: 'Modelo de visión (revisar fotos)',
-    group: 'ia',
-    hint: 'Modelo de OpenAI que mira la foto y el título. Ej: gpt-5-mini.',
-    sensitive: false,
-    default: 'gpt-5-mini',
-  },
-  {
-    key: 'OPENAI_IMAGE_MODEL',
-    label: 'Modelo de imagen (corregir fotos)',
-    group: 'ia',
-    hint: 'Modelo de OpenAI que edita la foto real (fondo blanco, centrado, sin textos). Ej: gpt-image-1.5.',
-    sensitive: false,
-    default: 'gpt-image-1.5',
-  },
+  // API keys, modelos y tarea asignada de cada proveedor de IA (ver ai/providers/catalog.ts).
+  ...aiSettingDefinitions(),
   {
     key: 'AI_CREDITS_PHOTO_CHECK',
     label: 'Créditos por foto revisada',
@@ -145,7 +125,7 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     key: 'AI_CREDITS_PHOTO_FIX',
     label: 'Créditos por foto corregida',
     group: 'ia',
-    hint: 'Créditos del plan de IA que descuenta corregir una foto (editar imágenes cuesta más en OpenAI).',
+    hint: 'Créditos del plan de IA que descuenta corregir una foto (editar imágenes cuesta más que revisarlas).',
     sensitive: false,
     default: '5',
   },

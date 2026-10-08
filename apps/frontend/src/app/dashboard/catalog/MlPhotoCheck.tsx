@@ -6,6 +6,7 @@ import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoChec
 
 function creditsLine(c: AiCreditsStatus | null) {
   if (!c) return null;
+  if (!c.ready?.PHOTO_CHECK) return 'La IA no está configurada en la plataforma: solo se hará el diagnóstico de Mercado Libre.';
   if (!c.plan) return 'La empresa no tiene un plan de IA: solo se hará el diagnóstico de Mercado Libre.';
   const part = (left: number | null, limit: number | null, label: string) =>
     limit == null ? `${label}: sin límite` : `${label}: ${left} de ${limit}`;
@@ -38,7 +39,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
   const [copied, setCopied] = useState('');
   // El Super Admin usa la IA aunque la empresa no tenga plan (su uso igual se registra).
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const aiEnabled = isSuperAdmin || !!credits?.plan;
+  const aiEnabled = (isSuperAdmin || !!credits?.plan) && credits?.ready?.PHOTO_CHECK !== false;
+  const fixEnabled = (isSuperAdmin || !!credits?.plan) && !!credits?.ready?.PHOTO_FIX;
 
   useEffect(() => {
     setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN');
@@ -207,7 +209,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
                             Usar como principal
                           </button>
                         )}
-                        {canFix && !fixUrl && aiEnabled && (
+                        {canFix && !fixUrl && fixEnabled && (
                           <button type="button" onClick={() => fix(row)} disabled={busy}
                             className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[11px] disabled:opacity-50">
                             {busy ? 'Corrigiendo... (puede tardar un minuto)' : `Corregir con IA (${fixCost} créditos)`}

@@ -5,7 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api, type AiPlan } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { confirmDialog } from '../ConfirmDialog';
-import AiServiceSettings from './AiServiceSettings';
+import ProvidersSection from './ProvidersSection';
 
 type CompanyRow = { id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number };
 type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredits: string };
@@ -13,7 +13,7 @@ type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredit
 const limitLabel = (v: number | null) => (v == null ? 'Sin límite' : v.toLocaleString('es-CL'));
 const toLimit = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.floor(Number(v))));
 
-// Inteligencia artificial (Super Admin): servicio OpenAI de la plataforma y planes de IA: créditos diarios y mensuales para revisar y corregir fotos, y
+// Inteligencia artificial (Super Admin): tareas, proveedores de IA (varios a la vez) y planes: créditos diarios y mensuales para revisar y corregir fotos, y
 // qué plan tiene cada empresa. Una empresa sin plan no puede usar la IA.
 export default function AiPlansPage() {
   const [plans, setPlans] = useState<AiPlan[]>([]);
@@ -88,17 +88,17 @@ export default function AiPlansPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="ui-page-title">Inteligencia artificial</h1>
         <p className="ui-page-subtitle">
-          Servicio de IA de la plataforma y créditos que cada empresa puede usar para revisar y corregir fotos antes de publicar en Mercado Libre.
+          Servicio de IA de la plataforma: qué proveedor hace cada tarea y cuántos créditos puede usar cada empresa para revisar y corregir fotos antes de publicar en Mercado Libre.
         </p>
       </div>
 
       {error && <FormError message={error} />}
 
-      <AiServiceSettings />
+      <ProvidersSection />
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">

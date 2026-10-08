@@ -1,16 +1,33 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { IsInt, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsObject, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AiCreditsService } from './ai-credits.service';
+import { AiProvidersService } from './ai-providers.service';
 
 class AiPlanDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) dailyCredits?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) monthlyCredits?: number | null;
+}
+
+class UpdateProviderDto {
+  @IsOptional() @IsString() apiKey?: string;
+  @IsOptional() @IsBoolean() removeKey?: boolean;
+  @IsOptional() @IsObject() models?: Record<string, string>;
+  @IsOptional() @IsArray() @IsString({ each: true }) tasks?: string[];
+}
+
+class TestProviderDto {
+  @IsOptional() @IsString() apiKey?: string;
+}
+
+class CostsDto {
+  @IsOptional() @IsInt() @Min(0) PHOTO_CHECK?: number;
+  @IsOptional() @IsInt() @Min(0) PHOTO_FIX?: number;
 }
 
 class AssignPlanDto {
@@ -20,7 +37,7 @@ class AssignPlanDto {
 @Controller('ai')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AiController {
-  constructor(private credits: AiCreditsService) {}
+  constructor(private credits: AiCreditsService, private providers: AiProvidersService) {}
 
   // Créditos de la empresa (los muestra la revisión de fotos antes de publicar).
   @Get('credits')
@@ -29,6 +46,37 @@ export class AiController {
     const cId = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     if (!cId) throw new ForbiddenException('Selecciona una empresa');
     return this.credits.status(cId);
+  }
+
+  // ── Proveedores de IA y costo de cada tarea: solo Super Admin ──
+
+  @Get('providers')
+  @Roles(Role.SUPER_ADMIN)
+  async listProviders() {
+    const [overview, costs] = await Promise.all([
+      this.providers.overview(),
+      Promise.all([this.credits.cost('PHOTO_CHECK'), this.credits.cost('PHOTO_FIX')]),
+    ]);
+    return { ...overview, costs: { PHOTO_CHECK: costs[0], PHOTO_FIX: costs[1] } };
+  }
+
+  @Patch('providers/:id')
+  @Roles(Role.SUPER_ADMIN)
+  updateProvider(@Param('id') id: string, @Body() dto: UpdateProviderDto) {
+    return this.providers.update(id, dto);
+  }
+
+  // Verifica la API key (la escrita en el modal o la guardada) sin gastar créditos.
+  @Post('providers/:id/test')
+  @Roles(Role.SUPER_ADMIN)
+  testProvider(@Param('id') id: string, @Body() dto: TestProviderDto) {
+    return this.providers.test(id, dto?.apiKey);
+  }
+
+  @Patch('costs')
+  @Roles(Role.SUPER_ADMIN)
+  updateCosts(@Body() dto: CostsDto) {
+    return this.credits.updateCosts(dto);
   }
 
   // ── Planes de IA: solo Super Admin ──

@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { dateKeyStringInTz, startOfDayInTz } from '../common/timezone';
+import { AiProvidersService } from './ai-providers.service';
 
 export type AiUsageKind = 'PHOTO_CHECK' | 'PHOTO_FIX';
 
@@ -15,7 +16,7 @@ const COST_KEYS: Record<AiUsageKind, { key: string; fallback: number }> = {
 // panel). Se descuentan antes de llamar a OpenAI y se devuelven si la llamada falla.
 @Injectable()
 export class AiCreditsService {
-  constructor(private prisma: PrismaService, private settings: SettingsService) {}
+  constructor(private prisma: PrismaService, private settings: SettingsService, private providers: AiProvidersService) {}
 
   async cost(kind: AiUsageKind): Promise<number> {
     const { key, fallback } = COST_KEYS[kind];
@@ -33,8 +34,8 @@ export class AiCreditsService {
       where: { companyId, createdAt: { gte: from } },
       _sum: { credits: true },
     }))._sum.credits ?? 0;
-    const [usedToday, usedMonth, checkCost, fixCost] = await Promise.all([
-      sum(dayStart), sum(monthStart), this.cost('PHOTO_CHECK'), this.cost('PHOTO_FIX'),
+    const [usedToday, usedMonth, checkCost, fixCost, ready] = await Promise.all([
+      sum(dayStart), sum(monthStart), this.cost('PHOTO_CHECK'), this.cost('PHOTO_FIX'), this.providers.readyTasks(),
     ]);
     const plan = company.aiPlan;
     const remaining = (limit: number | null | undefined, used: number) => (limit == null ? null : Math.max(0, limit - used));
@@ -45,6 +46,8 @@ export class AiCreditsService {
       remainingToday: plan ? remaining(plan.dailyCredits, usedToday) : 0,
       remainingMonth: plan ? remaining(plan.monthlyCredits, usedMonth) : 0,
       costs: { PHOTO_CHECK: checkCost, PHOTO_FIX: fixCost },
+      // Tareas con una IA asignada y configurada (si no, no se ofrecen).
+      ready,
     };
   }
 
@@ -68,6 +71,14 @@ export class AiCreditsService {
       data: { companyId, userId: user.id ?? null, kind, credits, productId: productId ?? null },
     });
     return usage.id;
+  }
+
+  async updateCosts(costs: Partial<Record<AiUsageKind, number>>) {
+    const items = (Object.keys(COST_KEYS) as AiUsageKind[])
+      .filter((k) => costs[k] != null && Number.isFinite(Number(costs[k])))
+      .map((k) => ({ key: COST_KEYS[k].key, value: String(Math.max(0, Math.floor(Number(costs[k])))) }));
+    if (items.length) await this.settings.upsertMany(items);
+    return { PHOTO_CHECK: await this.cost('PHOTO_CHECK'), PHOTO_FIX: await this.cost('PHOTO_FIX') };
   }
 
   async refund(usageId: string) {
