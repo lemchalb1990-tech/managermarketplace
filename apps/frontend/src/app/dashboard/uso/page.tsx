@@ -8,18 +8,19 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 
 const KIND_LABEL: Record<string, string> = {
   ML_DIAGNOSTIC: 'Diagnóstico preliminar',
-  PHOTO_CHECK: 'Fotos revisadas con IA',
-  PHOTO_FIX: 'Fotos corregidas con IA',
-  PHOTO_GENERATE: 'Imágenes de referencia creadas',
+  PHOTO_CHECK: 'Fotos revisadas',
+  PHOTO_FIX: 'Fotos corregidas',
+  PHOTO_GENERATE: 'Fotos generadas',
 };
 const KIND_SHORT: Record<string, string> = {
   ML_DIAGNOSTIC: 'Diagnóstico preliminar',
-  PHOTO_CHECK: 'Revisión con IA',
-  PHOTO_FIX: 'Corrección con IA',
-  PHOTO_GENERATE: 'Imagen de referencia',
+  PHOTO_CHECK: 'Revisión',
+  PHOTO_FIX: 'Corrección',
+  PHOTO_GENERATE: 'Foto generada',
 };
-const KIND_FEATURE: Record<string, PlanFeature> = {
-  ML_DIAGNOSTIC: 'ML_DIAGNOSTIC', PHOTO_CHECK: 'AI_CHECK', PHOTO_FIX: 'AI_FIX', PHOTO_GENERATE: 'AI_GENERATE',
+// Nombres de los productos del plan en esta página (sin "con IA": se da por entendido).
+const FEATURE_LABEL: Record<PlanFeature, string> = {
+  ML_DIAGNOSTIC: 'Diagnóstico preliminar', AI_CHECK: 'Revisión', AI_FIX: 'Corrección', AI_GENERATE: 'Fotos generadas',
 };
 
 // Uso de la empresa: su plan, los créditos de IA que le quedan y lo que ha usado (revisión,
@@ -62,7 +63,7 @@ export default function UsagePage() {
               <div className="flex flex-wrap gap-1 mt-2">
                 {plan
                   ? plan.features.map((f) => (
-                      <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">{PLAN_FEATURE_INFO[f]?.label ?? f}</span>
+                      <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">{FEATURE_LABEL[f] ?? PLAN_FEATURE_INFO[f]?.label ?? f}</span>
                     ))
                   : <span className="text-xs text-gray-500">Pide al administrador de la plataforma que te asigne uno.</span>}
               </div>
@@ -97,9 +98,9 @@ export default function UsagePage() {
           {usesAi && (
             <div className="bg-white border border-gray-200 rounded-2xl px-5 py-3 text-xs text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
               <span>Costo por uso:</span>
-              {plan?.features.includes('AI_CHECK') && <span>Revisión con IA: {data.costs.PHOTO_CHECK} crédito(s) por foto</span>}
+              {plan?.features.includes('AI_CHECK') && <span>Revisión: {data.costs.PHOTO_CHECK} crédito(s) por foto</span>}
               {plan?.features.includes('AI_FIX') && <span>Corrección: {data.costs.PHOTO_FIX} por foto</span>}
-              {plan?.features.includes('AI_GENERATE') && <span>Imagen de referencia: {data.costs.PHOTO_GENERATE} por imagen</span>}
+              {plan?.features.includes('AI_GENERATE') && <span>Foto generada: {data.costs.PHOTO_GENERATE} por foto</span>}
               <span>Diagnóstico preliminar: <span className="font-semibold text-green-600">Ilimitado</span></span>
             </div>
           )}
@@ -110,7 +111,6 @@ export default function UsagePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 divide-gray-100">
               {Object.keys(KIND_LABEL)
-                .filter((k) => !plan || plan.features.includes(KIND_FEATURE[k]) || (data.stats[k]?.total ?? 0) > 0)
                 .map((k) => (
                   <div key={k} className="p-5 sm:border-b sm:border-gray-100 sm:odd:border-r">
                     <p className="text-sm font-medium text-gray-800">{KIND_LABEL[k]}</p>
