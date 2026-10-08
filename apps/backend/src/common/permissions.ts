@@ -107,11 +107,17 @@ export const PERMISSION_GROUPS: {
     items: [{ key: 'no-delete', label: 'No puede eliminar registros (productos, ventas, publicaciones, etc.)' }],
   },
   {
-    key: 'admin',
-    label: 'Administración',
+    key: 'plataforma',
+    label: 'Administrador de plataforma',
     items: [
       { key: 'companies', label: 'Empresas' },
       { key: 'connections', label: 'Conexiones globales' },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Ajustes del sistema',
+    items: [
       { key: 'emails', label: 'Correos' },
       { key: 'settings', label: 'Configuración' },
     ],

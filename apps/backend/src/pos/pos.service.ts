@@ -48,8 +48,8 @@ export class PosService {
     const cId = this.resolveCompanyId(user, companyId);
     const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true } });
     if (!company) throw new NotFoundException('Empresa no encontrada');
-    // El formato de ticket es de la empresa (lo define su administrador en Administración →
-    // Configuración de ticket) y aplica a todos sus usuarios. printFormat = el que se usa al imprimir.
+    // El formato de ticket es de la empresa (lo define su administrador en Ajustes del sistema →
+    // Configuración) y aplica a todos sus usuarios. printFormat = el que se usa al imprimir.
     return {
       workOrderPrintFormat: company.workOrderPrintFormat,
       printFormat: company.workOrderPrintFormat,

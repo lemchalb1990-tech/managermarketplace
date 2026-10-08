@@ -110,11 +110,17 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: 'admin',
-    label: 'Administración',
+    key: 'plataforma',
+    label: 'Administrador de plataforma',
     items: [
       { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Ajustes del sistema',
+    items: [
       { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
     ],
