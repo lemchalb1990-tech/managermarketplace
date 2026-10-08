@@ -133,7 +133,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
           <p className="text-[11px] text-gray-500">
             {highlight
               ? 'Mercado Libre suele rechazar cuando las fotos no coinciden con el título. Revísalas aquí.'
-              : 'Diagnóstico de Mercado Libre (gratis) y revisión con IA de que cada foto coincide con el título.'}
+              : 'Revisa que cada foto coincida con el título antes de publicar.'}
           </p>
           {creditsLine(credits) && <p className="text-[11px] text-gray-400 mt-0.5">{creditsLine(credits)}</p>}
         </div>
