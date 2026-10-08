@@ -377,15 +377,19 @@ export class RipleyAdapter implements PlatformAdapter {
     let imported = 0, linked = 0, skipped = 0;
     const errors: string[] = [];
 
-    const data = await this.request(conn, `/api/offers?max=${externalIds.length}&shop_sku=${externalIds.join(',')}`)
-      .catch(async () => {
-        // Si el filtro por lista de shop_sku no es soportado, se trae una por una.
-        const all = await Promise.all(externalIds.map((id) =>
-          this.request(conn, `/api/offers?shop_sku=${encodeURIComponent(id)}`).catch(() => null),
-        ));
-        return { offers: all.flatMap((d: any) => d?.offers || []) };
+    // OF21 solo filtra por `sku` (el shop_sku) de a uno: `shop_sku=` y las listas se ignoran y
+    // devuelven las primeras ofertas del catálogo (verificado en vivo). Se piden de a 5.
+    const offers: any[] = [];
+    for (let i = 0; i < externalIds.length; i += 5) {
+      const found = await Promise.all(externalIds.slice(i, i + 5).map((id) =>
+        this.request(conn, `/api/offers?max=10&sku=${encodeURIComponent(id)}`).catch(() => null)));
+      found.forEach((d: any, k) => {
+        const id = externalIds[i + k];
+        const offer = (d?.offers || []).find((o: any) => o.shop_sku === id);
+        if (offer) offers.push(offer);
+        else errors.push(`${id}: no se encontró en Ripley`);
       });
-    const offers: any[] = data.offers || [];
+    }
 
     const skuCountsInBatch = new Map<string, number>();
     for (const o of offers) if (o.shop_sku) skuCountsInBatch.set(o.shop_sku, (skuCountsInBatch.get(o.shop_sku) || 0) + 1);
