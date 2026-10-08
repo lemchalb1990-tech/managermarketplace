@@ -472,6 +472,28 @@ export class ParisAdapter implements PlatformAdapter {
   // OJO (verificado en vivo 2026-09-27): en /v2/products/search `offset` es el NÚMERO DE PÁGINA,
   // no la posición (offset=1 con limit=25 = productos 25-49; offset=50 ya viene vacío con 874 en
   // total). Hacia afuera `offset` sigue siendo la posición, como en el resto de los adaptadores.
+  // Todo el catálogo con sus fotos (para el índice de fotos de otros canales). El SKU del
+  // vendedor solo viene en el detalle, que se pide de a 5 productos.
+  async listProductsWithImages(conn: any): Promise<{ sku: string | null; title: string; images: string[] }[]> {
+    const found: any[] = [];
+    for (let page = 0; page < 400; page++) {
+      const data = await this.request(conn, `/v2/products/search?limit=50&offset=${page}`);
+      const results: any[] = data?.results || [];
+      found.push(...results);
+      if (results.length < 50) break;
+    }
+    const medias = (p: any) => ((p?.variants?.[0]?.medias || []) as any[]).map((m) => m.src).filter(Boolean);
+    const out: { sku: string | null; title: string; images: string[] }[] = [];
+    for (let i = 0; i < found.length; i += 5) {
+      const details = await Promise.all(found.slice(i, i + 5).map((r) => this.request(conn, `/v2/products/${r.id}`).catch(() => null)));
+      found.slice(i, i + 5).forEach((r, j) => {
+        const d = details[j];
+        out.push({ sku: d?.sellerSku || null, title: d?.name || r.name, images: medias(d).length ? medias(d) : medias(r) });
+      });
+    }
+    return out;
+  }
+
   async previewImport(conn: any, companyId: string, offset = 0): Promise<ParisImportPreview> {
     const pageIndex = Math.floor(offset / IMPORT_PAGE_SIZE);
     const data = await this.request(conn, `/v2/products/search?limit=${IMPORT_PAGE_SIZE}&offset=${pageIndex}`);

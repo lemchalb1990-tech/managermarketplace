@@ -308,6 +308,18 @@ export class ConnectionsController {
     return this.service.walmartPublishStatus(connectionId, productId, user);
   }
 
+  @Get(':id/import/thumbnail')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  importThumbnail(@Param('id') id: string, @Query('sku') sku: string, @CurrentUser() user: any) {
+    return this.service.importThumbnail(id, user, sku);
+  }
+
+  @Post(':id/import/fetch-images')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  fetchMissingImages(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.fetchMissingImages(id, user);
+  }
+
   @Get(':id/walmart/thumbnail')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   walmartThumbnail(@Param('id') id: string, @Query('sku') sku: string, @CurrentUser() user: any) {

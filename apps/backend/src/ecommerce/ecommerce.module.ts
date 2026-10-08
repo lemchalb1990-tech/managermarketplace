@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MercadolibreService } from './mercadolibre/mercadolibre.service';
 import { MercadolibreController } from './mercadolibre/mercadolibre.controller';
 import { ConnectionsService } from './connections/connections.service';
+import { PhotoIndexService } from './connections/photo-index.service';
 import { ConnectionsController } from './connections/connections.controller';
 import { SyncModule } from './sync/sync.module';
 import { SalesImportCronService } from './sync/sales-import-cron.service';
@@ -15,6 +16,7 @@ import { PurchasesModule } from '../purchases/purchases.module';
     MercadolibreService,
     SalesImportCronService,
     ConnectionsService,
+    PhotoIndexService,
   ],
   controllers: [MercadolibreController, ConnectionsController],
   // Re-exporta SyncModule para que quien ya importaba EcommerceModule por SyncService

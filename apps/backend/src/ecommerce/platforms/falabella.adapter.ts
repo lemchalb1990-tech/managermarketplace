@@ -258,6 +258,19 @@ export class FalabellaAdapter implements PlatformAdapter {
   // llamado (sin fetch de detalle por ítem). OJO: esta API no devuelve un total_count, así
   // que "hasMore" es una estimación (se asume que hay más si la página vino llena).
 
+  // Todo el catálogo con sus fotos (para el índice de fotos de otros canales).
+  async listProductsWithImages(conn: any): Promise<{ sku: string; title: string; images: string[] }[]> {
+    const out: { sku: string; title: string; images: string[] }[] = [];
+    for (let offset = 0; offset < 20000; offset += 100) {
+      const data = await this.call(conn, 'GetProducts', { Limit: '100', Offset: String(offset), Filter: 'all' });
+      const raw = data?.Products?.Product;
+      const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).map((p: any) => this.normalizeProduct(p));
+      for (const p of list) out.push({ sku: p.sellerSku, title: p.name, images: p.images.length ? p.images : p.thumbnail ? [p.thumbnail] : [] });
+      if (list.length < 100) break;
+    }
+    return out;
+  }
+
   private normalizeProduct(p: any) {
     const bu = p.BusinessUnits?.BusinessUnit;
     const unit = Array.isArray(bu) ? bu[0] : bu;

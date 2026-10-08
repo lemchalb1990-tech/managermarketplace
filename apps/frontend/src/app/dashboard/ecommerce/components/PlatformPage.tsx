@@ -242,7 +242,7 @@ export default function PlatformPage({ config }: Props) {
     setError('');
     setNotice('');
     try {
-      const res = await api.connections.walmartFetchImages(id, getToken()!);
+      const res = await api.connections.fetchMissingImages(id, getToken()!);
       setNotice(
         `${res.checked} producto(s) sin fotos revisados: ${res.updated} con fotos nuevas` +
         (res.withoutImages ? `, ${res.withoutImages} sin fotos disponibles en ${config.name}` : '') +
@@ -425,7 +425,7 @@ export default function PlatformPage({ config }: Props) {
                       )}
                       {config.supportsImageFetch && c.active && (
                         <button onClick={() => handleFetchImages(c.id)} disabled={fetchingImagesId === c.id}
-                          title="Busca en Walmart las fotos de los productos importados que no tienen"
+                          title={config.marketplace === 'RIPLEY' ? 'Completa las fotos de los productos de Ripley que no tienen, buscándolas en el catálogo, en los reportes de Ripley, Falabella y Paris' : `Busca en ${config.name} las fotos de los productos importados que no tienen`}
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
                           {fetchingImagesId === c.id ? 'Buscando fotos...' : 'Traer fotos'}
                         </button>
@@ -532,7 +532,7 @@ export default function PlatformPage({ config }: Props) {
           connectionName={importingConn.name}
           platformLabel={config.name}
           loadThumbnail={config.supportsImageFetch
-            ? async (sku) => (await api.connections.walmartThumbnail(importingConn.id, sku, getToken()!)).url
+            ? async (sku) => (await api.connections.importThumbnail(importingConn.id, sku, getToken()!)).url
             : undefined}
           onClose={() => setImportingConn(null)}
           onImported={() => {}}

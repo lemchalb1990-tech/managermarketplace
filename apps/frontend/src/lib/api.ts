@@ -779,6 +779,12 @@ export const api = {
     walmartThumbnail: (connectionId: string, sku: string, token: string) =>
       apiFetch<{ url: string | null; count: number }>(
         `/ecommerce/connections/${connectionId}/walmart/thumbnail?sku=${encodeURIComponent(sku)}`, {}, token),
+    importThumbnail: (connectionId: string, sku: string, token: string) =>
+      apiFetch<{ url: string | null; count: number }>(
+        `/ecommerce/connections/${connectionId}/import/thumbnail?sku=${encodeURIComponent(sku)}`, {}, token),
+    fetchMissingImages: (connectionId: string, token: string) =>
+      apiFetch<{ checked: number; updated: number; withoutImages: number; pending: boolean }>(
+        `/ecommerce/connections/${connectionId}/import/fetch-images`, { method: 'POST' }, token),
     walmartFetchImages: (connectionId: string, token: string) =>
       apiFetch<{ checked: number; updated: number; withoutImages: number; pending: boolean }>(
         `/ecommerce/connections/${connectionId}/walmart/fetch-images`, { method: 'POST' }, token),

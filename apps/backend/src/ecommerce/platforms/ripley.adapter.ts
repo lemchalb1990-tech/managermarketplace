@@ -15,6 +15,31 @@ import { toAbsoluteUrl } from '../../common/absolute-url.util';
 // http://ripley-prod.mirakl.net, arriba a la derecha en el email > "Mis ajustes de usuario"
 // > "API key". El header de autenticación es el API key crudo, sin "Bearer".
 const BASE = 'https://ripley-prod.mirakl.net';
+
+// CSV con comillas (campos con saltos de línea y "" escapadas), como los reportes de Mirakl.
+function parseCsv(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === sep) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some((f) => f !== '')) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  row.push(field);
+  if (row.some((f) => f !== '')) rows.push(row);
+  return rows;
+}
+
 const OFFERS_PAGE_SIZE = 25;
 // Código de estado del producto que ya se ve en las ofertas reales de esta cuenta y en el
 // ejemplo de la doc para OF24 — Mirakl no documentó qué otros valores existen.
@@ -253,8 +278,52 @@ export class RipleyAdapter implements PlatformAdapter {
   // ─── Importar catálogo existente desde Ripley ────────────────────────────────
   // Mucho más simple que Paris: GET /api/offers ya trae título/descripción/marca/precio/
   // stock/categoría en un solo llamado, sin fetch de detalle por ítem. OJO: esta API no
-  // expone fotos del producto en ningún endpoint de lectura probado — los productos
-  // importados quedan sin fotos, hay que subirlas a mano después.
+  // expone fotos del producto; las fotos salen del índice de fotos (PhotoIndexService:
+  // catálogo, reportes de importación de Ripley, Falabella y Paris) al confirmar.
+
+  // Todas las ofertas (sku → título), para el índice de fotos.
+  async listOffers(conn: any): Promise<{ sku: string; title: string }[]> {
+    const out: { sku: string; title: string }[] = [];
+    for (let offset = 0; ; offset += 100) {
+      const data = await this.request(conn, `/api/offers?max=100&offset=${offset}`);
+      const offers: any[] = data?.offers || [];
+      out.push(...offers.map((o) => ({ sku: String(o.shop_sku || ''), title: String(o.product_title || '') })));
+      if (!offers.length || out.length >= (data.total_count || 0)) break;
+    }
+    return out;
+  }
+
+  // Fotos originales de las publicaciones: la API de ofertas no las trae, pero los reportes de
+  // las importaciones de productos (P45 "new product report" / P47 archivo transformado) son el
+  // CSV que se cargó, con sku_seller, Titulo, thumbnail e imagen1..imagen13. Solo existen para
+  // las cargas hechas por archivo (en HABITA2, desde jul-2026).
+  async listProductImportImages(conn: any): Promise<{ sku: string; title: string; images: string[] }[]> {
+    const trackings: any[] = [];
+    for (let offset = 0; offset < 10000; offset += 100) {
+      const data = await this.request(conn, `/api/products/imports?max=100&offset=${offset}`);
+      const list: any[] = data?.product_import_trackings || [];
+      trackings.push(...list);
+      if (list.length < 100) break;
+    }
+    const out: { sku: string; title: string; images: string[] }[] = [];
+    for (const t of trackings.filter((x) => x.has_new_product_report || x.has_transformed_file)) {
+      const kind = t.has_new_product_report ? 'new_product_report' : 'transformed_file';
+      const res = await fetch(`${BASE}/api/products/imports/${t.import_id}/${kind}`, { headers: { Authorization: this.creds(conn).apiKey } });
+      if (!res.ok) continue;
+      const rows = parseCsv(await res.text(), ';');
+      const head = (rows.shift() || []).map((h) => h.trim().toLowerCase());
+      const col = (name: string) => head.indexOf(name);
+      const iSku = col('sku_seller'), iTitle = col('titulo');
+      const iImgs = head.map((h, i) => (/^(thumbnail|imagen\d+)$/.test(h) ? i : -1)).filter((i) => i >= 0);
+      for (const r of rows) {
+        const sku = (r[iSku] || '').trim();
+        if (!sku) continue;
+        const images = [...new Set(iImgs.map((i) => (r[i] || '').trim()).filter((u) => /^https?:\/\//i.test(u)))];
+        out.push({ sku, title: (r[iTitle] || '').trim(), images });
+      }
+    }
+    return out;
+  }
 
   async previewImport(conn: any, companyId: string, offset = 0): Promise<RipleyImportPreview> {
     const data = await this.request(conn, `/api/offers?max=${OFFERS_PAGE_SIZE}&offset=${offset}`);

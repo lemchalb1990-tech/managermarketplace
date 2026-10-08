@@ -17,6 +17,7 @@ import { PlatformAdapter } from '../platforms/platform.interface';
 import { CatalogService } from '../../catalog/catalog.service';
 import { ChannelOrdersService } from '../sync/channel-orders.service';
 import { MercadolibreService } from '../mercadolibre/mercadolibre.service';
+import { PhotoIndexService } from './photo-index.service';
 import { CreateConnectionDto, LinkProductDto, UpdateConnectionDto } from './connections.dto';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
 
@@ -44,6 +45,7 @@ export class ConnectionsService {
     private channelOrders: ChannelOrdersService,
     private mercadolibre: MercadolibreService,
     private settings: SettingsService,
+    private photoIndex: PhotoIndexService,
   ) {}
 
   private getAdapter(marketplace: MarketplaceType): PlatformAdapter {
@@ -491,13 +493,64 @@ export class ConnectionsService {
   async previewImport(connectionId: string, user: any, offset?: number) {
     const conn = await this.getOwnedConnection(connectionId, user);
     const adapter = this.getCatalogImportAdapter(conn);
+    // Ripley no trae fotos: se empieza a armar el índice de fotos de otros canales para la
+    // vista previa (cada publicación pide su miniatura) y para la confirmación.
+    if (conn.marketplace === MarketplaceType.RIPLEY) this.photoIndex.get(conn.companyId).catch(() => null);
     return adapter.previewImport(conn, conn.companyId, offset || 0);
   }
 
   async confirmImport(connectionId: string, user: any, externalIds: string[], unlinkIds?: string[]) {
     const conn = await this.getOwnedConnection(connectionId, user);
     const adapter = this.getCatalogImportAdapter(conn);
-    return adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
+    const result: any = await adapter.confirmImport(conn, conn.companyId, externalIds, unlinkIds);
+    if (conn.marketplace === MarketplaceType.RIPLEY) {
+      const photos = await this.fillMissingImagesFromIndex(conn, externalIds).catch(() => null);
+      if (photos) result.photos = photos;
+    }
+    return result;
+  }
+
+  // Miniatura para la vista previa de importación: Walmart la busca en su API; Ripley, en el
+  // índice de fotos (catálogo, reportes de Ripley, Falabella y Paris).
+  async importThumbnail(connectionId: string, user: any, sku: string) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    if (conn.marketplace === MarketplaceType.WALMART) return this.walmartThumbnail(connectionId, user, sku);
+    this.assertMarketplace(conn, MarketplaceType.RIPLEY, 'Ripley');
+    const hit = (await this.photoIndex.get(conn.companyId)).find(sku);
+    return { url: hit?.images[0] || null, count: hit?.images.length || 0, source: hit?.source || null };
+  }
+
+  // "Traer fotos": completa las fotos de los productos vinculados al canal que no tienen.
+  async fetchMissingImages(connectionId: string, user: any) {
+    const conn = await this.getOwnedConnection(connectionId, user);
+    if (conn.marketplace === MarketplaceType.WALMART) return this.walmart.fetchMissingImages(conn);
+    this.assertMarketplace(conn, MarketplaceType.RIPLEY, 'Ripley');
+    return this.fillMissingImagesFromIndex(conn, undefined, true);
+  }
+
+  // Guarda en cada producto vinculado sin fotos las del índice (todas las de la publicación
+  // encontrada). Con `full` espera también a Paris (puede tardar unos minutos).
+  private async fillMissingImagesFromIndex(conn: any, externalIds?: string[], full = false) {
+    const index = await this.photoIndex.get(conn.companyId, { full });
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        connectionId: conn.id, externalId: externalIds ? { in: externalIds } : { not: null },
+        product: { images: { none: {} } },
+      },
+      select: { externalId: true, title: true, productId: true },
+    });
+    let updated = 0;
+    for (const l of listings) {
+      const hit = index.find(l.externalId, l.title);
+      if (!hit) continue;
+      await this.prisma.productImage.createMany({
+        data: hit.images.map((url, i) => ({
+          productId: l.productId, url, filename: url.split('/').pop()?.split('?')[0] || `foto-${i}.jpg`, isPrimary: i === 0, order: i,
+        })),
+      });
+      updated++;
+    }
+    return { checked: listings.length, updated, withoutImages: listings.length - updated, pending: false };
   }
 
   // ─── Walmart: fotos (el listado de Walmart no trae imágenes) ───────────────────
