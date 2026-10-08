@@ -2114,12 +2114,16 @@ model FinanceRecurring {
   @@map("finance_recurrings")
 }
 
-// Planes de IA que asigna el Super Admin a cada empresa. Límites en créditos; null = sin límite.
+// Planes que asigna el Super Admin a cada empresa: qué productos de revisión de fotos incluyen y
+// sus límites de créditos de IA (null = sin límite).
 model AiPlan {
   id             String    @id @default(cuid())
   name           String
   dailyCredits   Int?
   monthlyCredits Int?
+  // Productos que incluye el plan: ML_DIAGNOSTIC (diagnóstico de fotos de Mercado Libre, sin
+  // créditos), AI_CHECK (revisión con IA) y AI_FIX (corrección con IA).
+  features       String[]  @default(["ML_DIAGNOSTIC", "AI_CHECK", "AI_FIX"])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   companies      Company[]

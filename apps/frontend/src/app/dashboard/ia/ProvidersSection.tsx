@@ -5,7 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api, type AiProviderInfo, type AiProvidersOverview, type AiTask } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 
-const TASK_ICON: Record<AiTask, string> = { PHOTO_CHECK: '🔍', PHOTO_FIX: '✨' };
+const TASK_ICON: Record<AiTask, string> = { PHOTO_CHECK: '🔍', PHOTO_FIX: '✨', PHOTO_GENERATE: '🎨' };
 const PROVIDER_COLOR: Record<string, string> = {
   openai: 'bg-gray-900 text-white',
   anthropic: 'bg-orange-100 text-orange-700',
@@ -20,7 +20,7 @@ export default function ProvidersSection() {
   const [data, setData] = useState<AiProvidersOverview | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<AiProviderInfo | null>(null);
-  const [costs, setCosts] = useState<Record<AiTask, string>>({ PHOTO_CHECK: '', PHOTO_FIX: '' });
+  const [costs, setCosts] = useState<Record<AiTask, string>>({ PHOTO_CHECK: '', PHOTO_FIX: '', PHOTO_GENERATE: '' });
   const [savingCosts, setSavingCosts] = useState(false);
   const [costsMsg, setCostsMsg] = useState('');
 
@@ -28,7 +28,7 @@ export default function ProvidersSection() {
     try {
       const d = await api.ai.providers.list(getToken()!);
       setData(d);
-      if (d.costs) setCosts({ PHOTO_CHECK: String(d.costs.PHOTO_CHECK), PHOTO_FIX: String(d.costs.PHOTO_FIX) });
+      if (d.costs) setCosts({ PHOTO_CHECK: String(d.costs.PHOTO_CHECK), PHOTO_FIX: String(d.costs.PHOTO_FIX), PHOTO_GENERATE: String(d.costs.PHOTO_GENERATE ?? '') });
     } catch (e: any) {
       setError(e.message || 'No se pudieron cargar los proveedores de IA.');
     }
@@ -40,7 +40,7 @@ export default function ProvidersSection() {
     setSavingCosts(true);
     setCostsMsg('');
     try {
-      await api.ai.updateCosts({ PHOTO_CHECK: Number(costs.PHOTO_CHECK) || 0, PHOTO_FIX: Number(costs.PHOTO_FIX) || 0 }, getToken()!);
+      await api.ai.updateCosts({ PHOTO_CHECK: Number(costs.PHOTO_CHECK) || 0, PHOTO_FIX: Number(costs.PHOTO_FIX) || 0, PHOTO_GENERATE: Number(costs.PHOTO_GENERATE) || 0 }, getToken()!);
       setCostsMsg('✓ Guardado');
       setTimeout(() => setCostsMsg(''), 2500);
     } catch (e: any) {
@@ -63,7 +63,7 @@ export default function ProvidersSection() {
           <h2 className="ui-section-title">Tareas</h2>
           <p className="text-xs text-gray-400 mt-0.5">Qué trabajo hace la IA, con qué proveedor y cuántos créditos del plan descuenta cada vez.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
           {tasks.map((t) => {
             const task = data.tasks[t];
             const prov = data.providers.find((p) => p.id === task.providerId);
@@ -80,7 +80,7 @@ export default function ProvidersSection() {
                   {prov && !ready && <span className="text-red-600"> · falta la API key</span>}
                 </p>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500">Créditos por foto</label>
+                  <label className="text-xs text-gray-500">{t === 'PHOTO_GENERATE' ? 'Créditos por imagen' : 'Créditos por foto'}</label>
                   <input type="number" min={0} value={costs[t]} onChange={(e) => setCosts((c) => ({ ...c, [t]: e.target.value }))}
                     className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
                 </div>

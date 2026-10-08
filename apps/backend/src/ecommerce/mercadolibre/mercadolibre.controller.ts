@@ -99,6 +99,11 @@ class PhotoFixDto {
   @IsOptional() @IsString() title?: string;
 }
 
+class PhotoGenerateDto {
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() connectionId?: string;
+}
+
 class PhotoFixApplyDto {
   @IsString() url: string;
 }
@@ -524,6 +529,29 @@ export class MercadolibreController {
     @Body() dto: PhotoFixDto,
   ) {
     return this.photos.fix(productId, imageId, user, dto?.title);
+  }
+
+  // Crea una imagen de referencia desde el título (sugerencia; se agrega solo si se aprueba).
+  @Post('products/:productId/ai-generate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  photoGenerate(
+    @Param('productId') productId: string,
+    @CurrentUser() user: any,
+    @Body() dto: PhotoGenerateDto,
+  ) {
+    return this.photos.generate(productId, dto?.connectionId, user, dto?.title);
+  }
+
+  @Post('products/:productId/ai-generate/add')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  photoGenerateAdd(
+    @Param('productId') productId: string,
+    @CurrentUser() user: any,
+    @Body() dto: PhotoFixApplyDto,
+  ) {
+    return this.photos.addGenerated(productId, user, dto.url);
   }
 
   @Post('products/:productId/images/:imageId/ai-fix/apply')

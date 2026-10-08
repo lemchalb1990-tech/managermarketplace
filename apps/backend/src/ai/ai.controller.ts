@@ -1,17 +1,18 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { IsArray, IsBoolean, IsInt, IsObject, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { AiCreditsService } from './ai-credits.service';
+import { AiCreditsService, PLAN_FEATURES } from './ai-credits.service';
 import { AiProvidersService } from './ai-providers.service';
 
 class AiPlanDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) dailyCredits?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) monthlyCredits?: number | null;
+  @IsOptional() @IsArray() @IsIn(PLAN_FEATURES as unknown as string[], { each: true }) features?: string[];
 }
 
 class UpdateProviderDto {
@@ -28,6 +29,7 @@ class TestProviderDto {
 class CostsDto {
   @IsOptional() @IsInt() @Min(0) PHOTO_CHECK?: number;
   @IsOptional() @IsInt() @Min(0) PHOTO_FIX?: number;
+  @IsOptional() @IsInt() @Min(0) PHOTO_GENERATE?: number;
 }
 
 class AssignPlanDto {
@@ -55,9 +57,9 @@ export class AiController {
   async listProviders() {
     const [overview, costs] = await Promise.all([
       this.providers.overview(),
-      Promise.all([this.credits.cost('PHOTO_CHECK'), this.credits.cost('PHOTO_FIX')]),
+      Promise.all([this.credits.cost('PHOTO_CHECK'), this.credits.cost('PHOTO_FIX'), this.credits.cost('PHOTO_GENERATE')]),
     ]);
-    return { ...overview, costs: { PHOTO_CHECK: costs[0], PHOTO_FIX: costs[1] } };
+    return { ...overview, costs: { PHOTO_CHECK: costs[0], PHOTO_FIX: costs[1], PHOTO_GENERATE: costs[2] } };
   }
 
   @Patch('providers/:id')
@@ -90,7 +92,7 @@ export class AiController {
   @Post('plans')
   @Roles(Role.SUPER_ADMIN)
   createPlan(@Body() dto: AiPlanDto) {
-    return this.credits.createPlan({ name: dto.name ?? '', dailyCredits: dto.dailyCredits ?? null, monthlyCredits: dto.monthlyCredits ?? null });
+    return this.credits.createPlan({ name: dto.name ?? '', dailyCredits: dto.dailyCredits ?? null, monthlyCredits: dto.monthlyCredits ?? null, features: dto.features });
   }
 
   @Patch('plans/:id')

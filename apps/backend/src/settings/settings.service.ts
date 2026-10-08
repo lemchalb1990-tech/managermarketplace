@@ -122,6 +122,14 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     default: '1',
   },
   {
+    key: 'AI_CREDITS_PHOTO_GENERATE',
+    label: 'Créditos por imagen de referencia creada',
+    group: 'ia',
+    hint: 'Créditos del plan de IA que descuenta crear una imagen de referencia desde el título.',
+    sensitive: false,
+    default: '5',
+  },
+  {
     key: 'AI_CREDITS_PHOTO_FIX',
     label: 'Créditos por foto corregida',
     group: 'ia',

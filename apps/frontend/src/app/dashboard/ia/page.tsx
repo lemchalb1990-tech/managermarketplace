@@ -2,19 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { api, type AiPlan } from '@/lib/api';
+import { api, PLAN_FEATURE_INFO, type AiPlan, type PlanFeature } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { confirmDialog } from '../ConfirmDialog';
 import ProvidersSection from './ProvidersSection';
 
 type CompanyRow = { id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number };
-type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredits: string };
+type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredits: string; features: PlanFeature[] };
+
+const ALL_FEATURES = Object.keys(PLAN_FEATURE_INFO) as PlanFeature[];
 
 const limitLabel = (v: number | null) => (v == null ? 'Sin límite' : v.toLocaleString('es-CL'));
 const toLimit = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.floor(Number(v))));
 
-// Inteligencia artificial (Super Admin): tareas, proveedores de IA (varios a la vez) y planes: créditos diarios y mensuales para revisar y corregir fotos, y
-// qué plan tiene cada empresa. Una empresa sin plan no puede usar la IA.
+// Inteligencia artificial (Super Admin): tareas, proveedores de IA (varios a la vez) y planes.
+// Cada plan define qué productos incluye (diagnóstico ML, revisión, corrección, imágenes de
+// referencia) y sus límites de créditos. Una empresa sin plan no puede revisar fotos.
 export default function AiPlansPage() {
   const [plans, setPlans] = useState<AiPlan[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
@@ -45,9 +48,10 @@ export default function AiPlansPage() {
     e.preventDefault();
     if (!form) return;
     if (!form.name.trim()) { setFormError('El plan necesita un nombre.'); return; }
+    if (!form.features.length) { setFormError('Elige al menos un producto para el plan.'); return; }
     setSaving(true);
     setFormError('');
-    const data = { name: form.name.trim(), dailyCredits: toLimit(form.dailyCredits), monthlyCredits: toLimit(form.monthlyCredits) };
+    const data = { name: form.name.trim(), dailyCredits: toLimit(form.dailyCredits), monthlyCredits: toLimit(form.monthlyCredits), features: form.features };
     try {
       const token = getToken()!;
       if (form.id) await api.ai.plans.update(form.id, data, token);
@@ -102,8 +106,11 @@ export default function AiPlansPage() {
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
-          <h2 className="ui-section-title">Planes de IA</h2>
-          <button type="button" onClick={() => { setFormError(''); setForm({ name: '', dailyCredits: '', monthlyCredits: '' }); }} className={btnPrimary}>
+          <div>
+            <h2 className="ui-section-title">Planes</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Qué incluye cada plan y cuántos créditos de IA puede usar.</p>
+          </div>
+          <button type="button" onClick={() => { setFormError(''); setForm({ name: '', dailyCredits: '', monthlyCredits: '', features: ['ML_DIAGNOSTIC', 'AI_CHECK', 'AI_FIX', 'AI_GENERATE'] }); }} className={btnPrimary}>
             + Nuevo plan
           </button>
         </div>
@@ -115,6 +122,7 @@ export default function AiPlansPage() {
               <thead>
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
                   <th className="px-5 py-2 font-medium">Plan</th>
+                  <th className="px-3 py-2 font-medium">Incluye</th>
                   <th className="px-3 py-2 font-medium text-right">Diario</th>
                   <th className="px-3 py-2 font-medium text-right">Mensual</th>
                   <th className="px-3 py-2 font-medium text-right">Empresas</th>
@@ -125,12 +133,19 @@ export default function AiPlansPage() {
                 {plans.map((p) => (
                   <tr key={p.id}>
                     <td className="px-5 py-2.5 font-medium text-gray-800">{p.name}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {ALL_FEATURES.filter((f) => p.features?.includes(f)).map((f) => (
+                          <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 whitespace-nowrap">{PLAN_FEATURE_INFO[f].label}</span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-3 py-2.5 text-right">{limitLabel(p.dailyCredits)}</td>
                     <td className="px-3 py-2.5 text-right">{limitLabel(p.monthlyCredits)}</td>
                     <td className="px-3 py-2.5 text-right">{p._count?.companies ?? 0}</td>
                     <td className="px-5 py-2.5 text-right whitespace-nowrap">
                       <button type="button" className="text-xs text-blue-600 hover:underline mr-3"
-                        onClick={() => { setFormError(''); setForm({ id: p.id, name: p.name, dailyCredits: p.dailyCredits?.toString() ?? '', monthlyCredits: p.monthlyCredits?.toString() ?? '' }); }}>
+                        onClick={() => { setFormError(''); setForm({ id: p.id, name: p.name, dailyCredits: p.dailyCredits?.toString() ?? '', monthlyCredits: p.monthlyCredits?.toString() ?? '', features: p.features ?? [] }); }}>
                         Editar
                       </button>
                       <button type="button" className="text-xs text-red-600 hover:underline" onClick={() => removePlan(p)}>Eliminar</button>
@@ -168,7 +183,7 @@ export default function AiPlansPage() {
                       <td className="px-3 py-2.5">
                         <select value={c.aiPlanId ?? ''} disabled={assigning === c.id} onChange={(e) => assign(c.id, e.target.value)}
                           className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white min-w-[160px] disabled:opacity-50">
-                          <option value="">Sin IA</option>
+                          <option value="">Sin plan</option>
                           {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </td>
@@ -188,7 +203,7 @@ export default function AiPlansPage() {
       </div>
 
       {form && (
-        <Modal title={form.id ? 'Editar plan' : 'Nuevo plan'} subtitle="Deja un límite vacío para que no tenga tope."
+        <Modal title={form.id ? 'Editar plan' : 'Nuevo plan'} subtitle="Elige qué incluye el plan y sus límites de créditos de IA." size="lg"
           onClose={() => setForm(null)} onSubmit={savePlan} busy={saving}
           footer={(
             <>
@@ -201,6 +216,26 @@ export default function AiPlansPage() {
               <label className={labelCls}>Nombre *</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Ej: Básico" className={inputCls} />
             </div>
+            <div>
+              <label className={labelCls}>Incluye *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {ALL_FEATURES.map((f) => {
+                  const on = form.features.includes(f);
+                  return (
+                    <label key={f} className={`flex items-start gap-2.5 border rounded-xl p-3 cursor-pointer ${on ? 'border-blue-400 bg-blue-50/40' : 'border-gray-200'}`}>
+                      <input type="checkbox" checked={on} className="mt-0.5 accent-blue-600"
+                        onChange={(e) => setForm({ ...form, features: e.target.checked ? [...form.features, f] : form.features.filter((x) => x !== f) })} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-800">{PLAN_FEATURE_INFO[f].label}</span>
+                        <span className="block text-[11px] text-gray-500">{PLAN_FEATURE_INFO[f].description}</span>
+                        <span className="block text-[11px] text-gray-400 mt-0.5">{PLAN_FEATURE_INFO[f].usesCredits ? 'Usa créditos de IA' : 'No usa créditos'}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            {form.features.some((f) => PLAN_FEATURE_INFO[f].usesCredits) ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Créditos por día</label>
@@ -210,7 +245,11 @@ export default function AiPlansPage() {
                 <label className={labelCls}>Créditos por mes</label>
                 <input type="number" min={0} value={form.monthlyCredits} onChange={(e) => setForm({ ...form, monthlyCredits: e.target.value })} placeholder="Sin límite" className={inputCls} />
               </div>
+              <p className="col-span-2 text-[11px] text-gray-400 -mt-2">Vacío = sin límite.</p>
             </div>
+            ) : (
+              <p className="text-[11px] text-gray-500">Este plan no usa IA: no necesita créditos.</p>
+            )}
             <FormError message={formError} />
           </div>
         </Modal>

@@ -5,11 +5,29 @@ import { SettingsService } from '../settings/settings.service';
 import { dateKeyStringInTz, startOfDayInTz } from '../common/timezone';
 import { AiProvidersService } from './ai-providers.service';
 
-export type AiUsageKind = 'PHOTO_CHECK' | 'PHOTO_FIX';
+export type AiUsageKind = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
 
 const COST_KEYS: Record<AiUsageKind, { key: string; fallback: number }> = {
   PHOTO_CHECK: { key: 'AI_CREDITS_PHOTO_CHECK', fallback: 1 },
   PHOTO_FIX: { key: 'AI_CREDITS_PHOTO_FIX', fallback: 5 },
+  PHOTO_GENERATE: { key: 'AI_CREDITS_PHOTO_GENERATE', fallback: 5 },
+};
+
+// Productos que puede incluir un plan. El diagnóstico de ML no usa IA ni créditos.
+export const PLAN_FEATURES = ['ML_DIAGNOSTIC', 'AI_CHECK', 'AI_FIX', 'AI_GENERATE'] as const;
+export type PlanFeature = (typeof PLAN_FEATURES)[number];
+
+const FEATURE_LABEL: Record<PlanFeature, string> = {
+  ML_DIAGNOSTIC: 'el diagnóstico de fotos de Mercado Libre',
+  AI_CHECK: 'la revisión de fotos con IA',
+  AI_FIX: 'la corrección de fotos con IA',
+  AI_GENERATE: 'la creación de imágenes de referencia',
+};
+
+const KIND_FEATURE: Record<AiUsageKind, PlanFeature> = {
+  PHOTO_CHECK: 'AI_CHECK',
+  PHOTO_FIX: 'AI_FIX',
+  PHOTO_GENERATE: 'AI_GENERATE',
 };
 
 // Créditos de IA por empresa según su plan (límite diario y mensual, en la zona horaria del
@@ -34,18 +52,19 @@ export class AiCreditsService {
       where: { companyId, createdAt: { gte: from } },
       _sum: { credits: true },
     }))._sum.credits ?? 0;
-    const [usedToday, usedMonth, checkCost, fixCost, ready] = await Promise.all([
-      sum(dayStart), sum(monthStart), this.cost('PHOTO_CHECK'), this.cost('PHOTO_FIX'), this.providers.readyTasks(),
+    const [usedToday, usedMonth, checkCost, fixCost, generateCost, ready] = await Promise.all([
+      sum(dayStart), sum(monthStart), this.cost('PHOTO_CHECK'), this.cost('PHOTO_FIX'), this.cost('PHOTO_GENERATE'),
+      this.providers.readyTasks(),
     ]);
     const plan = company.aiPlan;
     const remaining = (limit: number | null | undefined, used: number) => (limit == null ? null : Math.max(0, limit - used));
     return {
-      plan: plan ? { id: plan.id, name: plan.name, dailyCredits: plan.dailyCredits, monthlyCredits: plan.monthlyCredits } : null,
+      plan: plan ? { id: plan.id, name: plan.name, dailyCredits: plan.dailyCredits, monthlyCredits: plan.monthlyCredits, features: plan.features } : null,
       usedToday,
       usedMonth,
       remainingToday: plan ? remaining(plan.dailyCredits, usedToday) : 0,
       remainingMonth: plan ? remaining(plan.monthlyCredits, usedMonth) : 0,
-      costs: { PHOTO_CHECK: checkCost, PHOTO_FIX: fixCost },
+      costs: { PHOTO_CHECK: checkCost, PHOTO_FIX: fixCost, PHOTO_GENERATE: generateCost },
       // Tareas con una IA asignada y configurada (si no, no se ofrecen).
       ready,
     };
@@ -57,9 +76,7 @@ export class AiCreditsService {
     // El Super Admin no queda limitado, pero su uso igual se registra en la empresa.
     if (user.role !== Role.SUPER_ADMIN) {
       const st = await this.status(companyId);
-      if (!st.plan) {
-        throw new ForbiddenException('Tu empresa no tiene un plan de IA. Pide al administrador de la plataforma que te asigne uno.');
-      }
+      this.assertFeature(st.plan, KIND_FEATURE[kind]);
       if (st.remainingToday !== null && st.remainingToday < credits) {
         throw new BadRequestException(`Se acabaron los créditos de IA de hoy (${st.usedToday} de ${st.plan.dailyCredits}). Vuelven mañana.`);
       }
@@ -73,12 +90,18 @@ export class AiCreditsService {
     return usage.id;
   }
 
+  /** Rechaza si el plan no incluye el producto (el Super Admin no se valida aquí). */
+  assertFeature(plan: { features: string[] } | null, feature: PlanFeature) {
+    if (!plan) throw new ForbiddenException('Tu empresa no tiene un plan. Pide al administrador de la plataforma que te asigne uno.');
+    if (!plan.features.includes(feature)) throw new ForbiddenException(`Tu plan no incluye ${FEATURE_LABEL[feature]}.`);
+  }
+
   async updateCosts(costs: Partial<Record<AiUsageKind, number>>) {
     const items = (Object.keys(COST_KEYS) as AiUsageKind[])
       .filter((k) => costs[k] != null && Number.isFinite(Number(costs[k])))
       .map((k) => ({ key: COST_KEYS[k].key, value: String(Math.max(0, Math.floor(Number(costs[k])))) }));
     if (items.length) await this.settings.upsertMany(items);
-    return { PHOTO_CHECK: await this.cost('PHOTO_CHECK'), PHOTO_FIX: await this.cost('PHOTO_FIX') };
+    return { PHOTO_CHECK: await this.cost('PHOTO_CHECK'), PHOTO_FIX: await this.cost('PHOTO_FIX'), PHOTO_GENERATE: await this.cost('PHOTO_GENERATE') };
   }
 
   async refund(usageId: string) {
@@ -91,11 +114,11 @@ export class AiCreditsService {
     return this.prisma.aiPlan.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { companies: true } } } });
   }
 
-  createPlan(data: { name: string; dailyCredits?: number | null; monthlyCredits?: number | null }) {
+  createPlan(data: { name: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {
     return this.prisma.aiPlan.create({ data: this.planData(data) as any });
   }
 
-  updatePlan(id: string, data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null }) {
+  updatePlan(id: string, data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {
     return this.prisma.aiPlan.update({ where: { id }, data: this.planData(data) });
   }
 
@@ -128,10 +151,12 @@ export class AiCreditsService {
     return companies.map((c) => ({ ...c, usedToday: d.get(c.id) ?? 0, usedMonth: m.get(c.id) ?? 0 }));
   }
 
-  private planData(data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null }) {
+  private planData(data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {
     const limit = (v: number | null | undefined) => (v === undefined ? undefined : v === null ? null : Math.max(0, Math.floor(v)));
     const name = data.name?.trim();
     if (data.name !== undefined && !name) throw new BadRequestException('El plan necesita un nombre');
-    return { name, dailyCredits: limit(data.dailyCredits), monthlyCredits: limit(data.monthlyCredits) };
+    const features = data.features === undefined ? undefined : PLAN_FEATURES.filter((f) => data.features!.includes(f));
+    if (features && !features.length) throw new BadRequestException('El plan debe incluir al menos un producto');
+    return { name, dailyCredits: limit(data.dailyCredits), monthlyCredits: limit(data.monthlyCredits), features };
   }
 }

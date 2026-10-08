@@ -2,7 +2,7 @@
 // La API key y los modelos se guardan en la configuración del sistema (grupo "ia"); qué
 // proveedor hace cada tarea se guarda en AI_TASK_<TAREA>.
 
-export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX';
+export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
 
 export const AI_TASKS: Record<AiTask, { label: string; description: string; settingKey: string; defaultProvider: string }> = {
   PHOTO_CHECK: {
@@ -15,6 +15,12 @@ export const AI_TASKS: Record<AiTask, { label: string; description: string; sett
     label: 'Corregir fotos',
     description: 'Deja la foto real del producto con fondo blanco, centrada y sin textos, para que pase la moderación.',
     settingKey: 'AI_TASK_PHOTO_FIX',
+    defaultProvider: 'openai',
+  },
+  PHOTO_GENERATE: {
+    label: 'Crear imagen de referencia',
+    description: 'Genera una imagen del producto a partir del título, con fondo blanco, para usar de referencia cuando no hay una foto adecuada.',
+    settingKey: 'AI_TASK_PHOTO_GENERATE',
     defaultProvider: 'openai',
   },
 };
@@ -39,17 +45,19 @@ export const AI_PROVIDERS: ProviderDef[] = [
     id: 'openai',
     name: 'OpenAI',
     company: 'OpenAI',
-    description: 'Modelos GPT con visión y el editor de imágenes GPT Image. Hace las dos tareas.',
+    description: 'Modelos GPT con visión y GPT Image para editar y crear imágenes. Hace todas las tareas.',
     keyUrl: 'https://platform.openai.com/api-keys',
     apiKeySetting: 'OPENAI_API_KEY',
-    tasks: ['PHOTO_CHECK', 'PHOTO_FIX'],
+    tasks: ['PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE'],
     taskNotes: {
       PHOTO_CHECK: 'Cobra por tokens; la foto se envía en baja resolución para que cueste poco.',
       PHOTO_FIX: 'Edita la foto real con alta fidelidad: fondo blanco, centrado y quita textos o marcas de agua. Es la opción más cara por foto.',
+      PHOTO_GENERATE: 'Crea la imagen solo desde el título: es una representación, no la foto del producto real.',
     },
     models: {
       PHOTO_CHECK: { settingKey: 'OPENAI_VISION_MODEL', default: 'gpt-5-mini', label: 'Modelo para revisar', hint: 'Ej: gpt-5-mini' },
       PHOTO_FIX: { settingKey: 'OPENAI_IMAGE_MODEL', default: 'gpt-image-1.5', label: 'Modelo para corregir', hint: 'Ej: gpt-image-1.5' },
+      PHOTO_GENERATE: { settingKey: 'OPENAI_GENERATE_MODEL', default: 'gpt-image-1.5', label: 'Modelo para crear imágenes', hint: 'Ej: gpt-image-1.5' },
     },
   },
   {
@@ -71,17 +79,19 @@ export const AI_PROVIDERS: ProviderDef[] = [
     id: 'gemini',
     name: 'Gemini',
     company: 'Google',
-    description: 'Modelos Gemini con visión y la familia de edición de imágenes Nano Banana. Hace las dos tareas.',
+    description: 'Modelos Gemini con visión y la familia de imágenes Nano Banana para editar y crear. Hace todas las tareas.',
     keyUrl: 'https://aistudio.google.com/apikey',
     apiKeySetting: 'GEMINI_API_KEY',
-    tasks: ['PHOTO_CHECK', 'PHOTO_FIX'],
+    tasks: ['PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE'],
     taskNotes: {
       PHOTO_CHECK: 'Los modelos Flash-Lite son de los más económicos para revisar fotos.',
       PHOTO_FIX: 'Edita la foto con instrucciones (fondo blanco, centrado, sin textos).',
+      PHOTO_GENERATE: 'Crea la imagen solo desde el título: es una representación, no la foto del producto real.',
     },
     models: {
       PHOTO_CHECK: { settingKey: 'GEMINI_VISION_MODEL', default: 'gemini-3.1-flash-lite', label: 'Modelo para revisar', hint: 'Ej: gemini-3.1-flash-lite' },
       PHOTO_FIX: { settingKey: 'GEMINI_IMAGE_MODEL', default: 'gemini-3.1-flash-image', label: 'Modelo para corregir', hint: 'Ej: gemini-3.1-flash-image' },
+      PHOTO_GENERATE: { settingKey: 'GEMINI_GENERATE_MODEL', default: 'gemini-3.1-flash-image', label: 'Modelo para crear imágenes', hint: 'Ej: gemini-3.1-flash-image' },
     },
   },
   {

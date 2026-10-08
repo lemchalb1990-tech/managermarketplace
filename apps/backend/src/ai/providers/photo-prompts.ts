@@ -47,6 +47,15 @@ export function checkPromptWithJson(ctx: PhotoCheckContext) {
   return `${checkPrompt(ctx)}\nResponde solo con un objeto JSON con estas claves: matches (boolean), confidence ("alta" | "media" | "baja"), shows (string), problems (arreglo de strings, vacío si no hay), suggestion (string, vacío si está bien), suggestedTitle (string de máximo 60 caracteres, vacío si el título calza).`;
 }
 
+export function generatePrompt(title: string) {
+  return [
+    `Fotografía de producto de referencia para una tienda online. Producto: "${title}".`,
+    'Producto solo, completo y centrado, ocupando cerca del 85% del cuadro, sobre fondo blanco puro (#FFFFFF).',
+    'Estilo realista de estudio, iluminación suave y una sombra sutil.',
+    'Sin textos, sin logos ni marcas comerciales, sin marcas de agua, sin personas y sin accesorios que el título no mencione.',
+  ].join(' ');
+}
+
 export function fixPrompt(title: string) {
   return [
     `Foto de producto para Mercado Libre. Producto: "${title}".`,

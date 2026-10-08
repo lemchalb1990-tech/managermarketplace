@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -11,6 +11,7 @@ import { MercadolibreService } from './mercadolibre.service';
 const ML_API = 'https://api.mercadolibre.com';
 const AI_CONCURRENCY = 3;
 const FIX_FOLDER = 'ai-fixes';
+const GENERATED_FOLDER = 'ai-generated';
 
 // Nombres en español de los criterios que documenta Mercado Libre para el diagnóstico.
 const ML_CRITERIA: Record<string, string> = {
@@ -107,16 +108,23 @@ export class MlPhotoService {
     const title = (opts.title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).trim();
     const categoryId = product.mlCategoryId || (await this.settings.get('ML_DEFAULT_CATEGORY')) || null;
     const images = this.sortedImages(product);
-    if (!images.length) throw new BadRequestException('El producto no tiene fotos.');
+
+    // Lo que incluye el plan de la empresa (el Super Admin tiene todo).
+    const st = await this.credits.status(product.companyId);
+    const isSuper = user.role === Role.SUPER_ADMIN;
+    if (!isSuper && !st.plan) {
+      throw new ForbiddenException('Tu empresa no tiene un plan para revisar fotos. Pide al administrador de la plataforma que te asigne uno.');
+    }
+    const has = (f: string) => isSuper || !!st.plan?.features.includes(f);
+    const features = { ML_DIAGNOSTIC: has('ML_DIAGNOSTIC'), AI_CHECK: has('AI_CHECK'), AI_FIX: has('AI_FIX'), AI_GENERATE: has('AI_GENERATE') };
+    const useAi = !!opts.useAi && features.AI_CHECK;
 
     // Cuántas fotos alcanza a revisar la IA con los créditos que quedan.
     let aiBudget = 0;
     let aiBlocked: string | null = null;
-    if (opts.useAi) {
-      const st = await this.credits.status(product.companyId);
-      if (!st.ready.PHOTO_CHECK) aiBlocked = 'La revisión con IA no está activa: se revisó solo con el diagnóstico de Mercado Libre.';
-      else if (user.role === Role.SUPER_ADMIN) aiBudget = images.length;
-      else if (!st.plan) aiBlocked = 'Tu empresa no tiene un plan de IA.';
+    if (useAi) {
+      if (!st.ready.PHOTO_CHECK) aiBlocked = 'La revisión con IA no está activa.';
+      else if (isSuper) aiBudget = images.length;
       else {
         const cost = st.costs.PHOTO_CHECK || 0;
         const left = Math.min(st.remainingToday ?? Infinity, st.remainingMonth ?? Infinity);
@@ -127,12 +135,12 @@ export class MlPhotoService {
 
     const results: any[] = images.map((img: any, i: number) => ({ imageId: img.id, url: img.url, isPrimary: i === 0 }));
 
-    const mlTask = Promise.all(images.map(async (img: any, i: number) => {
+    const mlTask = features.ML_DIAGNOSTIC ? Promise.all(images.map(async (img: any, i: number) => {
       results[i].ml = await this.mlDiagnostic(token, await this.absolute(img.url), categoryId, title);
-    }));
+    })) : Promise.resolve();
 
     const aiTask = (async () => {
-      if (!opts.useAi) return;
+      if (!useAi) return;
       const queue = images.map((img: any, i: number) => ({ img, i })).slice(0, aiBudget);
       // Créditos parciales: se marcan las fotos que quedaron sin revisar. Sin IA, va un solo aviso general.
       if (aiBudget > 0) images.slice(aiBudget).forEach((_: any, k: number) => { results[aiBudget + k].aiError = aiBlocked; });
@@ -158,8 +166,9 @@ export class MlPhotoService {
       title,
       categoryId,
       images: results,
-      aiBlocked: opts.useAi && !aiBudget ? aiBlocked : null,
-      credits: opts.useAi ? await this.credits.status(product.companyId) : null,
+      aiBlocked: useAi && !aiBudget ? aiBlocked : null,
+      features,
+      credits: await this.credits.status(product.companyId),
     };
   }
 
@@ -178,6 +187,34 @@ export class MlPhotoService {
       await this.credits.refund(usageId);
       throw err;
     }
+  }
+
+  // Crea una imagen de referencia desde el título y la devuelve como sugerencia.
+  async generate(productId: string, connectionId: string | undefined, user: any, title?: string) {
+    const product: any = await this.catalog.findOne(productId, user);
+    const finalTitle = (title?.trim()
+      || (connectionId ? (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title : null)
+      || product.name).trim();
+    const usageId = await this.credits.consume(product.companyId, user, 'PHOTO_GENERATE', productId);
+    try {
+      const img = await this.ai.generatePhoto(finalTitle);
+      const ext = img.mime === 'image/png' ? 'png' : 'jpg';
+      const { url } = await this.storage.put(img.bytes, `ai-gen-${productId}-${Date.now()}.${ext}`, img.mime, { folder: GENERATED_FOLDER });
+      return { url, credits: await this.credits.status(product.companyId) };
+    } catch (err) {
+      await this.credits.refund(usageId);
+      throw err;
+    }
+  }
+
+  // Agrega al producto la imagen de referencia que el usuario aprobó (al final, no principal
+  // salvo que el producto no tenga fotos).
+  async addGenerated(productId: string, user: any, url: string) {
+    await this.catalog.findOne(productId, user);
+    if (!url || !url.includes(`/${GENERATED_FOLDER}/ai-gen-${productId}-`)) throw new BadRequestException('Imagen no válida');
+    const filename = url.split('/').pop()!.split('?')[0];
+    const count = await this.prisma.productImage.count({ where: { productId } });
+    return this.prisma.productImage.create({ data: { productId, url, filename, isPrimary: count === 0, order: count } });
   }
 
   // Reemplaza la foto por la versión corregida que el usuario aprobó.

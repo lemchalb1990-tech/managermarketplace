@@ -2,7 +2,7 @@ import { BadRequestException, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   type ImageData, type PhotoCheckContext, type PhotoVerdict,
-  VERDICT_SCHEMA, checkPrompt, checkPromptWithJson, fixPrompt, parseVerdict, extFor,
+  VERDICT_SCHEMA, checkPrompt, checkPromptWithJson, fixPrompt, generatePrompt, parseVerdict, extFor,
 } from './photo-prompts';
 
 const logger = new Logger('AiProviders');
@@ -10,6 +10,8 @@ const logger = new Logger('AiProviders');
 export interface ProviderAdapter {
   check?(key: string, model: string, image: ImageData, ctx: PhotoCheckContext): Promise<PhotoVerdict>;
   fix?(key: string, model: string, image: ImageData, title: string): Promise<ImageData>;
+  /** Crea una imagen de referencia solo desde el título. */
+  generate?(key: string, model: string, title: string): Promise<ImageData>;
   /** Verifica la API key con una llamada que no gasta créditos. */
   test(key: string): Promise<void>;
 }
@@ -78,6 +80,30 @@ const openai: ProviderAdapter = {
       delete params[bad];
     }
     return fail('OpenAI', 'no pudo corregir la foto.');
+  },
+
+  async generate(key, model, title) {
+    const params: Record<string, string> = {
+      model, prompt: generatePrompt(title), size: '1024x1024', quality: 'medium', background: 'opaque', output_format: 'jpeg',
+    };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await fetch(`${OPENAI_API}/images/generations`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...params, n: 1 }),
+      });
+      const data = await readJson(res);
+      if (res.ok) {
+        const b64 = data?.data?.[0]?.b64_json;
+        if (!b64) fail('OpenAI', 'no devolvió la imagen.');
+        return { bytes: Buffer.from(b64, 'base64'), mime: params.output_format === 'jpeg' ? 'image/jpeg' : 'image/png' };
+      }
+      const msg: string = data?.error?.message || '';
+      const bad = ['background', 'output_format', 'quality'].find((p) => params[p] && (data?.error?.param === p || msg.includes(p)));
+      if (!bad) fail('OpenAI', msg || `error ${res.status}`);
+      delete params[bad];
+    }
+    return fail('OpenAI', 'no pudo crear la imagen.');
   },
 
   async test(key) {
@@ -174,6 +200,17 @@ const gemini: ProviderAdapter = {
     const img = parts.find((p) => p.inlineData?.data || p.inline_data?.data);
     const inline = img?.inlineData || img?.inline_data;
     if (!inline) fail('Gemini', 'no devolvió una imagen. Revisa que el modelo configurado edite imágenes.');
+    return { bytes: Buffer.from(inline.data, 'base64'), mime: inline.mimeType || inline.mime_type || 'image/png' };
+  },
+
+  async generate(key, model, title) {
+    const parts = await geminiGenerate(key, model, {
+      contents: [{ role: 'user', parts: [{ text: generatePrompt(title) }] }],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+    });
+    const img = parts.find((p) => p.inlineData?.data || p.inline_data?.data);
+    const inline = img?.inlineData || img?.inline_data;
+    if (!inline) fail('Gemini', 'no devolvió una imagen. Revisa que el modelo configurado cree imágenes.');
     return { bytes: Buffer.from(inline.data, 'base64'), mime: inline.mimeType || inline.mime_type || 'image/png' };
   },
 

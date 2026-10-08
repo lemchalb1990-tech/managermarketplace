@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoCheckResult } from '@/lib/api';
+import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoCheckResult, type PlanFeature } from '@/lib/api';
 
+// Créditos de IA del plan (solo si el plan incluye algún producto con IA).
 function creditsLine(c: AiCreditsStatus | null) {
-  if (!c) return null;
-  if (!c.ready?.PHOTO_CHECK) return 'La IA no está configurada en la plataforma: solo se hará el diagnóstico de Mercado Libre.';
-  if (!c.plan) return 'La empresa no tiene un plan de IA: solo se hará el diagnóstico de Mercado Libre.';
+  if (!c?.plan || !c.plan.features.some((f) => f !== 'ML_DIAGNOSTIC')) return null;
   const part = (left: number | null, limit: number | null, label: string) =>
     limit == null ? `${label}: sin límite` : `${label}: ${left} de ${limit}`;
   return `Créditos IA (${c.plan.name}) — ${part(c.remainingToday, c.plan.dailyCredits, 'hoy')} · ${part(c.remainingMonth, c.plan.monthlyCredits, 'mes')}`;
@@ -37,10 +36,20 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
   // Sugerencias de corrección pendientes de aprobar, por foto.
   const [fixes, setFixes] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState('');
-  // El Super Admin usa la IA aunque la empresa no tenga plan (su uso igual se registra).
+  // El Super Admin tiene todo aunque la empresa no tenga plan (su uso igual se registra).
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const aiEnabled = (isSuperAdmin || !!credits?.plan) && credits?.ready?.PHOTO_CHECK !== false;
-  const fixEnabled = (isSuperAdmin || !!credits?.plan) && !!credits?.ready?.PHOTO_FIX;
+  // Imagen de referencia creada, pendiente de agregar o descartar.
+  const [generated, setGenerated] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [notice, setNotice] = useState('');
+  // Lo que incluye el plan de la empresa.
+  const has = (f: PlanFeature) => isSuperAdmin || !!credits?.plan?.features.includes(f);
+  const noPlan = !!credits && !credits.plan && !isSuperAdmin;
+  const mlOn = has('ML_DIAGNOSTIC');
+  const aiEnabled = has('AI_CHECK') && !!credits?.ready?.PHOTO_CHECK;
+  const fixEnabled = has('AI_FIX') && !!credits?.ready?.PHOTO_FIX;
+  const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE;
+  const canCheck = mlOn || aiEnabled;
 
   useEffect(() => {
     setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN');
@@ -52,13 +61,44 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
     setChecking(true);
     setError('');
     try {
-      const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi: aiEnabled || credits === null });
+      const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi: aiEnabled });
       setResult(r);
       if (r.credits) setCredits(r.credits);
     } catch (e: any) {
       setError(e.message || 'No se pudieron revisar las fotos.');
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function generate() {
+    setGenerating(true);
+    setError('');
+    setNotice('');
+    try {
+      const r = await api.marketplace.photoGenerate(productId, getToken()!, { connectionId });
+      setGenerated(r.url);
+      setCredits(r.credits);
+    } catch (e: any) {
+      setError(e.message || 'No se pudo crear la imagen.');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function addGenerated() {
+    if (!generated) return;
+    setGenerating(true);
+    try {
+      await api.marketplace.photoGenerateAdd(productId, generated, getToken()!);
+      setGenerated(null);
+      setNotice('Imagen agregada al producto como última foto.');
+      setResult(null);
+      await onImagesChanged();
+    } catch (e: any) {
+      setError(e.message || 'No se pudo agregar la imagen.');
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -121,6 +161,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
   const primary = result?.images.find((i) => i.isPrimary);
   const primaryMismatch = primary?.ai?.matches === false;
   const withProblems = result?.images.filter(hasProblems).length ?? 0;
+  // Hubo alguna revisión (ML o IA) en este resultado.
+  const checked = !!result && (result.features?.ML_DIAGNOSTIC || result.images.some((i) => i.ai));
   const fixCost = credits?.costs.PHOTO_FIX ?? 5;
   const checkCost = credits?.costs.PHOTO_CHECK ?? 1;
   const suggestedTitle = result?.images.find((i) => i.ai?.suggestedTitle)?.ai?.suggestedTitle;
@@ -137,20 +179,61 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
           </p>
           {creditsLine(credits) && <p className="text-[11px] text-gray-400 mt-0.5">{creditsLine(credits)}</p>}
         </div>
-        <button type="button" onClick={runCheck} disabled={checking || !!busyId}
-          className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 ${highlight ? 'bg-red-600 hover:bg-red-700 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
-          {checking ? 'Revisando...' : result ? 'Volver a revisar' : 'Revisar fotos'}
-        </button>
+        {(canCheck || fixEnabled) && (
+          <button type="button" onClick={runCheck} disabled={checking || !!busyId}
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 ${highlight ? 'bg-red-600 hover:bg-red-700 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+            {checking ? (canCheck ? 'Revisando...' : 'Cargando...') : canCheck ? (result ? 'Volver a revisar' : 'Revisar fotos') : 'Ver fotos para corregir'}
+          </button>
+        )}
       </div>
-      {!result && credits?.plan && (
-        <p className="text-[11px] text-gray-400">La IA descuenta {checkCost} crédito{checkCost === 1 ? '' : 's'} por foto.</p>
+      {noPlan && <p className="text-[11px] text-gray-500">Tu empresa no tiene un plan para revisar fotos.</p>}
+
+      {generateEnabled && (
+        <div className="border border-dashed border-gray-300 rounded-lg p-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-gray-600">¿No tienes una foto adecuada? Crea una imagen de referencia desde el título.</p>
+            {!generated && (
+              <button type="button" onClick={generate} disabled={generating}
+                className="shrink-0 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold disabled:opacity-50">
+                {generating ? 'Creando... (puede tardar un minuto)' : `Crear imagen (${credits?.costs.PHOTO_GENERATE ?? 5} créditos)`}
+              </button>
+            )}
+          </div>
+          {generated && (
+            <div className="flex gap-3 items-start">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imgUrl(generated)} alt="Imagen de referencia" className="w-28 h-28 rounded object-contain bg-white border border-gray-200 shrink-0" />
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-amber-700">Es una imagen creada por IA: revisa que represente bien tu producto antes de usarla.</p>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={addGenerated} disabled={generating}
+                    className="px-2.5 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold disabled:opacity-50">
+                    Agregar al producto
+                  </button>
+                  <button type="button" onClick={() => setGenerated(null)} disabled={generating}
+                    className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] hover:bg-gray-50 disabled:opacity-50">
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {notice && <p className="text-[11px] text-green-600">{notice}</p>}
+      {!result && aiEnabled && credits?.plan && (
+        <p className="text-[11px] text-gray-400">La revisión con IA descuenta {checkCost} crédito{checkCost === 1 ? '' : 's'} por foto.</p>
       )}
 
       {result && (
         <>
-          <p className={`text-xs font-medium ${withProblems ? 'text-red-600' : 'text-green-600'}`}>
-            {withProblems ? `${withProblems} de ${result.images.length} fotos con observaciones` : '✓ Todas las fotos están bien'}
-          </p>
+          {result.images.length === 0 ? (
+            <p className="text-xs text-gray-500">El producto no tiene fotos.</p>
+          ) : checked && (
+            <p className={`text-xs font-medium ${withProblems ? 'text-red-600' : 'text-green-600'}`}>
+              {withProblems ? `${withProblems} de ${result.images.length} fotos con observaciones` : '✓ Todas las fotos están bien'}
+            </p>
+          )}
           {result.aiBlocked && <p className="text-[11px] text-amber-600">{result.aiBlocked}</p>}
           {primaryMismatch && (
             <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
@@ -170,7 +253,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
             {result.images.map((row) => {
               const fixUrl = fixes[row.imageId];
               const busy = busyId === row.imageId;
-              const canFix = hasProblems(row) && row.ai?.matches !== false;
+              // Sin revisiones (plan solo de corrección) se puede corregir cualquier foto.
+              const canFix = checked ? hasProblems(row) && row.ai?.matches !== false : true;
               const canBePrimary = !row.isPrimary && row.ai?.matches === true && primaryMismatch;
               return (
                 <li key={row.imageId} className="border border-gray-200 rounded-lg p-2">

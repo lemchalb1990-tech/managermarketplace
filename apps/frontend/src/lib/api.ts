@@ -526,6 +526,14 @@ export const api = {
       apiFetch<{ url: string; credits: AiCreditsStatus }>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix`, {
         method: 'POST', body: JSON.stringify(title ? { title } : {}),
       }, token),
+    photoGenerate: (productId: string, token: string, opts: { connectionId?: string; title?: string } = {}) =>
+      apiFetch<{ url: string; credits: AiCreditsStatus }>(`/ecommerce/ml/products/${productId}/ai-generate`, {
+        method: 'POST', body: JSON.stringify(opts),
+      }, token),
+    photoGenerateAdd: (productId: string, url: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/ai-generate/add`, {
+        method: 'POST', body: JSON.stringify({ url }),
+      }, token),
     photoFixApply: (productId: string, imageId: string, url: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix/apply`, {
         method: 'POST', body: JSON.stringify({ url }),
@@ -1408,20 +1416,30 @@ export interface AiPlan {
   name: string;
   dailyCredits: number | null;
   monthlyCredits: number | null;
+  features: PlanFeature[];
   _count?: { companies: number };
 }
 
+export type PlanFeature = 'ML_DIAGNOSTIC' | 'AI_CHECK' | 'AI_FIX' | 'AI_GENERATE';
+
+export const PLAN_FEATURE_INFO: Record<PlanFeature, { label: string; description: string; usesCredits: boolean }> = {
+  ML_DIAGNOSTIC: { label: 'Diagnóstico ML', description: 'Diagnóstico oficial de Mercado Libre: fondo, tamaño, textos y marcas de agua.', usesCredits: false },
+  AI_CHECK: { label: 'Revisión con IA', description: 'La IA confirma que cada foto coincide con el título.', usesCredits: true },
+  AI_FIX: { label: 'Corrección', description: 'La IA deja la foto real con fondo blanco, centrada y sin textos.', usesCredits: true },
+  AI_GENERATE: { label: 'Imágenes de referencia', description: 'La IA crea una imagen del producto desde el título.', usesCredits: true },
+};
+
 export interface AiCreditsStatus {
-  plan: { id: string; name: string; dailyCredits: number | null; monthlyCredits: number | null } | null;
+  plan: { id: string; name: string; dailyCredits: number | null; monthlyCredits: number | null; features: PlanFeature[] } | null;
   usedToday: number;
   usedMonth: number;
   remainingToday: number | null;
   remainingMonth: number | null;
-  costs: { PHOTO_CHECK: number; PHOTO_FIX: number };
+  costs: Record<AiTask, number>;
   ready: Record<AiTask, boolean>;
 }
 
-export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX';
+export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
 
 export interface AiProviderInfo {
   id: string;
@@ -1465,5 +1483,6 @@ export interface PhotoCheckResult {
   categoryId: string | null;
   images: PhotoCheckImage[];
   aiBlocked: string | null;
+  features: Record<PlanFeature, boolean>;
   credits: AiCreditsStatus | null;
 }
