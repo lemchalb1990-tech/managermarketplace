@@ -3266,9 +3266,9 @@ export default function CatalogPage() {
 
       {/* Modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-6 sm:pt-12 pb-6 px-2 sm:px-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl min-w-0">
-            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-6 sm:pt-12 pb-6 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl min-w-0 flex flex-col max-h-[calc(100dvh-3rem)] sm:max-h-[calc(100dvh-4.5rem)]">
+            <div className="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
               <div>
                 {selected.id ? (
                   <>
@@ -3291,7 +3291,7 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex flex-nowrap sm:flex-wrap items-center overflow-x-auto overflow-y-hidden sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-gray-200 px-2 sm:px-6">
+            <div className="shrink-0 flex flex-nowrap sm:flex-wrap items-center overflow-x-auto overflow-y-hidden sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-gray-200 px-2 sm:px-6">
               {(selected.id
                 ? (['edit', 'images', 'connections', 'stock'] as Tab[])
                     .filter((t) => t !== 'connections' || connectionGroups.length > 0)
@@ -3315,7 +3315,7 @@ export default function CatalogPage() {
             </div>
 
             {pendingPublishTargets.length > 0 && (
-              <div className="mx-6 mt-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
+              <div className="shrink-0 mx-6 mt-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
                 <span>
                   Falta publicar en {pendingPublishTargets.length} conexión{pendingPublishTargets.length > 1 ? 'es' : ''}.
                   {' '}Sube al menos una foto en la pestaña "Imágenes" para poder publicar.
@@ -3330,7 +3330,7 @@ export default function CatalogPage() {
               </div>
             )}
 
-            <div className="p-4 sm:p-6 max-h-[70vh] sm:max-h-[65vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
 
               {mlVerifyActive && !publishModal && tab !== 'connections' && (
                 <div className="mb-3">
