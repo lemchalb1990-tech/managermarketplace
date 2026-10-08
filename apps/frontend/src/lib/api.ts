@@ -238,6 +238,8 @@ export const api = {
     },
     updateCosts: (costs: Partial<Record<AiTask, number>>, token: string) =>
       apiFetch<Record<AiTask, number>>('/ai/costs', { method: 'PATCH', body: JSON.stringify(costs) }, token),
+    usage: (token: string, companyId?: string) =>
+      apiFetch<AiUsageReport>(`/ai/usage${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     credits: (token: string, companyId?: string) =>
       apiFetch<AiCreditsStatus>(`/ai/credits${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     plans: {
@@ -1440,6 +1442,18 @@ export interface AiCreditsStatus {
 }
 
 export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
+
+export interface AiUsageReport extends AiCreditsStatus {
+  stats: Record<string, { today: number; month: number; total: number }>;
+  recent: {
+    id: string;
+    kind: string;
+    credits: number;
+    createdAt: string;
+    userName: string | null;
+    product: { id: string; name: string; sku: string } | null;
+  }[];
+}
 
 export interface AiProviderInfo {
   id: string;

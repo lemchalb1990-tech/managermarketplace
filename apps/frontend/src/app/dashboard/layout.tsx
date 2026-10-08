@@ -124,6 +124,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/uso', label: 'Uso', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
     ],
   },
 ];

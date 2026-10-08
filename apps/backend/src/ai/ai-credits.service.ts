@@ -111,15 +111,45 @@ export class AiCreditsService {
     });
   }
 
-  /** Cuántas veces se usó cada tarea: hoy, este mes y en total (toda la plataforma). */
-  async usageStats() {
+  /** Uso de una empresa: plan, créditos, conteos por tarea y últimos usos (página "Uso"). */
+  async companyUsage(companyId: string) {
+    const [status, stats, recent] = await Promise.all([
+      this.status(companyId),
+      this.usageStats(companyId),
+      this.prisma.aiUsage.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    ]);
+    const userIds = [...new Set(recent.map((r) => r.userId).filter(Boolean))] as string[];
+    const productIds = [...new Set(recent.map((r) => r.productId).filter(Boolean))] as string[];
+    const [users, products] = await Promise.all([
+      userIds.length ? this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : [],
+      productIds.length ? this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, sku: true } }) : [],
+    ]);
+    const userName = new Map<string, string>(users.map((u) => [u.id, u.name] as [string, string]));
+    const product = new Map<string, { id: string; name: string; sku: string }>(products.map((p) => [p.id, p] as [string, { id: string; name: string; sku: string }]));
+    return {
+      ...status,
+      stats,
+      recent: recent.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        credits: r.credits,
+        createdAt: r.createdAt,
+        userName: r.userId ? userName.get(r.userId) ?? null : null,
+        product: r.productId ? product.get(r.productId) ?? null : null,
+      })),
+    };
+  }
+
+  /** Cuántas veces se usó cada tarea: hoy, este mes y en total (de una empresa o de toda la plataforma). */
+  async usageStats(companyId?: string) {
+    const scope = companyId ? { companyId } : {};
     const tz = await this.settings.getTimezone();
     const monthStart = startOfDayInTz(tz, `${dateKeyStringInTz(new Date(), tz).slice(0, 7)}-01`);
     const dayStart = startOfDayInTz(tz);
     const [total, month, day] = await Promise.all([
-      this.prisma.aiUsage.groupBy({ by: ['kind'], _count: { _all: true } }),
-      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { createdAt: { gte: monthStart } }, _count: { _all: true } }),
-      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { createdAt: { gte: dayStart } }, _count: { _all: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['kind'], where: scope, _count: { _all: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { ...scope, createdAt: { gte: monthStart } }, _count: { _all: true } }),
+      this.prisma.aiUsage.groupBy({ by: ['kind'], where: { ...scope, createdAt: { gte: dayStart } }, _count: { _all: true } }),
     ]);
     const stats: Record<string, { today: number; month: number; total: number }> = {};
     for (const kind of ['ML_DIAGNOSTIC', 'PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE']) {
