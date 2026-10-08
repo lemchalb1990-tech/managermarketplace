@@ -3291,7 +3291,7 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="flex flex-nowrap sm:flex-wrap items-center overflow-x-auto border-b border-gray-200 px-2 sm:px-6">
+            <div className="flex flex-nowrap sm:flex-wrap items-center overflow-x-auto overflow-y-hidden sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-gray-200 px-2 sm:px-6">
               {(selected.id
                 ? (['edit', 'images', 'connections', 'stock'] as Tab[])
                     .filter((t) => t !== 'connections' || connectionGroups.length > 0)
