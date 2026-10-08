@@ -3996,6 +3996,7 @@ export default function CatalogPage() {
               productId={selected.id}
               connectionId={publishModal.connectionId}
               companyId={selected.companyId}
+              hasCategory={!!(editCategoryId || selected.mlCategoryId)}
               highlight={highlight}
               onImagesChanged={() => refreshSelected(selected.id)}
             />

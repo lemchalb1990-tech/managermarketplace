@@ -1485,6 +1485,8 @@ export interface PhotoCheckResult {
   categoryId: string | null;
   images: PhotoCheckImage[];
   aiBlocked: string | null;
+  /** Motivo por el que no se hizo el diagnóstico de ML (p. ej. falta la categoría). */
+  mlSkipped?: string | null;
   features: Record<PlanFeature, boolean>;
   credits: AiCreditsStatus | null;
 }

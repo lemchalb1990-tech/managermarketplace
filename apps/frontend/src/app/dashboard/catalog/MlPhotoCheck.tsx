@@ -20,10 +20,12 @@ function hasProblems(r: PhotoCheckImage) {
 // Revisión de fotos para Mercado Libre: diagnóstico oficial de ML (fondo, tamaño, textos,
 // marcas de agua) + IA de visión que confirma que la foto coincide con el título. Permite
 // corregir la foto real con IA o usar como principal una foto que sí coincide.
-export default function MlPhotoCheck({ productId, connectionId, companyId, highlight, onImagesChanged }: {
+export default function MlPhotoCheck({ productId, connectionId, companyId, hasCategory, highlight, onImagesChanged }: {
   productId: string;
   connectionId: string;
   companyId?: string;
+  /** El producto tiene categoría ML: sin ella no se hace el diagnóstico de Mercado Libre. */
+  hasCategory: boolean;
   /** Mercado Libre rechazó por fotos: se destaca la sección. */
   highlight?: boolean;
   onImagesChanged: () => Promise<unknown> | void;
@@ -45,7 +47,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
   // Lo que incluye el plan de la empresa.
   const has = (f: PlanFeature) => isSuperAdmin || !!credits?.plan?.features.includes(f);
   const noPlan = !!credits && !credits.plan && !isSuperAdmin;
-  const mlOn = has('ML_DIAGNOSTIC');
+  const mlOn = has('ML_DIAGNOSTIC') && hasCategory;
   const aiEnabled = has('AI_CHECK') && !!credits?.ready?.PHOTO_CHECK;
   const fixEnabled = has('AI_FIX') && !!credits?.ready?.PHOTO_FIX;
   const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE;
@@ -209,6 +211,10 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, highl
         )}
       </div>
       {noPlan && <p className="text-[11px] text-gray-500">Tu empresa no tiene un plan para revisar fotos.</p>}
+      {!noPlan && has('ML_DIAGNOSTIC') && !hasCategory && (
+        <p className="text-[11px] text-gray-500">Asigna la categoría ML del producto para diagnosticar las fotos.</p>
+      )}
+      {result?.mlSkipped && hasCategory && <p className="text-[11px] text-gray-500">{result.mlSkipped}</p>}
 
       {generateEnabled && (
         <div className="border border-dashed border-gray-300 rounded-lg p-2.5 space-y-2">

@@ -135,7 +135,9 @@ export class MlPhotoService {
 
     const results: any[] = images.map((img: any, i: number) => ({ imageId: img.id, url: img.url, isPrimary: i === 0 }));
 
-    const mlTask = features.ML_DIAGNOSTIC ? Promise.all(images.map(async (img: any, i: number) => {
+    // Sin categoría ML propia no se diagnostica: los criterios de ML dependen de la categoría.
+    const mlSkipped = features.ML_DIAGNOSTIC && !product.mlCategoryId ? 'Asigna la categoría ML del producto para diagnosticar las fotos.' : null;
+    const mlTask = features.ML_DIAGNOSTIC && !mlSkipped ? Promise.all(images.map(async (img: any, i: number) => {
       results[i].ml = await this.mlDiagnostic(token, await this.absolute(img.url), categoryId, title);
     })) : Promise.resolve();
 
@@ -171,6 +173,7 @@ export class MlPhotoService {
       categoryId,
       images: results,
       aiBlocked: useAi && !aiBudget ? aiBlocked : null,
+      mlSkipped,
       features,
       credits: await this.credits.status(product.companyId),
     };
