@@ -13,7 +13,7 @@ const KIND_LABEL: Record<string, string> = {
   PHOTO_GENERATE: 'Imágenes de referencia creadas',
 };
 const KIND_SHORT: Record<string, string> = {
-  ML_DIAGNOSTIC: 'Diagnóstico ML',
+  ML_DIAGNOSTIC: 'Diagnóstico preliminar',
   PHOTO_CHECK: 'Revisión con IA',
   PHOTO_FIX: 'Corrección con IA',
   PHOTO_GENERATE: 'Imagen de referencia',
