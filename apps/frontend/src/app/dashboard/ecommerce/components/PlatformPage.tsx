@@ -532,7 +532,10 @@ export default function PlatformPage({ config }: Props) {
           connectionName={importingConn.name}
           platformLabel={config.name}
           loadThumbnail={config.supportsImageFetch
-            ? async (sku) => (await api.connections.importThumbnail(importingConn.id, sku, getToken()!)).url
+            ? async (sku) => {
+                const r = await api.connections.importThumbnail(importingConn.id, sku, getToken()!);
+                return r.pending ? undefined : r.url;
+              }
             : undefined}
           onClose={() => setImportingConn(null)}
           onImported={() => {}}

@@ -516,7 +516,13 @@ export class ConnectionsService {
     const conn = await this.getOwnedConnection(connectionId, user);
     if (conn.marketplace === MarketplaceType.WALMART) return this.walmartThumbnail(connectionId, user, sku);
     this.assertMarketplace(conn, MarketplaceType.RIPLEY, 'Ripley');
-    const hit = (await this.photoIndex.get(conn.companyId)).find(sku);
+    // El índice tarda unos minutos la primera vez: no se deja colgada la consulta.
+    const index = await Promise.race([
+      this.photoIndex.get(conn.companyId),
+      new Promise<null>((r) => setTimeout(() => r(null), 15000)),
+    ]);
+    if (!index) return { url: null, count: 0, source: null, pending: true };
+    const hit = index.find(sku);
     return { url: hit?.images[0] || null, count: hit?.images.length || 0, source: hit?.source || null };
   }
 

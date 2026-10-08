@@ -57,7 +57,8 @@ export function ChannelImportModal({
   connectionName: string;
   platformLabel: string;
   // Canales cuyo listado no trae foto (Walmart): se busca una por publicación, de a pocas.
-  loadThumbnail?: (externalId: string) => Promise<string | null>;
+  // undefined = todavía no se sabe (se reintenta); null = sin foto.
+  loadThumbnail?: (externalId: string) => Promise<string | null | undefined>;
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -82,6 +83,8 @@ export function ChannelImportModal({
   // Miniaturas buscadas aparte (externalId → url; null = sin foto en el canal).
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
   const requestedThumbs = useRef<Set<string>>(new Set());
+  // Sube cuando alguna miniatura volvió "todavía buscando" (undefined), para reintentarla.
+  const [thumbRetry, setThumbRetry] = useState(0);
 
   async function loadPreview(offset: number | undefined, append: boolean): Promise<{ hasMore: boolean; nextOffset: number | null } | null> {
     if (append) setLoadingMore(true); else setLoading(true);
@@ -140,18 +143,23 @@ export function ChannelImportModal({
     let cancelled = false;
     (async () => {
       const queue = [...pending];
+      let retry = false;
       const worker = async () => {
         while (queue.length && !cancelled) {
           const id = queue.shift()!;
           const url = await loadThumbnail(id).catch(() => null);
-          if (!cancelled) setThumbs((t) => ({ ...t, [id]: url }));
+          if (cancelled) continue;
+          // undefined = el servidor aún arma el índice de fotos: se vuelve a pedir en unos segundos.
+          if (url === undefined) { requestedThumbs.current.delete(id); retry = true; continue; }
+          setThumbs((t) => ({ ...t, [id]: url }));
         }
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
+      if (retry && !cancelled) setTimeout(() => setThumbRetry((n) => n + 1), 8000);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, items.length, loadThumbnail]);
+  }, [page, statusFilter, items.length, loadThumbnail, thumbRetry]);
 
   function toggle(externalId: string) {
     setSelected((prev) => {
