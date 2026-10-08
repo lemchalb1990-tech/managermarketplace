@@ -891,16 +891,22 @@ export class MercadolibreService {
         return id ? { id } : { source };
       }));
 
-    // Algunas categorías (sin dato de paquete propio en el catálogo de ML) exigen estos 4
-    // atributos para calcular el envío — si el producto no tiene sus dimensiones cargadas, se
-    // manda un paquete genérico chico de respaldo para no bloquear la publicación.
-    const DEFAULT_PACKAGE = { height: 15, width: 15, length: 10, weight: 500 }; // cm/cm/cm/g
+    // Las dimensiones del paquete son obligatorias para publicar: con ellas ML calcula el envío.
+    // Ya no se manda un paquete genérico de respaldo (daba costos de envío equivocados).
     const p = product as any;
+    const missingDims = [
+      ['alto', p.packageHeight], ['ancho', p.packageWidth], ['largo', p.packageLength], ['peso', p.packageWeight],
+    ].filter(([, v]) => !(Number(v) > 0)).map(([label]) => label);
+    if (missingDims.length) {
+      throw new BadRequestException(
+        `Ingresa las dimensiones del paquete de envío antes de publicar en Mercado Libre (falta: ${missingDims.join(', ')}).`,
+      );
+    }
     const packageAttributes = [
-      { id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Number(p.packageHeight ?? DEFAULT_PACKAGE.height)} cm` },
-      { id: 'SELLER_PACKAGE_WIDTH', value_name: `${Number(p.packageWidth ?? DEFAULT_PACKAGE.width)} cm` },
-      { id: 'SELLER_PACKAGE_LENGTH', value_name: `${Number(p.packageLength ?? DEFAULT_PACKAGE.length)} cm` },
-      { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Number(p.packageWeight ?? DEFAULT_PACKAGE.weight)} g` },
+      { id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Number(p.packageHeight)} cm` },
+      { id: 'SELLER_PACKAGE_WIDTH', value_name: `${Number(p.packageWidth)} cm` },
+      { id: 'SELLER_PACKAGE_LENGTH', value_name: `${Number(p.packageLength)} cm` },
+      { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Number(p.packageWeight)} g` },
     ];
 
     const effectivePrice = await getEffectivePrice(this.prisma, productId, connectionId, Number(product.mlPrice ?? product.price));

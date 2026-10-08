@@ -2213,6 +2213,24 @@ export default function CatalogPage() {
         status: Number(mlPrice) > 0 ? 'ok' : 'error',
         field: ['mlPrice', 'price'],
       },
+      (() => {
+        // Obligatorias para publicar en Mercado Libre: con ellas ML calcula el envío.
+        const dims = [
+          { key: 'packageHeight', label: 'alto' },
+          { key: 'packageWidth', label: 'ancho' },
+          { key: 'packageLength', label: 'largo' },
+          { key: 'packageWeight', label: 'peso' },
+        ];
+        const missing = dims.filter((d) => !(Number(editForm[d.key]) > 0));
+        return {
+          label: 'Dimensiones del paquete',
+          value: missing.length
+            ? (missing.length < dims.length ? `Falta: ${missing.map((d) => d.label).join(', ')}` : null)
+            : `${editForm.packageHeight}×${editForm.packageWidth}×${editForm.packageLength} cm · ${editForm.packageWeight} g`,
+          status: (missing.length ? 'error' : 'ok') as CheckStatus,
+          field: missing.length ? missing.map((d) => d.key) : 'packageHeight',
+        };
+      })(),
       {
         label: 'Stock',
         value: `${editForm.stock ?? 0} unidades`,
@@ -3603,28 +3621,28 @@ export default function CatalogPage() {
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Dimensiones del paquete de envío (opcional)
+                        Dimensiones del paquete de envío *
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <input type="number" min={0} step="0.1" value={editForm.packageHeight}
                           onChange={(e) => setEditForm((f: any) => ({ ...f, packageHeight: e.target.value }))}
-                          placeholder="Alto (cm)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          placeholder="Alto (cm)" id={fieldDomId('packageHeight')}
+                          className={`w-full px-3 py-2 border ${fieldBorder(mlBad('packageHeight'))} rounded-lg text-sm`} />
                         <input type="number" min={0} step="0.1" value={editForm.packageWidth}
                           onChange={(e) => setEditForm((f: any) => ({ ...f, packageWidth: e.target.value }))}
-                          placeholder="Ancho (cm)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          placeholder="Ancho (cm)" id={fieldDomId('packageWidth')}
+                          className={`w-full px-3 py-2 border ${fieldBorder(mlBad('packageWidth'))} rounded-lg text-sm`} />
                         <input type="number" min={0} step="0.1" value={editForm.packageLength}
                           onChange={(e) => setEditForm((f: any) => ({ ...f, packageLength: e.target.value }))}
-                          placeholder="Largo (cm)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          placeholder="Largo (cm)" id={fieldDomId('packageLength')}
+                          className={`w-full px-3 py-2 border ${fieldBorder(mlBad('packageLength'))} rounded-lg text-sm`} />
                         <input type="number" min={0} step="1" value={editForm.packageWeight}
                           onChange={(e) => setEditForm((f: any) => ({ ...f, packageWeight: e.target.value }))}
-                          placeholder="Peso (g)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          placeholder="Peso (g)" id={fieldDomId('packageWeight')}
+                          className={`w-full px-3 py-2 border ${fieldBorder(mlBad('packageWeight'))} rounded-lg text-sm`} />
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
-                        Algunas categorías de Mercado Libre las exigen para calcular el envío. Si las dejas vacías, se manda un paquete genérico chico (15×15×10 cm, 500 g) al publicar.
+                        Obligatorias para publicar en Mercado Libre: con ellas calcula el costo de envío. Usa las medidas del paquete ya embalado.
                       </p>
                     </div>
                   )}
