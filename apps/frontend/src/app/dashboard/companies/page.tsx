@@ -4,7 +4,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import type { SubscriptionPlan } from '@/lib/api';
+import type { AiPlan, SubscriptionPlan } from '@/lib/api';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
 
@@ -31,7 +31,7 @@ const ALL_COMPANY_MODULES = [
 
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string; aiPlanId: string; origAiPlanId: string } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -46,6 +46,7 @@ export default function CompaniesPage() {
   const [editing, setEditing] = useState<EditState>(null);
   // Planes comerciales para asignar a la empresa.
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [aiPlans, setAiPlans] = useState<AiPlan[]>([]);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -60,6 +61,7 @@ export default function CompaniesPage() {
     setCompanies(data);
     setCompaniesLoaded(true);
     api.subscription.plans.list(token).then(setPlans).catch(() => {});
+    api.ai.plans.list(token).then(setAiPlans).catch(() => {});
   }
 
   // La gestión de empresas es solo de Super Admin (el backend también lo exige).
@@ -191,6 +193,9 @@ export default function CompaniesPage() {
       if (editing.planId !== editing.origPlanId || (editing.planId && editing.billing !== editing.origBilling)) {
         await api.subscription.assign(editing.id, editing.planId || null, editing.planId ? editing.billing : null, token);
       }
+      if (editing.aiPlanId !== editing.origAiPlanId) {
+        await api.ai.assignPlan(editing.id, editing.aiPlanId || null, token);
+      }
       if (result?.bootstrap) {
         const { migrated, skipped } = result.bootstrap;
         let msg = `Módulo de Compras activado: se crearon lotes de apertura para ${migrated} producto(s).`;
@@ -319,6 +324,8 @@ export default function CompaniesPage() {
             <div className="rounded-lg border border-gray-200 p-3 space-y-2">
               <p className="text-xs font-medium text-gray-600">Plan comercial</p>
               <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-gray-500">Plan</span>
                 <select value={editing.planId} onChange={(e) => setEditing(s => s && ({ ...s, planId: e.target.value }))}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[200px]">
                   <option value="">Sin plan (sin límites)</option>
@@ -326,6 +333,15 @@ export default function CompaniesPage() {
                     <option key={p.id} value={p.id}>{p.name}{p.isTrial ? ` (prueba ${p.trialDays} días)` : ''}</option>
                   ))}
                 </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-gray-500">Plan de IA (revisión de fotos)</span>
+                  <select value={editing.aiPlanId} onChange={(e) => setEditing(s => s && ({ ...s, aiPlanId: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[200px]">
+                    <option value="">Sin plan de IA</option>
+                    {aiPlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
                 {editing.planId && !plans.find((p) => p.id === editing.planId)?.isTrial && (
                   <div className="flex items-center gap-3 text-sm">
                     {(['MONTHLY', 'ANNUAL'] as const).map((b) => (
@@ -338,7 +354,7 @@ export default function CompaniesPage() {
                 )}
               </div>
               <p className="text-[11px] text-gray-400">
-                Limita canales, productos, usuarios y bodegas, y oculta del menú lo que el plan no incluye. Con plan, el máximo de usuarios lo define el plan. Los planes se editan en Administrador de plataforma → Planes.
+                El plan limita canales, productos, usuarios y bodegas, y oculta del menú lo que no incluye (con plan, el máximo de usuarios lo define el plan). El plan de IA define el diagnóstico, la revisión, la corrección y las fotos generadas, con sus créditos. Se editan en Administrador de plataforma → Planes e Inteligencia artificial.
               </p>
             </div>
 
@@ -434,6 +450,7 @@ export default function CompaniesPage() {
                 <td className="px-4 py-3 font-medium text-gray-900">
                   {c.name}
                   {c.subscriptionPlan && <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">{c.subscriptionPlan.name}</span>}
+                  {c.aiPlan && <span className="ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">IA: {c.aiPlan.name}</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-500 font-mono">{c.slug}</td>
                 <td className="px-4 py-3 text-gray-600">
@@ -474,7 +491,7 @@ export default function CompaniesPage() {
                       Revertir baja
                     </button>
                   )}
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY' }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY', aiPlanId: c.aiPlanId ?? '', origAiPlanId: c.aiPlanId ?? '' }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

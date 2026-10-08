@@ -56,6 +56,7 @@ export class CompaniesService {
       include: {
         _count: { select: { users: true, products: true } },
         subscriptionPlan: { select: { id: true, name: true, maxUsers: true, isTrial: true } },
+        aiPlan: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
