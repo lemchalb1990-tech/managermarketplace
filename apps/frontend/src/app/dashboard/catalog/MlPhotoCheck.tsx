@@ -4,14 +4,6 @@ import { useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoCheckResult, type PlanFeature } from '@/lib/api';
 
-// Créditos de IA del plan (solo si el plan incluye algún producto con IA).
-function creditsLine(c: AiCreditsStatus | null) {
-  if (!c?.plan || !c.plan.features.some((f) => f !== 'ML_DIAGNOSTIC')) return null;
-  const part = (left: number | null, limit: number | null, label: string) =>
-    limit == null ? `${label}: sin límite` : `${label}: ${left} de ${limit}`;
-  return `Créditos IA (${c.plan.name}) — ${part(c.remainingToday, c.plan.dailyCredits, 'hoy')} · ${part(c.remainingMonth, c.plan.monthlyCredits, 'mes')}`;
-}
-
 // Fila con problemas: lo que dice ML o la IA (o ambos).
 function hasProblems(r: PhotoCheckImage) {
   return (r.ml?.issues.length ?? 0) > 0 || r.ai?.matches === false || (r.ai?.problems.length ?? 0) > 0;
@@ -191,7 +183,6 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
               ? 'Mercado Libre suele rechazar cuando las fotos no coinciden con el título. Revísalas aquí.'
               : 'Revisa que cada foto coincida con el título antes de publicar.'}
           </p>
-          {creditsLine(credits) && <p className="text-[11px] text-gray-400 mt-0.5">{creditsLine(credits)}</p>}
         </div>
         {(canCheck || fixEnabled) && (
           <div className="flex flex-col items-end gap-1 shrink-0">
