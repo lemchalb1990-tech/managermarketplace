@@ -1555,6 +1555,8 @@ export default function CatalogPage() {
   const [selected, setSelected] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('edit');
   const [editForm, setEditForm] = useState<any>({});
+  // Cambia al copiar la descripción corta, para que el editor HTML muestre el texto nuevo.
+  const [mlDescVersion, setMlDescVersion] = useState(0);
 
   // Largo máximo del nombre en cada marketplace activo (Mercado Libre: según la categoría).
   const [titleLimits, setTitleLimits] = useState<Record<string, { max: number | null; source: string }>>({});
@@ -3718,9 +3720,29 @@ export default function CatalogPage() {
 
                   {hasMlModule && (selected.id || mlChecked) && (
                   <div id={fieldDomId('mlDescription')} className={`sm:col-span-2 ${mlBad('mlDescription') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}`}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Descripción detallada para Mercado Libre
-                    </label>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-medium text-gray-600">
+                        Descripción detallada para Mercado Libre
+                      </label>
+                      <button type="button"
+                        disabled={!editForm.description?.trim() || (!categorySupportsHtml && !editForm.mlCategoryId)}
+                        onClick={async () => {
+                          const text = (editForm.description || '').trim();
+                          if (!text) return;
+                          const hasContent = (editForm.mlDescription || '').replace(/<[^>]*>/g, '').trim();
+                          if (hasContent && !(await confirmDialog('¿Reemplazar la descripción detallada por la descripción corta?'))) return;
+                          // En el editor HTML cada línea pasa a ser un párrafo; en texto plano se copia tal cual.
+                          const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                          const value = categorySupportsHtml
+                            ? text.split(/\n+/).map((l: string) => `<p>${esc(l.trim())}</p>`).join('')
+                            : text;
+                          setEditForm((f: any) => ({ ...f, mlDescription: value }));
+                          setMlDescVersion((v) => v + 1);
+                        }}
+                        className="shrink-0 px-2 py-1 border border-gray-300 rounded-md text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                        Copiar de descripción corta
+                      </button>
+                    </div>
                     {editForm.mlCategoryId && !attrLoading && !categorySupportsHtml && (
                       <div className="flex gap-2 items-start px-3 py-2 mb-2 bg-orange-50 border border-orange-300 rounded-lg text-xs text-orange-800">
                         <span className="shrink-0 mt-0.5">⚠️</span>
@@ -3729,6 +3751,7 @@ export default function CatalogPage() {
                     )}
                     {categorySupportsHtml ? (
                       <MlDescriptionEditor
+                        key={mlDescVersion}
                         value={editForm.mlDescription}
                         productId={selected.id}
                         images={selected.images || []}
