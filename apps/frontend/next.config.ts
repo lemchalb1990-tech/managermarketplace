@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
       { source: "/dashboard/billing/perfil", destination: "/dashboard/settings?abrir=empresa", permanent: false },
       { source: "/dashboard/empresa", destination: "/dashboard/settings?abrir=empresa", permanent: false },
       { source: "/dashboard/pos/ticket", destination: "/dashboard/settings?abrir=ticket", permanent: false },
+      { source: "/dashboard/ai-plans", destination: "/dashboard/ia", permanent: false },
       { source: "/dashboard/empresa/ticket", destination: "/dashboard/settings?abrir=ticket", permanent: false },
     ];
   },

@@ -28,7 +28,6 @@ const GROUP_LABELS: Record<string, string> = {
   mercadolibre: 'Mercado Libre',
   notificaciones: 'Notificaciones',
   publicacion: 'Publicación: largo del nombre',
-  ia: 'Inteligencia artificial',
   otros: 'Otros',
 };
 
@@ -36,7 +35,6 @@ const GROUP_HINTS: Record<string, string> = {
   sistema: 'URLs base de la plataforma. Requieren redespliegue si se cambian en variables de entorno.',
   mercadolibre: 'Configuración de integración con Mercado Libre. La URL de callback debe coincidir exactamente con la registrada en ML Developer.',
   publicacion: 'Caracteres que admite cada marketplace en el nombre del producto. La ficha del producto muestra el conteo y avisa si se excede; Mercado Libre se toma solo de la categoría.',
-  ia: 'OpenAI revisa que las fotos coincidan con el título y las corrige antes de publicar en Mercado Libre. Los créditos por empresa se asignan en Planes de IA.',
   notificaciones: 'Sonido que suena en la campanita al llegar cada tipo de evento. Sube archivos MP3/WAV/OGG (máx. 2 MB) y elige cuál usa cada tipo.',
 };
 
@@ -113,7 +111,9 @@ export default function SettingsPage() {
     const token = getToken();
     if (!token) return;
     api.settings.list(token)
-      .then((rows) => {
+      .then((all) => {
+        // La IA es un servicio de la plataforma: se configura en Administrador de plataforma.
+        const rows = all.filter((r: any) => r.group !== 'ia');
         setSettings(rows);
         const initial: Record<string, string> = {};
         rows.forEach((r: any) => { initial[r.key] = r.value; });
@@ -151,7 +151,7 @@ export default function SettingsPage() {
     return acc;
   }, {});
 
-  const groupOrder = ['sistema', 'mercadolibre', 'ia', 'notificaciones', 'otros'];
+  const groupOrder = ['sistema', 'mercadolibre', 'notificaciones', 'otros'];
   const callbackUri = draft['APP_URL']
     ? `${draft['APP_URL'].replace(/\/+$/, '')}/api/ecommerce/ml/callback`
     : '';

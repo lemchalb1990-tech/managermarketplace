@@ -42,7 +42,7 @@ export class OpenAiService {
 
   private async apiKey(): Promise<string> {
     const key = await this.settings.get('OPENAI_API_KEY');
-    if (!key) throw new BadRequestException('Falta configurar la API Key de OpenAI (Ajustes del sistema → Configuración → Inteligencia artificial).');
+    if (!key) throw new BadRequestException('Falta configurar la API Key de OpenAI (Administrador de plataforma → Inteligencia artificial).');
     return key;
   }
 

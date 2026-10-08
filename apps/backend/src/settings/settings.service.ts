@@ -178,6 +178,8 @@ export const NOTIF_SOUND_SETTING_KEYS = {
   claim: 'NOTIF_SOUND_CLAIM',
 } as const;
 
+const SENSITIVE_MASK = '••••••••';
+
 @Injectable()
 export class SettingsService implements OnModuleInit {
   constructor(
@@ -212,7 +214,7 @@ export class SettingsService implements OnModuleInit {
     const rows = await this.prisma.setting.findMany({ orderBy: [{ group: 'asc' }, { key: 'asc' }] });
     return rows.map((r) => ({
       ...r,
-      value: r.sensitive ? (r.value ? '••••••••' : '') : r.value,
+      value: r.sensitive ? (r.value ? SENSITIVE_MASK : '') : r.value,
     }));
   }
 
@@ -277,6 +279,8 @@ export class SettingsService implements OnModuleInit {
     const results = [];
     for (const item of items) {
       const def = SETTING_DEFINITIONS.find((d) => d.key === item.key);
+      // Los secretos se leen enmascarados: si vuelve la máscara, no se cambió y no se pisa.
+      if (def?.sensitive && item.value === SENSITIVE_MASK) continue;
       const result = await this.prisma.setting.upsert({
         where: { key: item.key },
         update: { value: item.value },

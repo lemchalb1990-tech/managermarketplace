@@ -115,7 +115,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/companies', label: 'Empresas', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
-      { href: '/dashboard/ai-plans', label: 'Planes de IA', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
+      { href: '/dashboard/ia', label: 'Inteligencia artificial', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
     ],
   },
   {

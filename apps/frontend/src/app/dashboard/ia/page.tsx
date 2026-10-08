@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api, type AiPlan } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { confirmDialog } from '../ConfirmDialog';
+import AiServiceSettings from './AiServiceSettings';
 
 type CompanyRow = { id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number };
 type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredits: string };
@@ -12,7 +13,7 @@ type PlanForm = { id?: string; name: string; dailyCredits: string; monthlyCredit
 const limitLabel = (v: number | null) => (v == null ? 'Sin límite' : v.toLocaleString('es-CL'));
 const toLimit = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.floor(Number(v))));
 
-// Planes de IA (Super Admin): créditos diarios y mensuales para revisar y corregir fotos, y
+// Inteligencia artificial (Super Admin): servicio OpenAI de la plataforma y planes de IA: créditos diarios y mensuales para revisar y corregir fotos, y
 // qué plan tiene cada empresa. Una empresa sin plan no puede usar la IA.
 export default function AiPlansPage() {
   const [plans, setPlans] = useState<AiPlan[]>([]);
@@ -89,17 +90,19 @@ export default function AiPlansPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="ui-page-title">Planes de IA</h1>
+        <h1 className="ui-page-title">Inteligencia artificial</h1>
         <p className="ui-page-subtitle">
-          Créditos que cada empresa puede usar para revisar y corregir fotos con IA antes de publicar en Mercado Libre. El costo por foto se define en Configuración → Inteligencia artificial.
+          Servicio de IA de la plataforma y créditos que cada empresa puede usar para revisar y corregir fotos antes de publicar en Mercado Libre.
         </p>
       </div>
 
       {error && <FormError message={error} />}
 
+      <AiServiceSettings />
+
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
-          <h2 className="ui-section-title">Planes</h2>
+          <h2 className="ui-section-title">Planes de IA</h2>
           <button type="button" onClick={() => { setFormError(''); setForm({ name: '', dailyCredits: '', monthlyCredits: '' }); }} className={btnPrimary}>
             + Nuevo plan
           </button>
