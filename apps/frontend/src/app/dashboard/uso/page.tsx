@@ -100,7 +100,7 @@ export default function UsagePage() {
               {plan?.features.includes('AI_CHECK') && <span>Revisión con IA: {data.costs.PHOTO_CHECK} crédito(s) por foto</span>}
               {plan?.features.includes('AI_FIX') && <span>Corrección: {data.costs.PHOTO_FIX} por foto</span>}
               {plan?.features.includes('AI_GENERATE') && <span>Imagen de referencia: {data.costs.PHOTO_GENERATE} por imagen</span>}
-              <span>Diagnóstico ML: sin costo</span>
+              <span>Diagnóstico preliminar: <span className="font-semibold text-green-600">Ilimitado</span></span>
             </div>
           )}
 
