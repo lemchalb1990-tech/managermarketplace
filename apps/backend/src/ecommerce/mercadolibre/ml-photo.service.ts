@@ -114,7 +114,7 @@ export class MlPhotoService {
     let aiBlocked: string | null = null;
     if (opts.useAi) {
       const st = await this.credits.status(product.companyId);
-      if (!st.ready.PHOTO_CHECK) aiBlocked = 'No hay una IA configurada para revisar fotos.';
+      if (!st.ready.PHOTO_CHECK) aiBlocked = 'La revisión con IA no está activa: se revisó solo con el diagnóstico de Mercado Libre.';
       else if (user.role === Role.SUPER_ADMIN) aiBudget = images.length;
       else if (!st.plan) aiBlocked = 'Tu empresa no tiene un plan de IA.';
       else {
@@ -134,7 +134,8 @@ export class MlPhotoService {
     const aiTask = (async () => {
       if (!opts.useAi) return;
       const queue = images.map((img: any, i: number) => ({ img, i })).slice(0, aiBudget);
-      images.slice(aiBudget).forEach((_: any, k: number) => { results[aiBudget + k].aiError = aiBlocked; });
+      // Créditos parciales: se marcan las fotos que quedaron sin revisar. Sin IA, va un solo aviso general.
+      if (aiBudget > 0) images.slice(aiBudget).forEach((_: any, k: number) => { results[aiBudget + k].aiError = aiBlocked; });
       const worker = async () => {
         for (let job = queue.shift(); job; job = queue.shift()) {
           const { img, i } = job;
