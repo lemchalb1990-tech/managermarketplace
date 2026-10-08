@@ -170,7 +170,8 @@ export class WorkOrdersService {
         items: true,
         client: true,
         user: { select: { id: true, name: true } },
-        sale: { select: { id: true, total: true, createdAt: true } },
+        sale: { select: { id: true, total: true, createdAt: true, paymentMethod: true } },
+        company: { select: { id: true, name: true } },
       },
     });
     if (!workOrder) throw new NotFoundException('Orden de trabajo no encontrada');

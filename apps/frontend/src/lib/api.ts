@@ -1024,10 +1024,10 @@ export const api = {
   pos: {
     settings: {
       get: (token: string, companyId?: string) =>
-        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' }>(
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(
           `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-      update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' }, token: string, companyId?: string) =>
-        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' }>(
+      update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }, token: string, companyId?: string) =>
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(
           `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`,
           { method: 'PATCH', body: JSON.stringify(data) },
           token,

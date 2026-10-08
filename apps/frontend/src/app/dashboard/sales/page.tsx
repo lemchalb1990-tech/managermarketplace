@@ -587,6 +587,14 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                           {reimportingId === sale.id ? 'Reimportando...' : 'Reimportar desde ML'}
                         </button>
                       )}
+                      {sale.channel === 'POS' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); window.open(`/imprimir/venta/${sale.id}`, '_blank'); }}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Imprimir
+                        </button>
+                      )}
                       <Link href={`/dashboard/billing/invoices/new?saleId=${sale.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"

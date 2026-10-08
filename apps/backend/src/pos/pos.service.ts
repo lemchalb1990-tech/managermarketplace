@@ -56,6 +56,9 @@ export class PosService {
 
   async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat }, companyId?: string) {
     const cId = this.resolveCompanyId(user, companyId);
+    if (dto.workOrderPrintFormat && !Object.values(WorkOrderPrintFormat).includes(dto.workOrderPrintFormat)) {
+      throw new BadRequestException('Formato de impresión no válido');
+    }
     return this.prisma.company.update({
       where: { id: cId },
       data: { ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}) },
@@ -410,6 +413,7 @@ export class PosService {
         client: { select: { id: true, name: true, rut: true, giro: true, email: true, address: true, commune: true } },
         user: { select: { id: true, name: true } },
         connection: { select: { id: true, name: true, marketplace: true } },
+        company: { select: { id: true, name: true } },
       },
     });
     if (!sale) throw new NotFoundException('Venta no encontrada');

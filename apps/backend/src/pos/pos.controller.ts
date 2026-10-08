@@ -22,7 +22,7 @@ export class PosController {
   @Patch('settings')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   updateSettings(
-    @Body() dto: { workOrderPrintFormat?: 'CARTA' | 'TICKET' },
+    @Body() dto: { workOrderPrintFormat?: 'CARTA' | 'TICKET' | 'TICKET_58' },
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
   ) {

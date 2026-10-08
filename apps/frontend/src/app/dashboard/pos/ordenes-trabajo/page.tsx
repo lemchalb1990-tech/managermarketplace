@@ -9,6 +9,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
 import { SkeletonRows } from '@/components/Skeleton';
 import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
+import { PRINT_FORMAT_LABEL, type PrintFormat } from '@/app/imprimir/printLayout';
 
 interface LineItem {
   productId?: string;
@@ -59,7 +60,7 @@ export default function WorkOrdersPage() {
   const [notice, setNotice] = useState('');
   const [noticeIsError, setNoticeIsError] = useState(false);
   const canManageSettings = user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
-  const [printFormat, setPrintFormat] = useState<'CARTA' | 'TICKET' | ''>('');
+  const [printFormat, setPrintFormat] = useState<PrintFormat | ''>('');
   const [savingPrintFormat, setSavingPrintFormat] = useState(false);
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function WorkOrdersPage() {
       .catch(() => {});
   }, [token, isSuperAdmin, selectedCompanyId]);
 
-  async function handlePrintFormatChange(value: 'CARTA' | 'TICKET') {
+  async function handlePrintFormatChange(value: PrintFormat) {
     setPrintFormat(value);
     setSavingPrintFormat(true);
     try {
@@ -355,10 +356,9 @@ export default function WorkOrdersPage() {
               <label className="flex items-center gap-2 text-xs text-gray-500">
                 Formato de impresión
                 <select value={printFormat} disabled={savingPrintFormat}
-                  onChange={(e) => handlePrintFormatChange(e.target.value as 'CARTA' | 'TICKET')}
+                  onChange={(e) => handlePrintFormatChange(e.target.value as PrintFormat)}
                   className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white disabled:opacity-50">
-                  <option value="CARTA">Hoja carta</option>
-                  <option value="TICKET">Ticket (impresora térmica)</option>
+                  {Object.entries(PRINT_FORMAT_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </label>
             )}

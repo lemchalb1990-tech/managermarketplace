@@ -2,9 +2,13 @@
 
 import { use, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api, imgUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonDetail } from '@/components/Skeleton';
+import {
+  type PrintFormat, type DocHeaderData, PAYMENT_LABEL, fmtCLP, formatDateTime,
+  PrintButton, TicketPage, TicketHeader, LetterHeader,
+} from '../../printLayout';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Presupuesto pendiente', CONVERTED: 'Cobrada', REJECTED: 'Rechazada', CANCELLED: 'Anulada',
@@ -15,7 +19,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
   const tz = useDashboardTimezone();
   const [workOrder, setWorkOrder] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [printFormat, setPrintFormat] = useState<'CARTA' | 'TICKET'>('CARTA');
+  const [printFormat, setPrintFormat] = useState<PrintFormat>('CARTA');
   const [error, setError] = useState('');
   const user = getUser();
 
@@ -23,19 +27,21 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
     const token = getToken();
     if (!token) { setError('Sesión no encontrada. Abre esta página desde el panel.'); return; }
     api.pos.workOrders.get(id, token)
-      .then((wo) => {
-        setWorkOrder(wo);
+      .then(async (wo) => {
         // Membrete (logo/razón social/RUT/dirección) — mismo Perfil de Facturación que
-        // usan boletas y facturas, para no duplicar el dato en dos lugares. Si la empresa
-        // no lo configuró todavía, se sigue mostrando solo el nombre (como antes).
-        api.billing.profile.get(token, wo.companyId).then(setProfile).catch(() => {});
-        api.pos.settings.get(token, wo.companyId).then((s) => setPrintFormat(s.workOrderPrintFormat)).catch(() => {});
-        setTimeout(() => window.print(), 300);
+        // usan boletas y facturas. Se espera junto con el formato antes de mostrar e
+        // imprimir, para que el diálogo de impresión no salga con el ancho equivocado.
+        const [p, s] = await Promise.all([
+          api.billing.profile.get(token, wo.companyId).catch(() => null),
+          api.pos.settings.get(token, wo.companyId).catch(() => null),
+        ]);
+        setProfile(p);
+        if (s) setPrintFormat(s.workOrderPrintFormat);
+        setWorkOrder(wo);
+        setTimeout(() => window.print(), 400);
       })
       .catch((err) => setError(err.message || 'No se pudo cargar la orden de trabajo.'));
   }, [id]);
-
-  const fmt = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
 
   if (error) {
     return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#b91c1c' }}>{error}</div>;
@@ -48,78 +54,56 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
   const clientName = workOrder.client?.name || workOrder.customerName;
   const clientPhone = workOrder.client?.phone || workOrder.customerPhone;
   const clientEmail = workOrder.client?.email || workOrder.customerEmail;
-  const companyName = profile?.razonSocial || user?.company?.name || 'Orden de trabajo';
+  const { date, time } = formatDateTime(workOrder.createdAt, tz);
+  const salePayment = workOrder.sale?.paymentMethod;
+  const header: DocHeaderData = {
+    commercialName: workOrder.company?.name || user?.company?.name || profile?.razonSocial || 'Orden de trabajo',
+    profile,
+    title: 'Orden de trabajo',
+    folio: String(workOrder.folio).padStart(4, '0'),
+    date,
+    time,
+    seller: workOrder.user?.name,
+    payment: salePayment ? (PAYMENT_LABEL[salePayment] || salePayment) : 'Por definir',
+  };
 
-  if (printFormat === 'TICKET') {
+  if (printFormat !== 'CARTA') {
     return (
-      <div style={{ fontFamily: 'monospace', color: '#0f172a', width: 280, margin: '0 auto', padding: 12, fontSize: 12 }}>
-        <style>{`
-          @media print {
-            .no-print { display: none !important; }
-            body { margin: 0; }
-            @page { size: 80mm auto; margin: 2mm; }
-          }
-        `}</style>
+      <TicketPage format={printFormat}>
+        <TicketHeader h={header} format={printFormat} />
 
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
-            Imprimir
-          </button>
-        </div>
+        <p>Estado: {STATUS_LABEL[workOrder.status] || workOrder.status}</p>
+        {clientName && <p>Cliente: {clientName}</p>}
+        {clientPhone && <p>Teléfono: {clientPhone}</p>}
+        <div className="ticket-sep" />
 
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          {profile?.logoUrl && <img src={imgUrl(profile.logoUrl)} alt="" style={{ width: 40, height: 40, objectFit: 'contain', margin: '0 auto 4px' }} />}
-          <p style={{ fontWeight: 'bold', margin: 0 }}>{companyName}</p>
-          {profile?.rut && <p style={{ margin: '2px 0 0' }}>RUT {profile.rut}</p>}
-          {(profile?.address || profile?.commune) && (
-            <p style={{ margin: '2px 0 0' }}>{[profile.address, profile.commune].filter(Boolean).join(', ')}</p>
-          )}
-          {profile?.phone && <p style={{ margin: '2px 0 0' }}>{profile.phone}</p>}
-        </div>
-
-        <div style={{ borderTop: '1px dashed #0f172a', borderBottom: '1px dashed #0f172a', padding: '6px 0', margin: '8px 0' }}>
-          <p style={{ margin: 0 }}>Orden N° {String(workOrder.folio).padStart(4, '0')}</p>
-          <p style={{ margin: '2px 0 0' }}>
-            {new Date(workOrder.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz })}
-          </p>
-          <p style={{ margin: '2px 0 0' }}>{STATUS_LABEL[workOrder.status] || workOrder.status}</p>
-        </div>
-
-        {(clientName || clientPhone) && (
-          <div style={{ marginBottom: 8 }}>
-            {clientName && <p style={{ margin: 0 }}>Cliente: {clientName}</p>}
-            {clientPhone && <p style={{ margin: '2px 0 0' }}>{clientPhone}</p>}
-          </div>
-        )}
-
-        <div style={{ borderTop: '1px dashed #0f172a', paddingTop: 6 }}>
-          {workOrder.items.map((item: any) => (
-            <div key={item.id} style={{ marginBottom: 6 }}>
-              <p style={{ margin: 0 }}>{item.productName}{item.productSku ? ` (${item.productSku})` : ''}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{item.quantity} x {fmt(Number(item.unitPrice))}</span>
-                <span>{fmt(item.quantity * Number(item.unitPrice))}</span>
-              </div>
+        {workOrder.items.map((item: any) => (
+          <div key={item.id} style={{ marginBottom: 4 }}>
+            <p>{item.productName}{item.productSku ? ` (${item.productSku})` : ''}</p>
+            <div className="ticket-row">
+              <span>{item.quantity} x {fmtCLP(Number(item.unitPrice))}</span>
+              <span>{fmtCLP(item.quantity * Number(item.unitPrice))}</span>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
-        <div style={{ borderTop: '1px dashed #0f172a', paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+        <div className="ticket-sep" />
+        <div className="ticket-row" style={{ fontWeight: 'bold', fontSize: '1.15em' }}>
           <span>Total</span>
-          <span>{fmt(total)}</span>
+          <span>{fmtCLP(total)}</span>
         </div>
 
         {workOrder.notes && (
-          <div style={{ marginTop: 8 }}>
-            <p style={{ margin: 0, fontWeight: 'bold' }}>Notas</p>
-            <p style={{ margin: '2px 0 0', whiteSpace: 'pre-wrap' }}>{workOrder.notes}</p>
+          <div style={{ marginTop: 6 }}>
+            <p style={{ fontWeight: 'bold' }}>Notas</p>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{workOrder.notes}</p>
           </div>
         )}
 
-        <p style={{ marginTop: 10, fontSize: 10, color: '#64748b', textAlign: 'center' }}>
+        <p style={{ marginTop: 10, fontSize: '0.85em', textAlign: 'center' }}>
           Presupuesto/orden de trabajo, no constituye boleta ni factura.
         </p>
-      </div>
+      </TicketPage>
     );
   }
 
@@ -136,41 +120,9 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
         tbody tr { border-bottom: 1px solid #e2e8f0; }
       `}</style>
 
-      <div className="no-print" style={{ textAlign: 'right', marginBottom: 16 }}>
-        <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
-          Imprimir
-        </button>
-      </div>
+      <PrintButton align="right" />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          {profile?.logoUrl && (
-            <img src={imgUrl(profile.logoUrl)} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-          )}
-          <div>
-            <h1 style={{ fontSize: 20, margin: 0 }}>{companyName}</h1>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>Presupuesto / Orden de trabajo</p>
-            {profile?.rut && <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>RUT {profile.rut}{profile.giro ? ` — ${profile.giro}` : ''}</p>}
-            {(profile?.address || profile?.commune || profile?.city) && (
-              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>
-                {[profile.address, profile.commune, profile.city].filter(Boolean).join(', ')}
-              </p>
-            )}
-            {(profile?.phone || profile?.email) && (
-              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>
-                {[profile.phone, profile.email].filter(Boolean).join(' · ')}
-              </p>
-            )}
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: 18, fontWeight: 'bold', margin: 0 }}>N° {String(workOrder.folio).padStart(4, '0')}</p>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
-            {new Date(workOrder.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric', timeZone: tz })}
-          </p>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>{STATUS_LABEL[workOrder.status] || workOrder.status}</p>
-        </div>
-      </div>
+      <LetterHeader h={header} subtitle={`Presupuesto / Orden de trabajo · ${STATUS_LABEL[workOrder.status] || workOrder.status}`} />
 
       {(clientName || clientPhone || clientEmail) && (
         <div style={{ marginBottom: 16, fontSize: 13 }}>
@@ -195,8 +147,8 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
             <tr key={item.id}>
               <td>{item.productName}{item.productSku ? ` (${item.productSku})` : ''}</td>
               <td style={{ textAlign: 'right' }}>{item.quantity}</td>
-              <td style={{ textAlign: 'right' }}>{fmt(Number(item.unitPrice))}</td>
-              <td style={{ textAlign: 'right' }}>{fmt(item.quantity * Number(item.unitPrice))}</td>
+              <td style={{ textAlign: 'right' }}>{fmtCLP(Number(item.unitPrice))}</td>
+              <td style={{ textAlign: 'right' }}>{fmtCLP(item.quantity * Number(item.unitPrice))}</td>
             </tr>
           ))}
         </tbody>
@@ -205,7 +157,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
         <div style={{ minWidth: 200, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 'bold', borderTop: '2px solid #0f172a', paddingTop: 8 }}>
           <span>Total</span>
-          <span>{fmt(total)}</span>
+          <span>{fmtCLP(total)}</span>
         </div>
       </div>
 
