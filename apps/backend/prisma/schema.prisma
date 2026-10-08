@@ -170,6 +170,9 @@ model Company {
   // Formato de impresión de las órdenes de trabajo del POS — lo elige cada empresa
   // según si imprime en hoja carta o en una impresora térmica de ticket.
   workOrderPrintFormat    WorkOrderPrintFormat @default(CARTA)
+  // Plan de IA (créditos diarios/mensuales para revisar y corregir fotos). null = sin IA.
+  aiPlanId                String?
+  aiPlan                  AiPlan?  @relation(fields: [aiPlanId], references: [id], onDelete: SetNull)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -192,6 +195,7 @@ model Company {
   orderRequests      OrderRequest[]
   workOrders         WorkOrder[]
   billingProfile     BillingProfile?
+  aiUsages           AiUsage[]
   profitabilityItems ProfitabilityItem[]
   accessProfiles     AccessProfile[]
   returns            Return[]
@@ -2108,4 +2112,33 @@ model FinanceRecurring {
 
   @@index([companyId, active])
   @@map("finance_recurrings")
+}
+
+// Planes de IA que asigna el Super Admin a cada empresa. Límites en créditos; null = sin límite.
+model AiPlan {
+  id             String    @id @default(cuid())
+  name           String
+  dailyCredits   Int?
+  monthlyCredits Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  companies      Company[]
+
+  @@map("ai_plans")
+}
+
+// Cada uso de IA (revisar o corregir una foto) con los créditos que descontó.
+model AiUsage {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  // PHOTO_CHECK | PHOTO_FIX
+  kind      String
+  credits   Int
+  productId String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@map("ai_usages")
 }

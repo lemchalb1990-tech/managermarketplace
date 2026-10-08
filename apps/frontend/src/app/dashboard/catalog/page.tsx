@@ -12,6 +12,7 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
+import MlPhotoCheck from './MlPhotoCheck';
 import {
   type PreflightCheck, type CheckStatus, PreflightRows, PublishCheckModal, MissingBanner, MissingNotice,
   fieldDomId, fieldBorder, isFieldInvalid, focusField,
@@ -1110,8 +1111,10 @@ interface PublishModalState {
   saleTermsValues: Record<string, { value_id?: string; value_name?: string }>;
 }
 
-function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo }: {
+function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo, photoCheck }: {
   state: PublishModalState;
+  /** Revisión de fotos (diagnóstico de ML + IA), visible antes de publicar y tras un rechazo. */
+  photoCheck?: (highlight: boolean) => React.ReactNode;
   onConfirm: () => void;
   onClose: () => void;
   onGo: (c: PreflightCheck) => void;
@@ -1127,7 +1130,7 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo }: 
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="ui-section-title">
             {isError ? 'Mercado Libre rechazó la publicación' : 'Verificación antes de publicar'}
@@ -1155,6 +1158,8 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo }: 
           ) : (
             <PreflightRows checks={state.checks} onGo={onGo} />
           )}
+
+          {photoCheck?.(isError && state.mlErrors.some((e) => /imag|foto|picture|t[ií]tulo/i.test(e)))}
 
           {showSaleTerms && !isError && state.saleTermsLoading && (
             <p className="text-xs text-gray-400">Consultando condiciones de venta de la categoría...</p>
@@ -3986,6 +3991,15 @@ export default function CatalogPage() {
           onClose={() => { setPublishModal(null); setMlVerify(null); }}
           onSaleTermChange={updateSaleTermValue}
           onGo={goToCheck}
+          photoCheck={(highlight) => (
+            <MlPhotoCheck
+              productId={selected.id}
+              connectionId={publishModal.connectionId}
+              companyId={selected.companyId}
+              highlight={highlight}
+              onImagesChanged={() => refreshSelected(selected.id)}
+            />
+          )}
         />
       )}
       {linkModal && (

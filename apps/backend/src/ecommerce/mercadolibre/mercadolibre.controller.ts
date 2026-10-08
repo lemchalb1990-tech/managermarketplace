@@ -8,6 +8,7 @@ import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService, MlAuthResult } from './mercadolibre.service';
+import { MlPhotoService } from './ml-photo.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -89,11 +90,24 @@ class ClaimActionDto {
   @IsOptional() extra?: Record<string, any>;
 }
 
+class PhotoCheckDto {
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsBoolean() useAi?: boolean;
+}
+
+class PhotoFixDto {
+  @IsOptional() @IsString() title?: string;
+}
+
+class PhotoFixApplyDto {
+  @IsString() url: string;
+}
+
 @Controller('ecommerce/ml')
 export class MercadolibreController {
   private readonly logger = new Logger(MercadolibreController.name);
 
-  constructor(private service: MercadolibreService) {}
+  constructor(private service: MercadolibreService, private photos: MlPhotoService) {}
 
   // ─── Credenciales ─────────────────────────────────────────────────────────
 
@@ -482,6 +496,46 @@ export class MercadolibreController {
     @Body() dto?: PublishOptionsDto,
   ) {
     return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms, dto?.title);
+  }
+
+  // ─── Revisión de fotos antes de publicar ──────────────────────────────────
+  // Diagnóstico de imágenes de ML (gratis) + revisión con IA de que la foto coincide con el
+  // título (descuenta créditos del plan de IA de la empresa).
+  @Post('products/:productId/photo-check/:connectionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  photoCheck(
+    @Param('productId') productId: string,
+    @Param('connectionId') connectionId: string,
+    @CurrentUser() user: any,
+    @Body() dto: PhotoCheckDto,
+  ) {
+    return this.photos.check(productId, connectionId, user, { title: dto?.title, useAi: dto?.useAi !== false });
+  }
+
+  // Corrige la foto real con IA: devuelve una sugerencia, no reemplaza nada.
+  @Post('products/:productId/images/:imageId/ai-fix')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  photoFix(
+    @Param('productId') productId: string,
+    @Param('imageId') imageId: string,
+    @CurrentUser() user: any,
+    @Body() dto: PhotoFixDto,
+  ) {
+    return this.photos.fix(productId, imageId, user, dto?.title);
+  }
+
+  @Post('products/:productId/images/:imageId/ai-fix/apply')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  photoFixApply(
+    @Param('productId') productId: string,
+    @Param('imageId') imageId: string,
+    @CurrentUser() user: any,
+    @Body() dto: PhotoFixApplyDto,
+  ) {
+    return this.photos.applyFix(productId, imageId, user, dto.url);
   }
 
   // Condiciones de venta (p.ej. garantía) que exige la categoría, para pedirlas antes de

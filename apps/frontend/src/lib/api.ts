@@ -228,6 +228,22 @@ export const api = {
     notificationSounds: () =>
       apiFetch<{ sale: string | null; question: string | null; claim: string | null }>('/public/notification-sounds', {}),
   },
+  ai: {
+    credits: (token: string, companyId?: string) =>
+      apiFetch<AiCreditsStatus>(`/ai/credits${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    plans: {
+      list: (token: string) => apiFetch<AiPlan[]>('/ai/plans', {}, token),
+      create: (data: Partial<AiPlan>, token: string) =>
+        apiFetch<AiPlan>('/ai/plans', { method: 'POST', body: JSON.stringify(data) }, token),
+      update: (id: string, data: Partial<AiPlan>, token: string) =>
+        apiFetch<AiPlan>(`/ai/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string) => apiFetch<any>(`/ai/plans/${id}`, { method: 'DELETE' }, token),
+    },
+    companies: (token: string) =>
+      apiFetch<{ id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number }[]>('/ai/companies', {}, token),
+    assignPlan: (companyId: string, aiPlanId: string | null, token: string) =>
+      apiFetch<AiCreditsStatus>(`/ai/companies/${companyId}/plan`, { method: 'PATCH', body: JSON.stringify({ aiPlanId }) }, token),
+  },
   companies: {
     list: (token: string) => apiFetch<any[]>('/companies', {}, token),
     create: (data: any, token: string) =>
@@ -491,6 +507,19 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',
         body: JSON.stringify({ ...(saleTerms?.length ? { saleTerms } : {}), ...(title?.trim() ? { title: title.trim() } : {}) }),
+      }, token),
+    // Revisión de fotos antes de publicar: diagnóstico de ML + IA (créditos del plan).
+    photoCheck: (productId: string, connectionId: string, token: string, opts: { title?: string; useAi?: boolean } = {}) =>
+      apiFetch<PhotoCheckResult>(`/ecommerce/ml/products/${productId}/photo-check/${connectionId}`, {
+        method: 'POST', body: JSON.stringify(opts),
+      }, token),
+    photoFix: (productId: string, imageId: string, token: string, title?: string) =>
+      apiFetch<{ url: string; credits: AiCreditsStatus }>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix`, {
+        method: 'POST', body: JSON.stringify(title ? { title } : {}),
+      }, token),
+    photoFixApply: (productId: string, imageId: string, url: string, token: string) =>
+      apiFetch<any>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix/apply`, {
+        method: 'POST', body: JSON.stringify({ url }),
       }, token),
     getSaleTerms: (connectionId: string, categoryId: string, token: string) =>
       apiFetch<{ id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[] }[]>(
@@ -1363,3 +1392,47 @@ export const api = {
     },
   },
 };
+
+// ── IA: planes, créditos y revisión de fotos ──
+export interface AiPlan {
+  id: string;
+  name: string;
+  dailyCredits: number | null;
+  monthlyCredits: number | null;
+  _count?: { companies: number };
+}
+
+export interface AiCreditsStatus {
+  plan: { id: string; name: string; dailyCredits: number | null; monthlyCredits: number | null } | null;
+  usedToday: number;
+  usedMonth: number;
+  remainingToday: number | null;
+  remainingMonth: number | null;
+  costs: { PHOTO_CHECK: number; PHOTO_FIX: number };
+}
+
+export interface PhotoVerdict {
+  matches: boolean;
+  confidence: 'alta' | 'media' | 'baja';
+  shows: string;
+  problems: string[];
+  suggestion: string;
+  suggestedTitle: string;
+}
+
+export interface PhotoCheckImage {
+  imageId: string;
+  url: string;
+  isPrimary: boolean;
+  ml?: { available: boolean; ok: boolean | null; issues: string[]; error?: string; raw?: unknown };
+  ai?: PhotoVerdict;
+  aiError?: string | null;
+}
+
+export interface PhotoCheckResult {
+  title: string;
+  categoryId: string | null;
+  images: PhotoCheckImage[];
+  aiBlocked: string | null;
+  credits: AiCreditsStatus | null;
+}

@@ -879,6 +879,18 @@ export class MercadolibreService {
     const toAbsolute = (url: string) =>
       url.startsWith('http') ? url : `${appUrl}${url}`;
 
+    // Todo el set de fotos del producto: la principal primero y luego en su orden (ML admite
+    // hasta 10). Se suben antes al CDN de Mercado Libre (flujo que recomienda ML: evita fotos
+    // "pendientes de descarga"); si una no se puede subir, se manda su enlace como antes.
+    const pictures = await Promise.all([...product.images]
+      .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
+      .slice(0, 10)
+      .map(async (img: any) => {
+        const source = toAbsolute(img.url);
+        const id = await this.uploadPictureToMl(token, source);
+        return id ? { id } : { source };
+      }));
+
     // Algunas categorías (sin dato de paquete propio en el catálogo de ML) exigen estos 4
     // atributos para calcular el envío — si el producto no tiene sus dimensiones cargadas, se
     // manda un paquete genérico chico de respaldo para no bloquear la publicación.
@@ -921,12 +933,7 @@ export class MercadolibreService {
       // Semilla inicial nada más — el envío real y definitivo de la descripción (con
       // soporte HTML si la categoría lo permite) ocurre después vía upsertMlDescription.
       description: { plain_text: this.stripHtmlTags((product.mlDescription || product.description || product.name || '').trim()) || product.name },
-      // Todo el set de fotos del producto: la principal primero y luego en su orden
-      // (Mercado Libre admite hasta 10 por publicación).
-      pictures: [...product.images]
-        .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
-        .slice(0, 10)
-        .map((img: any) => ({ source: toAbsolute(img.url) })),
+      pictures,
       attributes: [
         { id: 'SELLER_SKU', value_name: product.sku },
         ...packageAttributes,
@@ -1675,6 +1682,39 @@ export class MercadolibreService {
   }
 
   // ─── Importación de publicaciones existentes ─────────────────────────────────
+
+  /** Token de ML de la conexión, validando que el usuario tenga acceso a ella. */
+  async getAccessTokenForUser(connectionId: string, user: any): Promise<string> {
+    await this.getConnectionForUser(connectionId, user);
+    return this.getValidToken(connectionId);
+  }
+
+  // Sube una foto al CDN de Mercado Libre y devuelve su id (null si no se pudo).
+  async uploadPictureToMl(token: string, url: string): Promise<string | null> {
+    try {
+      const img = await fetch(url);
+      if (!img.ok) return null;
+      const mime = img.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+      const bytes = new Uint8Array(await img.arrayBuffer());
+      const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+      const form = new FormData();
+      form.append('file', new Blob([bytes], { type: mime }), `foto.${ext}`);
+      const res = await fetch(`${ML_API}/pictures/items/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data: any = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) {
+        this.logger.warn(`ML: no se pudo subir la foto ${url} (${res.status}) ${JSON.stringify(data)?.slice(0, 200)}`);
+        return null;
+      }
+      return String(data.id);
+    } catch (err: any) {
+      this.logger.warn(`ML: error subiendo la foto ${url}: ${err?.message}`);
+      return null;
+    }
+  }
 
   private async getConnectionForUser(connectionId: string, user: any) {
     const conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
