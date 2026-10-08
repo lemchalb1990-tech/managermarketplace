@@ -85,7 +85,7 @@ export default function BillingPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-          <Link href="/dashboard/empresa"
+          <Link href="/dashboard/settings?abrir=empresa"
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             Datos de la empresa
           </Link>

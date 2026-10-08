@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AccountClosureSection from './AccountClosureSection';
+import CompanySection from './CompanySection';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { invalidateDashboardTimezoneCache } from '@/lib/dashboardTimezone';
@@ -166,13 +167,15 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-3">
-        <h1 className="ui-page-title mb-1">Configuración del sistema</h1>
+        <h1 className="ui-page-title mb-1">Configuración</h1>
         <p className="ui-page-subtitle">
           {canEdit
             ? 'Variables y URLs que controlan el comportamiento de la plataforma.'
             : 'Variables y URLs que controlan el comportamiento de la plataforma. Modo solo lectura: puedes ver y copiar los valores, pero no editarlos.'}
         </p>
       </div>
+
+      {['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(getUser()?.role) && <CompanySection />}
 
       <form onSubmit={handleSave} className="space-y-6">
         {groupOrder

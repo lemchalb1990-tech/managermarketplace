@@ -14,12 +14,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Rutas antiguas: el perfil de facturación y la configuración de ticket pasaron a
-  // Administración (Datos de la empresa).
+  // Rutas antiguas: los datos de la empresa y la configuración de ticket ahora son modales
+  // dentro de Configuración.
   async redirects() {
     return [
-      { source: "/dashboard/billing/perfil", destination: "/dashboard/empresa", permanent: false },
-      { source: "/dashboard/pos/ticket", destination: "/dashboard/empresa/ticket", permanent: false },
+      { source: "/dashboard/billing/perfil", destination: "/dashboard/settings?abrir=empresa", permanent: false },
+      { source: "/dashboard/empresa", destination: "/dashboard/settings?abrir=empresa", permanent: false },
+      { source: "/dashboard/pos/ticket", destination: "/dashboard/settings?abrir=ticket", permanent: false },
+      { source: "/dashboard/empresa/ticket", destination: "/dashboard/settings?abrir=ticket", permanent: false },
     ];
   },
 };
