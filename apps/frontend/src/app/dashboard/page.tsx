@@ -264,6 +264,18 @@ export default function DashboardPage() {
   return (
     <div className="space-y-3">
 
+      {/* Acceso rápido al punto de venta (solo móvil) */}
+      {user && can(user, 'pos', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'pos') && (
+        <Link
+          href="/dashboard/pos"
+          aria-label="Ir al punto de venta"
+          className="lg:hidden fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-blue-600 text-white rounded-full shadow-lg px-5 py-3 text-sm font-semibold"
+        >
+          <span className="text-lg leading-none">🛒</span>
+          Punto de venta
+        </Link>
+      )}
+
       <PageHeader
         title={`Bienvenido, ${user?.name ?? ''}`}
         crumbs={[
