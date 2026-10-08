@@ -63,7 +63,7 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
     commercialName: sale.company?.name || user?.company?.name || profile?.razonSocial || 'Venta',
     profile,
     title: 'Venta',
-    folio: sale.id.slice(-6).toUpperCase(),
+    folio: sale.saleNumber != null ? String(sale.saleNumber).padStart(4, '0') : undefined,
     date,
     time,
     seller: sale.user?.name,

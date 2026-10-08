@@ -878,6 +878,8 @@ model Sale {
   // Segundo identificador de la orden en el marketplace (Walmart: customerOrderId, el que
   // usa Bsale en sus documentos). externalId guarda el principal (purchaseOrderId).
   externalAltId String?
+  // Número correlativo por empresa; lo asigna un trigger de la base al insertar.
+  saleNumber Int?
   notes           String?
   customerName    String?
   // Seudónimo (nickname) del comprador en el marketplace (Mercado Libre), aparte del nombre real.
@@ -922,6 +924,7 @@ model Sale {
   @@index([channel, mlPackId])
   @@index([channel, mlShippingId])
   @@index([companyId, externalAltId])
+  @@unique([companyId, saleNumber])
   @@map("sales")
 }
 

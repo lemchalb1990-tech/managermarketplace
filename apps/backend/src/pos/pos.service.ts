@@ -351,6 +351,7 @@ export class PosService {
     if (query.search?.trim()) {
       const term = query.search.trim();
       where.OR = [
+        ...(/^\d{1,9}$/.test(term) ? [{ saleNumber: Number(term) }] : []),
         { customerName: { contains: term, mode: 'insensitive' } },
         { items: { some: { product: { name: { contains: term, mode: 'insensitive' } } } } },
         { items: { some: { product: { sku: { contains: term, mode: 'insensitive' } } } } },
