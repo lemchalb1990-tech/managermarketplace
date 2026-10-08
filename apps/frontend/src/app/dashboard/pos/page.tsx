@@ -79,6 +79,8 @@ export default function PosPage() {
 
   // Checkout modal state
   const [showCheckout, setShowCheckout] = useState(false);
+  // En móvil el carrito es un panel que se abre con el botón flotante (no tapa el catálogo).
+  const [showCartMobile, setShowCartMobile] = useState(false);
   const [fulfillmentType, setFulfillmentType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -669,10 +671,37 @@ export default function PosPage() {
         )}
       </div>
 
+      {/* Botón flotante del carrito (solo móvil) */}
+      {!showCartMobile && (
+        <button
+          type="button"
+          onClick={() => setShowCartMobile(true)}
+          aria-label="Ver carrito"
+          className="lg:hidden fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-blue-600 text-white rounded-full shadow-lg pl-4 pr-5 py-3 text-sm font-semibold"
+        >
+          <span className="relative text-lg leading-none">
+            🛒
+            {cart.length > 0 && (
+              <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[11px] leading-[18px] text-center">
+                {cart.reduce((n, c) => n + c.quantity, 0)}
+              </span>
+            )}
+          </span>
+          <span className="ml-1">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+        </button>
+      )}
+
       {/* Carrito */}
-      <div className="w-full lg:w-80 lg:shrink-0 min-h-0 flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm">
-        <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+      <div className={`${showCartMobile ? 'flex' : 'hidden'} lg:flex fixed inset-0 z-40 lg:static lg:z-auto lg:w-80 lg:shrink-0 min-h-0 flex-col bg-white lg:border lg:border-gray-200 lg:rounded-2xl lg:shadow-sm`}>
+        <div className="px-4 py-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
           <h2 className="ui-section-title">Carrito</h2>
+          <button
+            type="button"
+            onClick={() => setShowCartMobile(false)}
+            className="lg:hidden text-sm font-semibold text-blue-600"
+          >
+            ← Seguir agregando
+          </button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
