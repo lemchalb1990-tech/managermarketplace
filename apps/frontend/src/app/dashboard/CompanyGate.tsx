@@ -17,6 +17,10 @@ const EXEMPT_PREFIXES = [
   '/dashboard/settings',
 ];
 
+// Páginas exentas que igual tienen una parte por empresa (Configuración → Empresa): no se
+// bloquean, pero muestran el selector "Gestionando" y su modal, opcional.
+const OPTIONAL_PICKER_PREFIXES = ['/dashboard/settings'];
+
 // Bloquea el contenido de la página (no el sidebar/header, que siguen visibles) hasta que
 // el Super Admin elija una empresa. El resto de los usuarios pasa directo.
 export function CompanyGate({ children }: { children: ReactNode }) {
@@ -25,9 +29,10 @@ export function CompanyGate({ children }: { children: ReactNode }) {
   const [draftCompanyId, setDraftCompanyId] = useState('');
 
   const isExempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
+  const optionalPicker = OPTIONAL_PICKER_PREFIXES.some((p) => pathname?.startsWith(p));
   // El selector de empresa vive en la barra superior (HeaderCompanyPicker), junto a las
   // notificaciones: acá solo queda el modal para elegirla.
-  const mustChoose = ready && !selectedCompanyId;
+  const mustChoose = ready && !selectedCompanyId && !isExempt;
   const showModal = mustChoose || pickerOpen;
 
   // Sincroniza el borrador con la empresa activa cada vez que el modal se abre — sin
@@ -40,7 +45,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal]);
 
-  if (!isSuperAdmin || isExempt) {
+  if (!isSuperAdmin || (isExempt && !optionalPicker)) {
     return <>{children}</>;
   }
 
@@ -51,7 +56,7 @@ export function CompanyGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {ready && selectedCompanyId && (
+      {isExempt ? children : ready && selectedCompanyId && (
         // key => al cambiar de empresa se reinicia el estado de la página activa
         <Fragment key={selectedCompanyId}>{children}</Fragment>
       )}
@@ -106,11 +111,13 @@ export function CompanyGate({ children }: { children: ReactNode }) {
 
 // Selector de empresa del Super Admin en la barra superior, junto a las notificaciones: el
 // mismo lugar en todas las vistas gestionadas por empresa (en las de administración global
-// no aplica y no se muestra).
+// no aplica y no se muestra, salvo las de OPTIONAL_PICKER_PREFIXES).
 export function HeaderCompanyPicker() {
   const pathname = usePathname();
   const { isSuperAdmin, selectedCompanyId, companies, openPicker } = useAdminCompany();
-  if (!isSuperAdmin || EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p))) return null;
+  const exempt = EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p))
+    && !OPTIONAL_PICKER_PREFIXES.some((p) => pathname?.startsWith(p));
+  if (!isSuperAdmin || exempt) return null;
   const name = companies.find((c) => c.id === selectedCompanyId)?.name;
   return (
     <button
