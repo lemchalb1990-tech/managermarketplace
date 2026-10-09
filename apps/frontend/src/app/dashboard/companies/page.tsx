@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { AiPlan, SubscriptionPlan } from '@/lib/api';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
+import { Modal, btnDanger, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { SkeletonRows } from '@/components/Skeleton';
 
 const ALL_COMPANY_MODULES = [
@@ -47,6 +48,8 @@ export default function CompaniesPage() {
   // Planes comerciales para asignar a la empresa.
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [aiPlans, setAiPlans] = useState<AiPlan[]>([]);
+  // Empresa a eliminar definitivamente (modal de confirmación).
+  const [purging, setPurging] = useState<{ id: string; name: string; typed: string; backingUp: boolean; error: string } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -75,18 +78,37 @@ export default function CompaniesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleDelete(id: string, name: string) {
-    if (!(await confirmDialog(`¿Eliminar la empresa "${name}"?`, { danger: true }))) return;
+  // Eliminación definitiva: se confirma escribiendo el nombre de la empresa (ver PurgeModal).
+  function handleDelete(id: string, name: string) {
     setDeleteError('');
-    setDeletingId(id);
+    setPurging({ id, name, typed: '', backingUp: false, error: '' });
+  }
+
+  async function confirmPurge() {
+    if (!purging) return;
+    setDeletingId(purging.id);
+    setPurging((p) => p && { ...p, error: '' });
     try {
-      const token = getToken()!;
-      await api.companies.remove(id, token);
+      const res = await api.companies.purge(purging.id, purging.typed, getToken()!);
+      setPurging(null);
       await load();
+      await alertDialog(`Empresa "${purging.name}" eliminada con toda su información (${res.rows.toLocaleString('es-CL')} registros y ${res.files} archivos).`);
     } catch (err: any) {
-      setDeleteError(err.message);
+      setPurging((p) => p && { ...p, error: err.message || 'No se pudo eliminar la empresa.' });
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function downloadBackup() {
+    if (!purging) return;
+    setPurging((p) => p && { ...p, backingUp: true, error: '' });
+    try {
+      await api.companies.backup(purging.id, purging.name, getToken()!);
+    } catch (err: any) {
+      setPurging((p) => p && { ...p, error: err.message || 'No se pudo descargar el respaldo.' });
+    } finally {
+      setPurging((p) => p && { ...p, backingUp: false });
     }
   }
 
@@ -503,7 +525,7 @@ export default function CompaniesPage() {
                   </button>
                   <button onClick={() => handleDelete(c.id, c.name)} disabled={deletingId === c.id}
                     className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
-                    {deletingId === c.id ? 'Eliminando...' : 'Eliminar'}
+                    {deletingId === c.id ? 'Eliminando...' : 'Eliminar empresa'}
                   </button>
                 </td>
               </tr>
@@ -515,6 +537,47 @@ export default function CompaniesPage() {
           </tbody>
         </table>
       </div>
+      {purging && (
+        <Modal
+          title="Eliminar empresa definitivamente"
+          subtitle={purging.name}
+          busy={deletingId === purging.id}
+          onClose={() => setPurging(null)}
+          footer={(
+            <>
+              <button type="button" onClick={() => setPurging(null)} disabled={deletingId === purging.id} className={btnSecondary}>Cancelar</button>
+              <button type="button" onClick={confirmPurge}
+                disabled={deletingId === purging.id || purging.typed.trim().toLowerCase() !== purging.name.trim().toLowerCase()}
+                className={btnDanger}>
+                {deletingId === purging.id ? 'Eliminando…' : 'Eliminar definitivamente'}
+              </button>
+            </>
+          )}
+        >
+          <div className="space-y-4 text-sm">
+            <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-red-800">
+              Se borrará la empresa y <strong>toda su información</strong>: productos, stock y bodegas, ventas y órdenes,
+              clientes, compras, documentos tributarios, conexiones a marketplaces, finanzas, usuarios y archivos subidos.
+              <strong> No se puede deshacer.</strong>
+            </div>
+            <p className="text-xs text-gray-500">
+              Las publicaciones en los marketplaces no se tocan: siguen activas en cada plataforma, solo dejan de estar conectadas a este sistema.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={downloadBackup} disabled={purging.backingUp || deletingId === purging.id} className={btnSecondary}>
+                {purging.backingUp ? 'Preparando respaldo…' : 'Descargar respaldo antes (ZIP)'}
+              </button>
+              <span className="text-xs text-gray-400">Recomendado: Excel con los datos y documentos.</span>
+            </div>
+            <div>
+              <label className={labelCls}>Escribe <strong>{purging.name}</strong> para confirmar</label>
+              <input value={purging.typed} onChange={(e) => setPurging((p) => p && { ...p, typed: e.target.value })}
+                autoComplete="off" className={inputCls} />
+            </div>
+            <FormError message={purging.error} />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
