@@ -21,6 +21,7 @@ const BILLING_LABEL: Record<string, string> = {
 
 type Row = {
   id: string;
+  companyId: string | null;
   companyName: string;
   type: 'E-commerce' | 'Facturación';
   platform: string;
@@ -41,6 +42,9 @@ export default function ConnectionsPage() {
   const [error, setError] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ecommerce' | 'billing'>('all');
   const [search, setSearch] = useState('');
+  // Filtro por empresa: lista de todas las empresas ingresadas ('' = todas).
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [authorizingId, setAuthorizingId] = useState<string | null>(null);
 
@@ -49,14 +53,20 @@ export default function ConnectionsPage() {
     setError('');
     try {
       const token = getToken()!;
-      const [mlConns, otherConns, billingConns] = await Promise.all([
+      const [mlConns, otherConns, billingConns, companyList] = await Promise.all([
         api.marketplace.connections(token),
         api.connections.list(token),
         api.billing.connections.list(token),
+        api.companies.list(token).catch(() => []),
       ]);
+      setCompanies(
+        (companyList as any[]).map((c) => ({ id: c.id, name: c.name }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+      );
 
       const ecommerceRows: Row[] = [...mlConns, ...otherConns].map((c: any) => ({
         id: c.id,
+        companyId: c.companyId ?? c.company?.id ?? null,
         companyName: c.company?.name || '—',
         type: 'E-commerce',
         platform: MARKETPLACE_LABEL[c.marketplace] || c.marketplace,
@@ -70,6 +80,7 @@ export default function ConnectionsPage() {
 
       const billingRows: Row[] = billingConns.map((c: any) => ({
         id: c.id,
+        companyId: c.companyId ?? c.company?.id ?? null,
         companyName: c.company?.name || '—',
         type: 'Facturación',
         platform: BILLING_LABEL[c.provider] || c.provider,
@@ -134,6 +145,7 @@ export default function ConnectionsPage() {
   }
 
   const filtered = rows.filter((r) => {
+    if (companyFilter && r.companyId !== companyFilter) return false;
     if (typeFilter === 'ecommerce' && r.type !== 'E-commerce') return false;
     if (typeFilter === 'billing' && r.type !== 'Facturación') return false;
     if (search.trim()) {
@@ -159,9 +171,19 @@ export default function ConnectionsPage() {
       <FilterBar
         className="!mb-0"
         search={{ label: 'Buscar conexión', value: search, onChange: setSearch, placeholder: 'Empresa, plataforma o nombre...' }}
-        activeCount={typeFilter !== 'all' ? 1 : 0}
-        onClear={() => { setSearch(''); setTypeFilter('all' as any); }}
+        activeCount={(typeFilter !== 'all' ? 1 : 0) + (companyFilter ? 1 : 0)}
+        onClear={() => { setSearch(''); setTypeFilter('all' as any); setCompanyFilter(''); }}
       >
+        <FilterField label="Empresa">
+          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className={filterSelectCls}>
+            <option value="">Todas las empresas</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({rows.filter((r) => r.companyId === c.id).length})
+              </option>
+            ))}
+          </select>
+        </FilterField>
         <FilterField label="Tipo">
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)} className={filterSelectCls}>
             <option value="all">Todos los tipos</option>
