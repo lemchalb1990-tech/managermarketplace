@@ -73,10 +73,11 @@ export class AiCreditsService {
   /** Descuenta los créditos (o rechaza si no alcanzan). Devuelve el id del uso para poder devolverlo. */
   async consume(companyId: string, user: any, kind: AiUsageKind, productId?: string): Promise<string> {
     const credits = await this.cost(kind);
-    // El Super Admin no queda limitado, pero su uso igual se registra en la empresa.
+    // El plan de la empresa debe incluir la función (también para el Super Admin); el Super
+    // Admin no queda limitado por créditos, pero su uso igual se registra en la empresa.
+    const st = await this.status(companyId);
+    this.assertFeature(st.plan, KIND_FEATURE[kind]);
     if (user.role !== Role.SUPER_ADMIN) {
-      const st = await this.status(companyId);
-      this.assertFeature(st.plan, KIND_FEATURE[kind]);
       if (st.remainingToday !== null && st.remainingToday < credits) {
         throw new BadRequestException(`Se acabaron los créditos de IA de hoy (${st.usedToday} de ${st.plan.dailyCredits}). Vuelven mañana.`);
       }

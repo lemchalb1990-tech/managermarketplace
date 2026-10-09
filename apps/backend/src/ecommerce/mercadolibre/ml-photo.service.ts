@@ -116,10 +116,11 @@ export class MlPhotoService {
     // Lo que incluye el plan de la empresa (el Super Admin tiene todo).
     const st = await this.credits.status(product.companyId);
     const isSuper = user.role === Role.SUPER_ADMIN;
-    if (!isSuper && !st.plan) {
+    if (!st.plan) {
       throw new ForbiddenException('Tu empresa no tiene un plan para revisar fotos. Pide al administrador de la plataforma que te asigne uno.');
     }
-    const has = (f: string) => isSuper || !!st.plan?.features.includes(f);
+    // Solo lo que incluye el plan de la empresa, también para el Super Admin.
+    const has = (f: string) => !!st.plan?.features.includes(f);
     const features = { ML_DIAGNOSTIC: has('ML_DIAGNOSTIC'), AI_CHECK: has('AI_CHECK'), AI_FIX: has('AI_FIX'), AI_GENERATE: has('AI_GENERATE') };
     const useAi = !!opts.useAi && features.AI_CHECK && !!product.mlCategoryId;
 

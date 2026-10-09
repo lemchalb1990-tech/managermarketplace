@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getToken, getUser } from '@/lib/auth';
+import { getToken } from '@/lib/auth';
 import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoCheckResult, type PlanFeature } from '@/lib/api';
 
 // Fila con problemas: lo que dice ML o la IA (o ambos).
@@ -72,8 +72,6 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   // Sugerencias de corrección pendientes de aprobar, por foto.
   const [fixes, setFixes] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState('');
-  // El Super Admin tiene todo aunque la empresa no tenga plan (su uso igual se registra).
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   // Imagen de referencia creada, pendiente de agregar o descartar.
   const [generated, setGenerated] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -83,8 +81,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   // Fotos que se subirán a la publicación: las que están bien vienen marcadas.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Lo que incluye el plan de la empresa.
-  const has = (f: PlanFeature) => isSuperAdmin || !!credits?.plan?.features.includes(f);
-  const noPlan = !!credits && !credits.plan && !isSuperAdmin;
+  // Solo lo que incluye el plan de la empresa (también para el Super Admin que la gestiona).
+  const has = (f: PlanFeature) => !!credits?.plan?.features.includes(f);
   // Sin categoría ML no se revisa, corrige ni genera nada.
   const mlOn = has('ML_DIAGNOSTIC') && hasCategory;
   const aiEnabled = has('AI_CHECK') && !!credits?.ready?.PHOTO_CHECK && hasCategory;
@@ -101,7 +99,6 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   const [autoRan, setAutoRan] = useState(false);
 
   useEffect(() => {
-    setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN');
     const token = getToken();
     if (token) api.ai.credits(token, companyId).then(setCredits).catch(() => {}).finally(() => setCreditsLoaded(true));
   }, [companyId]);
@@ -248,6 +245,9 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   const checkCost = credits?.costs.PHOTO_CHECK ?? 1;
   const suggestedTitle = result?.images.find((i) => i.ai?.suggestedTitle)?.ai?.suggestedTitle;
 
+  // Sin plan (o mientras carga) la sección no se muestra.
+  if (!creditsLoaded || !credits?.plan) return null;
+
   return (
     <div className={`pt-3 mt-3 border-t ${highlight ? 'border-red-200' : 'border-gray-100'} space-y-2.5`}>
       <div className="flex items-start justify-between gap-3">
@@ -276,8 +276,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
           </div>
         )}
       </div>
-      {noPlan && <p className="text-[11px] text-gray-500">Tu empresa no tiene un plan para revisar fotos.</p>}
-      {!noPlan && !hasCategory && (
+      {!hasCategory && (
         <p className="text-[11px] text-gray-500">Asigna la categoría ML del producto para revisar, corregir o generar fotos.</p>
       )}
       {result?.mlSkipped && hasCategory && <p className="text-[11px] text-gray-500">{result.mlSkipped}</p>}
