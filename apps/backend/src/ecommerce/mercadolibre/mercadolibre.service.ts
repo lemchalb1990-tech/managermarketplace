@@ -22,6 +22,7 @@ import { InventoryCostingService } from '../../purchases/inventory-costing.servi
 import { StockLedgerService } from '../../purchases/stock-ledger.service';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
 import { SubscriptionService } from '../../subscription/subscription.service';
+import { StorageService } from '../../common/storage/storage.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -116,6 +117,7 @@ export class MercadolibreService {
   constructor(
     private prisma: PrismaService,
     private subscription: SubscriptionService,
+    private storage: StorageService,
     private config: ConfigService,
     private catalog: CatalogService,
     private settings: SettingsService,
@@ -894,7 +896,7 @@ export class MercadolibreService {
       .slice(0, 10)
       .map(async (img: any) => {
         const source = toAbsolute(img.url);
-        const id = await this.uploadPictureToMl(token, source);
+        const id = await this.uploadPictureToMl(token, source, img.url);
         return id ? { id } : { source };
       }));
 
@@ -1703,12 +1705,25 @@ export class MercadolibreService {
   }
 
   // Sube una foto al CDN de Mercado Libre y devuelve su id (null si no se pudo).
-  async uploadPictureToMl(token: string, url: string): Promise<string | null> {
+  async uploadPictureToMl(token: string, url: string, storedRef?: string): Promise<string | null> {
+    // Primero se lee desde el almacenamiento (no depende de que el enlace sea público).
+    const local = storedRef ? await this.storage.read(storedRef) : null;
+    if (local) return this.uploadPictureBytesToMl(token, local.bytes, local.mime, url);
     try {
       const img = await fetch(url);
       if (!img.ok) return null;
       const mime = img.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
-      const bytes = new Uint8Array(await img.arrayBuffer());
+      return this.uploadPictureBytesToMl(token, Buffer.from(await img.arrayBuffer()), mime, url);
+    } catch (err: any) {
+      this.logger.warn(`ML: error leyendo la foto ${url}: ${err?.message}`);
+      return null;
+    }
+  }
+
+  // Sube bytes de una foto al CDN de Mercado Libre y devuelve su id (null si no se pudo).
+  async uploadPictureBytesToMl(token: string, buffer: Buffer, mime: string, label = 'foto'): Promise<string | null> {
+    try {
+      const bytes = new Uint8Array(buffer);
       const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
       const form = new FormData();
       form.append('file', new Blob([bytes], { type: mime }), `foto.${ext}`);
@@ -1719,12 +1734,12 @@ export class MercadolibreService {
       });
       const data: any = await res.json().catch(() => null);
       if (!res.ok || !data?.id) {
-        this.logger.warn(`ML: no se pudo subir la foto ${url} (${res.status}) ${JSON.stringify(data)?.slice(0, 200)}`);
+        this.logger.warn(`ML: no se pudo subir la foto ${label} (${res.status}) ${JSON.stringify(data)?.slice(0, 200)}`);
         return null;
       }
       return String(data.id);
     } catch (err: any) {
-      this.logger.warn(`ML: error subiendo la foto ${url}: ${err?.message}`);
+      this.logger.warn(`ML: error subiendo la foto ${label}: ${err?.message}`);
       return null;
     }
   }

@@ -84,6 +84,33 @@ export class StorageService implements OnModuleInit {
   }
 
   // Borra archivos por su enlace guardado o por su ruta relativa a uploads/ (p. ej. "finance/x.pdf").
+  /**
+   * Lee un archivo por su enlace guardado: si es de uploads/ en disco se lee directo (no
+   * depende de que el servidor sea accesible desde afuera); si no, se descarga.
+   */
+  async read(ref: string): Promise<{ bytes: Buffer; mime: string } | null> {
+    const mimeOf = (n: string) => (/\.png$/i.test(n) ? 'image/png' : /\.webp$/i.test(n) ? 'image/webp' : /\.gif$/i.test(n) ? 'image/gif' : 'image/jpeg');
+    if (!/^https?:\/\//i.test(ref) && ref.includes('/uploads/')) {
+      const rel = ref.split('/uploads/').pop()!.split('?')[0];
+      const path = resolve(this.uploadDir, rel);
+      if (path.startsWith(this.uploadDir + sep)) {
+        try {
+          return { bytes: await readFile(path), mime: mimeOf(rel) };
+        } catch {
+          // Si no está en disco, se intenta descargar abajo.
+        }
+      }
+    }
+    if (!/^https?:\/\//i.test(ref)) return null;
+    try {
+      const res = await fetch(ref);
+      if (!res.ok) return null;
+      return { bytes: Buffer.from(await res.arrayBuffer()), mime: res.headers.get('content-type')?.split(';')[0] || mimeOf(ref) };
+    } catch {
+      return null;
+    }
+  }
+
   async remove(refs: string[]) {
     const rels = [...new Set(refs.filter(Boolean).map((r) => (r.includes('/uploads/') ? r.split('/uploads/').pop()! : r).split('?')[0]))];
     let deleted = 0;

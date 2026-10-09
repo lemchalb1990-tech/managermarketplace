@@ -71,10 +71,10 @@ export class MlPhotoService {
   }
 
   private async download(url: string): Promise<ImageData> {
-    const res = await fetch(await this.absolute(url));
-    if (!res.ok) throw new BadRequestException(`No se pudo leer la foto (${res.status}).`);
-    const mime = res.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
-    return { bytes: Buffer.from(await res.arrayBuffer()), mime };
+    // Desde el almacenamiento (disco o Supabase); si no, por su enlace público.
+    const stored = await this.storage.read(url) ?? await this.storage.read(await this.absolute(url));
+    if (!stored) throw new BadRequestException('No se pudo leer la foto.');
+    return stored;
   }
 
   private sortedImages(product: any) {
@@ -84,14 +84,24 @@ export class MlPhotoService {
   }
 
   // Diagnóstico de imágenes de ML: fondo, tamaño, textos/logos y marcas de agua.
-  private async mlDiagnostic(token: string, pictureUrl: string, categoryId: string | null, title: string): Promise<MlDiagnostic> {
-    try {
+  private async mlDiagnostic(token: string, storedUrl: string, categoryId: string | null, title: string): Promise<MlDiagnostic> {
+    const call = async (picture: string) => {
       const res = await fetch(`${ML_API}/moderations/pictures/diagnostic`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ picture_url: pictureUrl, context: { ...(categoryId ? { category_id: categoryId } : {}), title } }),
+        body: JSON.stringify({ picture_url: picture, context: { ...(categoryId ? { category_id: categoryId } : {}), title } }),
       });
-      const data: any = await res.json().catch(() => null);
+      return { res, data: await res.json().catch(() => null) as any };
+    };
+    try {
+      let { res, data } = await call(await this.absolute(storedUrl));
+      // Si Mercado Libre no puede descargar la foto (enlace no público o bloqueado), se le sube
+      // directo a su CDN y se diagnostica con el id de la foto (la API lo acepta).
+      if (!res.ok && /download|descarg/i.test(JSON.stringify(data ?? ''))) {
+        const img = await this.download(storedUrl).catch(() => null);
+        const pictureId = img ? await this.ml.uploadPictureBytesToMl(token, img.bytes, img.mime, storedUrl) : null;
+        if (pictureId) ({ res, data } = await call(pictureId));
+      }
       if (!res.ok) {
         this.logger.warn(`Diagnóstico ML no disponible (${res.status}): ${JSON.stringify(data)?.slice(0, 300)}`);
         return { available: false, ok: null, issues: [], error: data?.message || `Mercado Libre respondió ${res.status}`, raw: data };
@@ -143,7 +153,7 @@ export class MlPhotoService {
     // Sin categoría ML propia no se diagnostica: los criterios de ML dependen de la categoría.
     const mlSkipped = !product.mlCategoryId ? NEEDS_CATEGORY : null;
     const mlTask = features.ML_DIAGNOSTIC && !mlSkipped ? Promise.all(images.map(async (img: any, i: number) => {
-      results[i].ml = await this.mlDiagnostic(token, await this.absolute(img.url), categoryId, title);
+      results[i].ml = await this.mlDiagnostic(token, img.url, categoryId, title);
     })) : Promise.resolve();
 
     const aiTask = (async () => {
