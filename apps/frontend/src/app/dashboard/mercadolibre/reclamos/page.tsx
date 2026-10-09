@@ -232,7 +232,7 @@ export default function MlReclamosPage() {
         <div className={`mb-4 px-4 py-2 rounded-lg text-sm ${flash.ok ? 'text-[var(--ok)] bg-[var(--ok-bg)]' : 'text-[var(--danger)] bg-[var(--danger-bg)]'}`}>{flash.msg}</div>
       )}
 
-      {/* Lista: fecha, N° de reclamo, producto, cuenta, tipo, estado y vencimiento. */}
+      {/* Lista: fecha, N°, producto, cuenta, estado y vencimiento. */}
       <div className="ui-card overflow-hidden">
         {loading ? (
           <SkeletonTable rows={6} cols={6} />
@@ -243,11 +243,10 @@ export default function MlReclamosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border-soft)] bg-[var(--surface-soft)]">
-                  <th className="px-4 py-2.5 font-medium whitespace-nowrap">Fecha del reclamo</th>
-                  <th className="px-3 py-2.5 font-medium whitespace-nowrap">N° de reclamo</th>
+                  <th className="px-4 py-2.5 font-medium whitespace-nowrap">Fecha del Reclamo</th>
+                  <th className="px-3 py-2.5 font-medium whitespace-nowrap">N°</th>
                   <th className="px-3 py-2.5 font-medium">Producto</th>
                   {multiAccount && <th className="px-3 py-2.5 font-medium">Cuenta</th>}
-                  <th className="px-3 py-2.5 font-medium">Tipo</th>
                   <th className="px-3 py-2.5 font-medium">Estado</th>
                   <th className="px-3 py-2.5 font-medium whitespace-nowrap">Responder antes de</th>
                   <th className="px-4 py-2.5" />
@@ -278,7 +277,6 @@ export default function MlReclamosPage() {
                         </div>
                       </td>
                       {multiAccount && <td className="px-3 py-2.5 whitespace-nowrap text-[var(--text-2)]">{accountName(c)}</td>}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-[var(--text-2)]">{typeLabel(c.type)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap"><StatusBadge c={c} /></td>
                       <td className={`px-3 py-2.5 whitespace-nowrap ${overdue ? 'text-[var(--danger)] font-semibold' : 'text-[var(--text-2)]'}`}>
                         {c.status === 'OPENED' && c.dueDate ? fmtDate(c.dueDate, true) : '—'}
