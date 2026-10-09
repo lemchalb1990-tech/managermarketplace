@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonRows } from '@/components/Skeleton';
-import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
+import { filterSelectCls } from '@/components/FilterBar';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const MARKETPLACE_LABEL: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -41,7 +42,6 @@ export default function ConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ecommerce' | 'billing'>('all');
-  const [search, setSearch] = useState('');
   // Filtro por empresa: lista de todas las empresas ingresadas ('' = todas).
   const [companyFilter, setCompanyFilter] = useState('');
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
@@ -148,12 +148,6 @@ export default function ConnectionsPage() {
     if (companyFilter && r.companyId !== companyFilter) return false;
     if (typeFilter === 'ecommerce' && r.type !== 'E-commerce') return false;
     if (typeFilter === 'billing' && r.type !== 'Facturación') return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      return r.companyName.toLowerCase().includes(q)
-        || r.platform.toLowerCase().includes(q)
-        || r.name.toLowerCase().includes(q);
-    }
     return true;
   });
 
@@ -168,30 +162,27 @@ export default function ConnectionsPage() {
         </p>
       </div>
 
-      <FilterBar
-        className="!mb-0"
-        search={{ label: 'Buscar conexión', value: search, onChange: setSearch, placeholder: 'Empresa, plataforma o nombre...' }}
-        activeCount={(typeFilter !== 'all' ? 1 : 0) + (companyFilter ? 1 : 0)}
-        onClear={() => { setSearch(''); setTypeFilter('all' as any); setCompanyFilter(''); }}
-      >
-        <FilterField label="Empresa">
-          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className={filterSelectCls}>
-            <option value="">Todas las empresas</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({rows.filter((r) => r.companyId === c.id).length})
-              </option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label="Tipo">
+      {/* Filtros: empresa (con búsqueda) y tipo. */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-80">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Empresa</label>
+          <SearchSelect
+            options={companies.map((c) => ({ value: c.id, label: c.name, hint: `${rows.filter((r) => r.companyId === c.id).length} conexiones` }))}
+            value={companyFilter}
+            onChange={setCompanyFilter}
+            allLabel="Todas las empresas"
+            placeholder="Buscar empresa…"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)} className={filterSelectCls}>
             <option value="all">Todos los tipos</option>
             <option value="ecommerce">E-commerce</option>
             <option value="billing">Facturación</option>
           </select>
-        </FilterField>
-      </FilterBar>
+        </div>
+      </div>
 
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
