@@ -385,9 +385,9 @@ export default async function Home() {
         </section>
 
         {/* Dashboard y alertas */}
-        <section id="dashboard" className="pb-20">
-          <div className={WRAP}>
-            <div className="rounded-[12px] bg-[#02093a] p-5 text-white sm:p-10">
+        <section id="dashboard" className="mb-20 bg-[#02093a] py-14 text-white sm:py-20">
+          <div className="mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10">
+            <div>
               <div className="ui-reveal grid gap-4 lg:grid-cols-[1fr_1fr] lg:items-end">
                 <div>
                   <span className="lp-tag bg-white/10 text-white">Dashboard y alertas</span>
