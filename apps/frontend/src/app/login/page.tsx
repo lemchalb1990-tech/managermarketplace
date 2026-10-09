@@ -8,7 +8,7 @@ import { saveSession } from '@/lib/auth';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 
-const EASE = 'cubic-bezier(0.32,0.72,0,1)';
+const MARK_COLORS = ['#097fe8', '#f64932', '#ffb110', '#62aef0'];
 const brandChannels = ['mercadolibre', 'falabella', 'paris', 'ripley', 'walmart'] as const;
 
 export default function LoginPage() {
@@ -39,35 +39,42 @@ export default function LoginPage() {
   }
 
   const field =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-soft)]';
+    'w-full rounded-lg border border-black/[0.12] bg-white px-3.5 py-2.5 text-[15px] text-black placeholder:text-black/35 transition-colors duration-200 focus:border-[#0075de] focus:outline-none focus:ring-[3px] focus:ring-[#e6f3fe]';
 
   return (
-    <div className="flex min-h-[100dvh] bg-[var(--page-bg)]">
-      {/* Panel de marca */}
-      <aside className="ui-dots relative hidden w-[46%] flex-col justify-between overflow-hidden bg-[var(--topbar-bg)] p-12 text-[var(--topbar-fg)] lg:flex">
-        <Link href="/" className="flex items-center gap-2.5 text-[0.95rem] font-semibold tracking-tight">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] font-bold text-[#35301f]">M</span>
+    <div className="flex min-h-[100dvh] gap-4 p-4 sm:p-6">
+      {/* Panel de marca: bloque de color como en la landing */}
+      <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden rounded-[12px] bg-[#ffb110] p-12 text-black lg:flex">
+        <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
+          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
           Admin Marketplace
         </Link>
 
         <div className="max-w-md">
-          <span className="ui-eyebrow bg-white/10 text-[var(--brand)]">Operación omnicanal</span>
-          <h2 className="font-serif mt-5 text-[2.4rem] leading-[1.1] tracking-[-0.02em]">
-            Todas tus ventas y toda tu bodega en un solo lugar.
+          <h2 className="lp-display text-[clamp(2.4rem,3.6vw,54px)]">
+            Todas tus ventas en <span className="lp-pill bg-white">un solo</span> lugar
           </h2>
-          <p className="mt-4 text-[0.95rem] leading-relaxed text-white/60">
+          <p className="lp-serif mt-5 text-[18px] leading-[1.56] text-black/70">
             Catálogo, órdenes, despacho y facturación conectados con cada canal de venta.
           </p>
+          <div className="mt-8 space-y-2">
+            {['Stock sincronizado en todos tus canales', 'Pedidos del día ordenados por hora de corte', 'Boleta y factura en el mismo paso'].map((t) => (
+              <div key={t} className="lp-shot flex items-center gap-3 rounded-[8px] border border-black/[0.08] bg-white px-3 py-2.5 text-[14px] font-medium">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                </span>
+                {t}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div>
-          <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/35">
-            Tus principales canales
-          </p>
-          <div className="flex items-center gap-2">
-            {brandChannels.map((k) => (
-              <span key={k} className="flex h-9 w-14 items-center justify-center rounded-lg bg-white/8 p-1.5 ring-1 ring-white/10">
-                <span className="w-full [&>svg]:h-auto [&>svg]:w-full">{resolvePlatformLogo(logoMap, k, Logos[k], k)}</span>
+          <p className="mb-3 text-[13px] font-medium text-black/60">Tus principales canales</p>
+          <div className="flex items-center gap-2.5">
+            {brandChannels.map((k, i) => (
+              <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
+                <span className="h-7 w-7 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full">{resolvePlatformLogo(logoMap, k, Logos[k], k)}</span>
               </span>
             ))}
           </div>
@@ -75,30 +82,28 @@ export default function LoginPage() {
       </aside>
 
       {/* Formulario */}
-      <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
+      <div className="flex flex-1 items-center justify-center py-6">
         <div className="ui-enter w-full max-w-[400px]">
-          <Link href="/" className="mb-8 flex items-center gap-2 text-sm font-semibold tracking-tight lg:hidden">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-xs font-bold text-[#35301f]">M</span>
+          <Link href="/" className="mb-8 flex items-center justify-center gap-2 text-[15px] font-semibold tracking-[-0.01em] lg:hidden">
+            <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
             Admin Marketplace
           </Link>
 
-          <div className="ui-card p-7 sm:p-8" style={{ boxShadow: 'var(--shadow-md)' }}>
-            <h1 className="font-serif text-[1.75rem] leading-tight tracking-[-0.02em] text-[var(--text)]">
-              Entrar al panel
-            </h1>
-            <p className="mt-1.5 text-sm text-[var(--text-2)]">Ingresa con tu cuenta para continuar.</p>
+          <div className="lp-card p-7 sm:p-8">
+            <h1 className="lp-display text-[32px]">Entrar al panel</h1>
+            <p className="lp-serif mt-2 text-[17px] text-[#615d59]">Ingresa con tu cuenta para continuar.</p>
 
             <form onSubmit={handleSubmit} className="mt-7 space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Correo electrónico</label>
+                <label className="mb-1.5 block text-[13px] font-medium text-black/70">Correo electrónico</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   required autoFocus placeholder="tu@empresa.cl" className={field} />
               </div>
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
-                  <label className="block text-xs font-medium text-[var(--text-2)]">Contraseña</label>
+                  <label className="block text-[13px] font-medium text-black/70">Contraseña</label>
                   <button type="button" onClick={() => setShowPass((s) => !s)}
-                    className="text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--brand-ink)]">
+                    className="rounded-md px-1.5 text-[13px] font-medium text-black/50 transition-colors duration-200 hover:text-[#0075de]">
                     {showPass ? 'Ocultar' : 'Mostrar'}
                   </button>
                 </div>
@@ -108,24 +113,25 @@ export default function LoginPage() {
               </div>
 
               {closedOn && !error && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+                <div className="rounded-lg bg-[#fff4dc] px-3.5 py-2.5 text-sm text-[#7a4d00]">
                   La cuenta fue dada de baja. Sus datos se eliminarán definitivamente el {closedOn}.
                 </div>
               )}
               {error && (
-                <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
+                <p className="rounded-lg bg-[#fdecea] px-3.5 py-2.5 text-sm text-[#e32d14]">{error}</p>
               )}
 
               <button type="submit" disabled={loading}
-                style={{ transitionTimingFunction: EASE }}
-                className="mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--brand)] py-2.5 text-sm font-semibold text-[#35301f] transition-transform duration-300 hover:bg-[var(--brand-dark)] active:scale-[0.99] disabled:opacity-50">
-                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#35301f]/30 border-t-[#35301f]" />}
+                className="lp-btn lp-btn--primary mt-1 w-full !py-3 disabled:opacity-50">
+                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
                 {loading ? 'Ingresando…' : 'Ingresar'}
               </button>
             </form>
           </div>
 
-          <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
+          <p className="mt-6 text-center text-[13px] text-[#757575]">
+            <Link href="/" className="hover:text-black">← Volver al inicio</Link>
+            <span className="mx-2">·</span>
             Creado por OnDataSolution
           </p>
         </div>
