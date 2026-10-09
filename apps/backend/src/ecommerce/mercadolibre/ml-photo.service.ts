@@ -12,6 +12,7 @@ const ML_API = 'https://api.mercadolibre.com';
 const AI_CONCURRENCY = 3;
 const FIX_FOLDER = 'ai-fixes';
 const GENERATED_FOLDER = 'ai-generated';
+const NEEDS_CATEGORY = 'Asigna la categoría ML del producto para revisar, corregir o generar fotos.';
 
 // Nombres en español de los criterios que documenta Mercado Libre para el diagnóstico.
 const ML_CRITERIA: Record<string, string> = {
@@ -117,7 +118,7 @@ export class MlPhotoService {
     }
     const has = (f: string) => isSuper || !!st.plan?.features.includes(f);
     const features = { ML_DIAGNOSTIC: has('ML_DIAGNOSTIC'), AI_CHECK: has('AI_CHECK'), AI_FIX: has('AI_FIX'), AI_GENERATE: has('AI_GENERATE') };
-    const useAi = !!opts.useAi && features.AI_CHECK;
+    const useAi = !!opts.useAi && features.AI_CHECK && !!product.mlCategoryId;
 
     // Cuántas fotos alcanza a revisar la IA con los créditos que quedan.
     let aiBudget = 0;
@@ -136,7 +137,7 @@ export class MlPhotoService {
     const results: any[] = images.map((img: any, i: number) => ({ imageId: img.id, url: img.url, isPrimary: i === 0 }));
 
     // Sin categoría ML propia no se diagnostica: los criterios de ML dependen de la categoría.
-    const mlSkipped = features.ML_DIAGNOSTIC && !product.mlCategoryId ? 'Asigna la categoría ML del producto para diagnosticar las fotos.' : null;
+    const mlSkipped = !product.mlCategoryId ? NEEDS_CATEGORY : null;
     const mlTask = features.ML_DIAGNOSTIC && !mlSkipped ? Promise.all(images.map(async (img: any, i: number) => {
       results[i].ml = await this.mlDiagnostic(token, await this.absolute(img.url), categoryId, title);
     })) : Promise.resolve();
@@ -182,6 +183,7 @@ export class MlPhotoService {
   // Corrige la foto real con IA y devuelve la sugerencia (no reemplaza nada todavía).
   async fix(productId: string, imageId: string, user: any, title?: string) {
     const product: any = await this.catalog.findOne(productId, user);
+    if (!product.mlCategoryId) throw new BadRequestException(NEEDS_CATEGORY);
     const img = (product.images || []).find((i: any) => i.id === imageId);
     if (!img) throw new NotFoundException('Foto no encontrada');
     const usageId = await this.credits.consume(product.companyId, user, 'PHOTO_FIX', productId);
@@ -202,6 +204,7 @@ export class MlPhotoService {
     const finalTitle = (title?.trim()
       || (connectionId ? (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title : null)
       || product.name).trim();
+    if (!product.mlCategoryId) throw new BadRequestException(NEEDS_CATEGORY);
     const usageId = await this.credits.consume(product.companyId, user, 'PHOTO_GENERATE', productId);
     try {
       // Título + descripción (la detallada de ML sin HTML y la corta) para una imagen más fiel.

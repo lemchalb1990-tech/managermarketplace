@@ -39,10 +39,11 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   // Lo que incluye el plan de la empresa.
   const has = (f: PlanFeature) => isSuperAdmin || !!credits?.plan?.features.includes(f);
   const noPlan = !!credits && !credits.plan && !isSuperAdmin;
+  // Sin categoría ML no se revisa, corrige ni genera nada.
   const mlOn = has('ML_DIAGNOSTIC') && hasCategory;
-  const aiEnabled = has('AI_CHECK') && !!credits?.ready?.PHOTO_CHECK;
-  const fixEnabled = has('AI_FIX') && !!credits?.ready?.PHOTO_FIX;
-  const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE;
+  const aiEnabled = has('AI_CHECK') && !!credits?.ready?.PHOTO_CHECK && hasCategory;
+  const fixEnabled = has('AI_FIX') && !!credits?.ready?.PHOTO_FIX && hasCategory;
+  const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE && hasCategory;
   const canCheck = mlOn || aiEnabled;
 
   const [creditsLoaded, setCreditsLoaded] = useState(false);
@@ -202,8 +203,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
         )}
       </div>
       {noPlan && <p className="text-[11px] text-gray-500">Tu empresa no tiene un plan para revisar fotos.</p>}
-      {!noPlan && has('ML_DIAGNOSTIC') && !hasCategory && (
-        <p className="text-[11px] text-gray-500">Asigna la categoría ML del producto para diagnosticar las fotos.</p>
+      {!noPlan && !hasCategory && (
+        <p className="text-[11px] text-gray-500">Asigna la categoría ML del producto para revisar, corregir o generar fotos.</p>
       )}
       {result?.mlSkipped && hasCategory && <p className="text-[11px] text-gray-500">{result.mlSkipped}</p>}
 
