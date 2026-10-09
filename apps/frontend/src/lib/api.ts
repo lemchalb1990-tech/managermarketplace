@@ -245,10 +245,10 @@ export const api = {
   ai: {
     providers: {
       list: (token: string) => apiFetch<AiProvidersOverview>('/ai/providers', {}, token),
-      update: (id: string, data: { apiKey?: string; removeKey?: boolean; models?: Record<string, string>; tasks?: AiTask[] }, token: string) =>
+      update: (id: string, data: { apiKey?: string; removeKey?: boolean; models?: Record<string, string>; tasks?: AiTask[]; extra?: Record<string, string> }, token: string) =>
         apiFetch<AiProvidersOverview>(`/ai/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
-      test: (id: string, token: string, apiKey?: string) =>
-        apiFetch<{ ok: boolean; message: string }>(`/ai/providers/${id}/test`, { method: 'POST', body: JSON.stringify(apiKey ? { apiKey } : {}) }, token),
+      test: (id: string, token: string, apiKey?: string, extra?: Record<string, string>) =>
+        apiFetch<{ ok: boolean; message: string }>(`/ai/providers/${id}/test`, { method: 'POST', body: JSON.stringify({ ...(apiKey ? { apiKey } : {}), ...(extra ? { extra } : {}) }) }, token),
     },
     updateCosts: (costs: Partial<Record<AiTask, number>>, token: string) =>
       apiFetch<Record<AiTask, number>>('/ai/costs', { method: 'PATCH', body: JSON.stringify(costs) }, token),
@@ -1492,6 +1492,7 @@ export interface AiProviderInfo {
   configured: boolean;
   assignedTasks: AiTask[];
   models: Partial<Record<AiTask, { value: string; default: string; label: string; hint: string }>>;
+  extraFields?: { key: string; label: string; hint: string; sensitive: boolean; value: string; set: boolean }[];
 }
 
 export interface AiProvidersOverview {

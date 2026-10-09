@@ -20,10 +20,12 @@ class UpdateProviderDto {
   @IsOptional() @IsBoolean() removeKey?: boolean;
   @IsOptional() @IsObject() models?: Record<string, string>;
   @IsOptional() @IsArray() @IsString({ each: true }) tasks?: string[];
+  @IsOptional() @IsObject() extra?: Record<string, string>;
 }
 
 class TestProviderDto {
   @IsOptional() @IsString() apiKey?: string;
+  @IsOptional() @IsObject() extra?: Record<string, string>;
 }
 
 class CostsDto {
@@ -82,7 +84,7 @@ export class AiController {
   @Post('providers/:id/test')
   @Roles(Role.SUPER_ADMIN)
   testProvider(@Param('id') id: string, @Body() dto: TestProviderDto) {
-    return this.providers.test(id, dto?.apiKey);
+    return this.providers.test(id, dto?.apiKey, dto?.extra);
   }
 
   @Patch('costs')

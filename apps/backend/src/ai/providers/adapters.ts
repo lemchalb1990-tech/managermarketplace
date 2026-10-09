@@ -7,13 +7,16 @@ import {
 
 const logger = new Logger('AiProviders');
 
+// Datos extra del proveedor además de la API key (p. ej. { CLOUDFLARE_AI_ACCOUNT_ID }).
+export type ProviderExtra = Record<string, string>;
+
 export interface ProviderAdapter {
-  check?(key: string, model: string, image: ImageData, ctx: PhotoCheckContext): Promise<PhotoVerdict>;
-  fix?(key: string, model: string, image: ImageData, title: string): Promise<ImageData>;
-  /** Crea una imagen de referencia solo desde el título. */
-  generate?(key: string, model: string, title: string, description?: string | null): Promise<ImageData>;
+  check?(key: string, model: string, image: ImageData, ctx: PhotoCheckContext, extra?: ProviderExtra): Promise<PhotoVerdict>;
+  fix?(key: string, model: string, image: ImageData, title: string, extra?: ProviderExtra): Promise<ImageData>;
+  /** Crea una imagen de referencia desde el título y la descripción. */
+  generate?(key: string, model: string, title: string, description?: string | null, extra?: ProviderExtra): Promise<ImageData>;
   /** Verifica la API key con una llamada que no gasta créditos. */
-  test(key: string): Promise<void>;
+  test(key: string, extra?: ProviderExtra): Promise<void>;
 }
 
 function fail(provider: string, msg: string): never {
@@ -267,4 +270,132 @@ const removebg: ProviderAdapter = {
   },
 };
 
-export const ADAPTERS: Record<string, ProviderAdapter> = { openai, anthropic, gemini, photoroom, removebg };
+// ── Cloudflare Workers AI ─────────────────────────────────────────────────────
+
+function cfBase(extra?: ProviderExtra) {
+  const account = extra?.CLOUDFLARE_AI_ACCOUNT_ID?.trim();
+  if (!account) fail('Cloudflare', 'falta el ID de cuenta de Cloudflare.');
+  return `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai`;
+}
+
+async function cfRun(key: string, extra: ProviderExtra | undefined, model: string, body: unknown): Promise<any> {
+  const res = await fetch(`${cfBase(extra)}/run/${model}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  // Algunos modelos de imagen responden los bytes directo en vez de JSON.
+  const type = res.headers.get('content-type') || '';
+  if (res.ok && type.startsWith('image/')) return { __image: { bytes: Buffer.from(await res.arrayBuffer()), mime: type.split(';')[0] } };
+  const data = await readJson(res);
+  if (!res.ok || data?.success === false) {
+    const msg = data?.errors?.map((e: any) => e.message).join('; ') || `error ${res.status}`;
+    const err: any = new BadRequestException(`Cloudflare: ${msg}`);
+    err.cfMessage = msg;
+    throw err;
+  }
+  return data?.result ?? data;
+}
+
+const cloudflare: ProviderAdapter = {
+  async check(key, model, image, ctx, extra) {
+    const body = {
+      prompt: checkPromptWithJson(ctx),
+      image: Array.from(image.bytes),
+      max_tokens: 800,
+    };
+    let result: any;
+    try {
+      result = await cfRun(key, extra, model, body);
+    } catch (err: any) {
+      // Los modelos de Meta piden aceptar su licencia una vez por cuenta.
+      if (!/agree|licen/i.test(err?.cfMessage || '')) throw err;
+      await cfRun(key, extra, model, { prompt: 'agree' }).catch(() => null);
+      result = await cfRun(key, extra, model, body);
+    }
+    const text = typeof result?.response === 'string' ? result.response : JSON.stringify(result?.response ?? '');
+    return parseVerdict(text) ?? badVerdict('Cloudflare');
+  },
+
+  async generate(key, model, title, description, extra) {
+    const result = await cfRun(key, extra, model, { prompt: generatePrompt(title, description).slice(0, 2048), steps: 6 });
+    if (result?.__image) return result.__image;
+    const b64 = result?.image;
+    if (!b64) fail('Cloudflare', 'no devolvió la imagen.');
+    return { bytes: Buffer.from(b64, 'base64'), mime: 'image/jpeg' };
+  },
+
+  async test(key, extra) {
+    const res = await fetch(`${cfBase(extra)}/models/search?per_page=1`, { headers: { Authorization: `Bearer ${key}` } });
+    const data = await readJson(res);
+    if (!res.ok || data?.success === false) fail('Cloudflare', data?.errors?.map((e: any) => e.message).join('; ') || `error ${res.status}`);
+  },
+};
+
+// ── Black Forest Labs (FLUX) ──────────────────────────────────────────────────
+// Pedido asíncrono: POST /v1/{modelo} → { id, polling_url }; se consulta polling_url hasta
+// status "Ready" y la imagen está en result.sample (URL firmada por 10 minutos).
+
+const BFL_API = 'https://api.bfl.ai/v1';
+
+async function bflRun(key: string, model: string, body: Record<string, unknown>): Promise<ImageData> {
+  let payload = { ...body };
+  let submit: any = null;
+  // Si el modelo no acepta un parámetro opcional, se reintenta sin él.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(`${BFL_API}/${encodeURIComponent(model)}`, {
+      method: 'POST',
+      headers: { 'x-key': key, 'Content-Type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    submit = await readJson(res);
+    if (res.ok) break;
+    if (res.status === 402) fail('FLUX', 'la cuenta no tiene créditos.');
+    if (res.status === 401 || res.status === 403) fail('FLUX', 'la API key no es válida.');
+    const msg = JSON.stringify(submit?.detail ?? submit ?? '');
+    const bad = ['output_format', 'aspect_ratio'].find((k) => k in payload && msg.includes(k));
+    if (!bad) fail('FLUX', (typeof submit?.detail === 'string' ? submit.detail : msg) || `error ${res.status}`);
+    const { [bad]: _omit, ...rest } = payload;
+    payload = rest;
+  }
+  const pollUrl: string = submit?.polling_url || (submit?.id ? `${BFL_API}/get_result?id=${submit.id}` : '');
+  if (!pollUrl) fail('FLUX', 'no devolvió el pedido.');
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const res = await fetch(pollUrl, { headers: { 'x-key': key, accept: 'application/json' } });
+    const data = await readJson(res);
+    const status = String(data?.status || '');
+    if (status === 'Ready') {
+      const url = data?.result?.sample;
+      if (!url) fail('FLUX', 'no devolvió la imagen.');
+      const img = await fetch(url);
+      if (!img.ok) fail('FLUX', `no se pudo descargar la imagen (${img.status}).`);
+      return { bytes: Buffer.from(await img.arrayBuffer()), mime: img.headers.get('content-type')?.split(';')[0] || 'image/jpeg' };
+    }
+    if (/error|failed|moderated|content/i.test(status)) fail('FLUX', `no pudo crear la imagen (${status}).`);
+  }
+  return fail('FLUX', 'tardó demasiado en responder. Intenta de nuevo.');
+}
+
+const bfl: ProviderAdapter = {
+  async fix(key, model, image, title) {
+    return bflRun(key, model, {
+      prompt: fixPrompt(title),
+      input_image: image.bytes.toString('base64'),
+      output_format: 'jpeg',
+    });
+  },
+
+  async generate(key, model, title, description) {
+    return bflRun(key, model, { prompt: generatePrompt(title, description), aspect_ratio: '1:1', output_format: 'jpeg' });
+  },
+
+  async test(key) {
+    const res = await fetch(`${BFL_API}/credits`, { headers: { 'x-key': key, accept: 'application/json' } });
+    if (res.status === 401 || res.status === 403) fail('FLUX', 'la API key no es válida.');
+    if (!res.ok) fail('FLUX', `no se pudo verificar la API key (${res.status}). Prueba creando una imagen.`);
+  },
+};
+
+export const ADAPTERS: Record<string, ProviderAdapter> = { openai, anthropic, gemini, cloudflare, bfl, photoroom, removebg };

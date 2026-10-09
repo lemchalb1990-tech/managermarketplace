@@ -9,6 +9,8 @@ const TASK_ICON: Record<AiTask, string> = { PHOTO_CHECK: '🔍', PHOTO_FIX: '✨
 const PROVIDER_COLOR: Record<string, string> = {
   openai: 'bg-gray-900 text-white',
   anthropic: 'bg-orange-100 text-orange-700',
+  cloudflare: 'bg-amber-100 text-amber-700',
+  bfl: 'bg-slate-800 text-white',
   gemini: 'bg-blue-100 text-blue-700',
   photoroom: 'bg-purple-100 text-purple-700',
   removebg: 'bg-emerald-100 text-emerald-700',
@@ -182,6 +184,10 @@ function ProviderModal({ provider, tasks, currentFor, onClose, onSaved }: {
     () => Object.fromEntries(Object.entries(provider.models).map(([t, m]) => [t, m!.value])),
   );
   const [useFor, setUseFor] = useState<AiTask[]>(provider.assignedTasks);
+  // Datos extra del proveedor (p. ej. ID de cuenta de Cloudflare).
+  const [extra, setExtra] = useState<Record<string, string>>(
+    () => Object.fromEntries((provider.extraFields || []).map((f) => [f.key, f.value || ''])),
+  );
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -199,6 +205,7 @@ function ProviderModal({ provider, tasks, currentFor, onClose, onSaved }: {
         ...(removeKey ? { removeKey: true } : apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         models,
         tasks: removeKey ? [] : useFor,
+        ...(provider.extraFields?.length ? { extra } : {}),
       }, getToken()!);
       onSaved(d);
     } catch (err: any) {
@@ -211,7 +218,7 @@ function ProviderModal({ provider, tasks, currentFor, onClose, onSaved }: {
     setTesting(true);
     setTestMsg(null);
     try {
-      const r = await api.ai.providers.test(provider.id, getToken()!, apiKey.trim() || undefined);
+      const r = await api.ai.providers.test(provider.id, getToken()!, apiKey.trim() || undefined, provider.extraFields?.length ? extra : undefined);
       setTestMsg({ ok: true, text: r.message });
     } catch (err: any) {
       setTestMsg({ ok: false, text: err.message || 'No se pudo conectar.' });
@@ -258,8 +265,19 @@ function ProviderModal({ provider, tasks, currentFor, onClose, onSaved }: {
           </div>
         </div>
 
+        {(provider.extraFields || []).map((f) => (
+          <div key={f.key}>
+            <label className={labelCls}>{f.label}</label>
+            <input type={f.sensitive ? 'password' : 'text'} autoComplete="off" value={extra[f.key] ?? ''}
+              onChange={(e) => { setExtra((x) => ({ ...x, [f.key]: e.target.value })); setTestMsg(null); }}
+              placeholder={f.sensitive && f.set ? 'Guardado — escribe uno nuevo para reemplazarlo' : ''}
+              className={`${inputCls} font-mono`} />
+            <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>
+          </div>
+        ))}
+
         <div>
-          <label className={labelCls}>API Key</label>
+          <label className={labelCls}>{provider.id === 'cloudflare' ? 'Token de API' : 'API Key'}</label>
           <div className="flex flex-col sm:flex-row gap-2">
             <input type="password" autoComplete="off" value={apiKey} disabled={removeKey}
               onChange={(e) => { setApiKey(e.target.value); setTestMsg(null); }}
