@@ -5,7 +5,10 @@ import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
-import { Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini } from "@/components/landing/visuals";
+import {
+  Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
+  PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
+} from "@/components/landing/visuals";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
 // para las bajadas de sección. El panel sigue con Hanken Grotesk.
@@ -37,7 +40,7 @@ function ShipMock() {
         {rows.map((r) => (
           <div key={r.l} className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5">
             <div className="flex items-center gap-3">
-              <span className="flex-1 truncate text-[0.8rem]">{r.l}</span>
+              <span className="min-w-0 flex-1 truncate text-[0.8rem]">{r.l}</span>
               <span className={`text-[0.66rem] ${r.bad ? "font-semibold text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>{r.cut}</span>
               <span className="w-5 text-right font-mono text-[0.75rem] text-[var(--text-2)]">{r.n}</span>
             </div>
@@ -72,10 +75,10 @@ function ChannelsMock() {
         <tbody className="divide-y divide-[var(--border-soft)]">
           {rows.map((r) => (
             <tr key={r.name}>
-              <td className="px-5 py-3 font-medium">{r.name}</td>
-              <td className="px-2 py-3 text-xs text-[var(--text-muted)]">{r.acc}</td>
+              <td className="px-4 py-3 font-medium sm:px-5">{r.name}</td>
+              <td className="hidden px-2 py-3 text-xs text-[var(--text-muted)] sm:table-cell">{r.acc}</td>
               <td className="px-2 py-3 text-right font-mono text-xs text-[var(--text-2)]">{r.prod} prod.</td>
-              <td className="px-5 py-3 text-right">
+              <td className="px-4 py-3 text-right sm:px-5">
                 <span className={`ui-badge ${r.ok ? "ui-badge--ok" : "ui-badge--warn"}`}>
                   {r.ok ? "Activo" : "Revisar"}
                 </span>
@@ -240,7 +243,7 @@ function PhoneMock() {
             {stops.map((s) => (
               <div key={s.a} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
                 <span className={`h-2 w-2 shrink-0 rounded-full ${s.ok ? "bg-[#15803d]" : s.c === "En camino" ? "bg-[#ffb110]" : "bg-black/15"}`} />
-                <span className="flex-1 truncate">{s.a}</span>
+                <span className="min-w-0 flex-1 truncate">{s.a}</span>
                 <span className="text-[#757575]">{s.c}</span>
               </div>
             ))}
@@ -272,6 +275,17 @@ const BENEFITS = [
   { t: "Reclamos sin perder plazos", b: "Los reclamos de Mercado Libre con su fecha límite y la respuesta desde el panel.", bg: "#02093a", fg: "#fff" },
 ] as const;
 
+/* ── Todo desde el panel ──────────────────────────────────────────────────── */
+
+const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
+  { t: "Publica en los marketplaces", b: "Creas el producto una vez y lo publicas en Mercado Libre, Falabella, Paris y Ripley desde el panel.", mock: <PublishMini /> },
+  { t: "Ventas directas", b: "Punto de venta para tu tienda o bodega, con el mismo stock que tus canales online.", mock: <DirectSaleMini /> },
+  { t: "Presupuestos y órdenes de compra", b: "Cotizas a tus clientes y pides mercadería a tus proveedores sin salir del sistema.", mock: <QuoteMini /> },
+  { t: "Boletas y facturas", b: "Documentos tributarios electrónicos con tu proveedor de facturación, enviados por correo.", mock: <InvoiceMini /> },
+  { t: "Etiquetas de los marketplaces", b: "Imprimes por lote las etiquetas de Mercado Libre, Falabella, Paris y Ripley.", mock: <LabelMini /> },
+  { t: "Preguntas de Mercado Libre", b: "Respondes las preguntas de tus publicaciones desde el mismo lugar donde ves el stock.", mock: <QuestionsMini /> },
+];
+
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
 const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
@@ -289,10 +303,11 @@ export default async function Home() {
         <nav className={`${WRAP} flex h-16 items-center justify-between gap-4`} aria-label="Principal">
           <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
             <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
-            Admin Marketplace
+            <span className="max-[380px]:hidden">Admin Marketplace</span>
           </Link>
           <div className="hidden items-center text-[15px] font-medium md:flex">
             <a href="#beneficios" className="lp-nav-link">Beneficios</a>
+            <a href="#funciones" className="lp-nav-link">Funciones</a>
             <a href="#canales" className="lp-nav-link">Canales</a>
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
             <a href="#modulos" className="lp-nav-link">Módulos</a>
@@ -308,7 +323,7 @@ export default async function Home() {
         <section className={`${WRAP} relative pb-20 pt-14 text-center sm:pt-20`}>
           {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
           <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
-          <span className="ui-enter lp-tag bg-white text-[#615d59]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+          <span className="ui-enter lp-tag max-w-full flex-wrap justify-center bg-white text-center text-[#615d59]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
             <span className="h-1.5 w-1.5 rounded-full bg-[#15803d]" />
             Mercado Libre · Falabella · Paris · Ripley · Walmart
           </span>
@@ -379,6 +394,28 @@ export default async function Home() {
                   {b.bg === "#ffb110" && <StockMini />}
                   {b.bg === "#62aef0" && <ProfitMini />}
                   {b.bg === "#02093a" && <ClaimMini />}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Todo desde el panel */}
+        <section id="funciones" className="pb-20">
+          <div className={WRAP}>
+            <div className="ui-reveal max-w-2xl">
+              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Funciones</span>
+              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Todo tu negocio desde un solo panel</h2>
+              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+                Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema.
+              </p>
+            </div>
+            <div className="ui-reveal mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {TOOLS.map((x) => (
+                <div key={x.t} className="lp-card flex min-w-0 flex-col p-6">
+                  <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
+                  <p className="mt-2 text-[15px] leading-[1.5] text-[#615d59]">{x.b}</p>
+                  <div className="mt-auto" aria-hidden="true">{x.mock}</div>
                 </div>
               ))}
             </div>

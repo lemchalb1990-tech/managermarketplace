@@ -31,7 +31,7 @@ function OrdersMock() {
         {rows.map((r) => (
           <div key={r.l} className="rounded-lg bg-[var(--surface)] px-3 py-2">
             <div className="flex items-center gap-3">
-              <span className="flex-1 truncate text-[0.78rem]">{r.l}</span>
+              <span className="min-w-0 flex-1 truncate text-[0.78rem]">{r.l}</span>
               <span className="w-4 text-right font-mono text-[0.72rem] text-[var(--text-2)]">{r.n}</span>
             </div>
             <div className="mt-1.5 flex items-center gap-2">
@@ -152,7 +152,7 @@ function DriversMock() {
             >
               {st.ok ? "✓" : "•"}
             </span>
-            <span className="flex-1 truncate">{st.a}</span>
+            <span className="min-w-0 flex-1 truncate">{st.a}</span>
             <span className="text-[0.64rem] text-[var(--text-muted)]">{st.s}</span>
           </div>
         ))}

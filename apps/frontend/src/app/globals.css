@@ -606,3 +606,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lp-float, .lp-twinkle, .lp-draw, .lp-spin, .lp-ride, .lp-speed, .lp-bob { animation: none; }
 }
+
+/* En la landing el bloque del inicio entra derecho: inclinado se cortaba en los
+   bordes del celular. */
+@keyframes lp-enter-panel {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.lp .ui-enter-panel { animation-name: lp-enter-panel; }
+@media (prefers-reduced-motion: reduce) {
+  .lp .ui-enter-panel { transform: none; }
+}
