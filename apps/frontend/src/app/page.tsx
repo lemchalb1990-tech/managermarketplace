@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { Anton, Inter } from "next/font/google";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
+
+// Tipografías propias de la landing (estilo editorial): condensada para titulares
+// y grotesca neutra para el texto. El panel sigue con Hanken Grotesk.
+const display = Anton({ variable: "--font-lp-display", subsets: ["latin"], weight: "400", display: "swap" });
+const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
 
 const salesChannels = [
   "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
@@ -21,7 +27,7 @@ function ShipMock() {
     { l: "Despacho propio", n: 10, cut: "sin corte", w: "62%", c: "var(--info)" },
   ];
   return (
-    <div className="rounded-2xl bg-[var(--surface)] p-5 text-[var(--text)] shadow-[0_24px_60px_-12px_rgba(20,16,6,0.55)]">
+    <div className="rounded-[32px] bg-[var(--surface)] p-6 text-[var(--text)]">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-semibold">Por despachar hoy</p>
         <p className="font-mono text-xs text-[var(--text-muted)]">jue 25 sep · 31 pedidos</p>
@@ -204,111 +210,125 @@ const BEFORE_AFTER: Array<[string, string]> = [
 
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
+const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
+
 export default async function Home() {
-  const year = new Date().getFullYear();
   const logoMap = await getPlatformLogoMap();
   return (
-    <div className="ui-grain min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[var(--page-bg)] text-[var(--text)]">
-      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--surface)] focus:px-3 focus:py-2 focus:text-sm">
+    <div className={`lp ${display.variable} ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
         Saltar al contenido
       </a>
 
-      {/* Barra superior */}
-      <header className="border-b border-white/10 bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
-        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6" aria-label="Principal">
-          <Link href="/" className="flex items-center gap-2 text-[0.95rem] font-bold tracking-tight">
-            <span className="grid h-6 w-6 place-items-center rounded-[5px] bg-[var(--brand)] text-[0.8rem] font-extrabold text-[#35301f]">M</span>
-            Admin Marketplace
+      {/* Barra superior: logo, píldora de navegación y acceso */}
+      <header>
+        <nav className={`${WRAP} flex h-24 items-center justify-between gap-4 sm:h-32`} aria-label="Principal">
+          <Link href="/" className="flex items-center gap-2 text-[1rem] font-medium tracking-[-0.02em]">
+            <span className="grid h-8 w-8 place-items-center rounded-[8px] bg-black text-[0.85rem] font-semibold text-white">M</span>
+            <span className="hidden sm:inline">Admin Marketplace</span>
           </Link>
-          <div className="flex items-center gap-6 text-sm">
-            <a href="#canales" className="hidden text-white/65 transition-colors hover:text-white sm:inline">Canales</a>
-            <a href="#modulos" className="hidden text-white/65 transition-colors hover:text-white sm:inline">Módulos</a>
-            <Link href="/login" className="rounded-md bg-white/10 px-3 py-1.5 font-medium transition-colors hover:bg-white/15 active:translate-y-px">
-              Iniciar sesión
-            </Link>
+          <div className="hidden items-center gap-6 rounded-[48px] bg-white px-7 py-3.5 text-[15px] font-medium text-[#444] md:flex">
+            <a href="#dia-a-dia" className="transition-colors hover:text-black">Día a día</a>
+            <a href="#canales" className="transition-colors hover:text-black">Canales</a>
+            <a href="#modulos" className="transition-colors hover:text-black">Módulos</a>
           </div>
+          <Link href="/login" className="lp-btn lp-btn--dark !px-5 !py-3.5 text-[15px]">
+            Iniciar sesión
+          </Link>
         </nav>
       </header>
 
       <main id="contenido">
         {/* Hero */}
-        <section className="ui-dots overflow-hidden bg-[var(--topbar-bg)] text-[var(--topbar-fg)]">
-          <div className="mx-auto grid max-w-6xl gap-14 px-6 pb-24 pt-16 sm:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pb-28">
-            <div>
-              <h1 className="ui-enter text-balance text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-[3.4rem]">
-                Un solo stock para Mercado Libre, Falabella, Paris, Ripley y Walmart.
-              </h1>
-              <p className="ui-enter mt-6 max-w-[34rem] text-pretty text-[1.08rem] leading-relaxed text-white/65" style={{ ["--d" as string]: "120ms" }}>
-                Vendes en uno y se descuenta en todos. Los pedidos del día llegan juntos,
-                ordenados por hora de corte, y la boleta sale en el mismo paso.
-              </p>
-              <div className="ui-enter mt-9 flex flex-wrap items-center gap-x-6 gap-y-3" style={{ ["--d" as string]: "220ms" }}>
-                <Link href="/login"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-3 font-semibold text-[#35301f] transition-[background-color,transform] duration-200 hover:bg-[var(--brand-dark)] active:translate-y-px">
-                  Entrar al panel
-                  <Icon d={ICONS.arrow} size={18} />
-                </Link>
-                <a href="#modulos" className="text-sm font-medium text-white/70 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60">
-                  Ver cómo se ve por dentro
-                </a>
-              </div>
-              <p className="ui-enter mt-12 text-[0.8rem] text-white/45" style={{ ["--d" as string]: "300ms" }}>
-                Hecho en Chile para vendedores con bodega propia · boleta y factura electrónica SII
-              </p>
+        <section className={`${WRAP} grid gap-12 pb-20 pt-6 sm:pt-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:gap-16`}>
+          <div>
+            <span className="lp-tag lp-mono ui-enter">
+              <span className="h-1.5 w-1.5 rounded-full bg-black" />
+              Mercado Libre · Falabella · Paris · Ripley · Walmart
+            </span>
+            <h1 className="lp-display ui-enter mt-6 text-[clamp(3rem,10.5vw,130px)]" style={{ ["--d" as string]: "80ms" }}>
+              Un solo stock para todos tus canales
+            </h1>
+            <p className="ui-enter mt-8 max-w-[34rem] text-pretty text-[18px] leading-[1.33] text-[#444]" style={{ ["--d" as string]: "160ms" }}>
+              Vendes en uno y se descuenta en todos. Los pedidos del día llegan juntos,
+              ordenados por hora de corte, y la boleta sale en el mismo paso.
+            </p>
+            <div className="ui-enter mt-9 flex flex-wrap items-center gap-3" style={{ ["--d" as string]: "240ms" }}>
+              <Link href="/login" className="lp-btn lp-btn--dark">
+                Entrar al panel
+                <Icon d={ICONS.arrow} size={18} />
+              </Link>
+              <a href="#modulos" className="lp-btn lp-btn--ghost">Ver cómo se ve por dentro</a>
             </div>
+          </div>
 
-            <div className="ui-enter-panel relative hidden lg:block" style={{ ["--d" as string]: "260ms" }} aria-hidden="true">
-              <ShipMock />
-              <div className="absolute -bottom-16 -left-10 w-60 rotate-[-2.5deg]">
-                <div className="rounded-xl bg-[var(--surface)] p-3.5 text-[var(--text)] shadow-[0_18px_40px_-10px_rgba(20,16,6,0.5)]">
-                  <p className="text-[0.66rem] text-[var(--text-muted)]">Venta Falabella #88213</p>
-                  <p className="mt-1 text-[0.8rem] font-semibold">Stock actualizado en 4 canales</p>
-                </div>
-              </div>
+          <div className="ui-enter-panel relative hidden lg:block" style={{ ["--d" as string]: "260ms" }} aria-hidden="true">
+            <ShipMock />
+            <div className="absolute -bottom-10 -left-10 w-64 rotate-[-2.5deg] rounded-[24px] bg-[#d1ffca] p-5">
+              <p className="lp-mono text-black/60">Venta Falabella #88213</p>
+              <p className="mt-1 text-[16px] font-medium leading-tight">Stock actualizado en 4 canales</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Logos sobre bloque negro con borde superior en arco */}
+        <section className="rounded-t-[32px] bg-black text-white sm:rounded-t-[64px]">
+          <div className={`${WRAP} py-12`}>
+            <p className="lp-mono mb-6 text-[#979797]">Marketplaces y tiendas que puedes conectar</p>
+            <div className="rounded-[24px] bg-[#f3f3f3] px-2 py-3">
+              <LogosMarquee logoMap={logoMap} />
             </div>
           </div>
         </section>
 
         {/* Antes / ahora */}
-        <section className="border-b border-[var(--border)] bg-[var(--surface)] py-24">
-          <div className="mx-auto max-w-6xl px-6">
-            <h2 className="ui-reveal max-w-2xl text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
-              Lo que deja de pasarte en el día a día
-            </h2>
-            <div className="mt-12 hidden grid-cols-2 gap-10 pb-3 text-[0.78rem] font-semibold text-[var(--text-muted)] md:grid">
-              <p>Hoy</p>
-              <p className="text-[var(--brand-ink)]">Con el panel</p>
+        <section id="dia-a-dia" className="bg-black pb-20">
+          <div className={WRAP}>
+            <div className="rounded-[32px] bg-white p-6 sm:rounded-[64px] sm:p-14">
+              <span className="lp-tag lp-mono">01 · Día a día</span>
+              <h2 className="lp-display ui-reveal mt-6 max-w-3xl text-[clamp(3rem,7vw,80px)]">
+                Lo que deja de pasarte
+              </h2>
+              <div className="lp-mono mt-12 hidden grid-cols-[3rem_1fr_1fr] gap-8 pb-3 text-[#979797] md:grid">
+                <span />
+                <p>Hoy</p>
+                <p className="text-black">Con el panel</p>
+              </div>
+              <ol className="divide-y divide-[#e5e5e5] border-y border-[#e5e5e5]">
+                {BEFORE_AFTER.map(([before, after], i) => (
+                  <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-[3rem_1fr_1fr] md:gap-8">
+                    <span className="lp-mono text-[#979797]">{String(i + 1).padStart(2, "0")}</span>
+                    <p className="text-[16px] leading-[1.4] text-[#979797]">
+                      <span className="lp-mono mr-2 md:hidden">Hoy:</span>
+                      {before}
+                    </p>
+                    <p className="text-[16px] font-medium leading-[1.4] text-black">
+                      <span className="lp-mono mr-2 rounded-full bg-[#d1ffca] px-2 py-0.5 md:hidden">Con el panel</span>
+                      {after}
+                    </p>
+                  </li>
+                ))}
+              </ol>
             </div>
-            <ol className="divide-y divide-[var(--border-soft)] border-y border-[var(--border-soft)]">
-              {BEFORE_AFTER.map(([before, after], i) => (
-                <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-2 md:gap-10">
-                  <p className="text-[0.95rem] leading-relaxed text-[var(--text-muted)]">
-                    <span className="mr-2 font-semibold text-[var(--text-muted)] md:hidden">Hoy:</span>
-                    {before}
-                  </p>
-                  <p className="text-[0.95rem] leading-relaxed text-[var(--text)]">
-                    <span className="mr-2 font-semibold text-[var(--brand-ink)] md:hidden">Con el panel:</span>
-                    {after}
-                  </p>
-                </li>
-              ))}
-            </ol>
           </div>
         </section>
 
         {/* Canales — bento */}
-        <section id="canales" className="border-b border-[var(--border)] bg-[var(--surface-soft)] py-24">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="ui-reveal flex flex-wrap items-end justify-between gap-4">
-              <h2 className="max-w-xl text-balance text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
-                Stock, precios y documentos al día en cada canal
-              </h2>
-              <p className="max-w-xs text-[0.9rem] text-[var(--text-2)]">
+        <section id="canales" className="py-20">
+          <div className={WRAP}>
+            <div className="ui-reveal flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <span className="lp-tag lp-mono">02 · Canales</span>
+                <h2 className="lp-display mt-6 max-w-3xl text-[clamp(3rem,7vw,80px)]">
+                  Stock, precios y documentos al día
+                </h2>
+              </div>
+              <p className="max-w-xs text-[16px] leading-[1.33] text-[#444]">
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
             </div>
 
-            <div className="ui-reveal mt-10 grid grid-cols-1 gap-4 md:grid-cols-6">
+            <div className="ui-reveal mt-12 grid grid-cols-1 gap-4 md:grid-cols-6">
               <div className="md:col-span-4 [&>*]:h-full">
                 <ChannelsMock />
               </div>
@@ -318,21 +338,17 @@ export default async function Home() {
               <div className="md:col-span-3 [&>*]:h-full">
                 <StockSyncMock />
               </div>
-              <div className="flex flex-col justify-end rounded-2xl bg-[var(--brand-soft)] p-6 md:col-span-3">
-                <p className="text-[1.05rem] font-semibold leading-snug">
-                  Un inventario para todas tus bodegas.
-                </p>
-                <p className="mt-1.5 max-w-sm text-[0.88rem] leading-relaxed text-[var(--text-2)]">
+              <div className="flex flex-col justify-end rounded-[32px] bg-black p-6 text-white md:col-span-3 sm:p-8">
+                <p className="lp-heading text-[28px]">Un inventario para todas tus bodegas</p>
+                <p className="mt-3 max-w-sm text-[16px] leading-[1.33] text-[#979797]">
                   Cada venta descuenta de la bodega correcta, sin planillas paralelas ni vender lo que ya no tienes.
                 </p>
               </div>
             </div>
 
-            <div className="ui-reveal mt-16 space-y-5">
-              <p className="text-[0.85rem] font-medium text-[var(--text-2)]">Marketplaces y tiendas que puedes conectar</p>
-              <LogosMarquee logoMap={logoMap} />
-              <p className="pt-4 text-[0.85rem] font-medium text-[var(--text-2)]">Proveedores de facturación electrónica</p>
-              <div className="flex flex-wrap items-center gap-x-7 gap-y-4">
+            <div className="ui-reveal mt-4 rounded-[32px] bg-white p-6 sm:p-8">
+              <p className="lp-mono text-[#979797]">Proveedores de facturación electrónica</p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-4">
                 {billingChannels.map((k) => (
                   <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
                 ))}
@@ -342,30 +358,32 @@ export default async function Home() {
         </section>
 
         {/* Módulos */}
-        <section id="modulos" className="py-24">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="ui-reveal max-w-xl">
-              <h2 className="text-balance text-[1.9rem] font-extrabold leading-tight tracking-[-0.03em] sm:text-[2.3rem]">
-                Desde que entra el pedido hasta que llega al cliente
-              </h2>
-              <p className="mt-3 text-[0.95rem] text-[var(--text-2)]">
-                Estas son pantallas reales del panel, con datos de ejemplo.
-              </p>
-            </div>
+        <section id="modulos" className="pb-20">
+          <div className={WRAP}>
+            <div className="rounded-[32px] bg-white p-6 sm:rounded-[64px] sm:p-14">
+              <div className="ui-reveal max-w-3xl">
+                <span className="lp-tag lp-mono">03 · Módulos</span>
+                <h2 className="lp-display mt-6 text-[clamp(3rem,7vw,80px)]">
+                  Del pedido a la puerta del cliente
+                </h2>
+                <p className="mt-5 text-[16px] text-[#444]">
+                  Estas son pantallas reales del panel, con datos de ejemplo.
+                </p>
+              </div>
 
-            <ModulesExplorer />
+              <ModulesExplorer />
+            </div>
           </div>
         </section>
 
         {/* Cierre */}
-        <section className="border-t border-[var(--border)] bg-[var(--surface)]">
-          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-20 sm:flex-row sm:items-end sm:justify-between">
+        <section className="rounded-t-[32px] bg-black text-white sm:rounded-t-[64px]">
+          <div className={`${WRAP} flex flex-col gap-8 py-20 sm:flex-row sm:items-end sm:justify-between`}>
             <div>
-              <h2 className="text-[1.6rem] font-extrabold leading-tight tracking-[-0.03em]">¿Ya tienes cuenta?</h2>
-              <p className="mt-2 text-[0.95rem] text-[var(--text-2)]">Entra con tu correo y sigue donde quedaste.</p>
+              <h2 className="lp-display text-[clamp(3rem,8vw,80px)]">¿Ya tienes cuenta?</h2>
+              <p className="mt-4 text-[16px] text-[#979797]">Entra con tu correo y sigue donde quedaste.</p>
             </div>
-            <Link href="/login"
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--text)] px-5 py-3 font-semibold text-[var(--page-bg)] transition-transform duration-200 active:translate-y-px">
+            <Link href="/login" className="lp-btn lp-btn--light shrink-0 self-start sm:self-auto">
               Iniciar sesión
               <Icon d={ICONS.arrow} size={18} />
             </Link>
@@ -373,13 +391,13 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-[var(--border)]">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-xs text-[var(--text-muted)]">
+      <footer className="bg-black text-[#979797]">
+        <div className={`${WRAP} lp-mono flex flex-wrap items-center justify-between gap-4 border-t border-white/10 py-8`}>
           <span>Creado por OnDataSolution</span>
           <div className="flex gap-5">
-            <a href="#canales" className="hover:text-[var(--text)]">Canales</a>
-            <a href="#modulos" className="hover:text-[var(--text)]">Módulos</a>
-            <Link href="/login" className="hover:text-[var(--text)]">Iniciar sesión</Link>
+            <a href="#canales" className="transition-colors hover:text-white">Canales</a>
+            <a href="#modulos" className="transition-colors hover:text-white">Módulos</a>
+            <Link href="/login" className="transition-colors hover:text-white">Iniciar sesión</Link>
           </div>
         </div>
       </footer>

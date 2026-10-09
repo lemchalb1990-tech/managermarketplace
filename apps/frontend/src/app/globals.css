@@ -465,3 +465,91 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ui-skeleton::after { animation: none; }
 }
+
+/* ── Landing editorial ──────────────────────────────────────────────────────
+   Monocromo sobre gris cálido, titulares condensados enormes, superficies
+   planas (sin sombras) y un único acento menta. Solo aplica dentro de .lp,
+   así el panel conserva su propia paleta. */
+.lp {
+  --lp-black: #000000;
+  --lp-white: #ffffff;
+  --lp-canvas: #e5e5e5;
+  --lp-mist: #f3f3f3;
+  --lp-ash: #c6c6c6;
+  --lp-smoke: #979797;
+  --lp-slate: #444444;
+  --lp-graphite: #2f2f2f;
+  --lp-mint: #d1ffca;
+  --lp-yellow: #fff100;
+
+  /* Los mocks reutilizan las variables del panel: se remapean al monocromo. */
+  --page-bg: var(--lp-canvas);
+  --surface: var(--lp-white);
+  --surface-soft: var(--lp-mist);
+  --text: var(--lp-black);
+  --text-2: var(--lp-slate);
+  --text-muted: var(--lp-smoke);
+  --border: var(--lp-ash);
+  --border-soft: #ebebeb;
+  --brand: var(--lp-black);
+  --brand-dark: var(--lp-graphite);
+  --brand-ink: var(--lp-black);
+  --brand-soft: var(--lp-mint);
+
+  background: var(--lp-canvas);
+  color: var(--lp-black);
+  font-family: var(--font-lp-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.011em;
+}
+.lp .ui-card { border: 0; box-shadow: none; border-radius: 24px; }
+.lp .ui-btn-brand { background: var(--lp-black); color: var(--lp-white); border-radius: 8px; font-weight: 500; }
+.lp .ui-btn-brand:hover { background: var(--lp-graphite); }
+
+.lp-display {
+  font-family: var(--font-lp-display), "Bebas Neue", "Barlow Condensed", sans-serif;
+  font-weight: 400; /* Anton ya es pesada: equivale al 700 condensado */
+  text-transform: uppercase;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+.lp-heading {
+  font-weight: 500;
+  text-transform: uppercase;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.lp-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.03em;
+}
+.lp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 64px;
+  background: var(--lp-mint);
+  color: var(--lp-black);
+  padding: 6px 14px;
+}
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.lp-btn:active { transform: translateY(1px); }
+.lp-btn--dark { background: var(--lp-black); color: var(--lp-white); }
+.lp-btn--dark:hover { background: var(--lp-graphite); }
+.lp-btn--light { background: var(--lp-white); color: var(--lp-black); }
+.lp-btn--light:hover { background: var(--lp-mint); }
+.lp-btn--ghost { border: 1.5px solid var(--lp-slate); color: var(--lp-slate); border-radius: 4px; padding: 14px 16px; }
+.lp-btn--ghost:hover { color: var(--lp-black); border-color: var(--lp-black); }
+.lp-link { text-decoration: none; }
+.lp-link:hover { text-decoration: underline; text-underline-offset: 4px; }
