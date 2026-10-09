@@ -1,15 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Anton, Inter } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
 
-// Tipografías propias de la landing (estilo editorial): condensada para titulares
-// y grotesca neutra para el texto. El panel sigue con Hanken Grotesk.
-const display = Anton({ variable: "--font-lp-display", subsets: ["latin"], weight: "400", display: "swap" });
+// Tipografías propias de la landing: sans neutra para todo y una serif editorial
+// para las bajadas de sección. El panel sigue con Hanken Grotesk.
 const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
+const serif = Source_Serif_4({ variable: "--font-lp-serif", subsets: ["latin"], weight: "400", display: "swap" });
 
 const salesChannels = [
   "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
@@ -27,7 +27,7 @@ function ShipMock() {
     { l: "Despacho propio", n: 10, cut: "sin corte", w: "62%", c: "var(--info)" },
   ];
   return (
-    <div className="rounded-[32px] bg-[var(--surface)] p-6 text-[var(--text)]">
+    <div className="rounded-[12px] bg-[var(--surface)] p-5 text-[var(--text)]">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-semibold">Por despachar hoy</p>
         <p className="font-mono text-xs text-[var(--text-muted)]">jue 25 sep · 31 pedidos</p>
@@ -208,102 +208,197 @@ const BEFORE_AFTER: Array<[string, string]> = [
   ],
 ];
 
+/* ── Versión móvil ────────────────────────────────────────────────────────── */
+
+// Teléfono dibujado con CSS: la ruta del repartidor tal como se ve en "Mis rutas".
+function PhoneMock() {
+  const stops = [
+    { a: "Av. Providencia 1208", c: "Entregado", ok: true },
+    { a: "Los Leones 455, depto 1102", c: "Entregado", ok: true },
+    { a: "Manuel Montt 2310", c: "En camino" },
+    { a: "Eliodoro Yáñez 1890", c: "Pendiente" },
+  ];
+  return (
+    <div className="lp-shot mx-auto w-[260px] rounded-[40px] bg-[#111] p-2.5">
+      <div className="overflow-hidden rounded-[32px] bg-[#f6f5f4]">
+        <div className="flex items-center justify-between px-6 pb-2 pt-3 text-[11px] font-semibold">
+          <span>9:41</span>
+          <span className="h-4 w-16 rounded-full bg-[#111]" />
+          <span>5G</span>
+        </div>
+        <div className="px-4 pb-5">
+          <p className="text-[11px] text-[#757575]">Ruta de hoy · 8 paradas</p>
+          <p className="mt-0.5 text-[17px] font-semibold tracking-[-0.01em]">Hola, Andrea</p>
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-white p-3 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/5">
+              <span className="block h-full w-1/2 rounded-full bg-[#0075de]" />
+            </span>
+            <span className="font-mono text-[#615d59]">4 / 8</span>
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {stops.map((s) => (
+              <div key={s.a} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${s.ok ? "bg-[#15803d]" : s.c === "En camino" ? "bg-[#ffb110]" : "bg-black/15"}`} />
+                <span className="flex-1 truncate">{s.a}</span>
+                <span className="text-[#757575]">{s.c}</span>
+              </div>
+            ))}
+          </div>
+          <span className="mt-3 block rounded-lg bg-[#0075de] py-2.5 text-center text-[12px] font-medium text-white">
+            Marcar entregado y foto
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MOBILE_POINTS = [
+  ["Repartidores", "Ven su ruta del día, marcan cada entrega y suben la foto de respaldo."],
+  ["Bodega", "Picking y packing desde el teléfono: cada pedido con sus productos y su avance."],
+  ["Punto de venta", "Cobras y emites la boleta desde el celular o la tablet del mostrador."],
+  ["Tú", "Revisas ventas, stock y reclamos de Mercado Libre desde donde estés."],
+] as const;
+
+/* ── Beneficios ───────────────────────────────────────────────────────────── */
+
+const BENEFITS = [
+  { t: "Nunca vendes lo que no tienes", b: "Cada venta descuenta de la bodega correcta y el stock nuevo se publica en todos tus canales.", bg: "#ffb110", fg: "#000" },
+  { t: "Pedidos en una sola lista", b: "Agrupados por transportista y hora de corte. Los atrasados salen en rojo.", bg: "#ffffff", fg: "#000", icon: ICONS.orders },
+  { t: "Boleta y factura automáticas", b: "Con tu proveedor de facturación, en el mismo paso de la venta.", bg: "#ffffff", fg: "#000", icon: ICONS.doc },
+  { t: "Ganancia real por venta", b: "Neto sin IVA, menos comisión, envío y costo del producto.", bg: "#62aef0", fg: "#000" },
+  { t: "Fotos revisadas con IA", b: "Antes de publicar en Mercado Libre, la IA revisa que cada foto coincida con el título.", bg: "#ffffff", fg: "#000", icon: ICONS.scan },
+  { t: "Reclamos sin perder plazos", b: "Los reclamos de Mercado Libre con su fecha límite y la respuesta desde el panel.", bg: "#02093a", fg: "#fff" },
+] as const;
+
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
 const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
+const MARK_COLORS = ["#097fe8", "#f64932", "#ffb110", "#62aef0"];
 
 export default async function Home() {
   const logoMap = await getPlatformLogoMap();
+  const heroMarks = salesChannels.slice(0, 7);
   return (
-    <div className={`lp ${display.variable} ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
+    <div className={`lp ${sans.variable} ${serif.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
         Saltar al contenido
       </a>
 
-      {/* Barra superior: logo, píldora de navegación y acceso */}
-      <header>
-        <nav className={`${WRAP} flex h-24 items-center justify-between gap-4 sm:h-32`} aria-label="Principal">
-          <Link href="/" className="flex items-center gap-2 text-[1rem] font-medium tracking-[-0.02em]">
-            <span className="grid h-8 w-8 place-items-center rounded-[8px] bg-black text-[0.85rem] font-semibold text-white">M</span>
-            <span className="hidden sm:inline">Admin Marketplace</span>
+      {/* Barra superior fija */}
+      <header className="sticky top-0 z-40 bg-[#f6f5f4]/90 backdrop-blur-md [box-shadow:0_0.7px_1.46px_rgba(0,0,0,0.015),0_3px_9px_rgba(0,0,0,0.03)]">
+        <nav className={`${WRAP} flex h-16 items-center justify-between gap-4`} aria-label="Principal">
+          <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
+            <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
+            Admin Marketplace
           </Link>
-          <div className="hidden items-center gap-6 rounded-[48px] bg-white px-7 py-3.5 text-[15px] font-medium text-[#444] md:flex">
-            <a href="#dia-a-dia" className="transition-colors hover:text-black">Día a día</a>
-            <a href="#canales" className="transition-colors hover:text-black">Canales</a>
-            <a href="#modulos" className="transition-colors hover:text-black">Módulos</a>
+          <div className="hidden items-center text-[15px] font-medium md:flex">
+            <a href="#beneficios" className="lp-nav-link">Beneficios</a>
+            <a href="#canales" className="lp-nav-link">Canales</a>
+            <a href="#movil" className="lp-nav-link">Versión móvil</a>
+            <a href="#modulos" className="lp-nav-link">Módulos</a>
           </div>
-          <Link href="/login" className="lp-btn lp-btn--dark !px-5 !py-3.5 text-[15px]">
-            Iniciar sesión
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link href="/login" className="lp-btn lp-btn--text hidden sm:inline-flex">Iniciar sesión</Link>
+            <Link href="/login" className="lp-btn lp-btn--primary">Entrar al panel</Link>
+          </div>
         </nav>
       </header>
 
       <main id="contenido">
-        {/* Hero */}
-        <section className={`${WRAP} grid gap-12 pb-20 pt-6 sm:pt-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:gap-16`}>
-          <div>
-            <span className="lp-tag lp-mono ui-enter">
-              <span className="h-1.5 w-1.5 rounded-full bg-black" />
-              Mercado Libre · Falabella · Paris · Ripley · Walmart
-            </span>
-            <h1 className="lp-display ui-enter mt-6 text-[clamp(3rem,10.5vw,130px)]" style={{ ["--d" as string]: "80ms" }}>
-              Un solo stock para todos tus canales
-            </h1>
-            <p className="ui-enter mt-8 max-w-[34rem] text-pretty text-[18px] leading-[1.33] text-[#444]" style={{ ["--d" as string]: "160ms" }}>
-              Vendes en uno y se descuenta en todos. Los pedidos del día llegan juntos,
-              ordenados por hora de corte, y la boleta sale en el mismo paso.
-            </p>
-            <div className="ui-enter mt-9 flex flex-wrap items-center gap-3" style={{ ["--d" as string]: "240ms" }}>
-              <Link href="/login" className="lp-btn lp-btn--dark">
-                Entrar al panel
-                <Icon d={ICONS.arrow} size={18} />
-              </Link>
-              <a href="#modulos" className="lp-btn lp-btn--ghost">Ver cómo se ve por dentro</a>
-            </div>
+        {/* Hero centrado */}
+        <section className={`${WRAP} pb-20 pt-14 text-center sm:pt-20`}>
+          <div className="ui-enter flex flex-wrap justify-center gap-2.5" aria-hidden="true">
+            {heroMarks.map((k, i) => (
+              <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
+                <span className="h-7 w-7 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full">
+                  {resolveLogoNode(logoMap, k, Logos[k])}
+                </span>
+              </span>
+            ))}
+          </div>
+          <h1 className="lp-display ui-enter mx-auto mt-8 max-w-[15ch] text-balance text-[clamp(2.6rem,7vw,72px)]" style={{ ["--d" as string]: "80ms" }}>
+            Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
+          </h1>
+          <p className="lp-serif ui-enter mx-auto mt-6 max-w-[36rem] text-pretty text-[18px] leading-[1.56] text-[#615d59]" style={{ ["--d" as string]: "160ms" }}>
+            Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
+            Vendes en uno y se descuenta en todos; la boleta sale en el mismo paso.
+          </p>
+          <div className="ui-enter mt-8 flex flex-wrap justify-center gap-2" style={{ ["--d" as string]: "240ms" }}>
+            <Link href="/login" className="lp-btn lp-btn--primary">
+              Entrar al panel <Icon d={ICONS.arrow} size={16} />
+            </Link>
+            <a href="#beneficios" className="lp-btn lp-btn--soft">Ver beneficios</a>
           </div>
 
-          <div className="ui-enter-panel relative hidden lg:block" style={{ ["--d" as string]: "260ms" }} aria-hidden="true">
-            <ShipMock />
-            <div className="absolute -bottom-10 -left-10 w-64 rotate-[-2.5deg] rounded-[24px] bg-[#d1ffca] p-5">
-              <p className="lp-mono text-black/60">Venta Falabella #88213</p>
-              <p className="mt-1 text-[16px] font-medium leading-tight">Stock actualizado en 4 canales</p>
+          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[860px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+            <div className="grid gap-4 rounded-[12px] bg-[#ffb110] p-4 sm:p-8 md:grid-cols-[1.15fr_0.85fr]">
+              <div className="lp-shot rounded-[12px] [&>*]:h-full"><ShipMock /></div>
+              <div className="hidden flex-col gap-4 md:flex">
+                <div className="lp-shot rounded-[12px]"><StockSyncMock /></div>
+                <div className="lp-shot rounded-[12px]"><NetMock /></div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Logos sobre bloque negro con borde superior en arco */}
-        <section className="rounded-t-[32px] bg-black text-white sm:rounded-t-[64px]">
-          <div className={`${WRAP} py-12`}>
-            <p className="lp-mono mb-6 text-[#979797]">Marketplaces y tiendas que puedes conectar</p>
-            <div className="rounded-[24px] bg-[#f3f3f3] px-2 py-3">
-              <LogosMarquee logoMap={logoMap} />
+        {/* Muro de logos */}
+        <section className="border-y border-black/[0.06] bg-white py-10">
+          <div className={WRAP}>
+            <p className="mb-5 text-center text-[14px] text-[#757575]">Marketplaces y tiendas que puedes conectar</p>
+            <LogosMarquee logoMap={logoMap} />
+          </div>
+        </section>
+
+        {/* Beneficios */}
+        <section id="beneficios" className="py-20">
+          <div className={WRAP}>
+            <div className="ui-reveal mx-auto max-w-2xl text-center">
+              <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">Lo que ganas desde el primer día</h2>
+              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+                Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir.
+              </p>
+            </div>
+            <div className="ui-reveal mt-12 grid gap-4 md:grid-cols-3">
+              {BENEFITS.map((b, i) => (
+                <div key={b.t}
+                  className={`flex flex-col rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
+                  style={{ background: b.bg, color: b.fg }}>
+                  {"icon" in b && b.icon ? (
+                    <span className="mb-6 grid h-10 w-10 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
+                      <Icon d={b.icon} size={20} />
+                    </span>
+                  ) : (
+                    <span className="lp-tag mb-6 self-start bg-white/80 text-black">0{i + 1}</span>
+                  )}
+                  <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[28px] leading-[1.15] sm:text-[34px]" : "text-[22px] leading-[1.27]"}`}>{b.t}</p>
+                  <p className={`mt-2 text-[16px] leading-[1.5] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* Antes / ahora */}
-        <section id="dia-a-dia" className="bg-black pb-20">
+        <section className="pb-20">
           <div className={WRAP}>
-            <div className="rounded-[32px] bg-white p-6 sm:rounded-[64px] sm:p-14">
-              <span className="lp-tag lp-mono">01 · Día a día</span>
-              <h2 className="lp-display ui-reveal mt-6 max-w-3xl text-[clamp(3rem,7vw,80px)]">
-                Lo que deja de pasarte
+            <div className="lp-card p-6 sm:p-10">
+              <h2 className="lp-display ui-reveal max-w-2xl text-[clamp(2rem,4.5vw,48px)]">
+                Lo que deja de pasarte en el día a día
               </h2>
-              <div className="lp-mono mt-12 hidden grid-cols-[3rem_1fr_1fr] gap-8 pb-3 text-[#979797] md:grid">
-                <span />
+              <div className="mt-10 hidden grid-cols-2 gap-10 pb-3 text-[13px] font-medium text-[#757575] md:grid">
                 <p>Hoy</p>
-                <p className="text-black">Con el panel</p>
+                <p className="text-[#0075de]">Con el panel</p>
               </div>
-              <ol className="divide-y divide-[#e5e5e5] border-y border-[#e5e5e5]">
+              <ol className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
                 {BEFORE_AFTER.map(([before, after], i) => (
-                  <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-[3rem_1fr_1fr] md:gap-8">
-                    <span className="lp-mono text-[#979797]">{String(i + 1).padStart(2, "0")}</span>
-                    <p className="text-[16px] leading-[1.4] text-[#979797]">
-                      <span className="lp-mono mr-2 md:hidden">Hoy:</span>
+                  <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-2 md:gap-10">
+                    <p className="text-[16px] leading-[1.5] text-[#757575]">
+                      <span className="mr-2 font-medium md:hidden">Hoy:</span>
                       {before}
                     </p>
-                    <p className="text-[16px] font-medium leading-[1.4] text-black">
-                      <span className="lp-mono mr-2 rounded-full bg-[#d1ffca] px-2 py-0.5 md:hidden">Con el panel</span>
+                    <p className="text-[16px] leading-[1.5]">
+                      <span className="mr-2 font-medium text-[#0075de] md:hidden">Con el panel:</span>
                       {after}
                     </p>
                   </li>
@@ -313,46 +408,48 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Canales — bento */}
-        <section id="canales" className="py-20">
-          <div className={WRAP}>
-            <div className="ui-reveal flex flex-wrap items-end justify-between gap-6">
-              <div>
-                <span className="lp-tag lp-mono">02 · Canales</span>
-                <h2 className="lp-display mt-6 max-w-3xl text-[clamp(3rem,7vw,80px)]">
-                  Stock, precios y documentos al día
-                </h2>
-              </div>
-              <p className="max-w-xs text-[16px] leading-[1.33] text-[#444]">
+        {/* Canales: texto a la izquierda, bloque de color a la derecha */}
+        <section id="canales" className="pb-20">
+          <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
+            <div className="ui-reveal">
+              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Canales</span>
+              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Stock, precios y documentos al día en cada canal</h2>
+              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
-            </div>
-
-            <div className="ui-reveal mt-12 grid grid-cols-1 gap-4 md:grid-cols-6">
-              <div className="md:col-span-4 [&>*]:h-full">
-                <ChannelsMock />
-              </div>
-              <div className="md:col-span-2 [&>*]:h-full">
-                <NetMock />
-              </div>
-              <div className="md:col-span-3 [&>*]:h-full">
-                <StockSyncMock />
-              </div>
-              <div className="flex flex-col justify-end rounded-[32px] bg-black p-6 text-white md:col-span-3 sm:p-8">
-                <p className="lp-heading text-[28px]">Un inventario para todas tus bodegas</p>
-                <p className="mt-3 max-w-sm text-[16px] leading-[1.33] text-[#979797]">
-                  Cada venta descuenta de la bodega correcta, sin planillas paralelas ni vender lo que ya no tienes.
-                </p>
-              </div>
-            </div>
-
-            <div className="ui-reveal mt-4 rounded-[32px] bg-white p-6 sm:p-8">
-              <p className="lp-mono text-[#979797]">Proveedores de facturación electrónica</p>
-              <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-4">
+              <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2">
                 {billingChannels.map((k) => (
                   <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
                 ))}
               </div>
+            </div>
+            <div className="ui-reveal rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
+              <div className="lp-shot rounded-[12px]"><ChannelsMock /></div>
+            </div>
+          </div>
+        </section>
+
+        {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
+        <section id="movil" className="pb-20">
+          <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
+            <div className="ui-reveal order-2 rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
+              <PhoneMock />
+            </div>
+            <div className="ui-reveal order-1 lg:order-2">
+              <span className="lp-tag bg-[#f6d5b8] text-black">Versión móvil</span>
+              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Tu equipo trabaja desde el celular</h2>
+              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+                El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.
+              </p>
+              <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+                {MOBILE_POINTS.map(([t, b]) => (
+                  <li key={t} className="lp-card p-5">
+                    <p className="text-[16px] font-semibold">{t}</p>
+                    <p className="mt-1 text-[14px] leading-[1.43] text-[#615d59]">{b}</p>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
@@ -360,44 +457,42 @@ export default async function Home() {
         {/* Módulos */}
         <section id="modulos" className="pb-20">
           <div className={WRAP}>
-            <div className="rounded-[32px] bg-white p-6 sm:rounded-[64px] sm:p-14">
-              <div className="ui-reveal max-w-3xl">
-                <span className="lp-tag lp-mono">03 · Módulos</span>
-                <h2 className="lp-display mt-6 text-[clamp(3rem,7vw,80px)]">
-                  Del pedido a la puerta del cliente
-                </h2>
-                <p className="mt-5 text-[16px] text-[#444]">
+            <div className="lp-card p-6 sm:p-10">
+              <div className="ui-reveal max-w-2xl">
+                <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">Desde que entra el pedido hasta que llega al cliente</h2>
+                <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
                   Estas son pantallas reales del panel, con datos de ejemplo.
                 </p>
               </div>
-
               <ModulesExplorer />
             </div>
           </div>
         </section>
 
         {/* Cierre */}
-        <section className="rounded-t-[32px] bg-black text-white sm:rounded-t-[64px]">
-          <div className={`${WRAP} flex flex-col gap-8 py-20 sm:flex-row sm:items-end sm:justify-between`}>
-            <div>
-              <h2 className="lp-display text-[clamp(3rem,8vw,80px)]">¿Ya tienes cuenta?</h2>
-              <p className="mt-4 text-[16px] text-[#979797]">Entra con tu correo y sigue donde quedaste.</p>
+        <section className="pb-20">
+          <div className={WRAP}>
+            <div className="flex flex-col gap-8 rounded-[12px] bg-[#02093a] p-8 text-white sm:flex-row sm:items-end sm:justify-between sm:p-12">
+              <div>
+                <h2 className="lp-display text-[clamp(2rem,4.5vw,48px)]">¿Ya tienes cuenta?</h2>
+                <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
+              </div>
+              <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
+                Iniciar sesión <Icon d={ICONS.arrow} size={16} />
+              </Link>
             </div>
-            <Link href="/login" className="lp-btn lp-btn--light shrink-0 self-start sm:self-auto">
-              Iniciar sesión
-              <Icon d={ICONS.arrow} size={18} />
-            </Link>
           </div>
         </section>
       </main>
 
-      <footer className="bg-black text-[#979797]">
-        <div className={`${WRAP} lp-mono flex flex-wrap items-center justify-between gap-4 border-t border-white/10 py-8`}>
+      <footer className="border-t border-black/[0.06]">
+        <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px] text-[#757575]`}>
           <span>Creado por OnDataSolution</span>
           <div className="flex gap-5">
-            <a href="#canales" className="transition-colors hover:text-white">Canales</a>
-            <a href="#modulos" className="transition-colors hover:text-white">Módulos</a>
-            <Link href="/login" className="transition-colors hover:text-white">Iniciar sesión</Link>
+            <a href="#beneficios" className="hover:text-black">Beneficios</a>
+            <a href="#canales" className="hover:text-black">Canales</a>
+            <a href="#movil" className="hover:text-black">Versión móvil</a>
+            <Link href="/login" className="hover:text-black">Iniciar sesión</Link>
           </div>
         </div>
       </footer>

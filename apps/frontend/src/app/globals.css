@@ -466,90 +466,102 @@ body {
   .ui-skeleton::after { animation: none; }
 }
 
-/* ── Landing editorial ──────────────────────────────────────────────────────
-   Monocromo sobre gris cálido, titulares condensados enormes, superficies
-   planas (sin sombras) y un único acento menta. Solo aplica dentro de .lp,
-   así el panel conserva su propia paleta. */
+/* ── Landing ─────────────────────────────────────────────────────────────────
+   Cuaderno de papel cálido: lienzo #f6f5f4, tarjetas blancas con borde fino
+   (sin sombras), un solo azul para la acción principal y colores de acento
+   solo en fondos de bloques. Solo aplica dentro de .lp; el panel no cambia. */
 .lp {
-  --lp-black: #000000;
-  --lp-white: #ffffff;
-  --lp-canvas: #e5e5e5;
-  --lp-mist: #f3f3f3;
-  --lp-ash: #c6c6c6;
-  --lp-smoke: #979797;
-  --lp-slate: #444444;
-  --lp-graphite: #2f2f2f;
-  --lp-mint: #d1ffca;
-  --lp-yellow: #fff100;
+  --lp-blue: #0075de;
+  --lp-blue-hover: #005bb0;
+  --lp-paper: #f6f5f4;
+  --lp-ink: #000000;
+  --lp-graphite: #615d59;
+  --lp-stone: #757575;
+  --lp-sky-tint: #e6f3fe;
+  --lp-marigold: #ffb110;
+  --lp-coral: #f64932;
+  --lp-peach: #f6d5b8;
+  --lp-sky: #62aef0;
+  --lp-signal: #097fe8;
+  --lp-midnight: #02093a;
+  --lp-line: rgba(0, 0, 0, 0.08);
 
-  /* Los mocks reutilizan las variables del panel: se remapean al monocromo. */
-  --page-bg: var(--lp-canvas);
-  --surface: var(--lp-white);
-  --surface-soft: var(--lp-mist);
-  --text: var(--lp-black);
-  --text-2: var(--lp-slate);
-  --text-muted: var(--lp-smoke);
-  --border: var(--lp-ash);
-  --border-soft: #ebebeb;
-  --brand: var(--lp-black);
-  --brand-dark: var(--lp-graphite);
-  --brand-ink: var(--lp-black);
-  --brand-soft: var(--lp-mint);
+  /* Los mocks reutilizan las variables del panel: se remapean a esta paleta. */
+  --page-bg: var(--lp-paper);
+  --surface: #ffffff;
+  --surface-soft: #f9f8f7;
+  --text: var(--lp-ink);
+  --text-2: var(--lp-graphite);
+  --text-muted: var(--lp-stone);
+  --border: var(--lp-line);
+  --border-soft: rgba(0, 0, 0, 0.06);
+  --brand: var(--lp-blue);
+  --brand-dark: var(--lp-blue-hover);
+  --brand-ink: var(--lp-blue);
+  --brand-soft: var(--lp-sky-tint);
 
-  background: var(--lp-canvas);
-  color: var(--lp-black);
+  background: var(--lp-paper);
+  color: var(--lp-ink);
   font-family: var(--font-lp-sans), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.011em;
+  font-feature-settings: "lnum";
 }
-.lp .ui-card { border: 0; box-shadow: none; border-radius: 24px; }
-.lp .ui-btn-brand { background: var(--lp-black); color: var(--lp-white); border-radius: 8px; font-weight: 500; }
-.lp .ui-btn-brand:hover { background: var(--lp-graphite); }
+.lp .ui-card { border: 1px solid var(--lp-line); box-shadow: none; border-radius: 12px; }
+.lp .ui-btn-brand { background: var(--lp-blue); color: #fff; border-radius: 8px; font-weight: 500; }
+.lp .ui-btn-brand:hover { background: var(--lp-blue-hover); }
 
-.lp-display {
-  font-family: var(--font-lp-display), "Bebas Neue", "Barlow Condensed", sans-serif;
-  font-weight: 400; /* Anton ya es pesada: equivale al 700 condensado */
-  text-transform: uppercase;
-  line-height: 0.9;
-  letter-spacing: -0.03em;
-}
-.lp-heading {
-  font-weight: 500;
-  text-transform: uppercase;
+.lp-serif { font-family: var(--font-lp-serif), Georgia, serif; font-weight: 400; }
+.lp-display { font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
+.lp-card { background: #fff; border: 1px solid var(--lp-line); border-radius: 12px; }
+.lp-shot { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+.lp-pill {
+  display: inline-block;
+  border-radius: 9999px;
+  padding: 0 0.32em 0.04em;
+  background: var(--lp-peach);
   line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-.lp-mono {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  letter-spacing: -0.03em;
 }
 .lp-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 64px;
-  background: var(--lp-mint);
-  color: var(--lp-black);
-  padding: 6px 14px;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 .lp-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   border-radius: 8px;
-  padding: 16px 24px;
-  font-size: 16px;
+  padding: 10px 18px;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 1;
+  line-height: 1.2;
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 .lp-btn:active { transform: translateY(1px); }
-.lp-btn--dark { background: var(--lp-black); color: var(--lp-white); }
-.lp-btn--dark:hover { background: var(--lp-graphite); }
-.lp-btn--light { background: var(--lp-white); color: var(--lp-black); }
-.lp-btn--light:hover { background: var(--lp-mint); }
-.lp-btn--ghost { border: 1.5px solid var(--lp-slate); color: var(--lp-slate); border-radius: 4px; padding: 14px 16px; }
-.lp-btn--ghost:hover { color: var(--lp-black); border-color: var(--lp-black); }
-.lp-link { text-decoration: none; }
-.lp-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.lp-btn--primary { background: var(--lp-blue); color: #fff; }
+.lp-btn--primary:hover { background: var(--lp-blue-hover); }
+.lp-btn--soft { background: var(--lp-sky-tint); color: var(--lp-blue); }
+.lp-btn--soft:hover { background: #d4eafd; }
+.lp-btn--text { color: rgba(0, 0, 0, 0.95); }
+.lp-btn--text:hover { background: rgba(0, 0, 0, 0.05); }
+.lp-nav-link { color: rgba(0, 0, 0, 0.54); border-radius: 8px; padding: 8px 12px; transition: color 0.2s ease; }
+.lp-nav-link:hover { color: #000; }
+
+/* Marcas decorativas: círculo blanco con borde de color y un leve rebote. */
+.lp-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid currentColor;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lp-mark:hover { transform: translateY(-4px) rotate(-6deg); }
+@media (prefers-reduced-motion: reduce) { .lp-mark { transition: none; } }
