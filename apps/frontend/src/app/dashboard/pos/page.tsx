@@ -20,35 +20,8 @@ interface CartItem {
 const PAGE_SIZE = 20;
 const VIEW_KEY = 'pos_products_view';
 
-const MARKETPLACE_LABEL: Record<string, string> = {
-  MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce', JUMPSELLER: 'JumpSeller',
-  FALABELLA: 'Falabella', PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart',
-};
-
 const fmtCLP = (n: number) => `$${Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
 
-// Precio del producto en cada marketplace donde está publicado, solo para conexiones
-// activas. Mismo criterio que al publicar/sincronizar (getEffectivePrice en el backend):
-// precio propio de la conexión (ChannelPrice) si existe; si no, mlPrice (o precio base)
-// para Mercado Libre y el precio base para el resto.
-function channelPrices(p: any): { key: string; label: string; price: number }[] {
-  const listings = (p.listings || []).filter((l: any) => l.connection?.active && l.status !== 'ERROR' && l.status !== 'DRAFT');
-  const seen = new Set<string>();
-  const perMarketplace: Record<string, number> = {};
-  for (const l of listings) perMarketplace[l.connection.marketplace] = (perMarketplace[l.connection.marketplace] || 0) + 1;
-  const rows: { key: string; label: string; price: number }[] = [];
-  for (const l of listings) {
-    const c = l.connection;
-    if (seen.has(c.id)) continue;
-    seen.add(c.id);
-    const override = (p.channelPrices || []).find((cp: any) => cp.connectionId === c.id);
-    const fallback = c.marketplace === 'MERCADO_LIBRE' ? (p.mlPrice ?? p.price) : p.price;
-    const base = MARKETPLACE_LABEL[c.marketplace] || c.marketplace;
-    const label = c.marketplace === 'MERCADO_LIBRE' || perMarketplace[c.marketplace] > 1 ? `${base} - ${c.name}` : base;
-    rows.push({ key: c.id, label, price: Number(override ? override.price : fallback) });
-  }
-  return rows.sort((a, b) => a.label.localeCompare(b.label, 'es'));
-}
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Efectivo',
@@ -583,18 +556,8 @@ export default function PosPage() {
                     </div>
                     <div className="p-2.5 flex-1 flex flex-col gap-1.5">
                       <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2 text-center">{p.name}</p>
-                      <div className="mt-auto space-y-0.5 text-[11px]">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-gray-500 truncate">Venta Directa</span>
-                          <span className="text-blue-600 font-bold shrink-0">{fmtCLP(p.price)}</span>
-                        </div>
-                        {channelPrices(p).map((cp) => (
-                          <div key={cp.key} className="flex justify-between gap-2">
-                            <span className="text-gray-500 truncate" title={cp.label}>{cp.label}</span>
-                            <span className="text-gray-800 font-semibold shrink-0">{fmtCLP(cp.price)}</span>
-                          </div>
-                        ))}
-                      </div>
+                      {/* En el punto de venta solo importa el precio de venta directa. */}
+                      <p className="mt-auto text-center text-sm text-blue-600 font-bold">{fmtCLP(p.price)}</p>
                     </div>
                   </button>
                 );
