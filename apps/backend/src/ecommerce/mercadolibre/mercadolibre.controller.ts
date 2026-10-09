@@ -1,9 +1,9 @@
 import {
-  Controller, Get, Post, Put, Patch, Delete, Query, Body, Param,
-  UseGuards, Res, Logger,
+  Controller, Get, Post, Put, Patch, Delete, Query, Body, Param, UseGuards, Res, Logger, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested, MaxLength } from 'class-validator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested, MaxLength, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -89,6 +89,10 @@ class AnswerQuestionDto {
 
 class ClaimMessageDto {
   @IsString() text: string;
+  // Destinatario: el comprador o el mediador de Mercado Libre.
+  @IsOptional() @IsIn(['complainant', 'mediator']) receiverRole?: 'complainant' | 'mediator';
+  // Archivos ya subidos con POST claims/:id/attachments.
+  @IsOptional() @IsArray() @IsString({ each: true }) attachments?: string[];
 }
 
 class ClaimActionDto {
@@ -672,7 +676,31 @@ export class MercadolibreController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   sendClaimMessage(@Param('externalId') externalId: string, @Body() dto: ClaimMessageDto, @CurrentUser() user: any) {
-    return this.service.sendClaimMessage(externalId, dto.text, user);
+    return this.service.sendClaimMessage(externalId, dto.text, user, dto.receiverRole ?? 'complainant', dto.attachments ?? []);
+  }
+
+  @Get('claims/:externalId/attachments/:fileName')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  async downloadClaimAttachment(
+    @Param('externalId') externalId: string,
+    @Param('fileName') fileName: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const file = await this.service.downloadClaimAttachment(externalId, fileName, user);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName.replace(/"/g, '')}"`);
+    res.send(file.buffer);
+  }
+
+  @Post('claims/:externalId/attachments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadClaimAttachment(@Param('externalId') externalId: string, @UploadedFile() file: Express.Multer.File, @CurrentUser() user: any) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    return this.service.uploadClaimAttachment(externalId, file, user);
   }
 
   @Post('claims/:externalId/actions')

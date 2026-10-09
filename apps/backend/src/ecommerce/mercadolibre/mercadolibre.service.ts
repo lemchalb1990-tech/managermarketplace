@@ -4613,6 +4613,8 @@ export class MercadolibreService {
       this.prisma.mlClaim.findMany({
         where,
         include: {
+          // Cuenta de ML del reclamo (se muestra cuando la empresa tiene más de una).
+          connection: { select: { id: true, name: true, mlNickname: true } },
           sale: {
             select: {
               id: true, externalId: true, total: true, createdAt: true, customerName: true,
@@ -4630,7 +4632,7 @@ export class MercadolibreService {
             },
           },
         },
-        orderBy: [{ lastSyncedAt: 'desc' }],
+        orderBy: [{ claimDate: { sort: 'desc', nulls: 'last' } }, { lastSyncedAt: 'desc' }],
         take: 300,
       }),
       this.prisma.mlClaim.count({ where: { ...this.companyFilter(user, companyId), status: MlClaimStatus.OPENED } }),
@@ -4638,8 +4640,22 @@ export class MercadolibreService {
     return { claims: rows, opened };
   }
 
+  // Acciones que le tocan al vendedor en el reclamo (ML las entrega por jugador; algunas
+  // respuestas también las traen arriba).
+  private claimSellerActions(c: any): { action: string; due_date?: string | null; mandatory?: boolean }[] {
+    const respondent = (c?.players || []).find((p: any) => p.role === 'respondent');
+    const list = [...(respondent?.available_actions || []), ...(c?.available_actions || [])];
+    const seen = new Set<string>();
+    return list
+      .map((a: any) => (typeof a === 'string' ? { action: a } : a))
+      .filter((a: any) => a?.action && !seen.has(a.action) && seen.add(a.action));
+  }
+
   private async upsertClaim(c: any, connectionId: string, companyId: string) {
     const orderExternalId = c.resource_id ? String(c.resource_id) : null;
+    const claimDate = c.date_created ? new Date(c.date_created) : undefined;
+    const dues = this.claimSellerActions(c).map((a) => a.due_date).filter(Boolean).map((d) => new Date(d as string).getTime());
+    const dueDate = String(c.status || '').toLowerCase() === 'closed' ? null : dues.length ? new Date(Math.min(...dues)) : null;
     const sale = orderExternalId
       ? await this.prisma.sale.findFirst({
           where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderExternalId) },
@@ -4656,6 +4672,8 @@ export class MercadolibreService {
         reason: c.reason?.id ?? c.reason ?? null,
         orderExternalId,
         saleId: sale?.id ?? undefined,
+        claimDate,
+        dueDate,
         lastSyncedAt: new Date(),
       },
       create: {
@@ -4668,6 +4686,8 @@ export class MercadolibreService {
         companyId,
         connectionId,
         saleId: sale?.id ?? null,
+        claimDate: claimDate ?? null,
+        dueDate,
       },
     });
 
@@ -4767,32 +4787,92 @@ export class MercadolibreService {
     if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
 
     const token = await this.getValidToken(claim.connectionId);
-    const [detailRes, messagesRes] = await Promise.all([
-      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/messages`, { headers: { Authorization: `Bearer ${token}` } }),
+    const auth = { headers: { Authorization: `Bearer ${token}` } };
+    const optional = (url: string) => fetch(url, auth).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const [detailRes, messagesRes, reputation, expected, returns] = await Promise.all([
+      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}`, auth),
+      fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/messages`, auth),
+      // Datos complementarios: si ML no los entrega, el detalle se muestra igual.
+      optional(`${ML_API}/post-purchase/v1/claims/${externalId}/affects-reputation`),
+      optional(`${ML_API}/post-purchase/v1/claims/${externalId}/expected-resolutions`),
+      optional(`${ML_API}/post-purchase/v2/claims/${externalId}/returns`),
     ]);
     if (!detailRes.ok) throw new BadRequestException('No se pudo obtener el detalle del reclamo en Mercado Libre');
     const detail = await detailRes.json() as any;
     const messages = messagesRes.ok ? await messagesRes.json() : [];
-    return { claim, detail, messages, availableActions: detail.available_actions || [] };
+    // El detalle en vivo también actualiza el estado guardado.
+    const updated = await this.upsertClaim(detail, claim.connectionId, claim.companyId).catch(() => claim);
+    return {
+      claim: updated,
+      detail,
+      messages,
+      availableActions: this.claimSellerActions(detail),
+      hasMediator: (detail.players || []).some((p: any) => p.role === 'mediator'),
+      reputation,
+      expectedResolutions: expected,
+      returns,
+    };
   }
 
-  async sendClaimMessage(externalId: string, text: string, user: any) {
+  // Vuelve a leer el reclamo desde ML y actualiza el estado guardado (tras responder o actuar).
+  private async refreshClaim(externalId: string, connectionId: string, companyId: string, token: string) {
+    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+    if (res?.ok) await this.upsertClaim(await res.json(), connectionId, companyId).catch(() => null);
+  }
+
+  // Descarga un archivo adjunto de un mensaje del reclamo (ML exige el token del vendedor).
+  async downloadClaimAttachment(externalId: string, fileName: string, user: any) {
+    const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
+    if (!claim) throw new NotFoundException('Reclamo no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
+    const token = await this.getValidToken(claim.connectionId);
+    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/attachments/${encodeURIComponent(fileName)}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new BadRequestException('No se pudo descargar el archivo desde Mercado Libre');
+    return { buffer: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') || 'application/octet-stream' };
+  }
+
+  // Sube un archivo (foto, comprobante) para adjuntarlo a un mensaje del reclamo.
+  async uploadClaimAttachment(externalId: string, file: { buffer: Buffer; mimetype: string; originalname: string }, user: any) {
+    const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
+    if (!claim) throw new NotFoundException('Reclamo no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
+    const token = await this.getValidToken(claim.connectionId);
+    const form = new FormData();
+    form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || 'archivo');
+    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/attachments`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+    });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new BadRequestException(data.message || 'Mercado Libre rechazó el archivo');
+    const fileName = data.file_name || data.filename || data.name;
+    if (!fileName) throw new BadRequestException('Mercado Libre no devolvió el nombre del archivo');
+    return { fileName: String(fileName), originalName: file.originalname };
+  }
+
+  async sendClaimMessage(externalId: string, text: string, user: any, receiverRole: 'complainant' | 'mediator' = 'complainant', attachments: string[] = []) {
     const claim = await this.prisma.mlClaim.findUnique({ where: { externalId } });
     if (!claim) throw new NotFoundException('Reclamo no encontrado');
     if (user.role !== Role.SUPER_ADMIN && claim.companyId !== user.companyId) throw new ForbiddenException();
 
     const token = await this.getValidToken(claim.connectionId);
-    const res = await fetch(`${ML_API}/post-purchase/v1/claims/${externalId}/messages`, {
+    const body = JSON.stringify({ message: text, receiver_role: receiverRole, ...(attachments.length ? { attachments } : {}) });
+    const post = (path: string) => fetch(`${ML_API}/post-purchase/v1/claims/${externalId}${path}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, receiver_role: 'complainant' }),
+      body,
     });
+    let res = await post('/messages');
+    // Algunas cuentas usan la acción "send-message" en vez del recurso /messages.
+    if (res.status === 404 || res.status === 405) res = await post('/actions/send-message');
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as any;
       throw new BadRequestException(err.message || 'Mercado Libre rechazó el mensaje');
     }
-    return res.json();
+    const out = await res.json().catch(() => ({ ok: true }));
+    await this.refreshClaim(externalId, claim.connectionId, claim.companyId, token);
+    return out;
   }
 
   async takeClaimAction(externalId: string, action: string, user: any, extra?: Record<string, any>) {
@@ -4810,8 +4890,9 @@ export class MercadolibreService {
       const err = await res.json().catch(() => ({})) as any;
       throw new BadRequestException(err.message || 'Mercado Libre rechazó la acción');
     }
-    await this.prisma.mlClaim.update({ where: { externalId }, data: { lastSyncedAt: new Date() } });
-    return res.json().catch(() => ({ ok: true }));
+    const out = await res.json().catch(() => ({ ok: true }));
+    await this.refreshClaim(externalId, claim.connectionId, claim.companyId, token);
+    return out;
   }
 
   // ─── Calificaciones ───────────────────────────────────────────────────────────

@@ -644,9 +644,16 @@ export const api = {
       return apiFetch<{ claims: any[]; opened: number }>(`/ecommerce/ml/claims?${q}`, {}, token);
     },
     claimDetail: (externalId: string, token: string) =>
-      apiFetch<{ claim: any; detail: any; messages: any; availableActions: any[] }>(`/ecommerce/ml/claims/${externalId}`, {}, token),
-    sendClaimMessage: (externalId: string, text: string, token: string) =>
-      apiFetch<any>(`/ecommerce/ml/claims/${externalId}/messages`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+      apiFetch<{
+        claim: any; detail: any; messages: any; availableActions: { action: string; due_date?: string | null; mandatory?: boolean }[];
+        hasMediator: boolean; reputation: any; expectedResolutions: any; returns: any;
+      }>(`/ecommerce/ml/claims/${externalId}`, {}, token),
+    sendClaimMessage: (externalId: string, text: string, token: string, receiverRole: 'complainant' | 'mediator' = 'complainant', attachments: string[] = []) =>
+      apiFetch<any>(`/ecommerce/ml/claims/${externalId}/messages`, { method: 'POST', body: JSON.stringify({ text, receiverRole, attachments }) }, token),
+    uploadClaimAttachment: (externalId: string, file: File, token: string) =>
+      apiUpload<{ fileName: string; originalName: string }>(`/ecommerce/ml/claims/${externalId}/attachments`, file, token),
+    openClaimAttachment: (externalId: string, fileName: string, token: string) =>
+      apiOpenPdf(`/ecommerce/ml/claims/${externalId}/attachments/${encodeURIComponent(fileName)}`, token),
     takeClaimAction: (externalId: string, action: string, token: string, extra?: Record<string, any>) =>
       apiFetch<any>(`/ecommerce/ml/claims/${externalId}/actions`, { method: 'POST', body: JSON.stringify({ action, extra }) }, token),
     syncClaims: (connectionId: string, token: string) =>

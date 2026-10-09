@@ -779,6 +779,10 @@ model MlClaim {
   stage           String?
   reason          String?
   orderExternalId String?
+  // Fecha en que se abrió el reclamo en Mercado Libre y vencimiento de la próxima acción
+  // que le toca al vendedor (para ordenar y alertar).
+  claimDate     DateTime?
+  dueDate       DateTime?
   lastSyncedAt    DateTime      @default(now())
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
