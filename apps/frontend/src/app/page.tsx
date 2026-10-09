@@ -5,6 +5,7 @@ import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
+import { CharacterRow, Sparkle, Squiggle, CurlyArrow, Flower, Burst, RiderScene } from "@/components/landing/doodles";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
 // para las bajadas de sección. El panel sigue con Hanken Grotesk.
@@ -274,11 +275,9 @@ const BENEFITS = [
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
 const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
-const MARK_COLORS = ["#097fe8", "#f64932", "#ffb110", "#62aef0"];
 
 export default async function Home() {
   const logoMap = await getPlatformLogoMap();
-  const heroMarks = salesChannels.slice(0, 7);
   return (
     <div className={`lp ${sans.variable} ${serif.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
@@ -306,16 +305,14 @@ export default async function Home() {
 
       <main id="contenido">
         {/* Hero centrado */}
-        <section className={`${WRAP} pb-20 pt-14 text-center sm:pt-20`}>
-          <div className="ui-enter flex flex-wrap justify-center gap-2.5" aria-hidden="true">
-            {heroMarks.map((k, i) => (
-              <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
-                <span className="h-7 w-7 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full">
-                  {resolveLogoNode(logoMap, k, Logos[k])}
-                </span>
-              </span>
-            ))}
-          </div>
+        <section className={`${WRAP} relative pb-20 pt-14 text-center sm:pt-20`}>
+          {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
+          <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
+          <Sparkle className="absolute left-[6%] top-[150px] hidden h-9 w-9 md:block" />
+          <Sparkle className="absolute right-[9%] top-[110px] hidden h-6 w-6 md:block" color="#62aef0" style={{ animationDelay: "0.8s" }} />
+          <Flower className="absolute right-[5%] top-[260px] hidden h-12 w-12 lg:block" />
+          <Squiggle className="absolute left-[9%] top-[300px] hidden w-20 lg:block" color="#f64932" />
+          <CharacterRow className="ui-enter" />
           <h1 className="lp-display ui-enter mx-auto mt-8 max-w-[15ch] text-balance text-[clamp(2.6rem,7vw,72px)]" style={{ ["--d" as string]: "80ms" }}>
             Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
           </h1>
@@ -331,6 +328,8 @@ export default async function Home() {
           </div>
 
           <div className="ui-enter-panel relative mx-auto mt-14 max-w-[860px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+            <CurlyArrow className="absolute -left-24 -top-10 hidden w-20 xl:block" color="#0075de" />
+            <Burst className="absolute -right-7 -top-7 z-10 h-14 w-14" color="#000" />
             <div className="grid gap-4 rounded-[12px] bg-[#ffb110] p-4 sm:p-8 md:grid-cols-[1.15fr_0.85fr]">
               <div className="lp-shot rounded-[12px] [&>*]:h-full"><ShipMock /></div>
               <div className="hidden flex-col gap-4 md:flex">
@@ -353,7 +352,13 @@ export default async function Home() {
         <section id="beneficios" className="py-20">
           <div className={WRAP}>
             <div className="ui-reveal mx-auto max-w-2xl text-center">
-              <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">Lo que ganas desde el primer día</h2>
+              <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">
+                Lo que ganas desde el{" "}
+                <span className="relative inline-block">
+                  primer día
+                  <Squiggle className="absolute -bottom-3 left-0 w-full" color="#ffb110" />
+                </span>
+              </h2>
               <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
                 Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir.
               </p>
@@ -361,8 +366,11 @@ export default async function Home() {
             <div className="ui-reveal mt-12 grid gap-4 md:grid-cols-3">
               {BENEFITS.map((b, i) => (
                 <div key={b.t}
-                  className={`flex flex-col rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
+                  className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
                   style={{ background: b.bg, color: b.fg }}>
+                  {b.bg === "#ffb110" && <Flower className="absolute right-6 top-6 h-14 w-14" color="#f64932" />}
+                  {b.bg === "#62aef0" && <Squiggle className="absolute right-6 top-8 w-16" color="#000" />}
+                  {b.bg === "#02093a" && <Sparkle className="absolute right-6 top-6 h-9 w-9" />}
                   {"icon" in b && b.icon ? (
                     <span className="mb-6 grid h-10 w-10 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
                       <Icon d={b.icon} size={20} />
@@ -381,7 +389,8 @@ export default async function Home() {
         {/* Antes / ahora */}
         <section className="pb-20">
           <div className={WRAP}>
-            <div className="lp-card p-6 sm:p-10">
+            <div className="lp-card relative overflow-hidden p-6 sm:p-10">
+              <Sparkle className="absolute right-8 top-8 hidden h-8 w-8 sm:block" color="#f64932" />
               <h2 className="lp-display ui-reveal max-w-2xl text-[clamp(2rem,4.5vw,48px)]">
                 Lo que deja de pasarte en el día a día
               </h2>
@@ -423,7 +432,8 @@ export default async function Home() {
                 ))}
               </div>
             </div>
-            <div className="ui-reveal rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
+            <div className="ui-reveal relative rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
+              <Sparkle className="absolute -right-3 -top-3 z-10 h-10 w-10" />
               <div className="lp-shot rounded-[12px]"><ChannelsMock /></div>
             </div>
           </div>
@@ -432,8 +442,12 @@ export default async function Home() {
         {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
         <section id="movil" className="pb-20">
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
-            <div className="ui-reveal order-2 rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
-              <PhoneMock />
+            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 pb-6 pt-10 lg:order-1" aria-hidden="true">
+              <div className="lp-dotgrid absolute inset-0 opacity-60" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
+              <Sparkle className="absolute left-6 top-6 h-8 w-8" />
+              <Flower className="absolute right-6 top-10 h-11 w-11" color="#62aef0" />
+              <div className="relative"><PhoneMock /></div>
+              <RiderScene className="relative mx-auto mt-4 w-full max-w-[320px]" />
             </div>
             <div className="ui-reveal order-1 lg:order-2">
               <span className="lp-tag bg-[#f6d5b8] text-black">Versión móvil</span>
@@ -471,7 +485,9 @@ export default async function Home() {
         {/* Cierre */}
         <section className="pb-20">
           <div className={WRAP}>
-            <div className="flex flex-col gap-8 rounded-[12px] bg-[#02093a] p-8 text-white sm:flex-row sm:items-end sm:justify-between sm:p-12">
+            <div className="relative flex flex-col gap-8 overflow-hidden rounded-[12px] bg-[#02093a] p-8 text-white sm:flex-row sm:items-end sm:justify-between sm:p-12">
+              <Sparkle className="absolute right-[38%] top-8 hidden h-8 w-8 sm:block" />
+              <Burst className="absolute -bottom-3 left-[45%] hidden h-12 w-12 sm:block" color="#62aef0" />
               <div>
                 <h2 className="lp-display text-[clamp(2rem,4.5vw,48px)]">¿Ya tienes cuenta?</h2>
                 <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
