@@ -1312,19 +1312,20 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
     return () => { cancelled = true; };
   }, [value]);
 
+  // Categoría elegida: código · ruta, con la × para quitarla.
+  const selectedChip = value ? (
+    <div className="flex items-center gap-2 min-w-0 flex-1 px-2.5 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+      <span className="min-w-0 flex-1 truncate whitespace-nowrap" title={valuePath ? `${value} · ${valuePath}` : value}>
+        <span className="font-mono text-blue-700 font-semibold">{value}</span>
+        {valuePath && <span className="text-blue-800"> · {valuePath}</span>}
+      </span>
+      <button type="button" onClick={() => onChange('')}
+        className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base shrink-0">×</button>
+    </div>
+  ) : null;
+
   return (
     <div className="relative">
-      {value && (
-        <div className="flex items-center gap-2 mb-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-          <span className="min-w-0 flex-1 truncate whitespace-nowrap" title={valuePath ? `${value} · ${valuePath}` : value}>
-            <span className="font-mono text-blue-700 font-semibold">{value}</span>
-            {valuePath && <span className="text-blue-800"> · {valuePath}</span>}
-          </span>
-          <button type="button" onClick={() => onChange('')}
-            className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base shrink-0">×</button>
-        </div>
-      )}
-
       <div className="flex gap-1 mb-1.5">
         <button type="button" onClick={() => setMode('search')}
           className={`px-2.5 py-1 rounded-lg text-xs font-medium ${mode === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1338,7 +1339,8 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
 
       {mode === 'search' ? (
         <>
-          <div className="relative">
+          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative sm:w-1/2 shrink-0">
             <input
               value={query}
               onChange={(e) => search(e.target.value)}
@@ -1349,6 +1351,8 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
             {loading && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">buscando...</span>
             )}
+          </div>
+          {selectedChip}
           </div>
           {open && (
             <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
@@ -1363,6 +1367,8 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
           )}
         </>
       ) : (
+        <>
+        {value && <div className="mb-1.5">{selectedChip}</div>}
         <div className="border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex flex-wrap items-center gap-1 px-2.5 py-1.5 bg-gray-50 border-b border-gray-200 text-xs">
             <button type="button" onClick={() => loadBrowse(undefined)} className="text-blue-600 hover:underline font-medium">
@@ -1397,6 +1403,7 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );
