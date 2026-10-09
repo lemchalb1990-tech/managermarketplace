@@ -219,6 +219,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
     setBusyId(row.imageId);
     try {
       await api.catalog.setPrimaryImage(productId, row.imageId, getToken()!);
+      // La principal siempre se sube a la publicación.
+      setSelected((prev) => new Set(prev).add(row.imageId));
       setResult((r) => r ? {
         ...r,
         images: r.images
@@ -356,7 +358,9 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
               const busy = busyId === row.imageId;
               // Sin revisiones (plan solo de corrección) se puede corregir cualquier foto.
               const canFix = checked ? hasProblems(row) && row.ai?.matches !== false : true;
-              const canBePrimary = !row.isPrimary && row.ai?.matches === true && primaryMismatch;
+              // Cualquier foto se puede dejar como principal; se destaca cuando la IA lo sugiere.
+              const canBePrimary = !row.isPrimary;
+              const suggestPrimary = canBePrimary && row.ai?.matches === true && primaryMismatch;
               return (
                 <li key={row.imageId} className="border border-gray-200 rounded-lg p-2">
                   <div className="flex gap-2.5">
@@ -396,14 +400,14 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
                       )}
                       {row.ai?.suggestion && hasProblems(row) && <p className="text-[11px] text-gray-500">→ {row.ai.suggestion}</p>}
                       {row.aiError && <p className="text-[11px] text-amber-600">{row.aiError}</p>}
-                      {row.ai?.matches === false && !canBePrimary && (
+                      {row.ai?.matches === false && (
                         <p className="text-[11px] text-red-600">Esta foto no corresponde al título: reemplázala por una del producto real o quítala.</p>
                       )}
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {canBePrimary && (
-                          <button type="button" onClick={() => makePrimary(row)} disabled={busy}
-                            className="px-2 py-1 rounded border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                            Usar como principal
+                          <button type="button" onClick={() => makePrimary(row)} disabled={busy || !!busyId}
+                            className={`px-2 py-1 rounded text-[11px] disabled:opacity-50 ${suggestPrimary ? 'bg-green-600 hover:bg-green-700 text-white font-semibold' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+                            {busy ? 'Cambiando...' : 'Usar como principal'}
                           </button>
                         )}
                         {canFix && !fixUrl && fixEnabled && (
