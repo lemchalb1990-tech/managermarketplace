@@ -8,6 +8,7 @@ import { ModulesExplorer } from "@/components/landing/interactive";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
+  DashboardMock, ALERTS,
 } from "@/components/landing/visuals";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
@@ -305,9 +306,10 @@ export default async function Home() {
             <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
             <span className="max-[380px]:hidden">Admin Marketplace</span>
           </Link>
-          <div className="hidden items-center text-[15px] font-medium md:flex">
+          <div className="hidden items-center text-[15px] font-medium lg:flex">
             <a href="#beneficios" className="lp-nav-link">Beneficios</a>
             <a href="#funciones" className="lp-nav-link">Funciones</a>
+            <a href="#dashboard" className="lp-nav-link">Dashboard</a>
             <a href="#canales" className="lp-nav-link">Canales</a>
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
             <a href="#modulos" className="lp-nav-link">Módulos</a>
@@ -418,6 +420,41 @@ export default async function Home() {
                   <div className="mt-auto" aria-hidden="true">{x.mock}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Dashboard y alertas */}
+        <section id="dashboard" className="pb-20">
+          <div className={WRAP}>
+            <div className="rounded-[12px] bg-[#02093a] p-5 text-white sm:p-10">
+              <div className="ui-reveal grid gap-4 lg:grid-cols-[1fr_1fr] lg:items-end">
+                <div>
+                  <span className="lp-tag bg-white/10 text-white">Dashboard y alertas</span>
+                  <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Tu negocio de un vistazo, y avisos cuando importa</h2>
+                </div>
+                <p className="lp-serif text-[18px] leading-[1.56] text-white/70">
+                  Ventas, neto, órdenes y ticket promedio de todos tus canales en una pantalla.
+                  Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo.
+                </p>
+              </div>
+              <div className="ui-reveal mt-10 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+                <div aria-hidden="true"><DashboardMock /></div>
+                <ul className="space-y-2">
+                  {ALERTS.map((a) => (
+                    <li key={a.t} className="flex items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1f`, color: a.tone }}>
+                        {a.icon}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] font-semibold leading-tight">{a.t}</span>
+                        <span className="block truncate text-[13px] leading-tight text-[#615d59]">{a.m}</span>
+                      </span>
+                      <span className="shrink-0 text-[12px] text-[#757575]">{a.when}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         </section>

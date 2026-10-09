@@ -222,3 +222,68 @@ export function QuestionsMini() {
     </Box>
   );
 }
+
+/* ── Dashboard y alertas ──────────────────────────────────────────────────── */
+
+export function DashboardMock() {
+  const kpis: Array<[string, string, string]> = [
+    ["Ventas totales", "$8.420.300", "+12%"],
+    ["Total neto", "$7.075.882", "+9%"],
+    ["Órdenes", "312", "+18%"],
+    ["Ticket prom.", "$26.988", "−3%"],
+  ];
+  const days = [38, 52, 44, 61, 58, 72, 49, 66, 80, 71, 90, 76, 84, 95];
+  const channels: Array<[string, number, string]> = [
+    ["Mercado Libre", 46, "#ffb110"], ["Falabella", 22, "#62aef0"], ["Paris", 14, "#f64932"],
+    ["Punto de venta", 11, "#0075de"], ["Ripley", 7, "#b18164"],
+  ];
+  return (
+    <div className="lp-shot rounded-[12px] bg-white p-4 text-black sm:p-5" style={{ border: LINE }}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[14px] font-semibold">Inicio</p>
+        <span className="rounded-md bg-[#f6f5f4] px-2 py-1 text-[11px] text-[#615d59]">Últimos 14 días</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {kpis.map(([k, v, d]) => (
+          <div key={k} className="min-w-0 rounded-[8px] bg-[#f9f8f7] p-2.5" style={{ border: LINE }}>
+            <p className="truncate text-[11px] text-[#757575]">{k}</p>
+            <p className="mt-0.5 truncate font-mono text-[14px] font-semibold">{v}</p>
+            <p className={`text-[11px] font-medium ${d.startsWith("−") ? "text-[#e32d14]" : "text-[#15803d]"}`}>{d}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-[1.4fr_1fr]">
+        <div className="rounded-[8px] p-3" style={{ border: LINE }}>
+          <p className="text-[11px] font-medium text-[#615d59]">Historial de ventas</p>
+          <div className="mt-2 flex h-24 items-end gap-1">
+            {days.map((h, i) => (
+              <span key={i} className="flex-1 rounded-t-[3px]" style={{ height: `${h}%`, background: i === days.length - 1 ? "#0075de" : "#cfe5fb" }} />
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[8px] p-3" style={{ border: LINE }}>
+          <p className="text-[11px] font-medium text-[#615d59]">Ventas por canal</p>
+          <div className="mt-2 space-y-1.5">
+            {channels.map(([c, v, col]) => (
+              <div key={c} className="flex items-center gap-2 text-[11px]">
+                <span className="w-[86px] shrink-0 truncate">{c}</span>
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
+                  <span className="block h-full rounded-full" style={{ width: `${v * 2}%`, background: col }} />
+                </span>
+                <span className="w-7 text-right font-mono text-[#615d59]">{v}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const ALERTS: Array<{ t: string; m: string; tone: string; icon: ReactNode; when: string }> = [
+  { t: "Nueva venta", m: "Mercado Libre · Mesa de bar Circle · suena un aviso", tone: "#0075de", icon: TOAST_ICONS.sale, when: "ahora" },
+  { t: "Nueva pregunta", m: "¿Tienen la mesa en color blanco?", tone: "#e89d01", icon: svg("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"), when: "hace 3 min" },
+  { t: "Nuevo reclamo", m: "Responder antes del 14 oct · 23:59", tone: "#f64932", icon: svg("M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"), when: "hace 12 min" },
+  { t: "Pedidos atrasados", m: "2 pedidos de Falabella pasaron la hora de corte", tone: "#e32d14", icon: svg("M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"), when: "hace 20 min" },
+  { t: "Alerta de seguridad", m: "5 intentos fallidos de inicio de sesión", tone: "#02093a", icon: svg("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"), when: "hoy 09:14" },
+];
