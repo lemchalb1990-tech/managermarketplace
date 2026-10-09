@@ -155,9 +155,7 @@ export default function ConnectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="-mb-3">
-        <h1 className="ui-page-title">Conexiones</h1>
-      </div>
+      <h1 className="ui-page-title">Conexiones</h1>
 
       {/* Filtros: empresa (con búsqueda) y tipo. */}
       <div className="flex flex-wrap items-end gap-3">
