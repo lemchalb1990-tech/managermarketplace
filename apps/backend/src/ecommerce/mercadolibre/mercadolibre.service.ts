@@ -4655,7 +4655,13 @@ export class MercadolibreService {
     const orderExternalId = c.resource_id ? String(c.resource_id) : null;
     const claimDate = c.date_created ? new Date(c.date_created) : undefined;
     const dues = this.claimSellerActions(c).map((a) => a.due_date).filter(Boolean).map((d) => new Date(d as string).getTime());
-    const dueDate = String(c.status || '').toLowerCase() === 'closed' ? null : dues.length ? new Date(Math.min(...dues)) : null;
+    // Solo se toca el plazo si el payload trae las acciones del vendedor (la búsqueda de ML a
+    // veces no las incluye y no debe borrar el plazo obtenido del detalle).
+    const respondent = (c.players || []).find((p: any) => p.role === 'respondent');
+    const hasActionInfo = Array.isArray(respondent?.available_actions) || Array.isArray(c.available_actions);
+    const dueDate = String(c.status || '').toLowerCase() === 'closed'
+      ? null
+      : dues.length ? new Date(Math.min(...dues)) : hasActionInfo ? null : undefined;
     const sale = orderExternalId
       ? await this.prisma.sale.findFirst({
           where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderExternalId) },
@@ -4687,7 +4693,7 @@ export class MercadolibreService {
         connectionId,
         saleId: sale?.id ?? null,
         claimDate: claimDate ?? null,
-        dueDate,
+        dueDate: dueDate ?? null,
       },
     });
 

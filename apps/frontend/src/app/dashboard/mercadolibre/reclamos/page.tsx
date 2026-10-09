@@ -134,6 +134,8 @@ export default function MlReclamosPage() {
   // Con más de una cuenta de Mercado Libre se muestra a cuál pertenece cada reclamo.
   const multiAccount = useMemo(() => new Set((data?.claims || []).map((c) => c.connection?.id).filter(Boolean)).size > 1, [data]);
   const accountName = (c: any) => c.connection?.mlNickname || c.connection?.name || '—';
+  // La columna de plazo solo aparece si algún reclamo abierto tiene plazo informado por ML.
+  const showDue = useMemo(() => (data?.claims || []).some((c) => c.status === 'OPENED' && c.dueDate), [data]);
 
   async function openDetail(claim: any) {
     setOpen(claim);
@@ -248,7 +250,7 @@ export default function MlReclamosPage() {
                   <th className="px-3 py-2.5 font-medium">Producto</th>
                   {multiAccount && <th className="px-3 py-2.5 font-medium">Cuenta</th>}
                   <th className="px-3 py-2.5 font-medium">Estado</th>
-                  <th className="px-3 py-2.5 font-medium whitespace-nowrap">Responder antes de</th>
+                  {showDue && <th className="px-3 py-2.5 font-medium whitespace-nowrap">Responder antes de</th>}
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -278,9 +280,11 @@ export default function MlReclamosPage() {
                       </td>
                       {multiAccount && <td className="px-3 py-2.5 whitespace-nowrap text-[var(--text-2)]">{accountName(c)}</td>}
                       <td className="px-3 py-2.5 whitespace-nowrap"><StatusBadge c={c} /></td>
-                      <td className={`px-3 py-2.5 whitespace-nowrap ${overdue ? 'text-[var(--danger)] font-semibold' : 'text-[var(--text-2)]'}`}>
-                        {c.status === 'OPENED' && c.dueDate ? fmtDate(c.dueDate, true) : '—'}
-                      </td>
+                      {showDue && (
+                        <td className={`px-3 py-2.5 whitespace-nowrap ${overdue ? 'text-[var(--danger)] font-semibold' : 'text-[var(--text-2)]'}`}>
+                          {c.status === 'OPENED' && c.dueDate ? fmtDate(c.dueDate, true) : '—'}
+                        </td>
+                      )}
                       <td className="px-4 py-2.5 text-right whitespace-nowrap">
                         <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(c); }}
                           className="text-xs font-medium text-[var(--brand-ink)] hover:underline">
