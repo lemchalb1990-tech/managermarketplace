@@ -49,7 +49,7 @@ export default function CompaniesPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [aiPlans, setAiPlans] = useState<AiPlan[]>([]);
   // Empresa a eliminar definitivamente (modal de confirmación).
-  const [purging, setPurging] = useState<{ id: string; name: string; typed: string; backingUp: boolean; error: string } | null>(null);
+  const [purging, setPurging] = useState<{ id: string; name: string; typed: string; backingUp: boolean; error: string; progress?: { percent: number; step: string } } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -87,14 +87,25 @@ export default function CompaniesPage() {
   async function confirmPurge() {
     if (!purging) return;
     setDeletingId(purging.id);
-    setPurging((p) => p && { ...p, error: '' });
+    setPurging((p) => p && { ...p, error: '', progress: { percent: 0, step: 'Iniciando' } });
     try {
-      const res = await api.companies.purge(purging.id, purging.typed, getToken()!);
+      const token = getToken()!;
+      // La eliminación corre en el servidor; se consulta el avance hasta que termina.
+      const { jobId } = await api.companies.purge(purging.id, purging.typed, token);
+      let status = await api.companies.purgeStatus(jobId, token);
+      while (!status.done) {
+        setPurging((p) => p && { ...p, progress: { percent: status.percent, step: status.step } });
+        await new Promise((r) => setTimeout(r, 800));
+        status = await api.companies.purgeStatus(jobId, token);
+      }
+      if (status.error) throw new Error(status.error);
+      setPurging((p) => p && { ...p, progress: { percent: 100, step: 'Eliminación terminada' } });
+      const res = status.result!;
       setPurging(null);
       await load();
       await alertDialog(`Empresa "${purging.name}" eliminada con toda su información (${res.rows.toLocaleString('es-CL')} registros y ${res.files} archivos).`);
     } catch (err: any) {
-      setPurging((p) => p && { ...p, error: err.message || 'No se pudo eliminar la empresa.' });
+      setPurging((p) => p && { ...p, progress: undefined, error: err.message || 'No se pudo eliminar la empresa.' });
     } finally {
       setDeletingId(null);
     }
@@ -554,6 +565,19 @@ export default function CompaniesPage() {
             </>
           )}
         >
+          {purging.progress ? (
+            // Avance de la eliminación (no se puede cerrar mientras corre).
+            <div className="py-4 text-center">
+              <div className="mx-auto w-10 h-10 rounded-full border-4 border-red-100 border-t-red-600 animate-spin" />
+              <p className="mt-4 text-sm font-semibold text-gray-800">Eliminando la empresa…</p>
+              <p className="mt-1 text-xs text-gray-500 min-h-[1rem]">{purging.progress.step}</p>
+              <div className="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-red-600 rounded-full transition-all duration-500" style={{ width: `${purging.progress.percent}%` }} />
+              </div>
+              <p className="mt-2 text-2xl font-bold text-red-600">{purging.progress.percent}%</p>
+              <p className="mt-3 text-[11px] text-gray-400">No cierres esta ventana hasta que termine.</p>
+            </div>
+          ) : (
           <div className="space-y-4 text-sm">
             <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-red-800">
               Se borrará la empresa y <strong>toda su información</strong>: productos, stock y bodegas, ventas y órdenes,
@@ -576,6 +600,7 @@ export default function CompaniesPage() {
             </div>
             <FormError message={purging.error} />
           </div>
+          )}
         </Modal>
       )}
     </div>

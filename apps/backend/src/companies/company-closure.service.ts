@@ -13,6 +13,19 @@ export const CLOSURE_GRACE_DAYS = 30;
 type Tx = Prisma.TransactionClient;
 const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
+// Avance del borrado: porcentaje (0-100) y paso en palabras.
+export type PurgeProgress = (percent: number, step: string) => void;
+
+// Nombres legibles de las tablas principales para mostrar el avance.
+const TABLE_LABEL: Record<string, string> = {
+  products: 'productos', product_images: 'fotos de productos', listings: 'publicaciones', sales: 'ventas',
+  sale_items: 'detalle de ventas', orders: 'órdenes', order_items: 'detalle de órdenes', clients: 'clientes',
+  users: 'usuarios', warehouses: 'bodegas', stock_movements: 'movimientos de stock', invoices: 'documentos tributarios',
+  purchases: 'compras', suppliers: 'proveedores', marketplace_connections: 'conexiones a marketplaces',
+  companies: 'empresa', returns: 'devoluciones', work_orders: 'órdenes de trabajo',
+};
+const tableLabel = (t: string) => TABLE_LABEL[t] ?? t.replace(/_/g, ' ');
+
 // Baja de la cuenta de una empresa, pedida por su administrador.
 // 1. requestClosure: bloquea la cuenta (nadie de la empresa entra), desactiva sus conexiones a
 //    marketplaces y programa el borrado a 30 días.
@@ -107,9 +120,10 @@ export class CompanyClosureService {
   // apunte a una fila borrada. Primero se anulan las referencias opcionales (rompe ciclos) y
   // después se borra en pasadas hasta que ninguna llave foránea lo impida.
 
-  async purgeCompany(companyId: string): Promise<{ rows: number; files: number }> {
+  async purgeCompany(companyId: string, onProgress: PurgeProgress = () => {}): Promise<{ rows: number; files: number }> {
     const files: string[] = [];
     let rows = 0;
+    onProgress(2, 'Preparando la eliminación');
     await this.prisma.$transaction(async (tx) => {
       const fks = await tx.$queryRaw<{ child: string; col: string; parent: string; pcol: string; nullable: boolean }[]>`
         SELECT tc.relname AS child, a.attname AS col, pc.relname AS parent, pa.attname AS pcol, NOT a.attnotnull AS nullable
@@ -131,11 +145,13 @@ export class CompanyClosureService {
       const createTmp = (t: string) => tx.$executeRawUnsafe(`CREATE TEMP TABLE ${tmp(t)} (id text PRIMARY KEY) ON COMMIT DROP`);
       await createTmp('companies');
       await tx.$executeRawUnsafe(`INSERT INTO ${tmp('companies')} SELECT id FROM "companies" WHERE id = $1`, companyId);
-      for (const t of withCompanyId) {
+      for (const [k, t] of withCompanyId.entries()) {
+        onProgress(5 + Math.round((k / Math.max(1, withCompanyId.length)) * 20), `Identificando datos: ${tableLabel(t)}`);
         await createTmp(t);
         await tx.$executeRawUnsafe(`INSERT INTO ${tmp(t)} SELECT id FROM ${ident(t)} WHERE "companyId" = $1`, companyId);
       }
       // Tablas sin companyId que cuelgan de filas borradas (p. ej. sale_items, stock_movements).
+      onProgress(27, 'Buscando datos relacionados');
       for (let changed = true; changed; ) {
         changed = false;
         for (const fk of fks) {
@@ -154,6 +170,7 @@ export class CompanyClosureService {
       }
 
       // 2. Archivos subidos que referencian las filas borradas (se eliminan tras el commit).
+      onProgress(35, 'Buscando archivos subidos (fotos y documentos)');
       const textCols = await tx.$queryRaw<{ table_name: string; column_name: string }[]>`
         SELECT table_name, column_name FROM information_schema.columns
         WHERE table_schema = current_schema() AND data_type IN ('text', 'character varying')`;
@@ -170,6 +187,7 @@ export class CompanyClosureService {
       for (const { id } of invoiceIds) files.push(`invoice-${id}.pdf`, `invoice-${id}.xml`);
 
       // 3. Anula referencias opcionales hacia filas borradas (rompe ciclos y libera filas ajenas).
+      onProgress(45, 'Desvinculando referencias');
       for (const fk of fks) {
         if (!fk.nullable || !selected.has(fk.parent)) continue;
         await tx.$executeRawUnsafe(
@@ -197,6 +215,7 @@ export class CompanyClosureService {
       };
       for (const t of selected) visit(t);
       const pending = new Set(ordered);
+      const totalTables = Math.max(1, ordered.length);
       for (let pass = 0; pending.size && pass < 60; pass++) {
         let progress = false;
         for (const t of [...pending]) {
@@ -205,6 +224,8 @@ export class CompanyClosureService {
             rows += await tx.$executeRawUnsafe(`DELETE FROM ${ident(t)} WHERE id IN (SELECT id FROM ${tmp(t)})`);
             await tx.$executeRawUnsafe('RELEASE SAVEPOINT purge_step');
             pending.delete(t);
+            const done = totalTables - pending.size;
+            onProgress(55 + Math.round((done / totalTables) * 35), `Eliminando ${tableLabel(t)} (${done} de ${totalTables})`);
             progress = true;
           } catch (err: any) {
             await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT purge_step');
@@ -214,10 +235,13 @@ export class CompanyClosureService {
         if (!progress) break;
       }
       if (pending.size) throw new Error(`No se pudieron borrar las tablas: ${[...pending].join(', ')}`);
+      onProgress(92, 'Confirmando la eliminación');
     }, { timeout: 10 * 60 * 1000, maxWait: 30 * 1000 });
 
     // Archivos: en disco (solo dentro de uploads/) y en Supabase Storage si está configurado.
+    onProgress(95, `Eliminando ${files.length} archivo(s) subidos`);
     const deleted = await this.storage.remove(files);
+    onProgress(100, 'Eliminación terminada');
     return { rows, files: deleted };
   }
 

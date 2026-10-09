@@ -283,7 +283,9 @@ export const api = {
       apiFetch<{ restored: boolean; connectionsReactivated: number }>(`/companies/${id}/closure/cancel`, { method: 'POST' }, token),
     // Elimina la empresa y toda su información (definitivo).
     purge: (id: string, confirmName: string, token: string) =>
-      apiFetch<{ rows: number; files: number }>(`/companies/${id}/purge`, { method: 'POST', body: JSON.stringify({ confirmName }) }, token),
+      apiFetch<{ jobId: string }>(`/companies/${id}/purge`, { method: 'POST', body: JSON.stringify({ confirmName }) }, token),
+    purgeStatus: (jobId: string, token: string) =>
+      apiFetch<{ percent: number; step: string; done: boolean; error: string | null; result: { rows: number; files: number } | null }>(`/companies/purge-jobs/${jobId}`, {}, token),
     // Respaldo ZIP de los datos de la empresa (Excel + documentos).
     backup: (id: string, name: string, token: string) =>
       apiDownload(`/company-account/export?companyId=${id}`, token, `respaldo-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.zip`),

@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Logger } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { IsString } from 'class-validator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
@@ -12,6 +13,19 @@ import { Roles } from '../auth/decorators/roles.decorator';
 class PurgeCompanyDto {
   @IsString() confirmName: string;
 }
+
+// Eliminaciones en curso (en memoria): el panel consulta su avance hasta que terminan.
+interface PurgeJob {
+  companyId: string;
+  companyName: string;
+  percent: number;
+  step: string;
+  done: boolean;
+  error: string | null;
+  result: { rows: number; files: number } | null;
+  finishedAt?: number;
+}
+const purgeJobs = new Map<string, PurgeJob>();
 
 @Controller('companies')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -56,9 +70,36 @@ export class CompaniesController {
     if ((dto.confirmName || '').trim().toLowerCase() !== String(company.name).trim().toLowerCase()) {
       throw new BadRequestException('El nombre escrito no coincide con el de la empresa.');
     }
-    const res = await this.closure.purgeCompany(id);
-    this.logger.warn(`Empresa ${id} (${company.name}) eliminada por el super admin ${user.email}: ${res.rows} filas, ${res.files} archivos`);
-    return res;
+    if ([...purgeJobs.values()].some((j) => j.companyId === id && !j.done)) {
+      throw new BadRequestException('Esta empresa ya se está eliminando.');
+    }
+    // Se elimina en segundo plano; el panel consulta el avance con GET purge-jobs/:jobId.
+    const jobId = randomUUID();
+    const job: PurgeJob = { companyId: id, companyName: company.name, percent: 0, step: 'En cola', done: false, error: null, result: null };
+    purgeJobs.set(jobId, job);
+    this.closure.purgeCompany(id, (percent, step) => { job.percent = percent; job.step = step; })
+      .then((res) => {
+        job.result = res;
+        this.logger.warn(`Empresa ${id} (${company.name}) eliminada por el super admin ${user.email}: ${res.rows} filas, ${res.files} archivos`);
+      })
+      .catch((err) => {
+        job.error = err?.message || 'No se pudo eliminar la empresa.';
+        this.logger.error(`No se pudo eliminar la empresa ${id}: ${job.error}`);
+      })
+      .finally(() => {
+        job.done = true;
+        job.finishedAt = Date.now();
+        // Se limpian las eliminaciones terminadas hace más de una hora.
+        for (const [k, j] of purgeJobs) if (j.finishedAt && Date.now() - j.finishedAt > 3600_000) purgeJobs.delete(k);
+      });
+    return { jobId };
+  }
+
+  @Get('purge-jobs/:jobId')
+  purgeStatus(@Param('jobId') jobId: string) {
+    const job = purgeJobs.get(jobId);
+    if (!job) throw new NotFoundException('Eliminación no encontrada');
+    return job;
   }
 
   // Revierte una baja pedida por el administrador de la empresa (dentro de los 30 días).
