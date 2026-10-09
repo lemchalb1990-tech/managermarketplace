@@ -1316,10 +1316,12 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
     <div className="relative">
       {value && (
         <div className="flex items-center gap-2 mb-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-          <span className="font-mono text-blue-700 font-semibold shrink-0">{value}</span>
-          {valuePath && <span className="text-blue-800 min-w-0 truncate" title={valuePath}>{valuePath}</span>}
+          <span className="min-w-0 flex-1 truncate whitespace-nowrap" title={valuePath ? `${value} · ${valuePath}` : value}>
+            <span className="font-mono text-blue-700 font-semibold">{value}</span>
+            {valuePath && <span className="text-blue-800"> · {valuePath}</span>}
+          </span>
           <button type="button" onClick={() => onChange('')}
-            className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base">×</button>
+            className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base shrink-0">×</button>
         </div>
       )}
 
@@ -3619,7 +3621,7 @@ export default function CatalogPage() {
                     </div>
                   )}
                   {hasMlModule && (selected.id || mlChecked) && (
-                    <div id={fieldDomId('mlCategory')} className={mlBad('mlCategory') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}>
+                    <div id={fieldDomId('mlCategory')} className={`sm:col-span-2 ${mlBad('mlCategory') ? 'rounded-lg ring-2 ring-red-300 bg-red-50/40 p-2' : ''}`}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Categoría ML</label>
                       <CategoryPicker
                         value={editForm.mlCategoryId}
