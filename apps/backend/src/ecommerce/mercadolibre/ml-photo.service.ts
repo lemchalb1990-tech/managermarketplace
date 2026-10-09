@@ -96,11 +96,18 @@ export class MlPhotoService {
     try {
       let { res, data } = await call(await this.absolute(storedUrl));
       // Si Mercado Libre no puede descargar la foto (enlace no público o bloqueado), se le sube
-      // directo a su CDN y se diagnostica con el id de la foto (la API lo acepta).
+      // directo a su CDN y se diagnostica con la dirección de su CDN (o, si no, con el id).
       if (!res.ok && /download|descarg/i.test(JSON.stringify(data ?? ''))) {
-        const img = await this.download(storedUrl).catch(() => null);
-        const pictureId = img ? await this.ml.uploadPictureBytesToMl(token, img.bytes, img.mime, storedUrl) : null;
-        if (pictureId) ({ res, data } = await call(pictureId));
+        const img = await this.download(storedUrl).catch((e) => {
+          this.logger.warn(`Diagnóstico ML: no se pudo leer la foto ${storedUrl}: ${e?.message}`);
+          return null;
+        });
+        const uploaded = img ? await this.ml.uploadPictureBytesToMlFull(token, img.bytes, img.mime, storedUrl) : null;
+        if (uploaded?.url) {
+          ({ res, data } = await call(uploaded.url));
+          if (!res.ok) this.logger.warn(`Diagnóstico ML con la foto en el CDN de ML (${uploaded.url}) falló (${res.status}): ${JSON.stringify(data)?.slice(0, 200)}`);
+        }
+        if (uploaded && !res.ok) ({ res, data } = await call(uploaded.id));
       }
       if (!res.ok) {
         this.logger.warn(`Diagnóstico ML no disponible (${res.status}): ${JSON.stringify(data)?.slice(0, 300)}`);

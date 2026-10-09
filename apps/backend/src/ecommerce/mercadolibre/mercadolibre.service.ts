@@ -1722,6 +1722,12 @@ export class MercadolibreService {
 
   // Sube bytes de una foto al CDN de Mercado Libre y devuelve su id (null si no se pudo).
   async uploadPictureBytesToMl(token: string, buffer: Buffer, mime: string, label = 'foto'): Promise<string | null> {
+    return (await this.uploadPictureBytesToMlFull(token, buffer, mime, label))?.id ?? null;
+  }
+
+  // Igual que uploadPictureBytesToMl pero devuelve también la dirección de la foto en el CDN de
+  // Mercado Libre (mlstatic.com), que ML siempre puede descargar.
+  async uploadPictureBytesToMlFull(token: string, buffer: Buffer, mime: string, label = 'foto'): Promise<{ id: string; url: string | null } | null> {
     try {
       const bytes = new Uint8Array(buffer);
       const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
@@ -1737,7 +1743,11 @@ export class MercadolibreService {
         this.logger.warn(`ML: no se pudo subir la foto ${label} (${res.status}) ${JSON.stringify(data)?.slice(0, 200)}`);
         return null;
       }
-      return String(data.id);
+      // La variación más grande (ML las devuelve con size "ANCHOxALTO").
+      const variations: any[] = Array.isArray(data.variations) ? data.variations : [];
+      const area = (v: any) => String(v.size || '').split('x').map(Number).reduce((a: number, b: number) => a * (b || 1), 1);
+      const best = [...variations].sort((a, b) => area(b) - area(a))[0];
+      return { id: String(data.id), url: best?.secure_url || best?.url || null };
     } catch (err: any) {
       this.logger.warn(`ML: error subiendo la foto ${label}: ${err?.message}`);
       return null;
