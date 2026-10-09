@@ -349,7 +349,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
                 : 'Marca al menos una foto para subirla a la publicación.'}
             </p>
           )}
-          <ul className="space-y-2">
+          {/* En computador, 3 columnas; en celular, una. */}
+          <ul className="grid grid-cols-1 lg:grid-cols-3 gap-2">
             {result.images.map((row) => {
               const fixUrl = fixes[row.imageId];
               const busy = busyId === row.imageId;

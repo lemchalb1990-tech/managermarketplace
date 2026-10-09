@@ -1130,7 +1130,7 @@ function PrePublishModal({ state, onConfirm, onClose, onSaleTermChange, onGo, ph
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg lg:max-w-5xl flex flex-col max-h-[90vh]">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="ui-section-title">
             {isError ? 'Mercado Libre rechazó la publicación' : 'Verificación antes de publicar'}
