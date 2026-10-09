@@ -127,7 +127,7 @@ function NetMock() {
   return (
     <div className="ui-card p-5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-[var(--text-2)]">Mesa de bar Circle · Walmart</p>
+        <p className="text-xs font-semibold text-[var(--text-2)]">Zapatillas urbanas blancas · Walmart</p>
         <span className="font-mono text-[0.66rem] text-[var(--text-muted)]">PO 2777001234</span>
       </div>
       <div className="mt-3 space-y-1 text-[0.8rem]">
@@ -345,7 +345,7 @@ export default async function Home() {
 
           <div className="ui-enter-panel relative mx-auto mt-14 max-w-[860px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
             <Toast className="absolute -left-28 top-10 z-10 hidden w-60 xl:flex" tone="#0075de" icon={TOAST_ICONS.sale}
-              title="Nueva venta · Mercado Libre" meta="Mesa de bar Circle · $49.990" />
+              title="Nueva venta · Mercado Libre" meta="Zapatillas urbanas blancas · $49.990" />
             <Toast className="absolute -right-24 top-40 z-10 hidden w-56 xl:flex" tone="#15803d" icon={TOAST_ICONS.doc}
               title="Boleta emitida N° 4521" meta="OpenFactura · hace 1 min" style={{ ["--fd" as string]: "0.9s" }} />
             <Toast className="absolute -left-20 bottom-10 z-10 hidden w-56 xl:flex" tone="#e89d01" icon={TOAST_ICONS.sync}

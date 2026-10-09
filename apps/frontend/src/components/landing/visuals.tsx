@@ -109,7 +109,7 @@ export function PublishMini() {
   const ch: Array<[string, boolean]> = [["Mercado Libre", true], ["Falabella", true], ["Paris", true], ["Ripley", false]];
   return (
     <Box>
-      <p className="font-semibold">Mesa de bar Circle</p>
+      <p className="font-semibold">Zapatillas urbanas blancas</p>
       <div className="mt-2 space-y-1">
         {ch.map(([c, on]) => (
           <div key={c} className="flex items-center justify-between rounded-md bg-white px-2 py-1" style={{ border: LINE }}>
@@ -213,10 +213,10 @@ export function QuestionsMini() {
     <Box>
       <div className="rounded-md bg-white p-2.5" style={{ border: LINE }}>
         <p className="text-[#757575]">Pregunta · hace 3 min</p>
-        <p className="mt-0.5 font-medium">¿Tienen la mesa en color blanco?</p>
+        <p className="mt-0.5 font-medium">¿Tienen talla 40?</p>
       </div>
       <div className="mt-1.5 rounded-md bg-[#e6f3fe] p-2.5 text-[#02093a]">
-        Sí, la tenemos en blanco con despacho en 24 horas.
+        Sí, tenemos talla 40 con despacho en 24 horas.
       </div>
       <Btn>Responder</Btn>
     </Box>
@@ -281,8 +281,8 @@ export function DashboardMock() {
 }
 
 export const ALERTS: Array<{ t: string; m: string; tone: string; icon: ReactNode; when: string }> = [
-  { t: "Nueva venta", m: "Mercado Libre · Mesa de bar Circle · suena un aviso", tone: "#0075de", icon: TOAST_ICONS.sale, when: "ahora" },
-  { t: "Nueva pregunta", m: "¿Tienen la mesa en color blanco?", tone: "#e89d01", icon: svg("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"), when: "hace 3 min" },
+  { t: "Nueva venta", m: "Mercado Libre · Zapatillas urbanas blancas · suena un aviso", tone: "#0075de", icon: TOAST_ICONS.sale, when: "ahora" },
+  { t: "Nueva pregunta", m: "¿Tienen talla 40?", tone: "#e89d01", icon: svg("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"), when: "hace 3 min" },
   { t: "Nuevo reclamo", m: "Responder antes del 14 oct · 23:59", tone: "#f64932", icon: svg("M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"), when: "hace 12 min" },
   { t: "Pedidos atrasados", m: "2 pedidos de Falabella pasaron la hora de corte", tone: "#e32d14", icon: svg("M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"), when: "hace 20 min" },
   { t: "Alerta de seguridad", m: "5 intentos fallidos de inicio de sesión", tone: "#02093a", icon: svg("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"), when: "hoy 09:14" },
