@@ -98,6 +98,19 @@ export class SubscriptionService {
     });
   }
 
+  // Planes activos para la landing pública: solo lo que se muestra en la tabla de precios.
+  publicPlans() {
+    return this.prisma.subscriptionPlan.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true, name: true, description: true, monthlyPrice: true, annualPrice: true, priceFrom: true,
+        implementationPrice: true, implementationFreeAnnual: true, maxChannels: true, maxProducts: true,
+        maxUsers: true, maxWarehouses: true, features: true, addons: true, isTrial: true, trialDays: true,
+      },
+    });
+  }
+
   createPlan(input: PlanInput) {
     const data = this.planData(input);
     if (!data.name) throw new BadRequestException('El plan necesita un nombre');

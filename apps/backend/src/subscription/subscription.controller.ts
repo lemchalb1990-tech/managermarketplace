@@ -76,3 +76,15 @@ export class SubscriptionController {
     return this.service.assignPlan(companyId, dto.planId ?? null, dto.billing ?? null);
   }
 }
+
+// Sin guard a propósito: la landing pública muestra los planes y precios antes de
+// iniciar sesión. Solo expone los campos de la tabla de precios de planes activos.
+@Controller('public/plans')
+export class PublicPlansController {
+  constructor(private service: SubscriptionService) {}
+
+  @Get()
+  list() {
+    return this.service.publicPlans();
+  }
+}

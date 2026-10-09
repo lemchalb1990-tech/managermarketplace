@@ -5,6 +5,7 @@ import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
+import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
@@ -23,38 +24,6 @@ const salesChannels = [
 const billingChannels = ["openfactura", "facto", "bsale", "defontana", "nubox", "siigo"] as const;
 
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
-
-function ShipMock() {
-  const rows = [
-    { l: "Mercado Envíos · Colecta", n: 12, cut: "corte 16:00", w: "78%", c: "var(--ok)" },
-    { l: "Envío Falabella", n: 7, cut: "2 atrasados", bad: true, w: "48%", c: "var(--brand)" },
-    { l: "Envío Ripley", n: 2, cut: "corte 18:00", w: "22%", c: "var(--warn)" },
-    { l: "Despacho propio", n: 10, cut: "sin corte", w: "62%", c: "var(--info)" },
-  ];
-  return (
-    <div className="rounded-[12px] bg-[var(--surface)] p-5 text-[var(--text)]">
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm font-semibold">Por despachar hoy</p>
-        <p className="font-mono text-xs text-[var(--text-muted)]">jue 25 sep · 31 pedidos</p>
-      </div>
-      <div className="mt-4 space-y-2">
-        {rows.map((r) => (
-          <div key={r.l} className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5">
-            <div className="flex items-center gap-3">
-              <span className="min-w-0 flex-1 truncate text-[0.8rem]">{r.l}</span>
-              <span className={`text-[0.66rem] ${r.bad ? "font-semibold text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>{r.cut}</span>
-              <span className="w-5 text-right font-mono text-[0.75rem] text-[var(--text-2)]">{r.n}</span>
-            </div>
-            <span className="mt-2 block h-1 overflow-hidden rounded-full bg-[var(--border-soft)]">
-              <span className="block h-full rounded-full" style={{ width: r.w, background: r.c }} />
-            </span>
-          </div>
-        ))}
-      </div>
-      <button type="button" tabIndex={-1} className="ui-btn-brand mt-4 w-full text-xs">Imprimir 21 etiquetas</button>
-    </div>
-  );
-}
 
 function ChannelsMock() {
   const rows = [
@@ -92,64 +61,10 @@ function ChannelsMock() {
   );
 }
 
-function StockSyncMock() {
+function LogoChip({ node, large = false }: { node: ReactNode; large?: boolean }) {
   return (
-    <div className="ui-card p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-[var(--text-2)]">Polera oversize negra</p>
-        <span className="ui-badge ui-badge--info">Venta ML #40213</span>
-      </div>
-      <div className="mt-3 flex items-center gap-3 rounded-lg bg-[var(--surface-soft)] px-3 py-3">
-        <span className="font-mono text-lg font-bold">32</span>
-        <Icon d={ICONS.arrow} size={16} />
-        <span className="font-mono text-lg font-bold text-[var(--brand-ink)]">31</span>
-        <span className="ml-auto text-[0.66rem] text-[var(--text-muted)]">menos 1 en Bodega Centro</span>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {["Mercado Libre", "Falabella", "Paris", "Tienda web"].map((c) => (
-          <span key={c} className="ui-badge ui-badge--ok">
-            <Icon d={ICONS.check} size={11} /> {c}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Desglose real de una venta importada (mismo formato que el modal de importación).
-function NetMock() {
-  const rows: Array<[string, string, boolean?]> = [
-    ["Precio sin IVA", "$43.689"],
-    ["Envío a cargo tuyo", "−$2.517", true],
-    ["Comisión (12%)", "−$6.239", true],
-    ["Costo del producto", "−$10.000", true],
-  ];
-  return (
-    <div className="ui-card p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-[var(--text-2)]">Zapatillas urbanas blancas · Walmart</p>
-        <span className="font-mono text-[0.66rem] text-[var(--text-muted)]">PO 2777001234</span>
-      </div>
-      <div className="mt-3 space-y-1 text-[0.8rem]">
-        {rows.map(([k, v, neg]) => (
-          <div key={k} className="flex justify-between">
-            <span className="text-[var(--text-2)]">{k}</span>
-            <span className={`font-mono ${neg ? "text-[var(--danger)]" : ""}`}>{v}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between border-t border-[var(--border-soft)] pt-2 text-[0.9rem] font-semibold">
-        <span>Ganancia</span>
-        <span className="font-mono text-[var(--ok)]">$24.933</span>
-      </div>
-    </div>
-  );
-}
-
-function LogoChip({ node }: { node: ReactNode }) {
-  return (
-    <span className="group/logo flex h-16 w-[132px] shrink-0 items-center justify-center px-2">
-      <span className="h-11 w-[74px] opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[9px]">
+    <span className={`group/logo flex shrink-0 items-center justify-center px-2 ${large ? "h-24 w-[176px] sm:h-28 sm:w-[200px]" : "h-16 w-[132px]"}`}>
+      <span className={`${large ? "h-16 w-[112px] sm:h-[76px] sm:w-[132px]" : "h-11 w-[74px]"} opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[9px]`}>
         {node}
       </span>
     </span>
@@ -169,7 +84,7 @@ function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
     <div className="marquee-mask group overflow-hidden">
       <div className="flex w-max gap-7 py-1 animate-marquee group-hover:[animation-play-state:paused]">
         {loop.map((k, i) => (
-          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
+          <LogoChip large key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
         ))}
       </div>
     </div>
@@ -189,6 +104,18 @@ async function getPlatformLogoMap(): Promise<LogoMap> {
     return map;
   } catch {
     return {};
+  }
+}
+
+async function getPublicPlans(): Promise<PublicPlan[]> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/api/public/plans`, { next: { revalidate: 300 } });
+    if (!res.ok) return DEFAULT_PLANS;
+    const rows = await res.json() as PublicPlan[];
+    return rows.length ? rows : DEFAULT_PLANS;
+  } catch {
+    return DEFAULT_PLANS;
   }
 }
 
@@ -292,7 +219,7 @@ const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
 const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
 
 export default async function Home() {
-  const logoMap = await getPlatformLogoMap();
+  const [logoMap, plans] = await Promise.all([getPlatformLogoMap(), getPublicPlans()]);
   return (
     <div className={`lp ${sans.variable} ${serif.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
@@ -312,7 +239,7 @@ export default async function Home() {
             <a href="#dashboard" className="lp-nav-link">Dashboard</a>
             <a href="#canales" className="lp-nav-link">Canales</a>
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
-            <a href="#modulos" className="lp-nav-link">Módulos</a>
+            <a href="#precios" className="lp-nav-link">Precios</a>
           </div>
           <div className="flex items-center gap-1">
             <Link href="/login" className="lp-btn lp-btn--primary">Entrar al panel</Link>
@@ -334,7 +261,7 @@ export default async function Home() {
           </h1>
           <p className="lp-serif ui-enter mx-auto mt-6 max-w-[36rem] text-pretty text-[18px] leading-[1.56] text-[#615d59]" style={{ ["--d" as string]: "160ms" }}>
             Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
-            Vendes en uno y se descuenta en todos; la boleta sale en el mismo paso.
+            Vendes en uno y se descuenta en todos.
           </p>
           <div className="ui-enter mt-8 flex flex-wrap justify-center gap-2" style={{ ["--d" as string]: "240ms" }}>
             <Link href="/login" className="lp-btn lp-btn--primary">
@@ -343,27 +270,59 @@ export default async function Home() {
             <a href="#beneficios" className="lp-btn lp-btn--soft">Ver beneficios</a>
           </div>
 
-          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[860px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
-            <Toast className="absolute -left-28 top-10 z-10 hidden w-60 xl:flex" tone="#0075de" icon={TOAST_ICONS.sale}
-              title="Nueva venta · Mercado Libre" meta="Zapatillas urbanas blancas · $49.990" />
-            <Toast className="absolute -right-24 top-40 z-10 hidden w-56 xl:flex" tone="#15803d" icon={TOAST_ICONS.doc}
-              title="Boleta emitida N° 4521" meta="OpenFactura · hace 1 min" style={{ ["--fd" as string]: "0.9s" }} />
-            <Toast className="absolute -left-20 bottom-10 z-10 hidden w-56 xl:flex" tone="#e89d01" icon={TOAST_ICONS.sync}
-              title="Stock actualizado" meta="4 canales · Bodega Centro" style={{ ["--fd" as string]: "1.6s" }} />
-            <div className="grid gap-4 rounded-[12px] bg-[#ffb110] p-4 sm:p-8 md:grid-cols-[1.15fr_0.85fr]">
-              <div className="lp-shot rounded-[12px] [&>*]:h-full"><ShipMock /></div>
-              <div className="hidden flex-col gap-4 md:flex">
-                <div className="lp-shot rounded-[12px]"><StockSyncMock /></div>
-                <div className="lp-shot rounded-[12px]"><NetMock /></div>
+          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[1080px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+            {/* Bloque de color con el panel saliendo desde abajo */}
+            <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] px-3 pt-6 sm:px-12 sm:pt-14">
+              <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
+              <div className="lp-shot relative mx-auto max-w-[860px] overflow-hidden rounded-t-[12px] bg-[#f6f5f4]" style={{ border: "1px solid rgba(0,0,0,0.1)", borderBottom: 0 }}>
+                <div className="flex items-center gap-2 border-b border-black/[0.08] bg-white px-3 py-2.5">
+                  <span className="flex gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#f64932]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#ffb110]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#15803d]" />
+                  </span>
+                  <span className="mx-auto truncate rounded-md bg-[#f6f5f4] px-3 py-1 text-[11px] text-[#757575] sm:px-8">adminmarket.ondatasolution.com</span>
+                </div>
+                <div className="p-2 sm:p-4">
+                  <DashboardMock />
+                </div>
               </div>
             </div>
+
+            {/* Teléfono superpuesto */}
+            <div className="absolute -bottom-10 right-4 hidden origin-bottom-right scale-[0.78] md:block lg:-right-6 lg:scale-[0.85]">
+              <PhoneMock />
+            </div>
+
+            {/* Logos de canales flotando sobre el borde */}
+            {(["mercadolibre", "falabella", "paris", "ripley"] as const).map((k, i) => (
+              <span key={k}
+                className={`lp-float absolute z-10 hidden sm:block ${["-top-7 left-[8%]", "-top-6 left-[30%]", "-top-8 right-[28%]", "-top-6 right-[6%]"][i]}`}
+                style={{ ["--fd" as string]: `${i * 0.5}s` }}>
+                <span className="lp-shot grid h-14 w-14 place-items-center rounded-[14px] bg-white p-2" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+                  <span className="h-full w-full overflow-hidden rounded-[8px] [&>*]:h-full [&>*]:w-full">{resolveLogoNode(logoMap, k, Logos[k])}</span>
+                </span>
+              </span>
+            ))}
+
+            {/* Avisos flotantes */}
+            <Toast className="absolute -left-10 top-28 z-10 hidden w-64 lg:flex" tone="#0075de" icon={TOAST_ICONS.sale}
+              title="Nueva venta · Mercado Libre" meta="Zapatillas urbanas blancas · $49.990" />
+            <Toast className="absolute -left-6 bottom-24 z-10 hidden w-60 lg:flex" tone="#15803d" icon={TOAST_ICONS.doc}
+              title="Boleta emitida N° 4521" meta="OpenFactura · hace 1 min" style={{ ["--fd" as string]: "0.9s" }} />
+            <Toast className="absolute -right-8 top-24 z-10 hidden w-56 xl:flex" tone="#e89d01" icon={TOAST_ICONS.sync}
+              title="Stock actualizado" meta="4 canales · Bodega Centro" style={{ ["--fd" as string]: "1.6s" }} />
+            <span className="lp-float lp-shot absolute -bottom-5 left-[38%] z-10 hidden rounded-full bg-[#02093a] px-4 py-2 text-[13px] font-semibold text-white sm:inline-flex"
+              style={{ ["--fd" as string]: "1.1s" }}>
+              +18% órdenes este mes
+            </span>
           </div>
         </section>
 
         {/* Muro de logos */}
         <section className="border-y border-black/[0.06] bg-white py-10">
           <div className={WRAP}>
-            <p className="mb-5 text-center text-[14px] text-[#757575]">Marketplaces y tiendas que puedes conectar</p>
+            <p className="mb-4 text-center text-[15px] font-medium text-[#615d59]">Marketplaces y tiendas que puedes conectar</p>
             <LogosMarquee logoMap={logoMap} />
           </div>
         </section>
@@ -537,6 +496,20 @@ export default async function Home() {
                 ))}
               </ul>
             </div>
+          </div>
+        </section>
+
+        {/* Planes y precios */}
+        <section id="precios" className="pb-20">
+          <div className={WRAP}>
+            <div className="ui-reveal mx-auto max-w-2xl text-center">
+              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Planes y precios</span>
+              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Un plan para cada etapa de tu negocio</h2>
+              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+                Empiezas con los canales que tienes hoy y subes de plan cuando creces.
+              </p>
+            </div>
+            <Pricing plans={plans} />
           </div>
         </section>
 
