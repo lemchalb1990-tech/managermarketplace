@@ -5,7 +5,7 @@ import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
-import { CharacterRow, Sparkle, Squiggle, CurlyArrow, Flower, Burst, RiderScene } from "@/components/landing/doodles";
+import { Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini } from "@/components/landing/visuals";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
 // para las bajadas de sección. El panel sigue con Hanken Grotesk.
@@ -308,12 +308,11 @@ export default async function Home() {
         <section className={`${WRAP} relative pb-20 pt-14 text-center sm:pt-20`}>
           {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
           <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
-          <Sparkle className="absolute left-[6%] top-[150px] hidden h-9 w-9 md:block" />
-          <Sparkle className="absolute right-[9%] top-[110px] hidden h-6 w-6 md:block" color="#62aef0" style={{ animationDelay: "0.8s" }} />
-          <Flower className="absolute right-[5%] top-[260px] hidden h-12 w-12 lg:block" />
-          <Squiggle className="absolute left-[9%] top-[300px] hidden w-20 lg:block" color="#f64932" />
-          <CharacterRow className="ui-enter" />
-          <h1 className="lp-display ui-enter mx-auto mt-8 max-w-[15ch] text-balance text-[clamp(2.6rem,7vw,72px)]" style={{ ["--d" as string]: "80ms" }}>
+          <span className="ui-enter lp-tag bg-white text-[#615d59]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-[#15803d]" />
+            Mercado Libre · Falabella · Paris · Ripley · Walmart
+          </span>
+          <h1 className="lp-display ui-enter mx-auto mt-6 max-w-[15ch] text-balance text-[clamp(2.6rem,7vw,72px)]" style={{ ["--d" as string]: "80ms" }}>
             Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
           </h1>
           <p className="lp-serif ui-enter mx-auto mt-6 max-w-[36rem] text-pretty text-[18px] leading-[1.56] text-[#615d59]" style={{ ["--d" as string]: "160ms" }}>
@@ -328,8 +327,12 @@ export default async function Home() {
           </div>
 
           <div className="ui-enter-panel relative mx-auto mt-14 max-w-[860px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
-            <CurlyArrow className="absolute -left-24 -top-10 hidden w-20 xl:block" color="#0075de" />
-            <Burst className="absolute -right-7 -top-7 z-10 h-14 w-14" color="#000" />
+            <Toast className="absolute -left-28 top-10 z-10 hidden w-60 xl:flex" tone="#0075de" icon={TOAST_ICONS.sale}
+              title="Nueva venta · Mercado Libre" meta="Mesa de bar Circle · $49.990" />
+            <Toast className="absolute -right-24 top-40 z-10 hidden w-56 xl:flex" tone="#15803d" icon={TOAST_ICONS.doc}
+              title="Boleta emitida N° 4521" meta="OpenFactura · hace 1 min" style={{ ["--fd" as string]: "0.9s" }} />
+            <Toast className="absolute -left-20 bottom-10 z-10 hidden w-56 xl:flex" tone="#e89d01" icon={TOAST_ICONS.sync}
+              title="Stock actualizado" meta="4 canales · Bodega Centro" style={{ ["--fd" as string]: "1.6s" }} />
             <div className="grid gap-4 rounded-[12px] bg-[#ffb110] p-4 sm:p-8 md:grid-cols-[1.15fr_0.85fr]">
               <div className="lp-shot rounded-[12px] [&>*]:h-full"><ShipMock /></div>
               <div className="hidden flex-col gap-4 md:flex">
@@ -353,11 +356,7 @@ export default async function Home() {
           <div className={WRAP}>
             <div className="ui-reveal mx-auto max-w-2xl text-center">
               <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">
-                Lo que ganas desde el{" "}
-                <span className="relative inline-block">
-                  primer día
-                  <Squiggle className="absolute -bottom-3 left-0 w-full" color="#ffb110" />
-                </span>
+                Lo que ganas desde el <span className="lp-pill">primer día</span>
               </h2>
               <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
                 Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir.
@@ -368,9 +367,6 @@ export default async function Home() {
                 <div key={b.t}
                   className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
                   style={{ background: b.bg, color: b.fg }}>
-                  {b.bg === "#ffb110" && <Flower className="absolute right-6 top-6 h-14 w-14" color="#f64932" />}
-                  {b.bg === "#62aef0" && <Squiggle className="absolute right-6 top-8 w-16" color="#000" />}
-                  {b.bg === "#02093a" && <Sparkle className="absolute right-6 top-6 h-9 w-9" />}
                   {"icon" in b && b.icon ? (
                     <span className="mb-6 grid h-10 w-10 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
                       <Icon d={b.icon} size={20} />
@@ -380,6 +376,9 @@ export default async function Home() {
                   )}
                   <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[28px] leading-[1.15] sm:text-[34px]" : "text-[22px] leading-[1.27]"}`}>{b.t}</p>
                   <p className={`mt-2 text-[16px] leading-[1.5] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
+                  {b.bg === "#ffb110" && <StockMini />}
+                  {b.bg === "#62aef0" && <ProfitMini />}
+                  {b.bg === "#02093a" && <ClaimMini />}
                 </div>
               ))}
             </div>
@@ -390,7 +389,6 @@ export default async function Home() {
         <section className="pb-20">
           <div className={WRAP}>
             <div className="lp-card relative overflow-hidden p-6 sm:p-10">
-              <Sparkle className="absolute right-8 top-8 hidden h-8 w-8 sm:block" color="#f64932" />
               <h2 className="lp-display ui-reveal max-w-2xl text-[clamp(2rem,4.5vw,48px)]">
                 Lo que deja de pasarte en el día a día
               </h2>
@@ -433,7 +431,6 @@ export default async function Home() {
               </div>
             </div>
             <div className="ui-reveal relative rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
-              <Sparkle className="absolute -right-3 -top-3 z-10 h-10 w-10" />
               <div className="lp-shot rounded-[12px]"><ChannelsMock /></div>
             </div>
           </div>
@@ -442,12 +439,14 @@ export default async function Home() {
         {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
         <section id="movil" className="pb-20">
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
-            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 pb-6 pt-10 lg:order-1" aria-hidden="true">
-              <div className="lp-dotgrid absolute inset-0 opacity-60" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
-              <Sparkle className="absolute left-6 top-6 h-8 w-8" />
-              <Flower className="absolute right-6 top-10 h-11 w-11" color="#62aef0" />
-              <div className="relative"><PhoneMock /></div>
-              <RiderScene className="relative mx-auto mt-4 w-full max-w-[320px]" />
+            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
+              <div className="relative mx-auto max-w-[420px]">
+                <PhoneMock />
+                <Toast className="absolute -left-2 top-16 hidden w-52 sm:flex" tone="#0075de" icon={TOAST_ICONS.truck}
+                  title="Ruta asignada" meta="Andrea · 8 paradas" />
+                <Toast className="absolute -right-2 bottom-24 hidden w-52 sm:flex" tone="#15803d" icon={TOAST_ICONS.check}
+                  title="Entregado con foto" meta="Los Leones 455 · 12:48" style={{ ["--fd" as string]: "1.2s" }} />
+              </div>
             </div>
             <div className="ui-reveal order-1 lg:order-2">
               <span className="lp-tag bg-[#f6d5b8] text-black">Versión móvil</span>
@@ -486,8 +485,6 @@ export default async function Home() {
         <section className="pb-20">
           <div className={WRAP}>
             <div className="relative flex flex-col gap-8 overflow-hidden rounded-[12px] bg-[#02093a] p-8 text-white sm:flex-row sm:items-end sm:justify-between sm:p-12">
-              <Sparkle className="absolute right-[38%] top-8 hidden h-8 w-8 sm:block" />
-              <Burst className="absolute -bottom-3 left-[45%] hidden h-12 w-12 sm:block" color="#62aef0" />
               <div>
                 <h2 className="lp-display text-[clamp(2rem,4.5vw,48px)]">¿Ya tienes cuenta?</h2>
                 <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
