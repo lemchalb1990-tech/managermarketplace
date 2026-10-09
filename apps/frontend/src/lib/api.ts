@@ -528,10 +528,14 @@ export const api = {
         printed: string[];
         errors: { orderId: string; message: string }[];
       }>('/ecommerce/ml/orders/print-labels-bulk', { method: 'POST', body: JSON.stringify({ orderIds, withDetail }) }, token),
-    publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[], title?: string) =>
+    publish: (productId: string, connectionId: string, token: string, saleTerms?: { id: string; value_id?: string; value_name?: string }[], title?: string, imageIds?: string[] | null) =>
       apiFetch<any>(`/ecommerce/ml/products/${productId}/publish/${connectionId}`, {
         method: 'POST',
-        body: JSON.stringify({ ...(saleTerms?.length ? { saleTerms } : {}), ...(title?.trim() ? { title: title.trim() } : {}) }),
+        body: JSON.stringify({
+          ...(saleTerms?.length ? { saleTerms } : {}),
+          ...(title?.trim() ? { title: title.trim() } : {}),
+          ...(Array.isArray(imageIds) ? { imageIds } : {}),
+        }),
       }, token),
     // Revisión de fotos antes de publicar: diagnóstico de ML + IA (créditos del plan).
     photoCheck: (productId: string, connectionId: string, token: string, opts: { title?: string; useAi?: boolean } = {}) =>

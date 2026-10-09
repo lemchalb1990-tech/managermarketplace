@@ -854,6 +854,7 @@ export class MercadolibreService {
     user: any,
     saleTerms?: { id: string; value_id?: string; value_name?: string }[],
     title?: string,
+    imageIds?: string[],
   ) {
     const product = await this.catalog.findOne(productId, user);
     // Título de esta cuenta: el elegido al publicar, si no el propio guardado, si no el nombre.
@@ -885,7 +886,10 @@ export class MercadolibreService {
     // Todo el set de fotos del producto: la principal primero y luego en su orden (ML admite
     // hasta 10). Se suben antes al CDN de Mercado Libre (flujo que recomienda ML: evita fotos
     // "pendientes de descarga"); si una no se puede subir, se manda su enlace como antes.
-    const pictures = await Promise.all([...product.images]
+    // Si en la revisión de fotos se eligieron cuáles subir, solo esas (la principal primero).
+    const chosen = Array.isArray(imageIds) ? product.images.filter((img: any) => imageIds.includes(img.id)) : product.images;
+    if (Array.isArray(imageIds) && !chosen.length) throw new BadRequestException('Marca al menos una foto para subirla a la publicación.');
+    const pictures = await Promise.all([...chosen]
       .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
       .slice(0, 10)
       .map(async (img: any) => {

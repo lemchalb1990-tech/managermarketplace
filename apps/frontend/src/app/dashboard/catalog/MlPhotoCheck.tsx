@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, type AiCreditsStatus, type PhotoCheckImage, type PhotoCheckResult, type PlanFeature } from '@/lib/api';
 
@@ -12,7 +13,25 @@ function hasProblems(r: PhotoCheckImage) {
 // Revisión de fotos para Mercado Libre: diagnóstico oficial de ML (fondo, tamaño, textos,
 // marcas de agua) + IA de visión que confirma que la foto coincide con el título. Permite
 // corregir la foto real con IA o usar como principal una foto que sí coincide.
-export default function MlPhotoCheck({ productId, connectionId, companyId, hasCategory, highlight, onImagesChanged }: {
+// Foto ampliada para ver el detalle (clic fuera o ✕ para cerrar).
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" className="max-w-full max-h-[90vh] object-contain rounded-lg bg-white" onClick={(e) => e.stopPropagation()} />
+      <button type="button" onClick={onClose} aria-label="Cerrar"
+        className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/90 text-gray-700 text-xl leading-none">×</button>
+    </div>,
+    document.body,
+  );
+}
+
+export default function MlPhotoCheck({ productId, connectionId, companyId, hasCategory, highlight, onImagesChanged, onSelectionChange }: {
   productId: string;
   connectionId: string;
   companyId?: string;
@@ -21,6 +40,8 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   /** Mercado Libre rechazó por fotos: se destaca la sección. */
   highlight?: boolean;
   onImagesChanged: () => Promise<unknown> | void;
+  /** Fotos elegidas para subir a la publicación (null = todas, sin revisión). */
+  onSelectionChange?: (imageIds: string[] | null) => void;
 }) {
   const [credits, setCredits] = useState<AiCreditsStatus | null>(null);
   const [result, setResult] = useState<PhotoCheckResult | null>(null);
@@ -36,6 +57,9 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   const [generated, setGenerated] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState('');
+  const [zoom, setZoom] = useState<string | null>(null);
+  // Fotos que se subirán a la publicación: las que están bien vienen marcadas.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   // Lo que incluye el plan de la empresa.
   const has = (f: PlanFeature) => isSuperAdmin || !!credits?.plan?.features.includes(f);
   const noPlan = !!credits && !credits.plan && !isSuperAdmin;
@@ -45,6 +69,11 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   const fixEnabled = has('AI_FIX') && !!credits?.ready?.PHOTO_FIX && hasCategory;
   const generateEnabled = has('AI_GENERATE') && !!credits?.ready?.PHOTO_GENERATE && hasCategory;
   const canCheck = mlOn || aiEnabled;
+
+  useEffect(() => {
+    onSelectionChange?.(result && result.images.length ? [...selected] : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, selected]);
 
   const [creditsLoaded, setCreditsLoaded] = useState(false);
   const [autoRan, setAutoRan] = useState(false);
@@ -70,6 +99,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
     try {
       const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi });
       setResult(r);
+      setSelected(new Set(r.images.filter((i) => !hasProblems(i)).map((i) => i.imageId)));
       if (r.credits) setCredits(r.credits);
     } catch (e: any) {
       setError(e.message || 'No se pudieron revisar las fotos.');
@@ -222,13 +252,14 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
           {generated && (
             <div className="flex gap-3 items-start">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imgUrl(generated)} alt="Imagen de referencia" className="w-28 h-28 rounded object-contain bg-white border border-gray-200 shrink-0" />
+              <img src={imgUrl(generated)} alt="Imagen de referencia" title="Ver en grande" onClick={() => setZoom(imgUrl(generated))}
+                className="w-28 h-28 rounded object-contain bg-white border border-gray-200 shrink-0 cursor-zoom-in" />
               <div className="space-y-1.5">
                 <p className="text-[11px] text-amber-700">Es una imagen creada por IA: revisa que represente bien tu producto antes de usarla.</p>
                 <div className="flex gap-1.5">
                   <button type="button" onClick={addGenerated} disabled={generating}
                     className="px-2.5 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold disabled:opacity-50">
-                    Agregar al producto
+                    Agregar al catálogo
                   </button>
                   <button type="button" onClick={() => setGenerated(null)} disabled={generating}
                     className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] hover:bg-gray-50 disabled:opacity-50">
@@ -269,6 +300,13 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
             </div>
           )}
 
+          {result.images.length > 0 && (
+            <p className={`text-[11px] ${selected.size ? 'text-gray-500' : 'text-red-600 font-medium'}`}>
+              {selected.size
+                ? `Se subirán ${selected.size} de ${result.images.length} fotos a la publicación (marca o desmarca cada una).`
+                : 'Marca al menos una foto para subirla a la publicación.'}
+            </p>
+          )}
           <ul className="space-y-2">
             {result.images.map((row) => {
               const fixUrl = fixes[row.imageId];
@@ -280,7 +318,16 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
                 <li key={row.imageId} className="border border-gray-200 rounded-lg p-2">
                   <div className="flex gap-2.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imgUrl(row.url)} alt="" className="w-14 h-14 rounded object-contain bg-gray-50 border border-gray-100 shrink-0" />
+                    <label className="flex items-start pt-1 shrink-0 cursor-pointer" title="Subir esta foto a la publicación">
+                      <input type="checkbox" checked={selected.has(row.imageId)} className="accent-blue-600"
+                        onChange={(e) => setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(row.imageId); else next.delete(row.imageId);
+                          return next;
+                        })} />
+                    </label>
+                    <img src={imgUrl(row.url)} alt="" title="Ver en grande" onClick={() => setZoom(imgUrl(row.url))}
+                      className={`w-14 h-14 rounded object-contain bg-gray-50 border border-gray-100 shrink-0 cursor-zoom-in ${selected.has(row.imageId) ? '' : 'opacity-40'}`} />
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap gap-1">
                         {row.isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-white">Principal</span>}
@@ -331,10 +378,10 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
                       <p className="text-[11px] text-gray-500 mb-1.5">Revisa que sea el mismo producto antes de usarla:</p>
                       <div className="flex gap-2 items-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imgUrl(row.url)} alt="Antes" className="w-24 h-24 rounded object-contain bg-gray-50 border border-gray-200" />
+                        <img src={imgUrl(row.url)} alt="Antes" onClick={() => setZoom(imgUrl(row.url))} className="w-24 h-24 rounded object-contain bg-gray-50 border border-gray-200 cursor-zoom-in" />
                         <span className="text-gray-400">→</span>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imgUrl(fixUrl)} alt="Después" className="w-24 h-24 rounded object-contain bg-white border border-gray-200" />
+                        <img src={imgUrl(fixUrl)} alt="Después" onClick={() => setZoom(imgUrl(fixUrl))} className="w-24 h-24 rounded object-contain bg-white border border-gray-200 cursor-zoom-in" />
                       </div>
                       <div className="flex gap-1.5 mt-2">
                         <button type="button" onClick={() => applyFix(row)} disabled={busy}
@@ -356,6 +403,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
       )}
 
       {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }

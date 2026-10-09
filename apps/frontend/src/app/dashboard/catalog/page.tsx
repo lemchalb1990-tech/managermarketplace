@@ -1607,6 +1607,8 @@ export default function CatalogPage() {
   const [attrLoading, setAttrLoading] = useState(false);
   const [categorySupportsHtml, setCategorySupportsHtml] = useState(false);
   const [publishModal, setPublishModal] = useState<PublishModalState | null>(null);
+  // Fotos elegidas en la revisión de fotos para subir a la publicación (null = todas).
+  const [mlPhotoSelection, setMlPhotoSelection] = useState<string[] | null>(null);
   // Verificación de Mercado Libre en curso: mientras exista, los obligatorios faltantes se marcan en rojo (en vivo).
   const [mlVerify, setMlVerify] = useState<{ connectionId: string; isRepublish: boolean; productId: string } | null>(null);
   const [linkModal, setLinkModal] = useState<LinkModalState | null>(null);
@@ -2331,6 +2333,7 @@ export default function CatalogPage() {
   }
 
   function openPublishModal(connectionId: string, isRepublish: boolean) {
+    setMlPhotoSelection(null);
     setMlVerify({ connectionId, isRepublish, productId: selected?.id });
     setPublishModal({
       connectionId, phase: 'preflight', checks: buildPreflightChecks(), mlErrors: [], isRepublish,
@@ -2366,7 +2369,7 @@ export default function CatalogPage() {
     setMlWarning('');
     try {
       const token = getToken()!;
-      const result = await api.marketplace.publish(selected.id, connectionId, token, saleTerms);
+      const result = await api.marketplace.publish(selected.id, connectionId, token, saleTerms, undefined, mlPhotoSelection);
       if (result?.descriptionWarning) setMlWarning(result.descriptionWarning);
       await refreshSelected(selected.id);
       setPublishModal(null);
@@ -4061,6 +4064,7 @@ export default function CatalogPage() {
               hasCategory={!!(editCategoryId || selected.mlCategoryId)}
               highlight={highlight}
               onImagesChanged={() => refreshSelected(selected.id)}
+              onSelectionChange={setMlPhotoSelection}
             />
           )}
         />

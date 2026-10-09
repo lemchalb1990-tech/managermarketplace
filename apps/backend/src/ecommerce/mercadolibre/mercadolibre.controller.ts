@@ -75,6 +75,12 @@ class PublishOptionsDto {
   @IsString()
   @MaxLength(60)
   title?: string;
+
+  // Fotos elegidas en la revisión de fotos para subir a la publicación (si no, todas).
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  imageIds?: string[];
 }
 
 class AnswerQuestionDto {
@@ -500,7 +506,7 @@ export class MercadolibreController {
     @CurrentUser() user: any,
     @Body() dto?: PublishOptionsDto,
   ) {
-    return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms, dto?.title);
+    return this.service.publishProduct(productId, connectionId, user, dto?.saleTerms, dto?.title, dto?.imageIds);
   }
 
   // ─── Revisión de fotos antes de publicar ──────────────────────────────────
