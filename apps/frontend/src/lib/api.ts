@@ -263,6 +263,8 @@ export const api = {
       update: (id: string, data: Partial<AiPlan>, token: string) =>
         apiFetch<AiPlan>(`/ai/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       remove: (id: string, token: string) => apiFetch<any>(`/ai/plans/${id}`, { method: 'DELETE' }, token),
+      reorder: (ids: string[], token: string) =>
+        apiFetch<AiPlan[]>('/ai/plans/reorder', { method: 'POST', body: JSON.stringify({ ids }) }, token),
     },
     companies: (token: string) =>
       apiFetch<{ id: string; name: string; aiPlanId: string | null; usedToday: number; usedMonth: number; mlDiagnosedMonth: number }[]>('/ai/companies', {}, token),

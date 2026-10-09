@@ -34,6 +34,10 @@ class CostsDto {
   @IsOptional() @IsInt() @Min(0) PHOTO_GENERATE?: number;
 }
 
+class ReorderPlansDto {
+  @IsArray() @IsString({ each: true }) ids: string[];
+}
+
 class AssignPlanDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() aiPlanId?: string | null;
 }
@@ -105,6 +109,12 @@ export class AiController {
   @Roles(Role.SUPER_ADMIN)
   createPlan(@Body() dto: AiPlanDto) {
     return this.credits.createPlan({ name: dto.name ?? '', dailyCredits: dto.dailyCredits ?? null, monthlyCredits: dto.monthlyCredits ?? null, features: dto.features });
+  }
+
+  @Post('plans/reorder')
+  @Roles(Role.SUPER_ADMIN)
+  reorderPlans(@Body() dto: ReorderPlansDto) {
+    return this.credits.reorderPlans(dto.ids);
   }
 
   @Patch('plans/:id')

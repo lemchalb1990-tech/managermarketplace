@@ -170,11 +170,19 @@ export class AiCreditsService {
   // ── Planes (Super Admin) ──────────────────────────────────────────────────
 
   listPlans() {
-    return this.prisma.aiPlan.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { companies: true } } } });
+    return this.prisma.aiPlan.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], include: { _count: { select: { companies: true } } } });
   }
 
-  createPlan(data: { name: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {
-    return this.prisma.aiPlan.create({ data: this.planData(data) as any });
+  /** Guarda el orden de los planes según la lista de ids recibida. */
+  async reorderPlans(ids: string[]) {
+    await this.prisma.$transaction(ids.map((id, i) => this.prisma.aiPlan.update({ where: { id }, data: { sortOrder: i + 1 } })));
+    return this.listPlans();
+  }
+
+  async createPlan(data: { name: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {
+    // Los planes nuevos quedan al final de la lista.
+    const last = await this.prisma.aiPlan.aggregate({ _max: { sortOrder: true } });
+    return this.prisma.aiPlan.create({ data: { ...(this.planData(data) as any), sortOrder: (last._max.sortOrder ?? 0) + 1 } });
   }
 
   updatePlan(id: string, data: { name?: string; dailyCredits?: number | null; monthlyCredits?: number | null; features?: string[] }) {

@@ -2129,6 +2129,8 @@ model FinanceRecurring {
 model AiPlan {
   id             String    @id @default(cuid())
   name           String
+  // Orden en la lista y en los selectores (lo define el Super Admin con las flechas).
+  sortOrder      Int       @default(0)
   dailyCredits   Int?
   monthlyCredits Int?
   // Productos que incluye el plan: ML_DIAGNOSTIC (diagnóstico de fotos de Mercado Libre, sin

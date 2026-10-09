@@ -65,6 +65,21 @@ export default function AiPlansPage() {
     }
   }
 
+  // Mueve un plan una posición (↑ / ↓) y guarda el nuevo orden.
+  async function movePlan(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= plans.length) return;
+    const next = [...plans];
+    [next[index], next[target]] = [next[target], next[index]];
+    setPlans(next);
+    try {
+      setPlans(await api.ai.plans.reorder(next.map((p) => p.id), getToken()!));
+    } catch (e: any) {
+      setError(e.message || 'No se pudo guardar el orden.');
+      load();
+    }
+  }
+
   async function removePlan(plan: AiPlan) {
     const n = plan._count?.companies ?? 0;
     const msg = n ? `¿Eliminar el plan "${plan.name}"? ${n} empresa(s) quedarán sin IA.` : `¿Eliminar el plan "${plan.name}"?`;
@@ -121,7 +136,8 @@ export default function AiPlansPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                  <th className="px-5 py-2 font-medium">Plan</th>
+                  <th className="pl-3 pr-1 py-2 font-medium w-14">Orden</th>
+                  <th className="px-3 py-2 font-medium">Plan</th>
                   <th className="px-3 py-2 font-medium">Incluye</th>
                   <th className="px-3 py-2 font-medium text-right">Diario</th>
                   <th className="px-3 py-2 font-medium text-right">Mensual</th>
@@ -130,9 +146,15 @@ export default function AiPlansPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {plans.map((p) => (
+                {plans.map((p, i) => (
                   <tr key={p.id}>
-                    <td className="px-5 py-2.5 font-medium text-gray-800">{p.name}</td>
+                    <td className="pl-3 pr-1 py-2.5 whitespace-nowrap">
+                      <button type="button" onClick={() => movePlan(i, -1)} disabled={i === 0} title="Subir"
+                        className="w-6 h-6 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-25">↑</button>
+                      <button type="button" onClick={() => movePlan(i, 1)} disabled={i === plans.length - 1} title="Bajar"
+                        className="w-6 h-6 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-25">↓</button>
+                    </td>
+                    <td className="px-3 py-2.5 font-medium text-gray-800">{p.name}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1">
                         {ALL_FEATURES.filter((f) => p.features?.includes(f)).map((f) => (
