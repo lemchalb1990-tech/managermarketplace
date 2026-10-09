@@ -299,7 +299,6 @@ export default async function Home() {
             <a href="#modulos" className="lp-nav-link">Módulos</a>
           </div>
           <div className="flex items-center gap-1">
-            <Link href="/login" className="lp-btn lp-btn--text hidden sm:inline-flex">Iniciar sesión</Link>
             <Link href="/login" className="lp-btn lp-btn--primary">Entrar al panel</Link>
           </div>
         </nav>
@@ -478,7 +477,7 @@ export default async function Home() {
                 <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
               </div>
               <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
-                Iniciar sesión <Icon d={ICONS.arrow} size={16} />
+                Entrar al panel <Icon d={ICONS.arrow} size={16} />
               </Link>
             </div>
           </div>
@@ -492,7 +491,7 @@ export default async function Home() {
             <a href="#beneficios" className="hover:text-black">Beneficios</a>
             <a href="#canales" className="hover:text-black">Canales</a>
             <a href="#movil" className="hover:text-black">Versión móvil</a>
-            <Link href="/login" className="hover:text-black">Iniciar sesión</Link>
+            <Link href="/login" className="hover:text-black">Entrar al panel</Link>
           </div>
         </div>
       </footer>
