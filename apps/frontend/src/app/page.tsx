@@ -6,6 +6,7 @@ import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
+import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
@@ -397,23 +398,25 @@ export default async function Home() {
                   Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo.
                 </p>
               </div>
-              <div className="ui-reveal mt-10 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-                <div aria-hidden="true"><DashboardMock /></div>
-                <ul className="space-y-2">
-                  {ALERTS.map((a) => (
-                    <li key={a.t} className="flex items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1f`, color: a.tone }}>
-                        {a.icon}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-semibold leading-tight">{a.t}</span>
-                        <span className="block truncate text-[13px] leading-tight text-[#615d59]">{a.m}</span>
-                      </span>
-                      <span className="shrink-0 text-[12px] text-[#757575]">{a.when}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="ui-reveal mt-10" aria-label="Ejemplo del dashboard con datos de muestra">
+                <DashboardReplica />
               </div>
+              <ul className="ui-reveal mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {ALERTS.map((a) => (
+                  <li key={a.t} className="flex items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1f`, color: a.tone }}>
+                      {a.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-[14px] font-semibold leading-tight">{a.t}</span>
+                        <span className="shrink-0 text-[11px] text-[#757575]">{a.when}</span>
+                      </span>
+                      <span className="block truncate text-[12px] leading-tight text-[#615d59]">{a.m}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>

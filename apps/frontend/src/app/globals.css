@@ -617,3 +617,31 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lp .ui-enter-panel { transform: none; }
 }
+
+/* Réplica del dashboard dentro de la landing: recupera la paleta, tipografía y
+   tarjetas del panel (en claro) para que se vea igual que el sistema real. */
+.lp .lp-panel {
+  --brand: #e0a833;
+  --brand-dark: #c19332;
+  --brand-ink: #8a6d31;
+  --brand-light: #ffefcf;
+  --brand-soft: #e0a83318;
+  --page-bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-soft: #fbfaf7;
+  --text: #2b2a27;
+  --text-2: #575552;
+  --text-muted: #8a8884;
+  --border: #e4e2dc;
+  --border-soft: #eeece7;
+  --info: #2563eb;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: normal;
+}
+.lp .lp-panel .ui-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
