@@ -4062,6 +4062,10 @@ export default function CatalogPage() {
               connectionId={publishModal.connectionId}
               companyId={selected.companyId}
               hasCategory={!!(editCategoryId || selected.mlCategoryId)}
+              imageIds={[...(selected.images || [])]
+                .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0))
+                .slice(0, 10)
+                .map((i: any) => i.id)}
               highlight={highlight}
               onImagesChanged={() => refreshSelected(selected.id)}
               onSelectionChange={setMlPhotoSelection}

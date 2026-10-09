@@ -99,6 +99,8 @@ class ClaimActionDto {
 class PhotoCheckDto {
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsBoolean() useAi?: boolean;
+  // Revisar solo estas fotos (el panel las revisa de a una para mostrar el avance).
+  @IsOptional() @IsArray() @IsString({ each: true }) imageIds?: string[];
 }
 
 class PhotoFixDto {
@@ -521,7 +523,7 @@ export class MercadolibreController {
     @CurrentUser() user: any,
     @Body() dto: PhotoCheckDto,
   ) {
-    return this.photos.check(productId, connectionId, user, { title: dto?.title, useAi: dto?.useAi !== false });
+    return this.photos.check(productId, connectionId, user, { title: dto?.title, useAi: dto?.useAi !== false, imageIds: dto?.imageIds });
   }
 
   // Corrige la foto real con IA: devuelve una sugerencia, no reemplaza nada.

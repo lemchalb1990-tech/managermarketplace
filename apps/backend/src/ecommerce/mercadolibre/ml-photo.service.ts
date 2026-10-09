@@ -103,12 +103,15 @@ export class MlPhotoService {
     }
   }
 
-  async check(productId: string, connectionId: string, user: any, opts: { title?: string; useAi?: boolean }) {
+  async check(productId: string, connectionId: string, user: any, opts: { title?: string; useAi?: boolean; imageIds?: string[] }) {
     const product: any = await this.catalog.findOne(productId, user);
     const token = await this.ml.getAccessTokenForUser(connectionId, user);
     const title = (opts.title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).trim();
     const categoryId = product.mlCategoryId || (await this.settings.get('ML_DEFAULT_CATEGORY')) || null;
-    const images = this.sortedImages(product);
+    // Se puede revisar foto por foto (el panel muestra el avance); la principal sigue siendo la del producto.
+    const allImages = this.sortedImages(product);
+    const primaryId = allImages[0]?.id;
+    const images = opts.imageIds?.length ? allImages.filter((img: any) => opts.imageIds!.includes(img.id)) : allImages;
 
     // Lo que incluye el plan de la empresa (el Super Admin tiene todo).
     const st = await this.credits.status(product.companyId);
@@ -134,7 +137,7 @@ export class MlPhotoService {
       }
     }
 
-    const results: any[] = images.map((img: any, i: number) => ({ imageId: img.id, url: img.url, isPrimary: i === 0 }));
+    const results: any[] = images.map((img: any) => ({ imageId: img.id, url: img.url, isPrimary: img.id === primaryId }));
 
     // Sin categoría ML propia no se diagnostica: los criterios de ML dependen de la categoría.
     const mlSkipped = !product.mlCategoryId ? NEEDS_CATEGORY : null;
@@ -154,7 +157,7 @@ export class MlPhotoService {
           try {
             usageId = await this.credits.consume(product.companyId, user, 'PHOTO_CHECK', productId);
             const data = await this.download(img.url);
-            results[i].ai = await this.ai.checkPhoto(data, { title, isMain: i === 0 }) as PhotoVerdict;
+            results[i].ai = await this.ai.checkPhoto(data, { title, isMain: img.id === primaryId }) as PhotoVerdict;
           } catch (err: any) {
             if (usageId) await this.credits.refund(usageId);
             results[i].aiError = err?.response?.message || err?.message || 'No se pudo revisar con IA';

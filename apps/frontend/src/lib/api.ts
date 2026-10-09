@@ -538,7 +538,7 @@ export const api = {
         }),
       }, token),
     // Revisión de fotos antes de publicar: diagnóstico de ML + IA (créditos del plan).
-    photoCheck: (productId: string, connectionId: string, token: string, opts: { title?: string; useAi?: boolean } = {}) =>
+    photoCheck: (productId: string, connectionId: string, token: string, opts: { title?: string; useAi?: boolean; imageIds?: string[] } = {}) =>
       apiFetch<PhotoCheckResult>(`/ecommerce/ml/products/${productId}/photo-check/${connectionId}`, {
         method: 'POST', body: JSON.stringify(opts),
       }, token),

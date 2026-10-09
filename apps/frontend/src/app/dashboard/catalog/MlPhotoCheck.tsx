@@ -31,12 +31,33 @@ function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   );
 }
 
-export default function MlPhotoCheck({ productId, connectionId, companyId, hasCategory, highlight, onImagesChanged, onSelectionChange }: {
+// Avance de la revisión: se revisa foto por foto y el porcentaje sube con cada una.
+function ProgressModal({ done, total, useAi }: { done: number; total: number; useAi: boolean }) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return createPortal(
+    <div className="fixed inset-0 z-[65] bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+        <div className="mx-auto w-10 h-10 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" />
+        <p className="mt-4 text-sm font-semibold text-gray-800">{useAi ? 'Revisando fotos con IA…' : 'Verificando fotos…'}</p>
+        <p className="mt-1 text-xs text-gray-500">Foto {Math.min(done + 1, total)} de {total}</p>
+        <div className="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+        </div>
+        <p className="mt-2 text-2xl font-bold text-blue-600">{pct}%</p>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export default function MlPhotoCheck({ productId, connectionId, companyId, hasCategory, imageIds, highlight, onImagesChanged, onSelectionChange }: {
   productId: string;
   connectionId: string;
   companyId?: string;
   /** El producto tiene categoría ML: sin ella no se hace el diagnóstico de Mercado Libre. */
   hasCategory: boolean;
+  /** Fotos del producto en orden (la principal primero): se revisan de a una para mostrar el avance. */
+  imageIds: string[];
   /** Mercado Libre rechazó por fotos: se destaca la sección. */
   highlight?: boolean;
   onImagesChanged: () => Promise<unknown> | void;
@@ -58,6 +79,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState('');
   const [zoom, setZoom] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; useAi: boolean } | null>(null);
   // Fotos que se subirán a la publicación: las que están bien vienen marcadas.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Lo que incluye el plan de la empresa.
@@ -96,8 +118,27 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
   async function runCheck(useAi: boolean) {
     setChecking(true);
     setError('');
+    const token = getToken()!;
     try {
-      const r = await api.marketplace.photoCheck(productId, connectionId, getToken()!, { useAi });
+      let r: PhotoCheckResult;
+      if (imageIds.length > 1) {
+        // Foto por foto, para que el porcentaje del modal sea real.
+        setProgress({ done: 0, total: imageIds.length, useAi });
+        const rows: PhotoCheckResult['images'] = [];
+        let last: PhotoCheckResult | null = null;
+        let aiBlocked: string | null = null;
+        for (let k = 0; k < imageIds.length; k++) {
+          last = await api.marketplace.photoCheck(productId, connectionId, token, { useAi, imageIds: [imageIds[k]] });
+          rows.push(...last.images);
+          aiBlocked = aiBlocked || last.aiBlocked;
+          setProgress({ done: k + 1, total: imageIds.length, useAi });
+        }
+        r = { ...last!, images: rows, aiBlocked };
+      } else {
+        setProgress({ done: 0, total: 1, useAi });
+        r = await api.marketplace.photoCheck(productId, connectionId, token, { useAi });
+        setProgress({ done: 1, total: 1, useAi });
+      }
       setResult(r);
       setSelected(new Set(r.images.filter((i) => !hasProblems(i)).map((i) => i.imageId)));
       if (r.credits) setCredits(r.credits);
@@ -105,6 +146,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
       setError(e.message || 'No se pudieron revisar las fotos.');
     } finally {
       setChecking(false);
+      setProgress(null);
     }
   }
 
@@ -404,6 +446,7 @@ export default function MlPhotoCheck({ productId, connectionId, companyId, hasCa
 
       {error && <p className="text-[11px] text-red-600">{error}</p>}
       {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
+      {progress && <ProgressModal done={progress.done} total={progress.total} useAi={progress.useAi} />}
     </div>
   );
 }
