@@ -88,10 +88,12 @@ export class CatalogService {
     await this.validateWarehouseId(dto.warehouseId, companyId);
     await this.subscription.assertCanAdd(companyId, 'products');
 
+    const withPath = await this.withMlCategoryPath({ ...dto } as any);
+
     // El stock con que nace el producto queda como saldo inicial en su bodega (kardex).
     return this.prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
-        data: { ...dto, companyId },
+        data: { ...withPath, companyId },
         include: { images: true },
       });
       if (created.type === ProductType.ARTICULO && !created.dropship) {
@@ -236,6 +238,28 @@ export class CatalogService {
     return rows.map((r) => r.category!).filter(Boolean);
   }
 
+  // Ruta (familia) de la categoría de Mercado Libre: "Raíz > ... > Categoría". La API de
+  // categorías de ML es pública. null si no se pudo obtener (se reintenta al abrir el producto).
+  private async fetchMlCategoryPath(categoryId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`https://api.mercadolibre.com/categories/${encodeURIComponent(categoryId)}`);
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      const names = ((data.path_from_root || []) as any[]).map((p) => p.name).filter(Boolean);
+      return names.length ? names.join(' > ') : (data.name ?? null);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Si el cambio trae mlCategoryId, guarda también su ruta (o la limpia si se quitó). */
+  private async withMlCategoryPath<T extends Record<string, any>>(data: T, previousId?: string | null): Promise<T> {
+    if (!('mlCategoryId' in data) || data.mlCategoryId === undefined) return data;
+    if (!data.mlCategoryId) return { ...data, mlCategoryPath: null };
+    if (data.mlCategoryId === previousId && 'mlCategoryPath' in data) return data;
+    return { ...data, mlCategoryPath: await this.fetchMlCategoryPath(data.mlCategoryId) };
+  }
+
   async findOne(id: string, user: any) {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -250,6 +274,14 @@ export class CatalogService {
     if (!product) throw new NotFoundException('Producto no encontrado');
     if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) {
       throw new ForbiddenException();
+    }
+    // Productos con categoría guardada antes de existir la ruta: se completa al abrirlos.
+    if (product.mlCategoryId && !product.mlCategoryPath) {
+      const path = await this.fetchMlCategoryPath(product.mlCategoryId);
+      if (path) {
+        await this.prisma.product.update({ where: { id }, data: { mlCategoryPath: path } }).catch(() => null);
+        product.mlCategoryPath = path;
+      }
     }
     return product;
   }
@@ -267,7 +299,7 @@ export class CatalogService {
     }
     if (dto.warehouseId) await this.validateWarehouseId(dto.warehouseId, product.companyId);
 
-    const data = { ...dto };
+    const data = await this.withMlCategoryPath({ ...dto } as any, product.mlCategoryId);
     // El stock no se sobrescribe: la diferencia se registra como ajuste en la bodega del
     // producto, para que quede en el historial y cuadre con el stock por bodega.
     const stockDelta = data.stock !== undefined && data.stock !== null ? Number(data.stock) - product.stock : 0;

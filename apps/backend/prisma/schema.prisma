@@ -400,6 +400,8 @@ model Product {
   criticalStock Int         @default(0)
   category      String?
   mlCategoryId  String?
+  // Ruta de la categoría ML (familia) que lleva al código, p. ej. "Hogar > Muebles > Sillas".
+  mlCategoryPath String?
   active        Boolean     @default(true)
   // Producto fulfilleado por un proveedor dropship: no descuenta stock propio en las ventas.
   dropship      Boolean     @default(false)

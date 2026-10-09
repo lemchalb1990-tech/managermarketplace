@@ -1301,11 +1301,23 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (id: str
     if (data?.isLeaf) onChange(child.id);
   }
 
+  // Ruta (familia) de la categoría elegida, para mostrarla junto al código.
+  const [valuePath, setValuePath] = useState('');
+  useEffect(() => {
+    if (!value) { setValuePath(''); return; }
+    let cancelled = false;
+    api.marketplace.browseCategories(value, getToken()!)
+      .then((d) => { if (!cancelled) setValuePath((d.path || []).map((p: any) => p.name).join(' > ')); })
+      .catch(() => { if (!cancelled) setValuePath(''); });
+    return () => { cancelled = true; };
+  }, [value]);
+
   return (
     <div className="relative">
       {value && (
         <div className="flex items-center gap-2 mb-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-          <span className="font-mono text-blue-700 font-semibold">{value}</span>
+          <span className="font-mono text-blue-700 font-semibold shrink-0">{value}</span>
+          {valuePath && <span className="text-blue-800 min-w-0 truncate" title={valuePath}>{valuePath}</span>}
           <button type="button" onClick={() => onChange('')}
             className="text-blue-400 hover:text-blue-700 ml-auto leading-none text-base">×</button>
         </div>
