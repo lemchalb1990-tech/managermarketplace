@@ -253,15 +253,15 @@ export default function CompaniesPage() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h1 className="ui-page-title">Empresas</h1>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => { setEditing(null); setShowForm(true); }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Nueva empresa
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 className="ui-section-title mb-4">Nueva empresa</h2>
+        <Modal title="Nueva empresa" size="lg" busy={loading}
+          onClose={() => { setShowForm(false); setForm(emptyForm); handleLogoChange(null); }}>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -325,12 +325,11 @@ export default function CompaniesPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {editing && (
-        <div className="bg-white rounded-xl border border-blue-200 p-6 mb-6">
-          <h2 className="ui-section-title mb-4">Editar empresa</h2>
+        <Modal title="Editar empresa" subtitle={editing.name} size="xl" busy={editLoading} onClose={() => setEditing(null)}>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
@@ -455,7 +454,7 @@ export default function CompaniesPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {deleteError && (
