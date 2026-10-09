@@ -49,6 +49,37 @@ const ACTION_LABEL: Record<string, string> = {
   appeal: 'Apelar la resolución',
 };
 const actionLabel = (a: string) => ACTION_LABEL[a] || a.replace(/_/g, ' ');
+
+// Lo que espera el comprador (expected resolutions de ML).
+const EXPECTED_LABEL: Record<string, string> = {
+  return_product: 'Devolver el producto',
+  refund: 'Que le devuelvan el dinero',
+  partial_refund: 'Un reembolso parcial',
+  change_product: 'Cambiar el producto',
+  product_exchange: 'Cambiar el producto',
+  repair: 'Reparar el producto',
+  send_missing_part: 'Recibir la parte faltante',
+  deliver_product: 'Recibir el producto',
+  cancel_purchase: 'Cancelar la compra',
+};
+const expectedLabel = (r: string) => EXPECTED_LABEL[r] || r.replace(/_/g, ' ');
+
+// Estado de la devolución (returns de ML).
+const RETURN_STATUS_LABEL: Record<string, string> = {
+  pending: 'Pendiente',
+  label_generated: 'Etiqueta de devolución generada',
+  ready_to_ship: 'Lista para enviar',
+  shipped: 'En camino al vendedor',
+  delivered: 'Entregada al vendedor',
+  not_delivered: 'No entregada',
+  to_be_agreed: 'Por acordar',
+  cancelled: 'Cancelada',
+  closed: 'Cerrada',
+  expired: 'Vencida',
+  failed: 'Fallida',
+  return_to_buyer: 'Devuelta al comprador',
+};
+const returnStatusLabel = (st: string) => RETURN_STATUS_LABEL[st] || st.replace(/_/g, ' ');
 const isMessageAction = (a: string) => a.startsWith('send_message');
 
 function StatusBadge({ c }: { c: any }) {
@@ -313,13 +344,13 @@ export default function MlReclamosPage() {
                       )}
                       {Array.isArray(detail.expectedResolutions) && detail.expectedResolutions.length > 0 && (
                         <p>
-                          El comprador espera: {detail.expectedResolutions.map((r: any) => ACTION_LABEL[r.expected_resolution] || r.expected_resolution || r.type).filter(Boolean).join(', ')}
+                          El comprador espera: {detail.expectedResolutions.map((r: any) => r.expected_resolution || r.type).filter(Boolean).map(expectedLabel).join(', ')}
                         </p>
                       )}
                       {(() => {
                         const ret = Array.isArray(detail.returns) ? detail.returns[0] : detail.returns?.results?.[0] || (detail.returns?.id ? detail.returns : null);
                         return ret ? (
-                          <p>Devolución: {ret.status || '—'}{ret.shipping?.tracking_number ? ` · Seguimiento ${ret.shipping.tracking_number}` : ''}</p>
+                          <p>Devolución: {ret.status ? returnStatusLabel(ret.status) : '—'}{ret.shipping?.tracking_number ? ` · Seguimiento ${ret.shipping.tracking_number}` : ''}</p>
                         ) : null;
                       })()}
                       {detail.detail.resolution && (
