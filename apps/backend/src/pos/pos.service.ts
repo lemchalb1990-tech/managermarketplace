@@ -586,8 +586,32 @@ export class PosService {
       return acc;
     }, {});
 
+    // Comparación con el día anterior: si es hoy, solo hasta la misma hora (comparación justa).
+    const isToday = dayKey === dateKeyStringInTz(new Date(), tz);
+    const prevFrom = new Date(from.getTime() - 24 * 60 * 60 * 1000);
+    const prevTo = isToday ? new Date(prevFrom.getTime() + (Date.now() - from.getTime())) : from;
+    // Tendencia: los últimos 7 días (incluido este), un punto por día.
+    const trendFrom = new Date(from.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const recent = await this.prisma.sale.findMany({
+      where: { ...(cid ? { companyId: cid } : {}), createdAt: { gte: trendFrom, lt: to } },
+      select: { createdAt: true, total: true, netAmount: true },
+    });
+    const sumUp = (rows: typeof recent) => ({
+      totalSales: rows.length,
+      totalRevenue: rows.reduce((s, v) => s + Number(v.total), 0),
+      totalNetReceived: rows.reduce((s, v) => s + (v.netAmount != null ? Number(v.netAmount) : Number(v.total)), 0),
+    });
+    const previous = sumUp(recent.filter((r) => r.createdAt >= prevFrom && r.createdAt < prevTo));
+    const trend = Array.from({ length: 7 }, (_, k) => {
+      const dFrom = new Date(trendFrom.getTime() + k * 24 * 60 * 60 * 1000);
+      const dTo = new Date(dFrom.getTime() + 24 * 60 * 60 * 1000);
+      return { date: dateKeyStringInTz(dFrom, tz), ...sumUp(recent.filter((r) => r.createdAt >= dFrom && r.createdAt < dTo)) };
+    });
+
     return {
       date: dayKey,
+      previous: { ...previous, untilSameTime: isToday },
+      trend,
       totalSales: sales.length,
       totalRevenue: sales.reduce((s, v) => s + Number(v.total), 0),
       // Neto real recibido: total - envío - comisión - impuestos - descuento (ya viene

@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { KpiIcon } from '@/components/KpiIcon';
+import { KpiTrend } from '@/components/KpiTrend';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { clp, trafficLight } from './finanzas/finance-utils';
@@ -56,6 +57,7 @@ export function FinanceCards({ data }: { data: any }) {
     );
   }
   const month = MONTHS_FULL[data.month - 1];
+  const prevName = MONTHS_FULL[(data.month + 10) % 12];
   const cards = [
     { key: 'INCOME', label: `Ingresos de ${month}`, icon: 'trendUp', color: 'bg-emerald-50 text-emerald-600', ...data.income },
     { key: 'EXPENSE', label: `Gastos de ${month}`, icon: 'trendDown', color: 'bg-rose-50 text-rose-500', ...data.expense },
@@ -66,9 +68,11 @@ export function FinanceCards({ data }: { data: any }) {
       {cards.map((c) => {
         const light = c.key !== 'RESULT' ? trafficLight(c.key, c.budget, c.actual) : null;
         const pct = c.budget ? Math.round((c.actual / c.budget) * 100) : null;
+        const field = c.key === 'INCOME' ? 'income' : c.key === 'EXPENSE' ? 'expense' : 'result';
         return (
           <Link key={c.key} href="/dashboard/finanzas" className="block">
-            <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex items-center gap-2.5 sm:gap-3 xl:gap-2 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+            <div className={`ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex flex-col justify-between h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`} style={CARD_SHADOW}>
+              <div className="flex items-center gap-2.5 sm:gap-3 xl:gap-2">
               {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
               {/* Ícono del alto de título + valor. */}
               <div className={`w-11 h-11 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.color}`}><KpiIcon name={c.icon} /></div>
@@ -87,6 +91,18 @@ export function FinanceCards({ data }: { data: any }) {
                   </div>
                 ) : null}
               </div>
+              </div>
+              {/* Tendencia de 6 meses y comparación con el mes anterior completo */}
+              {data.trend?.length ? (
+                <KpiTrend
+                  values={(data.trend as Array<Record<string, number>>).map((m) => m[field])}
+                  current={c.actual}
+                  previous={data.previousMonth ? data.previousMonth[field] : null}
+                  label={`vs ${prevName}`}
+                  goodWhenUp={c.key !== 'EXPENSE'}
+                  tooltip={data.previousMonth ? `${prevName[0].toUpperCase()}${prevName.slice(1)} completo: ${clp(data.previousMonth[field])} · últimos 6 meses en el gráfico` : undefined}
+                />
+              ) : null}
             </div>
           </Link>
         );
