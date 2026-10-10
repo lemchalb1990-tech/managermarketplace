@@ -116,7 +116,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                 </p>
               </div>
               <Link href="/login"
-                className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--primary" : "lp-btn--soft"}`}>
+                className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
                 {p.priceFrom ? "Conversemos" : "Empezar"}
               </Link>
               <ul className="mt-6 space-y-2 text-[14px]">

@@ -506,8 +506,8 @@ body {
   font-feature-settings: "lnum";
 }
 .lp .ui-card { border: 1px solid var(--lp-line); box-shadow: none; border-radius: 12px; }
-.lp .ui-btn-brand { background: var(--lp-blue); color: #fff; border-radius: 8px; font-weight: 500; }
-.lp .ui-btn-brand:hover { background: var(--lp-blue-hover); }
+.lp .ui-btn-brand { background: #02093a; color: #fff; border-radius: 8px; font-weight: 500; }
+.lp .ui-btn-brand:hover { background: #0b1d5c; }
 
 .lp-serif { font-family: var(--font-lp-serif), Georgia, serif; font-weight: 400; }
 .lp-display { font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
@@ -552,10 +552,14 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 .lp-btn:active { transform: translateY(1px); }
-.lp-btn--primary { background: var(--lp-blue); color: #fff; }
-.lp-btn--primary:hover { background: var(--lp-blue-hover); }
-.lp-btn--soft { background: var(--lp-sky-tint); color: var(--lp-blue); }
-.lp-btn--soft:hover { background: #d4eafd; }
+/* Botones en azul oscuro (el azul vivo queda para detalles y animaciones). */
+.lp-btn--primary { background: #02093a; color: #fff; }
+.lp-btn--primary:hover { background: #0b1d5c; }
+/* Sobre fondos azul noche: botón blanco con texto azul oscuro. */
+.lp-btn--light { background: #fff; color: #02093a; }
+.lp-btn--light:hover { background: #e8eaf2; }
+.lp-btn--soft { background: #eceef5; color: #02093a; }
+.lp-btn--soft:hover { background: #dfe2ee; }
 .lp-btn--text { color: rgba(0, 0, 0, 0.95); }
 .lp-btn--text:hover { background: rgba(0, 0, 0, 0.05); }
 .lp-nav-link { color: rgba(0, 0, 0, 0.54); border-radius: 8px; padding: 8px 12px; transition: color 0.2s ease; }

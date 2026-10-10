@@ -60,7 +60,7 @@ const Box = ({ children }: { children: ReactNode }) => (
   <div className="mt-5 rounded-[10px] bg-[#f9f8f7] p-3.5 text-[12px]" style={{ border: LINE }}>{children}</div>
 );
 const Btn = ({ children }: { children: ReactNode }) => (
-  <span className="mt-3 block rounded-md bg-[#0075de] py-1.5 text-center text-[12px] font-medium text-white">{children}</span>
+  <span className="mt-3 block rounded-md bg-[#02093a] py-1.5 text-center text-[12px] font-medium text-white">{children}</span>
 );
 
 export function PublishMini() {

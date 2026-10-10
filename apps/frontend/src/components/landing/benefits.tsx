@@ -55,7 +55,7 @@ function StockDemo() {
         ))}
       </div>
       <button type="button" onClick={sell}
-        className="mt-3 w-full rounded-lg bg-[#0075de] py-2 text-[13px] font-semibold text-white transition hover:bg-[#005bab]">
+        className="mt-3 w-full rounded-lg bg-[#02093a] py-2 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
         {stock > 0 ? "Simular una venta" : "Reponer stock"}
       </button>
     </div>
@@ -230,7 +230,7 @@ function ClaimDemo() {
             <p className="font-mono text-[18px] font-semibold tabular-nums">{d}d {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}</p>
           </div>
           <button type="button" onClick={() => setAnswered(true)}
-            className="rounded-lg bg-[#0075de] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-[#005bab]">
+            className="rounded-lg bg-[#02093a] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
             Responder
           </button>
         </>

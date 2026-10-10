@@ -181,7 +181,7 @@ function PhoneMock() {
               </div>
             ))}
           </div>
-          <span className="mt-3 block rounded-lg bg-[#0075de] py-2.5 text-center text-[12px] font-medium text-white">
+          <span className="mt-3 block rounded-lg bg-[#02093a] py-2.5 text-center text-[12px] font-medium text-white">
             Marcar entregado y foto
           </span>
         </div>
@@ -316,7 +316,7 @@ export default async function Home() {
                   Cada venta descuenta el stock en todos y emite la boleta sola.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
+                  <Link href="/login" className="lp-btn lp-btn--light lp-btn--lg">
                     Entrar al panel <Icon d={ICONS.arrow} size={16} />
                   </Link>
                   <a href="#funciones" className="lp-btn lp-btn--lg bg-white/10 text-white hover:bg-white/20" style={{ border: "1px solid rgba(255,255,255,0.18)" }}>Ver cómo funciona</a>
@@ -557,7 +557,7 @@ export default async function Home() {
                 <h2 className="lp-h2">¿Ya tienes cuenta?</h2>
                 <p className="lp-lead mt-4 text-white/70">Entra con tu correo y sigue donde quedaste.</p>
               </div>
-              <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
+              <Link href="/login" className="lp-btn lp-btn--light shrink-0 self-start sm:self-auto">
                 Entrar al panel <Icon d={ICONS.arrow} size={16} />
               </Link>
             </div>
