@@ -1419,6 +1419,8 @@ model PlatformSetting {
   displayName String?
   description String?
   logoUrl     String?
+  // Tamaño del logo en % (100 = normal): ajusta logos con mucho o poco margen propio.
+  logoScale   Int      @default(100)
   updatedAt   DateTime @updatedAt
 
   @@map("platform_settings")

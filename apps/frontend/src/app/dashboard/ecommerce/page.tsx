@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
-import { invalidatePlatformLogosCache } from '@/lib/platformLogos';
+import { invalidatePlatformLogosCache, logoScaleStyle } from '@/lib/platformLogos';
 import { useAdminCompany } from '../AdminCompanyContext';
 
 const DEFAULT_PLATFORMS = [
@@ -86,7 +86,7 @@ function hasModule(user: any, moduleKey: string): boolean {
   return userMods.includes(moduleKey);
 }
 
-const emptyEdit = { displayName: '', description: '', logoUrl: '' };
+const emptyEdit = { displayName: '', description: '', logoUrl: '', logoScale: 100 };
 
 export default function EcommercePage() {
   const { selectedCompanyId } = useAdminCompany();
@@ -139,6 +139,7 @@ export default function EcommercePage() {
       displayName: c?.displayName || '',
       description: c?.description || '',
       logoUrl: c?.logoUrl || '',
+      logoScale: c?.logoScale || 100,
     });
     setEditingId(id);
     setSaveError('');
@@ -154,6 +155,7 @@ export default function EcommercePage() {
         displayName: editForm.displayName.trim() || undefined,
         description: editForm.description.trim() || undefined,
         logoUrl: editForm.logoUrl.trim() || undefined,
+        logoScale: editForm.logoScale,
       }, token);
       setCustomSettings((prev) => ({ ...prev, [editingId]: updated }));
       invalidatePlatformLogosCache();
@@ -172,6 +174,7 @@ export default function EcommercePage() {
       displayName: c?.displayName || p.name,
       displayDescription: c?.description || p.description,
       logoUrl: c?.logoUrl || null,
+      logoScale: c?.logoScale || 100,
     };
   });
 
@@ -211,7 +214,7 @@ export default function EcommercePage() {
                 <div className="flex justify-center mb-4">
                   <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
                     {p.logoUrl
-                      ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" />
+                      ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" style={logoScaleStyle(p.logoScale)} />
                       : Logos[p.id]}
                   </div>
                 </div>
@@ -282,15 +285,39 @@ export default function EcommercePage() {
                 {editForm.logoUrl && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-xs text-gray-500">Vista previa:</span>
-                    <img
-                      src={editForm.logoUrl}
-                      alt="preview"
-                      className="w-16 h-10 object-contain rounded border border-gray-200"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
+                    {/* Misma caja que la tarjeta y la landing, para ver el tamaño real */}
+                    <div className="w-24 h-16 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <img
+                        src={editForm.logoUrl}
+                        alt="preview"
+                        className="w-full h-full object-contain"
+                        style={logoScaleStyle(editForm.logoScale)}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
                   </div>
                 )}
                 <p className="text-xs text-gray-400 mt-1">Deja vacío para usar el logo SVG por defecto.</p>
+              </div>
+
+              <div>
+                <label className="flex items-center justify-between text-xs font-semibold text-gray-600 mb-1">
+                  <span>Tamaño del logo</span>
+                  <span className="font-mono text-gray-500">{editForm.logoScale}%</span>
+                </label>
+                <input
+                  type="range" min={30} max={250} step={5}
+                  value={editForm.logoScale}
+                  onChange={(e) => setEditForm((f) => ({ ...f, logoScale: Number(e.target.value) }))}
+                  className="w-full accent-blue-600"
+                />
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="text-xs text-gray-400">Agranda o achica el logo dentro de su espacio (panel y página de inicio).</p>
+                  {editForm.logoScale !== 100 && (
+                    <button type="button" onClick={() => setEditForm((f) => ({ ...f, logoScale: 100 }))}
+                      className="shrink-0 text-xs font-medium text-blue-600 hover:underline">Restablecer</button>
+                  )}
+                </div>
               </div>
 
               {saveError && (

@@ -306,11 +306,6 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
         </Floating>
       </div>
 
-      {/* Contador del día */}
-      <div className="relative flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white/80 px-4 py-2 text-[13px]">
-        <span>Hoy: <span key={`v-${step}`} className="lp-pop font-semibold tabular-nums">{30 + step}</span> ventas</span>
-        <span className="text-[#615d59]"><span className="font-semibold text-black">0</span> quiebres de stock</span>
-      </div>
     </div>
   );
 }

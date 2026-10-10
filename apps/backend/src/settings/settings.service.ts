@@ -220,7 +220,7 @@ export class SettingsService implements OnModuleInit {
     return this.prisma.platformSetting.findMany({ orderBy: { platform: 'asc' } });
   }
 
-  async upsertPlatformSetting(platform: string, data: { displayName?: string; description?: string; logoUrl?: string }) {
+  async upsertPlatformSetting(platform: string, data: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number }) {
     return this.prisma.platformSetting.upsert({
       where: { platform },
       update: { ...data, updatedAt: new Date() },

@@ -8,6 +8,7 @@ import { ModulesExplorer } from "@/components/landing/interactive";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
+import { RemoteLogo } from "@/components/landing/remote-logo";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
@@ -72,11 +73,11 @@ function LogoChip({ node }: { node: ReactNode }) {
   );
 }
 
-type LogoMap = Record<string, { logoUrl: string | null } | undefined>;
+type LogoMap = Record<string, { logoUrl: string | null; logoScale?: number } | undefined>;
 
+// Usa el logo registrado en el panel; si el servidor no lo trajo, lo pide el navegador.
 function resolveLogoNode(map: LogoMap, key: string, fallback: ReactNode): ReactNode {
-  const url = map[key]?.logoUrl;
-  return url ? <img src={url} alt={key} className="h-full w-full object-contain" /> : fallback;
+  return <RemoteLogo platform={key} initialUrl={map[key]?.logoUrl} initialScale={map[key]?.logoScale} fallback={fallback} />;
 }
 
 function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {

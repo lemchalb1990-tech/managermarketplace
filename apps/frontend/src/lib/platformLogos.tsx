@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from './api';
 
 export type PlatformLogoSetting = {
@@ -8,6 +8,7 @@ export type PlatformLogoSetting = {
   displayName: string | null;
   description: string | null;
   logoUrl: string | null;
+  logoScale?: number;
 };
 
 type LogoMap = Record<string, PlatformLogoSetting>;
@@ -54,7 +55,12 @@ export function usePlatformLogos(): LogoMap {
 export function resolvePlatformLogo(map: LogoMap, key: string, fallback: ReactNode, alt: string): ReactNode {
   const url = map[key]?.logoUrl;
   if (!url) return fallback;
-  return <img src={url} alt={alt} className="w-full h-full object-contain" />;
+  return <img src={url} alt={alt} className="w-full h-full object-contain" style={logoScaleStyle(map[key]?.logoScale)} />;
+}
+
+// Tamaño configurado del logo (100 = normal), aplicado sin cambiar la caja que lo contiene.
+export function logoScaleStyle(scale?: number | null): CSSProperties | undefined {
+  return scale && scale !== 100 ? { transform: `scale(${scale / 100})` } : undefined;
 }
 
 export function resolvePlatformName(map: LogoMap, key: string, fallback: string): string {
