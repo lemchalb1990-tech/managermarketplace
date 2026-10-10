@@ -59,7 +59,7 @@ export const TOAST_ICONS = {
 export function StockMini() {
   const ch = ["Mercado Libre", "Falabella", "Paris", "Ripley"];
   return (
-    <div className="mt-6 rounded-[10px] bg-white/90 p-4 text-black" style={{ border: LINE }}>
+    <div className="mt-6 rounded-[10px] bg-white p-4 text-black" style={{ border: LINE }}>
       <div className="flex items-baseline justify-between text-[12px] text-[#757575]">
         <span>Polera oversize negra</span><span>SKU PO-NEG-M</span>
       </div>
@@ -81,10 +81,10 @@ export function StockMini() {
 
 export function ProfitMini() {
   const rows: Array<[string, number, string]> = [
-    ["Comisión", 14, "#f64932"], ["Envío", 6, "#ffb110"], ["Costo", 23, "#615d59"], ["Ganancia", 57, "#15803d"],
+    ["Comisión", 14, "#02093a"], ["Envío", 6, "#62aef0"], ["Costo", 23, "#c9c6c0"], ["Ganancia", 57, "#0075de"],
   ];
   return (
-    <div className="mt-6 rounded-[10px] bg-white/90 p-4 text-black" style={{ border: LINE }}>
+    <div className="mt-6 rounded-[10px] bg-[#f9f8f7] p-4 text-black" style={{ border: LINE }}>
       <div className="flex h-2.5 overflow-hidden rounded-full">
         {rows.map(([k, v, c]) => <span key={k} style={{ width: `${v}%`, background: c }} />)}
       </div>
@@ -100,14 +100,15 @@ export function ProfitMini() {
   );
 }
 
-export function ClaimMini() {
+export function ClaimMini({ light = false }: { light?: boolean }) {
   return (
-    <div className="mt-6 rounded-[10px] bg-white/10 p-4 text-white" style={{ border: "1px solid rgba(255,255,255,0.14)" }}>
-      <div className="flex items-center justify-between text-[12px] text-white/60">
+    <div className={`mt-6 rounded-[10px] p-4 ${light ? "bg-[#f9f8f7] text-black" : "bg-white/10 text-white"}`}
+      style={{ border: light ? LINE : "1px solid rgba(255,255,255,0.14)" }}>
+      <div className={`flex items-center justify-between text-[12px] ${light ? "text-[#757575]" : "text-white/60"}`}>
         <span>Reclamo N° 5284019</span><span>Abierto</span>
       </div>
       <p className="mt-1.5 text-[14px] font-medium">El producto llegó con daños</p>
-      <div className="mt-3 flex items-center gap-2 rounded-md bg-[#ffb110] px-2.5 py-1.5 text-[12px] font-semibold text-black">
+      <div className="mt-3 flex items-center gap-2 rounded-md bg-[#02093a] px-2.5 py-1.5 text-[12px] font-semibold text-white">
         Responder antes del 14 oct · 23:59
       </div>
     </div>
@@ -174,7 +175,7 @@ export function DirectSaleMini() {
 export function QuoteMini() {
   const docs: Array<[string, string, string, string]> = [
     ["Presupuesto N° 1042", "Constructora Andes", "Vigente", "#0075de"],
-    ["Orden de compra N° 318", "Proveedor Textil Sur", "Enviada", "#e89d01"],
+    ["Orden de compra N° 318", "Proveedor Textil Sur", "Enviada", "#02093a"],
     ["Presupuesto N° 1041", "Café Central", "Aceptado", "#15803d"],
   ];
   return (

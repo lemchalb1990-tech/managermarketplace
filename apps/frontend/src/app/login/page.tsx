@@ -8,7 +8,7 @@ import { saveSession } from '@/lib/auth';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 
-const MARK_COLORS = ['#097fe8', '#f64932', '#ffb110', '#62aef0'];
+const MARK_COLORS = ['#ffffff', '#62aef0', '#ffffff', '#62aef0'];
 const brandChannels = ['mercadolibre', 'falabella', 'paris', 'ripley', 'walmart'] as const;
 
 export default function LoginPage() {
@@ -44,22 +44,22 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-[100dvh] gap-4 p-4 sm:p-6">
       {/* Panel de marca: bloque de color como en la landing */}
-      <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden rounded-[12px] bg-[#ffb110] p-12 text-black lg:flex">
+      <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden rounded-[12px] p-12 text-white lg:flex" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
         <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
-          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
+          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-white text-[0.8rem] font-bold text-[#02093a]">M</span>
           Admin Marketplace
         </Link>
 
         <div className="max-w-md">
           <h2 className="lp-display text-[clamp(2.4rem,3.6vw,54px)]">
-            Todas tus ventas en <span className="lp-pill bg-white">un solo</span> lugar
+            Todas tus ventas en <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>un solo</span> lugar
           </h2>
-          <p className="lp-serif mt-5 text-[18px] leading-[1.56] text-black/70">
+          <p className="lp-serif mt-5 text-[18px] leading-[1.56] text-white/75">
             Catálogo, órdenes, despacho y facturación conectados con cada canal de venta.
           </p>
           <div className="mt-8 space-y-2">
             {['Stock sincronizado en todos tus canales', 'Pedidos del día ordenados por hora de corte', 'Boleta y factura en el mismo paso'].map((t) => (
-              <div key={t} className="lp-shot flex items-center gap-3 rounded-[8px] border border-black/[0.08] bg-white px-3 py-2.5 text-[14px] font-medium">
+              <div key={t} className="lp-shot flex items-center gap-3 rounded-[8px] border border-black/[0.08] bg-white px-3 py-2.5 text-[14px] font-medium text-black">
                 <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
                 </span>
@@ -70,7 +70,7 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <p className="mb-3 text-[13px] font-medium text-black/60">Tus principales canales</p>
+          <p className="mb-3 text-[13px] font-medium text-white/60">Tus principales canales</p>
           <div className="flex items-center gap-2.5">
             {brandChannels.map((k, i) => (
               <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>

@@ -174,7 +174,7 @@ function PhoneMock() {
           <div className="mt-2 space-y-1.5">
             {stops.map((s) => (
               <div key={s.a} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${s.ok ? "bg-[#15803d]" : s.c === "En camino" ? "bg-[#ffb110]" : "bg-black/15"}`} />
+                <span className={`h-2 w-2 shrink-0 rounded-full ${s.ok ? "bg-[#15803d]" : s.c === "En camino" ? "bg-[#0075de]" : "bg-black/15"}`} />
                 <span className="min-w-0 flex-1 truncate">{s.a}</span>
                 <span className="text-[#757575]">{s.c}</span>
               </div>
@@ -199,12 +199,12 @@ const MOBILE_POINTS = [
 /* ── Beneficios ───────────────────────────────────────────────────────────── */
 
 const BENEFITS = [
-  { t: "Nunca vendes lo que no tienes", b: "Cada venta descuenta de la bodega correcta y el stock nuevo se publica en todos tus canales.", bg: "#ffb110", fg: "#000" },
+  { t: "Nunca vendes lo que no tienes", b: "Cada venta descuenta de la bodega correcta y el stock nuevo se publica en todos tus canales.", bg: "#02093a", fg: "#fff", mini: "stock" },
   { t: "Pedidos en una sola lista", b: "Agrupados por transportista y hora de corte. Los atrasados salen en rojo.", bg: "#ffffff", fg: "#000", icon: ICONS.orders },
   { t: "Boleta y factura automáticas", b: "Con tu proveedor de facturación, en el mismo paso de la venta.", bg: "#ffffff", fg: "#000", icon: ICONS.doc },
-  { t: "Ganancia real por venta", b: "Neto sin IVA, menos comisión, envío y costo del producto.", bg: "#62aef0", fg: "#000" },
+  { t: "Ganancia real por venta", b: "Neto sin IVA, menos comisión, envío y costo del producto.", bg: "#ffffff", fg: "#000", mini: "profit" },
   { t: "Fotos revisadas con IA", b: "Antes de publicar en Mercado Libre, la IA revisa que cada foto coincida con el título.", bg: "#ffffff", fg: "#000", icon: ICONS.scan },
-  { t: "Reclamos sin perder plazos", b: "Los reclamos de Mercado Libre con su fecha límite y la respuesta desde el panel.", bg: "#02093a", fg: "#fff" },
+  { t: "Reclamos sin perder plazos", b: "Los reclamos de Mercado Libre con su fecha límite y la respuesta desde el panel.", bg: "#ffffff", fg: "#000", mini: "claim" },
 ] as const;
 
 /* ── Todo desde el panel ──────────────────────────────────────────────────── */
@@ -261,7 +261,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
           <p className={`mt-2 max-w-[80ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-[#111]"}`}>
+          <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "lp-btn--primary"}`}>
             {primary.label} <Icon d={ICONS.arrow} size={16} />
           </Link>
           {secondary && (
@@ -318,7 +318,7 @@ export default async function Home() {
             <div>
               <p className="lp-eyebrow ui-enter text-[#62aef0]">Para tiendas que venden en marketplaces en Chile</p>
               <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[20ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
-                Vende en todos tus canales sin <span className="lp-pill text-[#02093a]">sobrevender</span>
+                Vende en todos tus canales sin <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sobrevender</span>
               </h1>
               <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
                 <p className="lp-lead max-w-[46ch] text-pretty text-white/75">
@@ -382,16 +382,16 @@ export default async function Home() {
                   <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[26px] leading-[1.15] sm:text-[30px]" : "text-[20px] leading-[1.3]"}`}>{b.t}</p>
                   <p className={`mt-2 text-[15px] leading-[1.55] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
                   </div>
-                  {b.bg === "#ffb110" && <StockMini />}
-                  {b.bg === "#62aef0" && <ProfitMini />}
-                  {b.bg === "#02093a" && <div className="md:w-[46%] md:shrink-0 md:[&>*]:mt-0"><ClaimMini /></div>}
+                  {"mini" in b && b.mini === "stock" && <StockMini />}
+                  {"mini" in b && b.mini === "profit" && <ProfitMini />}
+                  {"mini" in b && b.mini === "claim" && <div className="md:w-[46%] md:shrink-0 md:[&>*]:mt-0"><ClaimMini light /></div>}
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <CtaBand bg="#ffb110" title="Deja de actualizar el stock a mano en cada canal"
+        <CtaBand bg="#eceae6" title="Deja de actualizar el stock a mano en cada canal"
           text="Conectas tus cuentas una vez y cada venta se descuenta sola en todos lados."
           primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver funciones", href: "#funciones" }} />
 
@@ -481,7 +481,7 @@ export default async function Home() {
         </section>
 
         {/* Canales: texto a la izquierda, bloque de color a la derecha */}
-        <section id="canales" className={`bg-[#e6f3fe] ${BAND}`}>
+        <section id="canales" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
             <div className="ui-reveal">
               <span className="lp-eyebrow text-[#0075de]">Canales</span>
@@ -500,7 +500,7 @@ export default async function Home() {
                 ))}
               </div>
             </div>
-            <div className="ui-reveal relative rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
+            <div className="ui-reveal relative rounded-[12px] p-4 sm:p-8" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {CATALOG.map((p) => (
                   <div key={p.name} className="lp-shot overflow-hidden rounded-[12px] bg-white">
@@ -524,21 +524,17 @@ export default async function Home() {
           </div>
         </section>
 
-        <CtaBand bg="#02093a" fg="#fff" title="Conecta tu primera cuenta en minutos"
-          text="Mercado Libre, Falabella, Paris, Ripley o Walmart: autorizas tu cuenta y el panel trae tus publicaciones."
-          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver versión móvil", href: "#movil" }} />
-
         {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
         <section id="movil" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
-            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
+            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] px-4 py-10 lg:order-1" aria-hidden="true" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
               <div className="relative mx-auto max-w-[560px]">
                 <PhoneMock />
                 {/* Avisos flotantes: al costado del teléfono en pantallas medianas, debajo en el celular */}
                 <div className="mt-6 grid gap-2 sm:mt-0 sm:block">
                   <Toast className="w-full sm:absolute sm:left-0 sm:top-10 sm:w-52" tone="#0075de" icon={TOAST_ICONS.sale}
                     title="¡Nueva venta!" meta="Falabella · Mochila urbana · $34.990" />
-                  <Toast className="w-full sm:absolute sm:right-0 sm:top-40 sm:w-52" tone="#e89d01" icon={TOAST_ICONS.truck}
+                  <Toast className="w-full sm:absolute sm:right-0 sm:top-40 sm:w-52" tone="#0075de" icon={TOAST_ICONS.truck}
                     title="Ruta asignada" meta="Andrea · 8 paradas" style={{ ["--fd" as string]: "0.6s" }} />
                   <Toast className="w-full sm:absolute sm:bottom-16 sm:left-0 sm:w-52" tone="#15803d" icon={TOAST_ICONS.check}
                     title="Entregado con foto" meta="Los Leones 455 · 12:48" style={{ ["--fd" as string]: "1.2s" }} />
@@ -546,7 +542,7 @@ export default async function Home() {
               </div>
             </div>
             <div className="ui-reveal order-1 lg:order-2">
-              <span className="lp-eyebrow text-[#c43b1c]">Versión móvil</span>
+              <span className="lp-eyebrow text-[#0075de]">Versión móvil</span>
               <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
               <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
                 El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.

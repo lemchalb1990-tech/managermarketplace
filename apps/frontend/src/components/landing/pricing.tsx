@@ -91,7 +91,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               className={`relative flex flex-col rounded-[12px] p-6 ${isFeatured ? "bg-[#02093a] text-white" : "bg-white"}`}
               style={isFeatured ? undefined : { border: "1px solid rgba(0,0,0,0.08)" }}>
               {isFeatured && (
-                <span className="lp-tag absolute -top-3 left-6 bg-[#ffb110] text-black">Más elegido</span>
+                <span className="lp-tag absolute -top-3 left-6 bg-[#0075de] text-white">Más elegido</span>
               )}
               <p className="text-[22px] font-bold tracking-[-0.011em]">{p.name}</p>
               {p.description && (
@@ -133,14 +133,14 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
       </div>
 
       {trial && (
-        <div className="mt-4 flex flex-col gap-4 rounded-[12px] bg-[#ffb110] p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex flex-col gap-4 rounded-[12px] bg-[#e6f3fe] p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[20px] font-bold tracking-[-0.011em]">
+            <p className="text-[20px] font-bold tracking-[-0.011em] text-[#02093a]">
               Prueba gratis{trial.trialDays ? ` ${trial.trialDays} días` : ""}
             </p>
-            <p className="mt-1 text-[15px] text-black/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
+            <p className="mt-1 text-[15px] text-[#02093a]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
           </div>
-          <Link href="/login" className="lp-btn shrink-0 self-start bg-black text-white hover:bg-[#111] sm:self-auto">
+          <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
             Empezar la prueba
           </Link>
         </div>
