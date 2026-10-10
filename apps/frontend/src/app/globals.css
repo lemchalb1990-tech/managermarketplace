@@ -643,6 +643,9 @@ body {
 .lp-scan { animation: lp-scan 0.9s ease-in-out both; }
 @keyframes lp-progress { from { width: 0; } to { width: 100%; } }
 .lp-progress { animation: lp-progress linear both; }
+@keyframes lp-step-dot { 0% { left: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+.lp-step-dot { animation: lp-step-dot 3.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .lp-step-dot { animation: none; display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .lp-pop, .lp-slide, .lp-wire, .lp-dot-in, .lp-dot-out, .lp-dot-down, .lp-fade { animation: none; }
   .lp-travel { display: none; }

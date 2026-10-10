@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
-import { ModulesExplorer } from "@/components/landing/interactive";
+import { Steps } from "@/components/landing/steps";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
@@ -372,14 +372,13 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Módulos */}
-        <section id="modulos" className={BAND}>
+        {/* Cómo empezar */}
+        <section id="como-empezar" className={BAND}>
           <div className={WRAP}>
-            <div>
-              <SectionHead label="Módulos" title="Desde que entra el pedido hasta que llega al cliente"
-                lead="Estas son pantallas reales del panel, con datos de ejemplo." />
-              <ModulesExplorer />
-            </div>
+            <h2 className="lp-h2 ui-reveal mx-auto max-w-[22ch] text-balance text-center">Empieza a vender en todos tus canales en 3 pasos</h2>
+            <Steps logos={(["mercadolibre", "falabella", "paris", "ripley", "walmart", "shopify"] as const)
+              .map((k) => resolveLogoNode(logoMap, k, Logos[k], "circle"))
+              .concat(resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura, "circle"))} />
           </div>
         </section>
 
