@@ -13,8 +13,7 @@ import {
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
   ALERTS, PRODUCT_IMG,
 } from "@/components/landing/visuals";
-
-// Tipografías propias de la landing: sans neutra para todo y una serif editorial
+// Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
 // para las bajadas de sección. El panel sigue con Hanken Grotesk.
 const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
 
