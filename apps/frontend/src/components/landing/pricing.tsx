@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { contactHref, trialHref, useContact } from "./contact";
+import { scheduleHref, trialHref, useContact } from "./contact";
 
 export type PublicPlan = {
   id: string;
@@ -53,9 +53,9 @@ function Check() {
 
 export function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [annual, setAnnual] = useState(false);
-  // "Conversemos" (plan a medida) va al contacto configurado; si no hay, al panel.
+  // Todos los planes llevan a agendar con un ejecutivo (agenda configurada o WhatsApp).
   const contact = useContact();
-  const talk = contactHref(contact);
+  const talk = scheduleHref(contact);
   const trialLink = trialHref(contact);
   const trial = plans.find((p) => p.isTrial);
   const paid = plans.filter((p) => !p.isTrial);
@@ -120,10 +120,10 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                       : ""}
                 </p>
               </div>
-              <Link href={p.priceFrom && talk ? talk : "/login"}
-                {...(p.priceFrom && talk?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              <Link href={talk || "/login"}
+                {...(talk?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
-                {p.priceFrom ? "Conversemos" : "Empezar"}
+                Agenda con un ejecutivo
               </Link>
               <ul className="mt-6 space-y-2 text-[14px]">
                 {items.map((it) => (

@@ -363,10 +363,6 @@ export default async function Home() {
           </div>
         </section>
 
-        <CtaBand bg="#eceae6" title="Deja de actualizar el stock a mano en cada canal"
-          text="Conectas tus cuentas una vez y cada venta se descuenta sola en todos lados."
-          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver funciones", href: "#funciones" }} />
-
         {/* Todo desde el panel */}
         <section id="funciones" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
@@ -545,7 +541,7 @@ export default async function Home() {
                 <h2 className="lp-h2">¿Conversamos?</h2>
                 <p className="lp-lead mt-4 text-white/70">Un ejecutivo te ayuda a elegir el plan y a conectar tus canales.</p>
               </div>
-              <ExecutiveButton className="lp-btn--light lp-btn--lg shrink-0 self-start sm:self-auto" />
+              <ExecutiveButton label="Agenda con un ejecutivo" className="lp-btn--light lp-btn--lg shrink-0 self-start sm:self-auto" />
             </div>
           </div>
         </section>
