@@ -318,7 +318,7 @@ export default async function Home() {
             <div>
               <p className="lp-eyebrow ui-enter text-[#62aef0]">Para tiendas que venden en marketplaces en Chile</p>
               <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[20ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
-                Vende en todos tus canales sin <span className="lp-pill">sobrevender</span>
+                Vende en todos tus canales sin <span className="lp-pill text-[#02093a]">sobrevender</span>
               </h1>
               <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
                 <p className="lp-lead max-w-[46ch] text-pretty text-white/75">
