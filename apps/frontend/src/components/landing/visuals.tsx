@@ -54,67 +54,6 @@ export const TOAST_ICONS = {
   check: svg("M20 6 9 17l-5-5"),
 };
 
-/* ── Mini datos para las tarjetas de beneficios ───────────────────────────── */
-
-export function StockMini() {
-  const ch = ["Mercado Libre", "Falabella", "Paris", "Ripley"];
-  return (
-    <div className="mt-6 rounded-[10px] bg-white p-4 text-black" style={{ border: LINE }}>
-      <div className="flex items-baseline justify-between text-[12px] text-[#757575]">
-        <span>Polera oversize negra</span><span>SKU PO-NEG-M</span>
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <span className="font-mono text-[22px] font-semibold text-black/35 line-through">32</span>
-        <span className="font-mono text-[22px] font-semibold">31</span>
-        <span className="text-[12px] text-[#615d59]">Venta Falabella #88213</span>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        {ch.map((c) => (
-          <span key={c} className="flex items-center gap-1.5 rounded-md bg-[#f6f5f4] px-2 py-1.5 text-[12px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#15803d]" />{c}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function ProfitMini() {
-  const rows: Array<[string, number, string]> = [
-    ["Comisión", 14, "#02093a"], ["Envío", 6, "#62aef0"], ["Costo", 23, "#c9c6c0"], ["Ganancia", 57, "#0075de"],
-  ];
-  return (
-    <div className="mt-6 rounded-[10px] bg-[#f9f8f7] p-4 text-black" style={{ border: LINE }}>
-      <div className="flex h-2.5 overflow-hidden rounded-full">
-        {rows.map(([k, v, c]) => <span key={k} style={{ width: `${v}%`, background: c }} />)}
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
-        {rows.map(([k, v, c]) => (
-          <span key={k} className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm" style={{ background: c }} />{k}
-            <span className="ml-auto font-mono text-[#615d59]">{v}%</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function ClaimMini({ light = false }: { light?: boolean }) {
-  return (
-    <div className={`mt-6 rounded-[10px] p-4 ${light ? "bg-[#f9f8f7] text-black" : "bg-white/10 text-white"}`}
-      style={{ border: light ? LINE : "1px solid rgba(255,255,255,0.14)" }}>
-      <div className={`flex items-center justify-between text-[12px] ${light ? "text-[#757575]" : "text-white/60"}`}>
-        <span>Reclamo N° 5284019</span><span>Abierto</span>
-      </div>
-      <p className="mt-1.5 text-[14px] font-medium">El producto llegó con daños</p>
-      <div className="mt-3 flex items-center gap-2 rounded-md bg-[#02093a] px-2.5 py-1.5 text-[12px] font-semibold text-white">
-        Responder antes del 14 oct · 23:59
-      </div>
-    </div>
-  );
-}
-
 /* ── Objetos de "Todo desde el panel" ─────────────────────────────────────── */
 
 const Box = ({ children }: { children: ReactNode }) => (

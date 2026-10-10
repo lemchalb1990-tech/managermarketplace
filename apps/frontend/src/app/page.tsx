@@ -8,10 +8,11 @@ import { ModulesExplorer } from "@/components/landing/interactive";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
+import { Benefits } from "@/components/landing/benefits";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
-  Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
+  Toast, TOAST_ICONS,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
   ALERTS, PRODUCT_IMG, DropshipMini,
 } from "@/components/landing/visuals";
@@ -196,17 +197,6 @@ const MOBILE_POINTS = [
   ["Tú", "Revisas ventas, stock y reclamos de Mercado Libre desde donde estés."],
 ] as const;
 
-/* ── Beneficios ───────────────────────────────────────────────────────────── */
-
-const BENEFITS = [
-  { t: "Nunca vendes lo que no tienes", b: "Cada venta descuenta de la bodega correcta y el stock nuevo se publica en todos tus canales.", bg: "#02093a", fg: "#fff", mini: "stock" },
-  { t: "Pedidos en una sola lista", b: "Agrupados por transportista y hora de corte. Los atrasados salen en rojo.", bg: "#ffffff", fg: "#000", icon: ICONS.orders },
-  { t: "Boleta y factura automáticas", b: "Con tu proveedor de facturación, en el mismo paso de la venta.", bg: "#ffffff", fg: "#000", icon: ICONS.doc },
-  { t: "Ganancia real por venta", b: "Neto sin IVA, menos comisión, envío y costo del producto.", bg: "#ffffff", fg: "#000", mini: "profit" },
-  { t: "Fotos revisadas con IA", b: "Antes de publicar en Mercado Libre, la IA revisa que cada foto coincida con el título.", bg: "#ffffff", fg: "#000", icon: ICONS.scan },
-  { t: "Reclamos sin perder plazos", b: "Los reclamos de Mercado Libre con su fecha límite y la respuesta desde el panel.", bg: "#ffffff", fg: "#000", mini: "claim" },
-] as const;
-
 /* ── Todo desde el panel ──────────────────────────────────────────────────── */
 
 const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
@@ -366,28 +356,7 @@ export default async function Home() {
           <div className={WRAP}>
             <SectionHead label="Beneficios" title="Vende tranquilo: nunca más una venta sin stock"
               lead="Cada venta descuenta en todos tus canales al instante, para que no tengas que cancelar pedidos ni perder reputación." />
-            <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-3 lg:mt-10">
-              {BENEFITS.map((b, i) => (
-                <div key={b.t}
-                  className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""} ${i === BENEFITS.length - 1 ? "md:col-span-3 md:flex-row md:items-center md:gap-10" : ""}`}
-                  style={{ background: b.bg, color: b.fg }}>
-                  <div className="min-w-0 flex-1">
-                  {"icon" in b && b.icon ? (
-                    <span className="mb-6 grid h-10 w-10 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
-                      <Icon d={b.icon} size={20} />
-                    </span>
-                  ) : (
-                    <span className="mb-6 self-start font-mono text-[13px] font-medium opacity-60">0{i + 1}</span>
-                  )}
-                  <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[26px] leading-[1.15] sm:text-[30px]" : "text-[20px] leading-[1.3]"}`}>{b.t}</p>
-                  <p className={`mt-2 text-[15px] leading-[1.55] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
-                  </div>
-                  {"mini" in b && b.mini === "stock" && <StockMini />}
-                  {"mini" in b && b.mini === "profit" && <ProfitMini />}
-                  {"mini" in b && b.mini === "claim" && <div className="md:w-[46%] md:shrink-0 md:[&>*]:mt-0"><ClaimMini light /></div>}
-                </div>
-              ))}
-            </div>
+            <Benefits />
           </div>
         </section>
 
