@@ -1,0 +1,172 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+
+const LINE = "1px solid rgba(0,0,0,0.08)";
+
+type Channel = { key: string; name: string; price: string };
+
+// Cada canal con su propio precio, como se configura en el panel.
+const CHANNELS: Channel[] = [
+  { key: "mercadolibre", name: "Mercado Libre", price: "$49.990" },
+  { key: "falabella", name: "Falabella", price: "$51.990" },
+  { key: "paris", name: "Paris", price: "$51.990" },
+  { key: "ripley", name: "Ripley", price: "$50.990" },
+  { key: "walmart", name: "Walmart", price: "$49.990" },
+  { key: "pos", name: "Tienda física", price: "$52.990" },
+];
+
+// Orden de las ventas de la animación (índices de CHANNELS) y stock inicial.
+const SALES = [0, 1, 0, 2, 5, 3, 4];
+const START = 24;
+const STEP_MS = 2600;
+
+function PosLogo() {
+  return (
+    <svg viewBox="0 0 64 40" className="h-full w-full" aria-hidden="true">
+      <rect width="64" height="40" rx="8" fill="#02093a" />
+      <path d="M20 14h24l-2 6H22zM22 20v8h20v-8M29 28v-4h6v4" stroke="#fff" strokeWidth="2" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function ShoeThumb() {
+  return (
+    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[10px] bg-[#f6f5f4]" style={{ border: LINE }}>
+      <svg width="40" height="24" viewBox="0 0 40 24" fill="none" aria-hidden="true">
+        <path d="M3 17c0-4 1-9 3-11 2 1 4 3 7 3 2 0 3-1 4-2l4 4c3 2 9 3 14 4 2 0 3 1 3 3v1H3z" fill="#fff" stroke="#2b2a27" strokeWidth="1.4" strokeLinejoin="round" />
+        <path d="M3 19h34v2H3z" fill="#e4e2dc" stroke="#2b2a27" strokeWidth="1.4" strokeLinejoin="round" />
+        <path d="M17 10l2 2M19 8.5l2 2M21.5 7l2 2" stroke="#0075de" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+function ChannelCard({ ch, logo, stock, active, side }: {
+  ch: Channel; logo: ReactNode; stock: number; active: boolean; side: "left" | "right";
+}) {
+  return (
+    <div className={`relative flex items-center gap-2.5 rounded-[10px] bg-white px-2.5 py-2 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
+      style={{ border: LINE }}>
+      <span className="h-8 w-[50px] shrink-0 overflow-hidden rounded-[6px] [&>*]:h-full [&>*]:w-full">{logo}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12px] font-semibold leading-tight">{ch.name}</span>
+        <span className="block text-[11px] leading-tight text-[#757575]">{ch.price}</span>
+      </span>
+      <span className="text-right">
+        <span key={stock} className="lp-pop block font-mono text-[14px] font-semibold leading-tight tabular-nums">{stock}</span>
+        <span className="block text-[10px] leading-tight text-[#757575]">stock</span>
+      </span>
+      {active && (
+        <span className="lp-pop absolute -top-2.5 right-2 rounded-full bg-[#0075de] px-2 py-0.5 text-[10px] font-semibold text-white">
+          Vendido −1
+        </span>
+      )}
+      {/* Conector hacia el producto (solo en escritorio) */}
+      <span className={`pointer-events-none absolute top-1/2 hidden h-px w-6 lg:block ${side === "left" ? "-right-6" : "-left-6"} ${active ? "lp-wire bg-[#0075de]" : "bg-black/15"}`} />
+    </div>
+  );
+}
+
+/** Escena del inicio: una venta en cualquier canal descuenta el stock y lo publica en todos. */
+export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; phone: ReactNode }) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setStep((s) => (s + 1) % (SALES.length + 1)), STEP_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // step 0: recién repuesto; step n: n ventas hechas.
+  const stock = START - step;
+  const activeIdx = step > 0 ? SALES[step - 1] : -1;
+  const active = activeIdx >= 0 ? CHANNELS[activeIdx] : null;
+  const logoOf = (k: string) => (k === "pos" ? <PosLogo /> : logos[k]);
+
+  const left = CHANNELS.slice(0, 3);
+  const right = CHANNELS.slice(3);
+
+  return (
+    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-8 lg:p-10">
+      <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
+      <div className="relative grid items-center gap-6 md:grid-cols-[1fr_210px] lg:grid-cols-[1fr_240px] lg:gap-10">
+        <div className="grid gap-3 lg:grid-cols-[1fr_minmax(0,1.15fr)_1fr] lg:items-center lg:gap-6">
+          {/* Producto al centro (primero en el celular) */}
+          <div className="lp-shot order-first rounded-[12px] bg-white p-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:p-5" style={{ border: LINE }}>
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="rounded-full bg-[#f6f5f4] px-2 py-0.5 font-medium text-[#615d59]">Bodega Centro</span>
+              <span className="flex items-center gap-1.5 font-medium text-[#15803d]">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#15803d] opacity-60 motion-reduce:hidden" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#15803d]" />
+                </span>
+                Sincronizado
+              </span>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <ShoeThumb />
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold leading-tight">Zapatillas urbanas blancas</p>
+                <p className="mt-0.5 text-[12px] text-[#757575]">SKU ZAP-URB-40 · Talla 40</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[12px] text-[#757575]">Stock en todos los canales</p>
+                <p key={stock} className="lp-pop text-[56px] font-semibold leading-none tracking-[-0.04em] tabular-nums sm:text-[64px]">{stock}</p>
+              </div>
+              <div className="pb-1 text-right text-[11px] leading-snug text-[#615d59]">
+                <p><span className="font-semibold text-black">6</span> canales</p>
+                <p>actualizados en 1 s</p>
+              </div>
+            </div>
+            <div className="mt-4 min-h-[52px] rounded-[10px] bg-[#f6f5f4] p-2.5">
+              {active ? (
+                <div key={step} className="lp-slide flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0075de1f] text-[#0075de]">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] font-semibold leading-tight">Nueva venta · {active.name}</span>
+                    <span className="block truncate text-[11px] leading-tight text-[#757575]">{active.price} · Boleta N° {4520 + step} emitida</span>
+                  </span>
+                </div>
+              ) : (
+                <div key="restock" className="lp-slide flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#15803d1f] text-[#15803d]">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] font-semibold leading-tight">Reposición recibida · +{SALES.length}</span>
+                    <span className="block truncate text-[11px] leading-tight text-[#757575]">Orden de compra N° 318 · Bodega Centro</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 lg:col-start-1 lg:row-start-1 lg:grid-cols-1 lg:gap-3">
+            {left.map((ch) => (
+              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} side="left" />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:col-start-3 lg:row-start-1 lg:grid-cols-1 lg:gap-3">
+            {right.map((ch) => (
+              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} side="right" />
+            ))}
+          </div>
+        </div>
+
+        {/* Teléfono al lado (tablet y escritorio) */}
+        <div className="hidden justify-center md:flex">
+          <div className="origin-center scale-[0.82] lg:scale-[0.92]">{phone}</div>
+        </div>
+      </div>
+    </div>
+  );
+}

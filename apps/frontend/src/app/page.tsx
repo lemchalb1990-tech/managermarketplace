@@ -7,10 +7,11 @@ import { ICONS, Icon } from "@/components/landing/icons";
 import { ModulesExplorer } from "@/components/landing/interactive";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
+import { HeroScene } from "@/components/landing/hero-scene";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
-  DashboardMock, ALERTS,
+  ALERTS,
 } from "@/components/landing/visuals";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
@@ -272,51 +273,16 @@ export default async function Home() {
           </div>
 
           <div className="ui-enter-panel relative mx-auto mt-14 max-w-[1080px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
-            {/* Bloque de color con el panel saliendo desde abajo */}
-            <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] px-3 pt-6 sm:px-12 sm:pt-14">
-              <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
-              <div className="lp-shot relative mx-auto max-w-[860px] overflow-hidden rounded-t-[12px] bg-[#f6f5f4]" style={{ border: "1px solid rgba(0,0,0,0.1)", borderBottom: 0 }}>
-                <div className="flex items-center gap-2 border-b border-black/[0.08] bg-white px-3 py-2.5">
-                  <span className="flex gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#f64932]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#ffb110]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#15803d]" />
-                  </span>
-                  <span className="mx-auto truncate rounded-md bg-[#f6f5f4] px-3 py-1 text-[11px] text-[#757575] sm:px-8">adminmarket.ondatasolution.com</span>
-                </div>
-                <div className="p-2 sm:p-4">
-                  <DashboardMock />
-                </div>
-              </div>
-            </div>
+            <HeroScene
+              logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
+              phone={<PhoneMock />}
+            />
 
-            {/* Teléfono superpuesto */}
-            <div className="absolute -bottom-10 right-4 hidden origin-bottom-right scale-[0.78] md:block lg:-right-6 lg:scale-[0.85]">
-              <PhoneMock />
-            </div>
-
-            {/* Logos de canales flotando sobre el borde */}
-            {(["mercadolibre", "falabella", "paris", "ripley"] as const).map((k, i) => (
-              <span key={k}
-                className={`lp-float absolute z-10 hidden sm:block ${["-top-7 left-[8%]", "-top-6 left-[30%]", "-top-8 right-[28%]", "-top-6 right-[6%]"][i]}`}
-                style={{ ["--fd" as string]: `${i * 0.5}s` }}>
-                <span className="lp-shot grid h-14 w-14 place-items-center rounded-[14px] bg-white p-2" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                  <span className="h-full w-full overflow-hidden rounded-[8px] [&>*]:h-full [&>*]:w-full">{resolveLogoNode(logoMap, k, Logos[k])}</span>
-                </span>
-              </span>
-            ))}
-
-            {/* Avisos flotantes */}
-            <Toast className="absolute -left-10 top-28 z-10 hidden w-64 lg:flex" tone="#0075de" icon={TOAST_ICONS.sale}
-              title="Nueva venta · Mercado Libre" meta="Zapatillas urbanas blancas · $49.990" />
-            <Toast className="absolute -left-6 bottom-24 z-10 hidden w-60 lg:flex" tone="#15803d" icon={TOAST_ICONS.doc}
-              title="Boleta emitida N° 4521" meta="OpenFactura · hace 1 min" style={{ ["--fd" as string]: "0.9s" }} />
-            <Toast className="absolute -right-8 top-24 z-10 hidden w-56 xl:flex" tone="#e89d01" icon={TOAST_ICONS.sync}
-              title="Stock actualizado" meta="4 canales · Bodega Centro" style={{ ["--fd" as string]: "1.6s" }} />
-            <span className="lp-float lp-shot absolute -bottom-5 left-[38%] z-10 hidden rounded-full bg-[#02093a] px-4 py-2 text-[13px] font-semibold text-white sm:inline-flex"
-              style={{ ["--fd" as string]: "1.1s" }}>
-              +18% órdenes este mes
-            </span>
+            {/* Avisos flotantes: solo en pantallas anchas, donde hay margen a los lados */}
+            <Toast className="absolute -left-24 top-10 z-10 hidden w-60 2xl:flex" tone="#15803d" icon={TOAST_ICONS.doc}
+              title="Boleta emitida" meta="OpenFactura · automática" />
+            <Toast className="absolute -right-24 bottom-12 z-10 hidden w-60 2xl:flex" tone="#e89d01" icon={TOAST_ICONS.truck}
+              title="Etiqueta lista" meta="Mercado Envíos Flex" style={{ ["--fd" as string]: "1.2s" }} />
           </div>
         </section>
 
