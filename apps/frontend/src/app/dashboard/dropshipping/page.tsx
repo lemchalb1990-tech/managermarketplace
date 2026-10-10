@@ -5,8 +5,8 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
-import { PlatformLogoField } from '@/components/PlatformLogoField';
-import { usePlatformLogos, resolvePlatformLogo, invalidatePlatformLogosCache } from '@/lib/platformLogos';
+import { PlatformEditModal } from '@/components/PlatformEditModal';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, invalidatePlatformLogosCache } from '@/lib/platformLogos';
 import { confirmDialog } from '../ConfirmDialog';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
@@ -120,9 +120,8 @@ export default function DropshippingPage() {
 
   const logoMap = usePlatformLogos();
   const [editingLogoKey, setEditingLogoKey] = useState<string | null>(null);
-  const [logoForm, setLogoForm] = useState({ displayName: '', logoUrl: '', logoScale: 100, logoScales: null as Record<string, number> | null });
-  const [logoSaving, setLogoSaving] = useState(false);
-  const [logoError, setLogoError] = useState('');
+  // Proveedor abierto en la ventana de detalle (al hacer clic en su tarjeta).
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const companyId = isSuperAdmin ? selectedCompanyId : undefined;
@@ -229,35 +228,6 @@ export default function DropshippingPage() {
     }, token()), 'Proveedor dropship agregado');
     setShowSupplierForm(false);
     setSupplierForm(emptySupplierForm);
-  }
-
-  function openLogoEdit(connectorType: string) {
-    const key = CONNECTOR_LOGO_KEY[connectorType];
-    if (!key) return;
-    const current = logoMap[key];
-    setLogoForm({ displayName: current?.displayName || '', logoUrl: current?.logoUrl || '', logoScale: current?.logoScale || 100, logoScales: current?.logoScales || null });
-    setLogoError('');
-    setEditingLogoKey(key);
-  }
-
-  async function saveLogoEdit() {
-    if (!editingLogoKey) return;
-    setLogoSaving(true);
-    setLogoError('');
-    try {
-      await api.settings.platforms.update(editingLogoKey, {
-        displayName: logoForm.displayName.trim() || undefined,
-        logoUrl: logoForm.logoUrl.trim() || undefined,
-        logoScale: logoForm.logoScale,
-        logoScales: logoForm.logoScales || undefined,
-      }, token());
-      invalidatePlatformLogosCache();
-      setEditingLogoKey(null);
-    } catch (err: any) {
-      setLogoError(err.message || 'No se pudo guardar el logo');
-    } finally {
-      setLogoSaving(false);
-    }
   }
 
   async function handleRemoveSupplier(s: any) {
@@ -580,120 +550,61 @@ export default function DropshippingPage() {
               </div>
             </form>
           )}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Proveedor</th>
-                  <th className="px-4 py-3 font-medium">Correo</th>
-                  <th className="px-4 py-3 font-medium text-center">Productos</th>
-                  <th className="px-4 py-3 font-medium text-center">Pedidos</th>
-                  <th className="px-4 py-3 font-medium text-center">Automático</th>
-                  <th className="px-4 py-3 font-medium">Catálogo del proveedor</th>
-                  <th className="px-4 py-3 font-medium text-center">Estado</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {suppliers.map((s) => (
-                  <tr key={s.id} className="hover:bg-gray-50 align-top">
-                    <td className="px-4 py-3 font-medium text-gray-900">{s.supplier?.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{s.supplier?.email || '—'}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{s._count?.products ?? 0}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{s._count?.orders ?? 0}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => run(() => api.dropshipping.suppliers.update(s.id, { autoCreateOrders: !s.autoCreateOrders }, token()))}
-                        className={`text-xs font-medium ${s.autoCreateOrders ? 'text-green-600' : 'text-gray-400'}`}>
-                        {s.autoCreateOrders ? 'Sí' : 'No'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      {(s.connectorType ?? 'FEED') === 'NORIEGA_API' ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded overflow-hidden shrink-0 border border-gray-100 bg-white">
-                            {resolvePlatformLogo(logoMap, CONNECTOR_LOGO_KEY.NORIEGA_API, (
-                              <div className="w-full h-full flex items-center justify-center bg-indigo-500 text-white text-[9px] font-bold">NO</div>
-                            ), CONNECTOR_LABELS.NORIEGA_API)}
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-600 whitespace-nowrap">
-                            {CONNECTOR_LABELS.NORIEGA_API}
-                          </span>
-                          {isSuperAdmin && (
-                            <button type="button" onClick={() => openLogoEdit('NORIEGA_API')}
-                              title="Editar logo del proveedor" className="text-gray-400 hover:text-gray-600">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                          )}
-                          <button disabled={busy || !s.hasCredentials}
-                            onClick={() => run(() => withProgress(s.id, `Sincronizando ${s.supplier?.name || 'proveedor'}`, true, () =>
-                              api.dropshipping.suppliers.syncCatalog(s.id, {}, token())).then((r) =>
-                              setNotice(`Actualizado: ${r.updated} producto(s) ya vinculado(s)${r.skipped.length ? `, ${r.skipped.length} sin traer aún` : ''}`)))}
-                            title="Actualiza precio/stock de los productos ya vinculados. Para sumar productos nuevos usa 'Agregar productos'."
-                            className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                            Sincronizar
-                          </button>
-                          <button disabled={busy || !s.hasCredentials} onClick={() => openCatalogBrowse(s)}
-                            className="text-xs text-purple-600 hover:text-purple-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                            Agregar productos
-                          </button>
-                          <button disabled={busy} onClick={() => openCredentials(s)}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                            Credenciales
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <input defaultValue={s.catalogUrl || ''} placeholder="URL feed CSV/JSON"
-                            onBlur={(e) => {
-                              if (e.target.value !== (s.catalogUrl || '')) {
-                                run(() => api.dropshipping.suppliers.update(s.id, { catalogUrl: e.target.value || null }, token()));
-                              }
-                            }}
-                            className="w-44 px-2 py-1 border border-gray-200 rounded text-xs" />
-                          <button disabled={busy}
-                            onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
-                              setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
-                            className="text-xs text-teal-600 hover:text-teal-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                            Sincronizar
-                          </button>
-                          <button disabled={busy || !s.catalogUrl} onClick={() => openMapping(s)}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-40 whitespace-nowrap">
-                            Mapear campos
-                          </button>
-                        </div>
-                      )}
-                      {!s.hasCredentials && (s.connectorType ?? 'FEED') === 'NORIEGA_API' && (
-                        <p className="text-[11px] text-amber-600 mt-0.5">Falta configurar credenciales</p>
-                      )}
-                      {s.lastSyncedAt && (
-                        <p className="text-[11px] text-gray-400 mt-0.5">Última: {new Date(s.lastSyncedAt).toLocaleString('es-CL', { timeZone: tz })}</p>
-                      )}
-                      {s.catalogUrl && (s.connectorType ?? 'FEED') === 'FEED' && (
-                        <p className="text-[11px] text-gray-400 mt-0.5">
-                          {s.fieldMapping ? 'Mapeo manual configurado' : 'Detección automática de columnas'}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => run(() => api.dropshipping.suppliers.update(s.id, { active: !s.active }, token()))}
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {s.active ? 'Activo' : 'Inactivo'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={() => handleRemoveSupplier(s)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium">Eliminar</button>
-                    </td>
-                  </tr>
-                ))}
-                {suppliers.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">Sin proveedores dropship</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {suppliers.map((s) => {
+              const isApi = (s.connectorType ?? 'FEED') === 'NORIEGA_API';
+              const logoKey = isApi ? CONNECTOR_LOGO_KEY.NORIEGA_API : `dropship-${s.id}`;
+              const name = s.supplier?.name || 'Proveedor';
+              const displayName = resolvePlatformName(logoMap, logoKey, name);
+              const description = resolvePlatformDescription(logoMap, logoKey,
+                isApi ? 'Catálogo por API: precios y stock del proveedor al día.' : 'Catálogo por feed CSV/JSON del proveedor.');
+              const initials = name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+              return (
+                <div key={s.id} role="button" tabIndex={0} onClick={() => setDetailId(s.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setDetailId(s.id); }}
+                  className={`group relative cursor-pointer bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${s.active ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'}`}>
+                  {isSuperAdmin && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setEditingLogoKey(logoKey); }} title="Editar proveedor"
+                      className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                  <div className="flex justify-center mb-4">
+                    <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${s.active ? '' : 'grayscale opacity-50'}`}>
+                      {resolvePlatformLogo(logoMap, logoKey, (
+                        <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white text-lg font-bold">{initials}</div>
+                      ), displayName)}
+                    </div>
+                  </div>
+                  <h2 className="ui-section-title mb-1">{displayName}</h2>
+                  <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{s._count?.products ?? 0} productos</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{s._count?.orders ?? 0} pedidos</span>
+                    <span className={`px-2 py-0.5 rounded-full ${isApi ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-600'}`}>
+                      {CONNECTOR_LABELS[s.connectorType ?? 'FEED']}
+                    </span>
+                  </div>
+
+                  {isApi && !s.hasCredentials && <p className="mt-2 text-[11px] text-amber-600">Falta configurar credenciales</p>}
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className={`text-xs font-semibold group-hover:underline ${s.active ? 'text-green-600' : 'text-blue-600'}`}>Ver detalle →</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {s.active ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            <button type="button" onClick={() => setShowSupplierForm(true)}
+              className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors">
+              <span className="text-3xl leading-none">+</span>
+              <span className="text-sm font-semibold">Agregar proveedor dropship</span>
+            </button>
           </div>
         </div>
       )}
@@ -1060,50 +971,103 @@ export default function DropshippingPage() {
         </div>
       )}
 
-      {editingLogoKey && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="ui-section-title">Logo del proveedor</h3>
-              <button onClick={() => setEditingLogoKey(null)} disabled={logoSaving}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none disabled:opacity-30">×</button>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              {logoError && (
-                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{logoError}</div>
-              )}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre a mostrar</label>
-                <input value={logoForm.displayName} placeholder="Noriega Vanzulli"
-                  onChange={(e) => setLogoForm((f) => ({ ...f, displayName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      {detailId && (() => {
+        const s = suppliers.find((x) => x.id === detailId);
+        if (!s) return null;
+        const isApi = (s.connectorType ?? 'FEED') === 'NORIEGA_API';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailId(null)}>
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                <div>
+                  <h3 className="ui-section-title">{s.supplier?.name}</h3>
+                  <p className="text-xs text-gray-400">{s.supplier?.email || 'Sin correo'}{s.supplier?.phone ? ` · ${s.supplier.phone}` : ''}</p>
+                </div>
+                <button onClick={() => setDetailId(null)} className="text-xl leading-none text-gray-400 hover:text-gray-600">×</button>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Logo</label>
-                <PlatformLogoField
-                  platform={editingLogoKey}
-                  name={logoForm.displayName || 'Proveedor'}
-                  logoUrl={logoForm.logoUrl}
-                  logoScale={logoForm.logoScale}
-                  logoScales={logoForm.logoScales}
-                  onChange={(v) => setLogoForm((f) => ({ ...f, ...v }))}
-                />
-                <p className="text-xs text-gray-400 mt-1">Se muestra en Mis conexiones y en esta tabla en vez del ícono genérico.</p>
+              <div className="space-y-4 px-6 py-5 text-sm">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-lg font-bold">{s._count?.products ?? 0}</p><p className="text-[11px] text-gray-500">Productos</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-lg font-bold">{s._count?.orders ?? 0}</p><p className="text-[11px] text-gray-500">Pedidos</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-sm font-bold">{CONNECTOR_LABELS[s.connectorType ?? 'FEED']}</p><p className="text-[11px] text-gray-500">Catálogo</p></div>
+                </div>
+                {!isApi && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">URL del feed (CSV/JSON)</label>
+                    <input defaultValue={s.catalogUrl || ''} placeholder="https://..."
+                      onBlur={(e) => {
+                        if (e.target.value !== (s.catalogUrl || '')) {
+                          run(() => api.dropshipping.suppliers.update(s.id, { catalogUrl: e.target.value || null }, token()));
+                        }
+                      }}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    {s.catalogUrl && <p className="mt-1 text-[11px] text-gray-400">{s.fieldMapping ? 'Mapeo manual configurado' : 'Detección automática de columnas'}</p>}
+                  </div>
+                )}
+                {isApi && !s.hasCredentials && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Falta configurar las credenciales del proveedor.</p>}
+                {s.lastSyncedAt && <p className="text-xs text-gray-400">Última sincronización: {new Date(s.lastSyncedAt).toLocaleString('es-CL', { timeZone: tz })}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {isApi ? (
+                    <>
+                      <button disabled={busy || !s.hasCredentials}
+                        onClick={() => run(() => withProgress(s.id, `Sincronizando ${s.supplier?.name || 'proveedor'}`, true, () =>
+                          api.dropshipping.suppliers.syncCatalog(s.id, {}, token())).then((r) =>
+                          setNotice(`Actualizado: ${r.updated} producto(s) ya vinculado(s)${r.skipped.length ? `, ${r.skipped.length} sin traer aún` : ''}`)))}
+                        className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-40">Sincronizar</button>
+                      <button disabled={busy || !s.hasCredentials} onClick={() => { setDetailId(null); openCatalogBrowse(s); }}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Agregar productos</button>
+                      <button disabled={busy} onClick={() => { setDetailId(null); openCredentials(s); }}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Credenciales</button>
+                    </>
+                  ) : (
+                    <>
+                      <button disabled={busy}
+                        onClick={() => run(() => api.dropshipping.suppliers.syncCatalog(s.id, {}, token()).then((r) =>
+                          setNotice(`Sincronizado: ${r.created} nuevos, ${r.updated} actualizados${r.skipped.length ? `, ${r.skipped.length} omitidos` : ''}`)))}
+                        className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-40">Sincronizar</button>
+                      <button disabled={busy || !s.catalogUrl} onClick={() => { setDetailId(null); openMapping(s); }}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Mapear campos</button>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5">
+                  <span className="text-xs text-gray-600">Generar y enviar pedidos automáticamente</span>
+                  <button onClick={() => run(() => api.dropshipping.suppliers.update(s.id, { autoCreateOrders: !s.autoCreateOrders }, token()))}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.autoCreateOrders ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {s.autoCreateOrders ? 'Sí' : 'No'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5">
+                  <span className="text-xs text-gray-600">Estado del proveedor</span>
+                  <button onClick={() => run(() => api.dropshipping.suppliers.update(s.id, { active: !s.active }, token()))}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {s.active ? 'Activo' : 'Inactivo'}
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setEditingLogoKey(null)} disabled={logoSaving}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm disabled:opacity-50">
-                Cancelar
-              </button>
-              <button onClick={saveLogoEdit} disabled={logoSaving}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                {logoSaving ? 'Guardando...' : 'Guardar'}
-              </button>
+              <div className="flex justify-between gap-2 border-t border-gray-100 px-6 py-4">
+                <button onClick={() => { setDetailId(null); handleRemoveSupplier(s); }} className="text-sm font-medium text-red-500 hover:text-red-700">Eliminar proveedor</button>
+                <button onClick={() => setDetailId(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600">Cerrar</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {editingLogoKey && (() => {
+        const sup = suppliers.find((x) => editingLogoKey === `dropship-${x.id}`);
+        const isApiKey = editingLogoKey === CONNECTOR_LOGO_KEY.NORIEGA_API;
+        return (
+          <PlatformEditModal
+            platform={editingLogoKey}
+            defaultName={isApiKey ? CONNECTOR_LABELS.NORIEGA_API : sup?.supplier?.name || 'Proveedor'}
+            defaultDescription={isApiKey ? 'Catálogo por API: precios y stock del proveedor al día.' : 'Catálogo por feed CSV/JSON del proveedor.'}
+            current={logoMap[editingLogoKey]}
+            onClose={() => setEditingLogoKey(null)}
+            onSaved={() => { invalidatePlatformLogosCache(); setEditingLogoKey(null); load(); }}
+          />
+        );
+      })()}
 
       {catalogSupplier && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
