@@ -9,7 +9,6 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
-import { ChannelsPanel } from "@/components/landing/channels-panel";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
@@ -25,12 +24,6 @@ const salesChannels = [
   "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
   "shopify", "woocommerce", "jumpseller",
 ] as const;
-const billingChannels = ["openfactura", "facto", "bsale", "defontana", "nubox", "siigo"] as const;
-const CHANNEL_NAMES: Record<string, string> = {
-  mercadolibre: "Mercado Libre", falabella: "Falabella", paris: "Paris", ripley: "Ripley", hites: "Hites",
-  walmart: "Walmart", shopify: "Shopify", woocommerce: "WooCommerce", jumpseller: "JumpSeller",
-  openfactura: "OpenFactura", facto: "Facto", bsale: "Bsale", defontana: "Defontana", nubox: "Nubox", siigo: "Siigo",
-};
 
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
 
@@ -236,7 +229,6 @@ export default async function Home() {
           <div className="hidden items-center text-[15px] font-medium lg:flex">
             <a href="#beneficios" className="lp-nav-link">Beneficios</a>
             <a href="#dashboard" className="lp-nav-link">Dashboard</a>
-            <a href="#canales" className="lp-nav-link">Canales</a>
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
             <a href="#precios" className="lp-nav-link">Precios</a>
           </div>
@@ -370,37 +362,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Canales: texto y logos a la izquierda, producto por canal a la derecha */}
-        <section id="canales" className={BAND}>
-          <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
-            <div className="ui-reveal">
-              <span className="lp-eyebrow text-[#0075de]">Canales</span>
-              <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
-              <p className="lp-lead mt-4 max-w-[40ch] text-[#615d59]">Conectas cada cuenta una vez. Lo demás corre solo.</p>
-              {([["Marketplaces y tiendas", salesChannels, Logos], ["Facturación electrónica", billingChannels, BillingLogos]] as const).map(([label, keys, fallback]) => (
-                <div key={label} className="mt-7">
-                  <p className="text-[13px] font-semibold text-[#615d59]">{label}</p>
-                  <div className="mt-2.5 flex flex-wrap gap-2.5">
-                    {keys.map((k) => (
-                      <span key={k} title={CHANNEL_NAMES[k] || k}
-                        className="relative h-12 w-12 overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(2,9,58,0.12)] transition hover:-translate-y-0.5"
-                        style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
-                        <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:rounded-full [&>img]:object-cover [&>svg]:scale-[1.7]">
-                          {resolveLogoNode(logoMap, k, (fallback as Record<string, ReactNode>)[k], "circle")}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="ui-reveal">
-              <ChannelsPanel logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k], "circle")]))} />
-              <p className="mt-2 text-center text-[12px] text-[#9a968f]">Elige un producto para ver su precio y estado en cada canal.</p>
-            </div>
-          </div>
-        </section>
-
         {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
         <section id="movil" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
@@ -475,7 +436,6 @@ export default async function Home() {
           <span>Creado por OnDataSolution</span>
           <div className="flex gap-5">
             <a href="#beneficios" className="hover:text-white">Beneficios</a>
-            <a href="#canales" className="hover:text-white">Canales</a>
             <a href="#movil" className="hover:text-white">Versión móvil</a>
             <Link href="/login" className="hover:text-white">Entrar al panel</Link>
           </div>
