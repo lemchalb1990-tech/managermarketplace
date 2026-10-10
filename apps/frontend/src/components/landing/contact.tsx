@@ -36,6 +36,14 @@ export function scheduleHref(c: Contact | null): string | null {
   return null;
 }
 
+/** Solicitud de la versión de prueba: WhatsApp o correo con el mensaje listo. */
+export function trialHref(c: Contact | null): string | null {
+  if (!c) return null;
+  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero solicitar la versión de prueba de Admin Marketplace.");
+  if (c.email) return mail(c.email, "Solicitud de versión de prueba");
+  return c.scheduleUrl;
+}
+
 /** Link de contacto: WhatsApp; si no hay, correo; si no, la agenda. */
 export function contactHref(c: Contact | null): string | null {
   if (!c) return null;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { contactHref, useContact } from "./contact";
+import { contactHref, trialHref, useContact } from "./contact";
 
 export type PublicPlan = {
   id: string;
@@ -54,7 +54,9 @@ function Check() {
 export function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [annual, setAnnual] = useState(false);
   // "Conversemos" (plan a medida) va al contacto configurado; si no hay, al panel.
-  const talk = contactHref(useContact());
+  const contact = useContact();
+  const talk = contactHref(contact);
+  const trialLink = trialHref(contact);
   const trial = plans.find((p) => p.isTrial);
   const paid = plans.filter((p) => !p.isTrial);
   // Se destaca el plan del medio (el más elegido en la propuesta comercial).
@@ -144,8 +146,9 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
             </p>
             <p className="mt-1 text-[15px] text-[#02093a]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
           </div>
-          <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
-            Empezar la prueba
+          <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
+            Solicitar versión de prueba
           </Link>
         </div>
       )}
