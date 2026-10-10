@@ -30,8 +30,8 @@ function PosLogo() {
   );
 }
 
-function ChannelCard({ ch, logo, stock, active, side }: {
-  ch: Channel; logo: ReactNode; stock: number; active: boolean; side: "left" | "right";
+function ChannelCard({ ch, logo, stock, active }: {
+  ch: Channel; logo: ReactNode; stock: number; active: boolean;
 }) {
   return (
     <div className={`relative flex items-center gap-2.5 rounded-[10px] bg-white px-2.5 py-2 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
@@ -50,14 +50,14 @@ function ChannelCard({ ch, logo, stock, active, side }: {
           Vendido −1
         </span>
       )}
-      {/* Conector hacia el producto (solo en escritorio) */}
-      <span className={`pointer-events-none absolute top-1/2 hidden h-px w-6 lg:block ${side === "left" ? "-right-6" : "-left-6"} ${active ? "lp-wire bg-[#0075de]" : "bg-black/15"}`} />
+      {/* Conector hacia el producto (cuando los canales van en columna al lado) */}
+      <span className={`pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 xl:block ${active ? "lp-wire bg-[#0075de]" : "bg-black/15"}`} />
     </div>
   );
 }
 
 /** Escena del inicio: una venta en cualquier canal descuenta el stock y lo publica en todos. */
-export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; phone: ReactNode }) {
+export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -72,16 +72,12 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
   const active = activeIdx >= 0 ? CHANNELS[activeIdx] : null;
   const logoOf = (k: string) => (k === "pos" ? <PosLogo /> : logos[k]);
 
-  const left = CHANNELS.slice(0, 3);
-  const right = CHANNELS.slice(3);
-
   return (
-    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-8 lg:p-10">
+    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-6">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
-      <div className="relative grid items-center gap-6 md:grid-cols-[1fr_210px] lg:grid-cols-[1fr_240px] lg:gap-10">
-        <div className="grid gap-3 lg:grid-cols-[1fr_minmax(0,1.3fr)_1fr] lg:items-center lg:gap-6">
-          {/* Producto al centro (primero en el celular) */}
-          <div className="lp-shot order-first rounded-[12px] bg-white p-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:p-5" style={{ border: LINE }}>
+      <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-center xl:gap-5">
+          {/* Producto */}
+          <div className="lp-shot rounded-[12px] bg-white p-4" style={{ border: LINE }}>
             <div className="flex items-center justify-between gap-2 text-[11px]">
               <span className="rounded-full bg-[#f6f5f4] px-2 py-0.5 font-medium text-[#615d59]">Bodega Centro</span>
               <span className="flex items-center gap-1.5 font-medium text-[#15803d]">
@@ -95,7 +91,7 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
             <div className="relative mt-3 overflow-hidden rounded-[10px] bg-[#f6f5f4]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/landing/products/zapatillas-blancas-ancha.jpg" alt="" width={960} height={640}
-                className="aspect-[3/2] w-full object-cover" fetchPriority="high" />
+                className="aspect-[16/10] w-full object-cover" fetchPriority="high" />
               {/* Aviso de venta flotando sobre la foto (siempre dentro del recuadro) */}
               {active && (
                 <div key={`sale-${step}`} className="lp-slide absolute inset-x-2 top-2 sm:inset-x-auto sm:left-3 sm:top-3 sm:max-w-[85%]">
@@ -120,7 +116,7 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
                 <p className="text-[12px] text-[#757575]">Stock en todos los canales</p>
-                <p key={stock} className="lp-pop text-[56px] font-semibold leading-none tracking-[-0.04em] tabular-nums sm:text-[64px]">{stock}</p>
+                <p key={stock} className="lp-pop text-[48px] font-semibold leading-none tracking-[-0.04em] tabular-nums">{stock}</p>
               </div>
               <div className="pb-1 text-right text-[11px] leading-snug text-[#615d59]">
                 <p><span className="font-semibold text-black">6</span> canales</p>
@@ -156,22 +152,12 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 lg:col-start-1 lg:row-start-1 lg:grid-cols-1 lg:gap-3">
-            {left.map((ch) => (
-              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} side="left" />
+          {/* Canales: en columna al lado del producto en pantallas anchas */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1 xl:gap-2.5">
+            {CHANNELS.map((ch) => (
+              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} />
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 lg:col-start-3 lg:row-start-1 lg:grid-cols-1 lg:gap-3">
-            {right.map((ch) => (
-              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} side="right" />
-            ))}
-          </div>
-        </div>
-
-        {/* Teléfono al lado (tablet y escritorio) */}
-        <div className="hidden justify-center md:flex">
-          <div className="origin-center scale-[0.82] lg:scale-[0.92]">{phone}</div>
-        </div>
       </div>
     </div>
   );
