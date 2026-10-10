@@ -16,11 +16,11 @@ function Card({ title, text, dark = false, className = "", children }: {
   title: string; text: string; dark?: boolean; className?: string; children: ReactNode;
 }) {
   return (
-    <div className={`relative flex flex-col overflow-hidden rounded-[12px] p-5 ${dark ? "text-white" : "bg-white"} ${className}`}
+    <div className={`relative flex flex-col overflow-hidden rounded-[12px] p-4 sm:p-5 ${dark ? "text-white" : "bg-white"} ${className}`}
       style={dark ? { background: NAVY } : { border: LINE }}>
-      <p className={`font-bold tracking-[-0.015em] ${dark ? "text-[24px] leading-[1.15] sm:text-[28px]" : "text-[19px] leading-[1.25]"}`}>{title}</p>
-      <p className={`mt-1.5 text-[14px] leading-[1.5] ${dark ? "text-white/65" : "text-[#615d59]"}`}>{text}</p>
-      <div className="mt-4 flex flex-1 flex-col justify-end">{children}</div>
+      <p className={`font-bold tracking-[-0.015em] ${dark ? "text-[22px] leading-[1.15]" : "text-[17px] leading-[1.25]"}`}>{title}</p>
+      <p className={`mt-1 text-[13px] leading-[1.45] ${dark ? "text-white/65" : "text-[#615d59]"}`}>{text}</p>
+      <div className="mt-3 flex-1">{children}</div>
     </div>
   );
 }
@@ -47,9 +47,9 @@ function StockDemo() {
         </div>
         <span key={stock} className="lp-pop font-mono text-[34px] font-semibold leading-none tabular-nums">{stock}</span>
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-3 flex flex-wrap gap-1">
         {channels.map((c, i) => (
-          <span key={`${c}-${n}`} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] ${i === hit ? "lp-pop bg-[#0075de] text-white" : "bg-[#f6f5f4] text-[#615d59]"}`}>
+          <span key={`${c}-${n}`} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${i === hit ? "lp-pop bg-[#0075de] text-white" : "bg-[#f6f5f4] text-[#615d59]"}`}>
             {c} <span className="font-mono font-semibold tabular-nums">{stock}</span>
           </span>
         ))}
@@ -82,10 +82,10 @@ function OrdersDemo() {
           </button>
         ))}
       </div>
-      <ul className="mt-2 min-h-[176px] space-y-1.5">
+      <ul className="mt-2 min-h-[148px] space-y-1">
         {list.map((o) => (
-          <li key={o.n} className="lp-slide flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ border: LINE }}>
-            <Photo src={o.img} className="h-8 w-8" />
+          <li key={o.n} className="lp-slide flex items-center gap-2 rounded-lg px-2 py-1" style={{ border: LINE }}>
+            <Photo src={o.img} className="h-7 w-7" />
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{o.n} · {o.c}</span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${o.late ? "bg-red-50 text-red-600" : "bg-[#f6f5f4] text-[#615d59]"}`}>
               {o.late ? "Atrasado" : `Corte ${o.t}`}
@@ -186,7 +186,7 @@ function PhotoAiDemo() {
       <p className="text-[12px] text-[#757575]">Título: <span className="font-medium text-black">Zapatillas urbanas blancas</span></p>
       <div className="relative mt-2 overflow-hidden rounded-lg" style={{ border: LINE }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={wrong ? PRODUCT_IMG.jockey : PRODUCT_IMG.zapatillas} alt="" className="aspect-[5/2] w-full object-cover" />
+        <img src={wrong ? PRODUCT_IMG.jockey : PRODUCT_IMG.zapatillas} alt="" className="aspect-[3/1] w-full object-cover" />
         {scanning && <span className="lp-scan pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[#0075de]/35 to-transparent" />}
         {!scanning && (
           <span className={`lp-slide absolute bottom-2 left-2 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white ${wrong ? "bg-red-600" : "bg-green-600"}`}>
@@ -213,8 +213,8 @@ function ClaimDemo() {
   }, [answered]);
   const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-3" style={{ border: LINE }}>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex min-w-0 items-center gap-3 rounded-lg p-2.5" style={{ border: LINE }}>
         <Photo src={PRODUCT_IMG.mochila} className="h-12 w-12" />
         <div className="min-w-0">
           <p className="text-[12px] text-[#757575]">Reclamo N° 5284019 · Mercado Libre</p>
@@ -222,10 +222,10 @@ function ClaimDemo() {
         </div>
       </div>
       {answered ? (
-        <span className="lp-slide rounded-lg bg-green-50 px-4 py-3 text-[13px] font-semibold text-green-700">✓ Respondido a tiempo</span>
+        <span className="lp-slide rounded-lg bg-green-50 px-4 py-3 text-center text-[13px] font-semibold text-green-700">✓ Respondido a tiempo</span>
       ) : (
-        <>
-          <div className="rounded-lg bg-[#02093a] px-4 py-2 text-white">
+        <div className="flex gap-2.5">
+          <div className="flex-1 rounded-lg bg-[#02093a] px-4 py-2 text-white">
             <p className="text-[11px] text-white/60">Tiempo para responder</p>
             <p className="font-mono text-[18px] font-semibold tabular-nums">{d}d {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}</p>
           </div>
@@ -233,7 +233,7 @@ function ClaimDemo() {
             className="rounded-lg bg-[#02093a] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
             Responder
           </button>
-        </>
+        </div>
       )}
     </div>
   );
@@ -242,16 +242,9 @@ function ClaimDemo() {
 /** Beneficios con menos texto: cada tarjeta se entiende probándola. */
 export function Benefits() {
   return (
-    <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-3 lg:mt-10">
+    <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-2 lg:mt-10 lg:grid-cols-4">
       <Card dark className="md:col-span-2" title="Nunca vendes lo que no tienes" text="Una venta descuenta el stock en todos tus canales.">
-        <div className="grid gap-4 md:grid-cols-[1fr_1.1fr] md:items-end">
-          <ul className="hidden space-y-2 text-[14px] text-white/80 md:block">
-            {["Stock por bodega", "Se publica solo en cada canal", "Sin cancelaciones por quiebre"].map((t) => (
-              <li key={t} className="flex items-center gap-2"><span className="text-[#62aef0]">✓</span>{t}</li>
-            ))}
-          </ul>
-          <StockDemo />
-        </div>
+        <StockDemo />
       </Card>
       <Card title="Pedidos en una lista" text="Por transportista y hora de corte.">
         <OrdersDemo />
@@ -259,13 +252,13 @@ export function Benefits() {
       <Card title="Boleta automática" text="Se emite en el mismo paso de la venta.">
         <InvoiceDemo />
       </Card>
-      <Card title="Ganancia real" text="Neto, comisión, envío y costo por venta.">
+      <Card title="Ganancia real" text="Neto, comisión, envío y costo.">
         <ProfitDemo />
       </Card>
       <Card title="Fotos revisadas con IA" text="Antes de publicar en Mercado Libre.">
         <PhotoAiDemo />
       </Card>
-      <Card className="md:col-span-3" title="Reclamos sin perder plazos" text="Cada reclamo con su fecha límite y la respuesta desde el panel.">
+      <Card className="md:col-span-2" title="Reclamos sin perder plazos" text="Cada reclamo con su fecha límite.">
         <ClaimDemo />
       </Card>
     </div>
