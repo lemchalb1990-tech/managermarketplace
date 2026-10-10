@@ -91,6 +91,17 @@ export async function apiUploadForm<T>(
   return res.json();
 }
 
+export type CourierConnectionInfo = {
+  id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
+  settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
+};
+export type CourierShipmentInfo = {
+  id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; trackingNumber: string; serviceName: string | null;
+  price: string | null; labelUrl: string | null; status: 'CREATED' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'EXCEPTION' | 'CANCELLED';
+  statusText: string | null; events: Array<{ date: string; description: string; location?: string | null }> | null;
+  lastSyncAt: string | null; createdAt: string;
+};
+
 export const imgUrl = (path: string) => /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
 
 // Algunos proveedores DTE (ej. Facto) devuelven el PDF/XML embebido como data: URI en vez
@@ -1328,6 +1339,25 @@ export const api = {
       apiFetch<any>(`/profitability/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     remove: (id: string, token: string) =>
       apiFetch<any>(`/profitability/${id}`, { method: 'DELETE' }, token),
+  },
+  // Couriers (Chilexpress, Starken, Blue Express): conexiones por empresa y envíos de órdenes.
+  couriers: {
+    connections: (token: string, companyId?: string) =>
+      apiFetch<CourierConnectionInfo[]>(`/couriers/connections${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    save: (provider: string, data: { companyId?: string; credentials?: Record<string, string>; settings?: Record<string, unknown>; active?: boolean }, token: string) =>
+      apiFetch<CourierConnectionInfo>(`/couriers/connections/${provider}`, { method: 'PUT', body: JSON.stringify(data) }, token),
+    remove: (provider: string, token: string, companyId?: string) =>
+      apiFetch<any>(`/couriers/connections/${provider}${companyId ? `?companyId=${companyId}` : ''}`, { method: 'DELETE' }, token),
+    test: (provider: string, token: string, companyId?: string) =>
+      apiFetch<{ ok: boolean; message: string }>(`/couriers/connections/${provider}/test${companyId ? `?companyId=${companyId}` : ''}`, { method: 'POST' }, token),
+    orderShipments: (orderId: string, token: string) => apiFetch<CourierShipmentInfo[]>(`/couriers/orders/${orderId}/shipments`, {}, token),
+    quote: (orderId: string, body: { destination?: Record<string, string>; package?: Record<string, number | string> }, token: string) =>
+      apiFetch<Array<{ provider: string; name: string; options: Array<{ serviceCode: string; serviceName: string; price: number | null; days?: string | null }>; error: string | null }>>(
+        `/couriers/orders/${orderId}/quote`, { method: 'POST', body: JSON.stringify(body) }, token),
+    createShipment: (orderId: string, body: { provider: string; serviceCode?: string; price?: number | null; destination?: Record<string, string>; package?: Record<string, number | string> }, token: string) =>
+      apiFetch<CourierShipmentInfo>(`/couriers/orders/${orderId}/shipments`, { method: 'POST', body: JSON.stringify(body) }, token),
+    refresh: (shipmentId: string, token: string) =>
+      apiFetch<CourierShipmentInfo>(`/couriers/shipments/${shipmentId}/refresh`, { method: 'POST' }, token),
   },
   dropshipping: {
     suppliers: {

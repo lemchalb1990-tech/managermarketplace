@@ -9,6 +9,7 @@ import { confirmDialog, alertDialog } from '../../ConfirmDialog';
 import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
+import OrderCourierCard from './OrderCourierCard';
 import { SkeletonDetail } from '@/components/Skeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
@@ -963,6 +964,17 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                 )}
               </div>
             </div>
+          )}
+
+          {/* Envío con courier (Chilexpress, Starken, Blue Express): solo despachos que no gestiona el marketplace */}
+          {isDelivery && !['MERCADO_LIBRE', 'FALABELLA', 'PARIS', 'RIPLEY', 'WALMART', 'HITES'].includes(order.sale?.channel) && (
+            <OrderCourierCard
+              orderId={order.id}
+              companyId={currentUser?.role === 'SUPER_ADMIN' ? order.companyId : undefined}
+              canCreate={order.status !== 'CANCELLED' && order.status !== 'DELIVERED'}
+              fmtDateTime={(d) => fmtDateTime(d)}
+              onChanged={() => { api.orders.get(id, getToken()!).then(setOrder).catch(() => {}); }}
+            />
           )}
 
           {/* Costos de la venta (solo administradores: muestra comisiones, costos y ganancia) */}

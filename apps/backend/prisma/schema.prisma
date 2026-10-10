@@ -224,6 +224,8 @@ model Company {
   financeRecurrings       FinanceRecurring[]
 
   @@map("companies")
+  courierConnections CourierConnection[]
+  courierShipments   CourierShipment[]
 }
 
 // Perfil de acceso: rol con nombre + lista de permisos por página.
@@ -1489,6 +1491,7 @@ model Order {
 
   @@index([companyId, status, prepStage])
   photos     ShipmentPhoto[]
+  courierShipments CourierShipment[]
   routeStop  RouteStop?
   statusEvents OrderStatusEvent[]
 
@@ -1501,6 +1504,7 @@ enum OrderEventSource {
   SYSTEM        // acción automática del sistema (p.ej. ruta de despacho)
   MERCADO_LIBRE // estado informado por Mercado Libre (envío/orden)
   MARKETPLACE   // estado informado por Walmart, Ripley, Paris o Falabella
+  COURIER       // estado informado por un courier (Chilexpress, Starken, Blue Express)
 }
 
 // Historial de seguimiento de una orden: cambios de estado internos y eventos del envío
@@ -2196,4 +2200,71 @@ model SubscriptionPlan {
   companies                Company[]
 
   @@map("subscription_plans")
+}
+
+// ── Couriers (Chilexpress, Starken, Blue Express) ────────────────────────────
+
+enum CourierProvider {
+  CHILEXPRESS
+  STARKEN
+  BLUEXPRESS
+}
+
+enum CourierShipmentStatus {
+  CREATED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  CANCELLED
+}
+
+// Cuenta de una empresa con un courier: credenciales (nunca se devuelven al navegador) y datos
+// del remitente / paquete por defecto (settings).
+model CourierConnection {
+  id          String          @id @default(cuid())
+  provider    CourierProvider
+  active      Boolean         @default(true)
+  credentials Json?
+  settings    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  shipments CourierShipment[]
+
+  @@unique([companyId, provider])
+  @@map("courier_connections")
+}
+
+// Envío creado con un courier para una orden: número de seguimiento, etiqueta y estado.
+model CourierShipment {
+  id             String                @id @default(cuid())
+  provider       CourierProvider
+  trackingNumber String
+  serviceName    String?
+  price          Decimal?              @db.Decimal(10, 2)
+  labelUrl       String?
+  status         CourierShipmentStatus @default(CREATED)
+  statusText     String?
+  events         Json?
+  weight         Decimal?              @db.Decimal(8, 2)
+  lastSyncAt     DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  orderId      String
+  order        Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   CourierConnection @relation(fields: [connectionId], references: [id])
+  createdById  String?
+
+  @@unique([provider, trackingNumber])
+  @@index([companyId, status])
+  @@index([orderId])
+  @@map("courier_shipments")
 }

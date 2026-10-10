@@ -34,6 +34,7 @@ import { WarehouseFlowModule } from './warehouse/warehouse.module';
 import { ReturnsModule } from './returns/returns.module';
 import { DriversModule } from './drivers/drivers.module';
 import { DropshippingModule } from './dropshipping/dropshipping.module';
+import { CouriersModule } from './couriers/couriers.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
     ReturnsModule,
     DriversModule,
     DropshippingModule,
+    CouriersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
