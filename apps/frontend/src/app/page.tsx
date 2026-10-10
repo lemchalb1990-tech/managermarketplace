@@ -124,14 +124,29 @@ const WRAP = "w-full px-4 sm:px-6 lg:px-12 2xl:px-20";
 const BAND = "py-16 lg:py-20";
 
 /** Encabezado de sección: título a la izquierda y bajada a la derecha en escritorio. */
-function SectionHead({ label, title, lead, dark = false }: { label?: string; title: string; lead?: string; dark?: boolean }) {
+// points: frases cortas con check bajo la bajada (opcional).
+function SectionHead({ label, title, lead, points, dark = false }: { label?: string; title: ReactNode; lead?: string; points?: string[]; dark?: boolean }) {
   return (
     <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-16">
       <div>
         {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
         <h2 className="lp-h2 mt-3 max-w-[20ch] text-balance">{title}</h2>
       </div>
-      {lead && <p className={`lp-lead max-w-[46ch] text-pretty ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
+      {(lead || points) && (
+        <div>
+          {lead && <p className={`lp-lead max-w-[46ch] text-pretty ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
+          {points && (
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {points.map((t) => (
+                <li key={t} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ${dark ? "bg-white/10 text-white" : "bg-white text-[#02093a]"}`}
+                  style={dark ? undefined : { border: "1px solid rgba(2,9,58,0.08)" }}>
+                  <span className="text-[#0075de]"><Icon d={ICONS.check} size={14} /></span>{t}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -250,8 +265,10 @@ export default async function Home() {
         {/* Beneficios */}
         <section id="beneficios" className={BAND}>
           <div className={WRAP}>
-            <SectionHead label="Beneficios" title="Vende tranquilo: nunca más una venta sin stock"
-              lead="Cada venta descuenta en todos tus canales al instante, para que no tengas que cancelar pedidos ni perder reputación." />
+            <SectionHead label="Beneficios"
+              title={<>Vende tranquilo, <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sin quiebres</span> de stock</>}
+              lead="Cada venta se descuenta al instante en todos tus canales."
+              points={["Cero pedidos cancelados", "Reputación protegida", "Stock al día en cada canal"]} />
             <Benefits />
           </div>
         </section>
