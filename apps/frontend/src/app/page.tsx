@@ -9,6 +9,7 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
+import { BeforeAfter } from "@/components/landing/before-after";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
@@ -89,24 +90,6 @@ async function getPublicPlans(): Promise<PublicPlan[]> {
 
 /* ── Contenido ─────────────────────────────────────────────────────────────── */
 
-const BEFORE_AFTER: Array<[string, string]> = [
-  [
-    "Vendes en Falabella y corres a bajar el stock en Mercado Libre, Paris y Ripley antes de que alguien compre lo que ya no tienes.",
-    "La venta descuenta de la bodega que corresponde y el stock nuevo se publica solo en el resto de los canales.",
-  ],
-  [
-    "Los pedidos del día están repartidos en cuatro Seller Center y te enteras del atrasado cuando llega el reclamo.",
-    "Todos los pedidos en una lista, agrupados por transportista y ordenados por hora de corte. Los atrasados salen en rojo.",
-  ],
-  [
-    "Copias los datos de cada venta a otro sistema para emitir la boleta.",
-    "La boleta o factura sale en el mismo paso, con tu proveedor: OpenFactura, Facto, Bsale, Nubox y otros.",
-  ],
-  [
-    "El marketplace te muestra el total, pero no sabes cuánto te quedó después de comisión, envío e IVA.",
-    "Cada venta importada trae el neto sin IVA y la ganancia contra el costo del producto.",
-  ],
-];
 
 /* ── Versión móvil ────────────────────────────────────────────────────────── */
 
@@ -337,27 +320,10 @@ export default async function Home() {
         <section className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <div className="relative">
-              <h2 className="lp-h2 ui-reveal max-w-[20ch] text-balance">
+              <h2 className="lp-h2 ui-reveal mx-auto max-w-[20ch] text-balance text-center">
                 Lo que deja de pasarte en el día a día
               </h2>
-              <div className="mt-8 hidden grid-cols-2 gap-10 pb-3 text-[14px] font-semibold text-[#615d59] md:grid">
-                <p>Hoy</p>
-                <p className="text-[#0075de]">Con el panel</p>
-              </div>
-              <ol className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
-                {BEFORE_AFTER.map(([before, after], i) => (
-                  <li key={i} className="ui-reveal grid gap-2 py-4 md:grid-cols-2 md:gap-10">
-                    <p className="text-[16px] leading-[1.5] text-[#615d59]">
-                      <span className="mr-2 font-medium md:hidden">Hoy:</span>
-                      {before}
-                    </p>
-                    <p className="text-[16px] leading-[1.5]">
-                      <span className="mr-2 font-medium text-[#0075de] md:hidden">Con el panel:</span>
-                      {after}
-                    </p>
-                  </li>
-                ))}
-              </ol>
+              <BeforeAfter />
             </div>
           </div>
         </section>
