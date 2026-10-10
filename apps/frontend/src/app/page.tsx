@@ -9,6 +9,7 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { RemoteLogo } from "@/components/landing/remote-logo";
+import type { LogoView } from "@/lib/platformLogos";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
@@ -74,11 +75,11 @@ function LogoChip({ node }: { node: ReactNode }) {
   );
 }
 
-type LogoMap = Record<string, { logoUrl: string | null; logoScale?: number } | undefined>;
+type LogoMap = Record<string, { logoUrl: string | null; logoScale?: number; logoScales?: Record<string, number> | null } | undefined>;
 
 // Usa el logo registrado en el panel; si el servidor no lo trajo, lo pide el navegador.
-function resolveLogoNode(map: LogoMap, key: string, fallback: ReactNode): ReactNode {
-  return <RemoteLogo platform={key} initialUrl={map[key]?.logoUrl} initialScale={map[key]?.logoScale} fallback={fallback} />;
+function resolveLogoNode(map: LogoMap, key: string, fallback: ReactNode, view: LogoView = "icon"): ReactNode {
+  return <RemoteLogo platform={key} initial={map[key]} view={view} fallback={fallback} />;
 }
 
 function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
@@ -87,7 +88,7 @@ function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
     <div className="marquee-mask group overflow-hidden">
       <div className="flex w-max gap-7 py-1 animate-marquee group-hover:[animation-play-state:paused]">
         {loop.map((k, i) => (
-          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
+          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k], "strip")} />
         ))}
       </div>
     </div>
@@ -340,8 +341,8 @@ export default async function Home() {
             {/* Derecha: escena animada */}
             <div className="ui-enter-panel min-w-0 text-left" style={{ ["--d" as string]: "240ms" }} aria-hidden="true">
               <HeroScene
-                logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart", "shopify"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
-                billingLogo={resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura)}
+                logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart", "shopify"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k], "circle")]))}
+                billingLogo={resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura, "circle")}
               />
             </div>
           </div>

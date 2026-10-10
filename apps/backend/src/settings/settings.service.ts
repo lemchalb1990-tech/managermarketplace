@@ -220,7 +220,18 @@ export class SettingsService implements OnModuleInit {
     return this.prisma.platformSetting.findMany({ orderBy: { platform: 'asc' } });
   }
 
-  async upsertPlatformSetting(platform: string, data: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number }) {
+  async upsertPlatformSetting(platform: string, input: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number> }) {
+    const { logoScales, ...rest } = input;
+    const data: Record<string, unknown> = { ...rest };
+    if (logoScales !== undefined) {
+      // Solo vistas conocidas y valores dentro del rango que permite el editor.
+      const clean: Record<string, number> = {};
+      for (const view of ['panel', 'circle', 'strip', 'login', 'icon']) {
+        const v = Number(logoScales?.[view]);
+        if (Number.isFinite(v)) clean[view] = Math.min(250, Math.max(30, Math.round(v)));
+      }
+      data.logoScales = clean;
+    }
     return this.prisma.platformSetting.upsert({
       where: { platform },
       update: { ...data, updatedAt: new Date() },

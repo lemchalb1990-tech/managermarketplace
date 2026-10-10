@@ -120,7 +120,7 @@ export default function DropshippingPage() {
 
   const logoMap = usePlatformLogos();
   const [editingLogoKey, setEditingLogoKey] = useState<string | null>(null);
-  const [logoForm, setLogoForm] = useState({ displayName: '', logoUrl: '', logoScale: 100 });
+  const [logoForm, setLogoForm] = useState({ displayName: '', logoUrl: '', logoScale: 100, logoScales: null as Record<string, number> | null });
   const [logoSaving, setLogoSaving] = useState(false);
   const [logoError, setLogoError] = useState('');
 
@@ -235,7 +235,7 @@ export default function DropshippingPage() {
     const key = CONNECTOR_LOGO_KEY[connectorType];
     if (!key) return;
     const current = logoMap[key];
-    setLogoForm({ displayName: current?.displayName || '', logoUrl: current?.logoUrl || '', logoScale: current?.logoScale || 100 });
+    setLogoForm({ displayName: current?.displayName || '', logoUrl: current?.logoUrl || '', logoScale: current?.logoScale || 100, logoScales: current?.logoScales || null });
     setLogoError('');
     setEditingLogoKey(key);
   }
@@ -249,6 +249,7 @@ export default function DropshippingPage() {
         displayName: logoForm.displayName.trim() || undefined,
         logoUrl: logoForm.logoUrl.trim() || undefined,
         logoScale: logoForm.logoScale,
+        logoScales: logoForm.logoScales || undefined,
       }, token());
       invalidatePlatformLogosCache();
       setEditingLogoKey(null);
@@ -1084,6 +1085,7 @@ export default function DropshippingPage() {
                   name={logoForm.displayName || 'Proveedor'}
                   logoUrl={logoForm.logoUrl}
                   logoScale={logoForm.logoScale}
+                  logoScales={logoForm.logoScales}
                   onChange={(v) => setLogoForm((f) => ({ ...f, ...v }))}
                 />
                 <p className="text-xs text-gray-400 mt-1">Se muestra en Mis conexiones y en esta tabla en vez del ícono genérico.</p>

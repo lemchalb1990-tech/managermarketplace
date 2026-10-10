@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
-import { invalidatePlatformLogosCache, logoScaleStyle } from '@/lib/platformLogos';
+import { invalidatePlatformLogosCache, logoScaleStyle, viewScale } from '@/lib/platformLogos';
 import { PlatformLogoField } from '@/components/PlatformLogoField';
 import { useAdminCompany } from '../AdminCompanyContext';
 
@@ -87,7 +87,7 @@ function hasModule(user: any, moduleKey: string): boolean {
   return userMods.includes(moduleKey);
 }
 
-const emptyEdit = { displayName: '', description: '', logoUrl: '', logoScale: 100 };
+const emptyEdit = { displayName: '', description: '', logoUrl: '', logoScale: 100, logoScales: null as Record<string, number> | null };
 
 export default function EcommercePage() {
   const { selectedCompanyId } = useAdminCompany();
@@ -141,6 +141,7 @@ export default function EcommercePage() {
       description: c?.description || '',
       logoUrl: c?.logoUrl || '',
       logoScale: c?.logoScale || 100,
+      logoScales: c?.logoScales || null,
     });
     setEditingId(id);
     setSaveError('');
@@ -157,6 +158,7 @@ export default function EcommercePage() {
         description: editForm.description.trim() || undefined,
         logoUrl: editForm.logoUrl.trim() || undefined,
         logoScale: editForm.logoScale,
+        logoScales: editForm.logoScales || undefined,
       }, token);
       setCustomSettings((prev) => ({ ...prev, [editingId]: updated }));
       invalidatePlatformLogosCache();
@@ -176,6 +178,7 @@ export default function EcommercePage() {
       displayDescription: c?.description || p.description,
       logoUrl: c?.logoUrl || null,
       logoScale: c?.logoScale || 100,
+      logoScales: c?.logoScales || null,
     };
   });
 
@@ -215,7 +218,7 @@ export default function EcommercePage() {
                 <div className="flex justify-center mb-4">
                   <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
                     {p.logoUrl
-                      ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" style={logoScaleStyle(p.logoScale)} />
+                      ? <img src={p.logoUrl} alt={p.displayName} className="w-full h-full object-contain" style={logoScaleStyle(viewScale(p, 'panel'))} />
                       : Logos[p.id]}
                   </div>
                 </div>
@@ -281,6 +284,7 @@ export default function EcommercePage() {
                   name={editForm.displayName || DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.name || ''}
                   logoUrl={editForm.logoUrl}
                   logoScale={editForm.logoScale}
+                  logoScales={editForm.logoScales}
                   fallback={Logos[editingId]}
                   onChange={(v) => setEditForm((f) => ({ ...f, ...v }))}
                 />

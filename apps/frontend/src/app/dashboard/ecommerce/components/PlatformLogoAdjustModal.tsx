@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Modal, btnPrimary, btnSecondary, labelCls, FormError } from '@/components/ui/Modal';
-import { logoScaleStyle } from '@/lib/platformLogos';
+import { logoScaleStyle, type LogoView } from '@/lib/platformLogos';
+
+export const LOGO_VIEWS: LogoView[] = ['panel', 'circle', 'strip', 'login', 'icon'];
 
 // Lado mayor del PNG que se sube: de sobra para los tamaños en que se muestra un logo.
 const MAX_SIDE = 600;
@@ -78,49 +80,52 @@ async function renderArea(src: string, area: Area): Promise<HTMLCanvasElement> {
 }
 
 // Vista previa del logo en cada lugar donde se muestra, a escala real de pantalla.
-function Previews({ src, scale, name }: { src: string | null; scale: number; name: string }) {
-  const logo = src
+// Cada vista tiene su control de tamaño debajo de la vista previa.
+function Previews({ src, scales, onScale, name }: {
+  src: string | null; scales: Record<LogoView, number>; onScale: (view: LogoView, value: number) => void; name: string;
+}) {
+  const logoFor = (view: LogoView) => (src
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img src={src} alt="" className="h-full w-full object-contain" style={logoScaleStyle(scale)} />
-    : <span className="grid h-full w-full place-items-center text-[10px] text-gray-400">Sin logo</span>;
-  const item = (label: string, node: ReactNode) => (
+    ? <img src={src} alt="" className="h-full w-full object-contain" style={logoScaleStyle(scales[view])} />
+    : <span className="grid h-full w-full place-items-center text-[10px] text-gray-400">Sin logo</span>);
+  const item = (view: LogoView, label: string, render: (logo: ReactNode) => ReactNode) => (
     <div className="flex flex-col items-center gap-1.5">
       <span className="text-[10px] text-gray-400">{label}</span>
-      {node}
+      <div className="flex h-24 items-center">{render(logoFor(view))}</div>
+      <div className="flex w-full max-w-[150px] items-center gap-1.5">
+        <input type="range" min={30} max={250} step={5} value={scales[view]} aria-label={`Tamaño en ${label}`}
+          onChange={(e) => onScale(view, Number(e.target.value))} className="min-w-0 flex-1 accent-blue-600" />
+        <span className="w-9 text-right font-mono text-[10px] text-gray-500">{scales[view]}%</span>
+      </div>
     </div>
   );
   return (
     <div className="grid grid-cols-2 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:grid-cols-3">
-      {item('Panel · tarjeta', (
+      {item('panel', 'Panel · tarjeta', (logo) => (
         <div className="rounded-xl border border-gray-200 bg-white p-3 text-center">
           <div className="mx-auto h-16 w-24 overflow-hidden rounded-lg">{logo}</div>
           <p className="mt-1.5 max-w-[96px] truncate text-[11px] font-semibold">{name}</p>
         </div>
       ))}
-      {item('Inicio · círculo', (
+      {item('circle', 'Inicio · círculo', (logo) => (
         <div className="relative h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm">
           <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover [&>img]:rounded-full">{logo}</span>
         </div>
       ))}
-      {item('Inicio · cinta de logos', (
+      {item('strip', 'Inicio · cinta de logos', (logo) => (
         <div className="h-[72px] w-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm [&>img]:object-cover">
           {logo}
         </div>
       ))}
-      {item('Login', (
+      {item('login', 'Login', (logo) => (
         <div className="relative h-12 w-12 overflow-hidden rounded-full border-2 border-amber-400 bg-white">
           <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover [&>img]:rounded-full">{logo}</span>
         </div>
       ))}
-      {item('Ícono pequeño', (
+      {item('icon', 'Ícono pequeño', (logo) => (
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
           <span className="h-6 w-9 overflow-hidden rounded">{logo}</span>
           <span className="text-[11px] font-medium">{name}</span>
-        </div>
-      ))}
-      {item('Fondo oscuro', (
-        <div className="grid h-16 w-24 place-items-center rounded-lg bg-[#02093a] p-2">
-          <span className="h-full w-full overflow-hidden rounded bg-white">{logo}</span>
         </div>
       ))}
     </div>
@@ -131,13 +136,15 @@ function Previews({ src, scale, name }: { src: string | null; scale: number; nam
  * Ajuste del logo de una plataforma (igual que "Ajustar logo" de la empresa): recorte y zoom,
  * quitar bordes, tamaño, y vista previa en el panel, la página de inicio y el login.
  */
-export default function PlatformLogoAdjustModal({ src: initialSrc, scale: initialScale, name, onClose, onConfirm }: {
+export default function PlatformLogoAdjustModal({ src: initialSrc, scale: initialScale, scales: initialScales, name, onClose, onConfirm }: {
   src: string;
   scale: number;
+  scales?: Record<string, number> | null;
   name: string;
   onClose: () => void;
-  // file: imagen recortada para subir (null si no se tocó el recorte); scale: tamaño en %.
-  onConfirm: (result: { file: File | null; scale: number }) => Promise<void>;
+  // file: imagen recortada para subir (null si no se tocó el recorte); scale: tamaño general;
+  // scales: tamaño de cada vista.
+  onConfirm: (result: { file: File | null; scale: number; scales: Record<LogoView, number> }) => Promise<void>;
 }) {
   const [src, setSrc] = useState(initialSrc);
   const [aspect, setAspect] = useState<number | null>(null);
@@ -146,6 +153,13 @@ export default function PlatformLogoAdjustModal({ src: initialSrc, scale: initia
   const [zoom, setZoom] = useState(1);
   const [area, setArea] = useState<Area | null>(null);
   const [scale, setScale] = useState(initialScale || 100);
+  const [scales, setScales] = useState<Record<LogoView, number>>(() =>
+    Object.fromEntries(LOGO_VIEWS.map((v) => [v, initialScales?.[v] ?? initialScale ?? 100])) as Record<LogoView, number>);
+  // El tamaño general mueve todas las vistas a la vez; después se afina cada una.
+  function setAll(value: number) {
+    setScale(value);
+    setScales(Object.fromEntries(LOGO_VIEWS.map((v) => [v, value])) as Record<LogoView, number>);
+  }
   const [preview, setPreview] = useState<string | null>(initialSrc);
   // Si la imagen viene de otro sitio que no permite leerla, solo se puede ajustar el tamaño.
   const [cropBlocked, setCropBlocked] = useState(false);
@@ -204,7 +218,7 @@ export default function PlatformLogoAdjustModal({ src: initialSrc, scale: initia
         if (!blob) throw new Error('No se pudo generar la imagen.');
         file = new File([blob], 'logo.png', { type: 'image/png' });
       }
-      await onConfirm({ file, scale });
+      await onConfirm({ file, scale, scales });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el logo.');
       setBusy(false);
@@ -280,22 +294,23 @@ export default function PlatformLogoAdjustModal({ src: initialSrc, scale: initia
         <div className="space-y-3">
           <div>
             <label className={`${labelCls} flex items-center justify-between`}>
-              <span>Tamaño del logo</span>
+              <span>Tamaño en todas las vistas</span>
               <span className="font-mono text-gray-500">{scale}%</span>
             </label>
             <input type="range" min={30} max={250} step={5} value={scale}
-              onChange={(e) => setScale(Number(e.target.value))} className="w-full accent-blue-600" />
+              onChange={(e) => setAll(Number(e.target.value))} className="w-full accent-blue-600" />
             <div className="flex items-center justify-between">
-              <p className="text-[11px] text-gray-400">Agranda o achica el logo dentro de su espacio, en todas las vistas.</p>
-              {scale !== 100 && (
-                <button type="button" onClick={() => setScale(100)} className="shrink-0 text-[11px] font-medium text-blue-600 hover:underline">
+              <p className="text-[11px] text-gray-400">Mueve todas a la vez; abajo afinas el tamaño de cada vista por separado.</p>
+              {(scale !== 100 || LOGO_VIEWS.some((v) => scales[v] !== 100)) && (
+                <button type="button" onClick={() => setAll(100)} className="shrink-0 text-[11px] font-medium text-blue-600 hover:underline">
                   Restablecer
                 </button>
               )}
             </div>
           </div>
 
-          <Previews src={preview} scale={scale} name={name} />
+          <Previews src={preview} scales={scales} name={name}
+            onScale={(view, value) => setScales((s) => ({ ...s, [view]: value }))} />
         </div>
       </div>
       <div className="mt-3"><FormError message={error} /></div>

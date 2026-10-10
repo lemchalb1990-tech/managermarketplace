@@ -1421,6 +1421,8 @@ model PlatformSetting {
   logoUrl     String?
   // Tamaño del logo en % (100 = normal): ajusta logos con mucho o poco margen propio.
   logoScale   Int      @default(100)
+  // Tamaño por vista (panel, circle, strip, login, icon), en %; si falta una, usa logoScale.
+  logoScales  Json?
   updatedAt   DateTime @updatedAt
 
   @@map("platform_settings")

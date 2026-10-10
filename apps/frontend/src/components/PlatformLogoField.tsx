@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { api, imgUrl } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { btnSecondary } from '@/components/ui/Modal';
-import { logoScaleStyle } from '@/lib/platformLogos';
+import { logoScaleStyle, viewScale } from '@/lib/platformLogos';
 import PlatformLogoAdjustModal from '@/app/dashboard/ecommerce/components/PlatformLogoAdjustModal';
 
 /**
@@ -12,13 +12,14 @@ import PlatformLogoAdjustModal from '@/app/dashboard/ecommerce/components/Platfo
  * empresa: se sube el archivo, se recorta/ajusta con vista previa y se puede quitar.
  * El cambio queda en el formulario; se guarda con el botón Guardar de quien lo usa.
  */
-export function PlatformLogoField({ platform, name, logoUrl, logoScale, fallback, onChange }: {
+export function PlatformLogoField({ platform, name, logoUrl, logoScale, logoScales, fallback, onChange }: {
   platform: string;
   name: string;
   logoUrl: string;
   logoScale: number;
+  logoScales?: Record<string, number> | null;
   fallback?: ReactNode;
-  onChange: (v: { logoUrl: string; logoScale: number }) => void;
+  onChange: (v: { logoUrl: string; logoScale: number; logoScales: Record<string, number> | null }) => void;
 }) {
   const [adjust, setAdjust] = useState<{ src: string; objectUrl: boolean } | null>(null);
   const [error, setError] = useState('');
@@ -44,7 +45,7 @@ export function PlatformLogoField({ platform, name, logoUrl, logoScale, fallback
         <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={imgUrl(logoUrl)} alt="Logo" className="h-full w-full object-contain" style={logoScaleStyle(logoScale)} />
+            <img src={imgUrl(logoUrl)} alt="Logo" className="h-full w-full object-contain" style={logoScaleStyle(viewScale({ logoScale, logoScales }, 'panel'))} />
           ) : fallback ? (
             <span className="h-14 w-20">{fallback}</span>
           ) : (
@@ -62,14 +63,14 @@ export function PlatformLogoField({ platform, name, logoUrl, logoScale, fallback
             </button>
           )}
           {logoUrl && (
-            <button type="button" onClick={() => onChange({ logoUrl: '', logoScale: 100 })}
+            <button type="button" onClick={() => onChange({ logoUrl: '', logoScale: 100, logoScales: null })}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
               Quitar logo
             </button>
           )}
           <span className="w-full text-xs text-gray-400">
             PNG, JPG, WebP o SVG, máx. 5 MB. Al elegirlo podrás recortarlo y ver cómo sale.
-            {logoUrl && logoScale !== 100 ? ` Tamaño: ${logoScale}%.` : ''}
+            {logoUrl && (logoScale !== 100 || logoScales) ? ' Tamaño ajustado por vista.' : ''}
           </span>
         </div>
       </div>
@@ -79,9 +80,10 @@ export function PlatformLogoField({ platform, name, logoUrl, logoScale, fallback
         <PlatformLogoAdjustModal
           src={adjust.src}
           scale={logoScale}
+          scales={logoScales}
           name={name}
           onClose={closeAdjust}
-          onConfirm={async ({ file, scale }) => {
+          onConfirm={async ({ file, scale, scales }) => {
             let url = logoUrl;
             if (file) {
               const res = await api.settings.platforms.uploadLogo(platform, file, getToken()!);
@@ -89,7 +91,7 @@ export function PlatformLogoField({ platform, name, logoUrl, logoScale, fallback
             } else if (adjust.objectUrl) {
               throw new Error('No se pudo procesar la imagen. Prueba con otro archivo.');
             }
-            onChange({ logoUrl: url, logoScale: scale });
+            onChange({ logoUrl: url, logoScale: scale, logoScales: scales });
             closeAdjust();
           }}
         />

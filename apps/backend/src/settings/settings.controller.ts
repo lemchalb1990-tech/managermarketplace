@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { StorageService } from '../common/storage/storage.service';
-import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
 import { SettingsService } from './settings.service';
@@ -35,6 +35,7 @@ class PlatformSettingDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() logoUrl?: string;
   @IsOptional() @IsInt() @Min(30) @Max(250) logoScale?: number;
+  @IsOptional() @IsObject() logoScales?: Record<string, number>;
 }
 
 @Controller('settings')
