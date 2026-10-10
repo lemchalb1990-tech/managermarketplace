@@ -103,8 +103,8 @@ function Previews({ src, scale, name }: { src: string | null; scale: number; nam
         </div>
       ))}
       {item('Inicio · cinta de logos', (
-        <div className="flex h-20 w-36 items-center justify-center rounded-lg border border-gray-200 bg-white px-3">
-          <span className="h-14 w-full overflow-hidden">{logo}</span>
+        <div className="h-[72px] w-32 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm [&>img]:object-cover">
+          {logo}
         </div>
       ))}
       {item('Login', (

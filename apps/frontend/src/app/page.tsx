@@ -62,11 +62,12 @@ function ChannelsMock() {
   );
 }
 
-// Todos los logos a la misma altura; el ancho sale de cada logo (con tope).
+// Cada logo en una placa del mismo tamaño, llenándola hasta los bordes redondeados.
 function LogoChip({ node }: { node: ReactNode }) {
   return (
-    <span className="group/logo flex h-20 shrink-0 items-center justify-center px-4">
-      <span className="flex h-14 max-w-[150px] items-center opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>img]:h-full [&>img]:w-auto [&>img]:max-w-[150px] [&>img]:object-contain [&>svg]:h-full [&>svg]:w-[90px] [&>svg]:rounded-[9px]">
+    <span className="group/logo flex h-24 shrink-0 items-center justify-center px-2">
+      <span className="h-16 w-28 overflow-hidden rounded-xl bg-white opacity-80 grayscale-[0.4] shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 sm:h-[72px] sm:w-32 [&>*]:h-full [&>*]:w-full [&>img]:object-cover"
+        style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
         {node}
       </span>
     </span>
