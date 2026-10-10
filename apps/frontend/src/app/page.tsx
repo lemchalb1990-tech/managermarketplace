@@ -284,8 +284,7 @@ export default async function Home() {
         <section id="dashboard" className={`bg-[#02093a] text-white ${BAND}`}>
           <div className={WRAP}>
             <div>
-              <SectionHead dark label="Dashboard y alertas" title="Tu negocio de un vistazo, y avisos cuando importa"
-                lead="Ventas, neto, órdenes y ticket promedio de todos tus canales en una pantalla. Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo." />
+              <SectionHead center dark label="Dashboard y alertas" title="Tu negocio de un vistazo, y avisos cuando importa" />
               <div className="ui-reveal mt-8 lg:mt-10" aria-label="Ejemplo del dashboard con datos de muestra">
                 <DashboardReplica />
               </div>
