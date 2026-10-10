@@ -338,7 +338,7 @@ export default async function Home() {
             {/* Derecha: escena animada */}
             <div className="ui-enter-panel min-w-0 text-left" style={{ ["--d" as string]: "240ms" }} aria-hidden="true">
               <HeroScene
-                logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
+                logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart", "shopify"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
                 billingLogo={resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura)}
               />
             </div>

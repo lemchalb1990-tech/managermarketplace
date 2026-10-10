@@ -16,6 +16,7 @@ const CHANNELS: Channel[] = [
   { key: "ripley", name: "Ripley" },
   { key: "walmart", name: "Walmart" },
   { key: "pos", name: "Tienda física" },
+  { key: "shopify", name: "Shopify" },
 ];
 
 // Productos que van rotando en la tarjeta. El de dropshipping es del proveedor:
@@ -32,7 +33,7 @@ const PRODUCTS: Product[] = [
 // Secuencia de ventas: canal (índice en CHANNELS) y producto (índice en PRODUCTS).
 const SALES: Array<{ ch: number; p: number }> = [
   { ch: 0, p: 0 }, { ch: 1, p: 1 }, { ch: 4, p: 2 }, { ch: 0, p: 3 },
-  { ch: 2, p: 0 }, { ch: 5, p: 4 }, { ch: 3, p: 2 }, { ch: 4, p: 1 },
+  { ch: 6, p: 0 }, { ch: 5, p: 4 }, { ch: 3, p: 2 }, { ch: 2, p: 1 },
 ];
 const STEP_MS = 2600;
 
@@ -66,6 +67,7 @@ const ORBIT: Record<string, { x: number; y: number; size: number; dur: number; d
   ripley: { x: 91, y: 13, size: 66, dur: 3.9, delay: 0.3 },
   walmart: { x: 94, y: 44, size: 76, dur: 3.2, delay: 0.9 },
   pos: { x: 90, y: 70, size: 58, dur: 4.4, delay: 1.5 },
+  shopify: { x: 18, y: 91, size: 64, dur: 3.8, delay: 1.1 },
   dropshipping: { x: 82, y: 88, size: 56, dur: 3.6, delay: 0.4 },
 };
 
@@ -233,7 +235,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p key={product.name} className="lp-fade truncate text-[14px] font-semibold leading-tight">{product.name}</p>
-              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 6 canales"}</p>
+              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 7 canales"}</p>
             </div>
             {drop ? (
               <span className="shrink-0 rounded-full bg-[#7c3aed1a] px-2 py-1 text-[11px] font-semibold text-[#7c3aed]">Sin stock propio</span>
@@ -259,7 +261,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Boleta N° {4520 + step} emitida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 6 canales</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 7 canales</span>
                 </span>
               </div>
             ) : (
