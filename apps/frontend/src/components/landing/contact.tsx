@@ -45,7 +45,8 @@ export function contactHref(c: Contact | null): string | null {
 }
 
 /** Botones "Agenda con un ejecutivo" y "Contáctanos" (se ocultan si no hay datos de contacto). */
-export function ContactButtons({ dark = false, size = "lg" }: { dark?: boolean; size?: "md" | "lg" }) {
+// primary: "Agenda con un ejecutivo" va como botón principal (relleno).
+export function ContactButtons({ dark = false, primary = false, size = "lg" }: { dark?: boolean; primary?: boolean; size?: "md" | "lg" }) {
   const c = useContact();
   const schedule = scheduleHref(c);
   const contact = contactHref(c);
@@ -58,12 +59,12 @@ export function ContactButtons({ dark = false, size = "lg" }: { dark?: boolean; 
   return (
     <>
       {schedule && (
-        <a href={schedule} {...ext(schedule)} className={`lp-btn ${lg} ${outline}`} style={border}>
+        <a href={schedule} {...ext(schedule)} className={`lp-btn ${lg} ${primary ? (dark ? "lp-btn--light" : "lp-btn--primary") : outline}`} style={primary ? undefined : border}>
           Agenda con un ejecutivo
         </a>
       )}
       {contact && contact !== schedule && (
-        <a href={contact} {...ext(contact)} className={`lp-btn ${lg} ${dark ? "text-white/85 hover:text-white underline-offset-4 hover:underline" : "lp-btn--text"}`}>
+        <a href={contact} {...ext(contact)} className={`lp-btn ${lg} ${primary ? outline : dark ? "text-white/85 hover:text-white underline-offset-4 hover:underline" : "lp-btn--text"}`} style={primary ? border : undefined}>
           Contáctanos
         </a>
       )}

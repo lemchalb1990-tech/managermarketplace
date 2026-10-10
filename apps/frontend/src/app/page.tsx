@@ -317,10 +317,7 @@ export default async function Home() {
                   Cada venta descuenta el stock en todos y emite la boleta sola.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Link href="/login" className="lp-btn lp-btn--light lp-btn--lg">
-                    Entrar al panel <Icon d={ICONS.arrow} size={16} />
-                  </Link>
-                  <ContactButtons dark />
+                  <ContactButtons dark primary />
                 </div>
                 <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-white/75">
                   {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (
