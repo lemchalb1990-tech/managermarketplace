@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { scheduleHref, trialHref, useContact } from "./contact";
 
@@ -61,8 +61,53 @@ function Check() {
   );
 }
 
+// Tabla para comparar los planes fila por fila (límites, módulos e implementación).
+function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: string | null }) {
+  const features = Array.from(new Set(plans.flatMap((p) => p.features)));
+  const num = (n: number | null) => (n == null ? "Ilimitado" : n.toLocaleString("es-CL"));
+  const rows: Array<[string, (p: PublicPlan) => ReactNode]> = [
+    ["Canales de venta", (p) => num(p.maxChannels)],
+    ["Productos", (p) => num(p.maxProducts)],
+    ["Usuarios", (p) => num(p.maxUsers)],
+    ["Bodegas", (p) => (p.maxWarehouses == null ? "Ilimitadas" : num(p.maxWarehouses))],
+    ...features.map((f): [string, (p: PublicPlan) => ReactNode] => [
+      FEATURE_LABEL[f] || f,
+      (p) => (p.features.includes(f) ? <span className="text-[#0075de]"><Check /></span> : <span className="text-black/25">—</span>),
+    ]),
+    ["Módulos adicionales", (p) => p.addons || <span className="text-black/25">—</span>],
+    ["Implementación", (p) => (p.implementationPrice != null ? clp(p.implementationPrice) : "A convenir")],
+  ];
+  return (
+    <div className="lp-slide mt-4 overflow-x-auto rounded-[12px] bg-white" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
+      <table className="w-full min-w-[640px] text-[14px]">
+        <thead>
+          <tr className="border-b border-black/[0.08]">
+            <th className="px-4 py-3 text-left font-medium text-[#757575]" />
+            {plans.map((p) => (
+              <th key={p.id} className={`px-4 py-3 text-center font-bold ${p.id === featured ? "bg-[#02093a] text-white" : ""}`}>{p.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, cell]) => (
+            <tr key={label} className="border-b border-black/[0.05] last:border-0">
+              <td className="px-4 py-2.5 text-[#615d59]">{label}</td>
+              {plans.map((p) => (
+                <td key={p.id} className={`px-4 py-2.5 text-center ${p.id === featured ? "bg-[#02093a]/[0.04] font-semibold" : ""}`}>
+                  <span className="inline-flex items-center justify-center">{cell(p)}</span>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [annual, setAnnual] = useState(false);
+  const [compare, setCompare] = useState(false);
   // Todos los planes llevan a agendar con un ejecutivo (agenda configurada o WhatsApp).
   const contact = useContact();
   const talk = scheduleHref(contact);
@@ -93,14 +138,6 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
           const isFeatured = p.id === featured;
           const useAnnual = annual && p.annualPrice != null;
           const price = useAnnual ? Math.round(p.annualPrice! / 12) : p.monthlyPrice;
-          const items = [
-            limit(p.maxChannels, "canal de venta", "canales de venta"),
-            limit(p.maxProducts, "producto", "productos"),
-            limit(p.maxUsers, "usuario", "usuarios"),
-            limit(p.maxWarehouses, "bodega", "bodegas", true),
-            ...p.features.map((f) => FEATURE_LABEL[f] || f),
-            ...(p.addons ? [`Módulos adicionales: ${p.addons.toLowerCase()}`] : []),
-          ];
           return (
             <div key={p.id}
               className={`relative flex flex-col rounded-[12px] p-6 ${isFeatured ? "bg-[#02093a] text-white" : "bg-white"}`}
@@ -115,7 +152,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               </span>
               <p className="text-[22px] font-bold tracking-[-0.011em]">{p.name}</p>
               {p.description && (
-                <p className={`mt-1 min-h-[2.6em] text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#615d59]"}`}>{p.description}</p>
+                <p className={`mt-1 text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#615d59]"}`}>{p.description}</p>
               )}
               <div className="mt-5">
                 {price != null ? (
@@ -140,18 +177,23 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                 className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
                 Agenda con un ejecutivo
               </Link>
-              <ul className="mt-6 space-y-2 text-[14px]">
-                {items.map((it) => (
-                  <li key={it} className="flex items-start gap-2">
-                    <span className={`mt-0.5 ${isFeatured ? "text-[#62aef0]" : "text-[#0075de]"}`}><Check /></span>
-                    <span>{it}</span>
-                  </li>
-                ))}
-              </ul>
+              <p className={`mt-4 text-[13px] ${isFeatured ? "text-white/70" : "text-[#615d59]"}`}>
+                {limit(p.maxChannels, "canal", "canales")} · {limit(p.maxProducts, "producto", "productos")}
+              </p>
             </div>
           );
         })}
       </div>
+
+      <div className="mt-5 flex justify-center">
+        <button type="button" onClick={() => setCompare((v) => !v)} aria-expanded={compare}
+          className="lp-btn lp-btn--soft">
+          {compare ? "Ocultar comparación" : "Ver comparación completa"}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform duration-300 ${compare ? "rotate-180" : ""}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </button>
+      </div>
+      {compare && <CompareTable plans={paid} featured={featured} />}
 
       {trial && (
         <div className="mt-4 flex flex-col gap-4 rounded-[12px] bg-[#e6f3fe] p-6 sm:flex-row sm:items-center sm:justify-between">
