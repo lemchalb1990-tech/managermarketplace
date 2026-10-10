@@ -513,11 +513,25 @@ export class MercadolibreController {
     return this.messages.list(user, q || {});
   }
 
+  @Get('messages/unread-count')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  unreadCount(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.messages.unreadCount(user, companyId);
+  }
+
   @Get('messages/conversations/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   openConversation(@CurrentUser() user: any, @Param('id') id: string) {
     return this.messages.open(user, id);
+  }
+
+  @Patch('messages/conversations/:id/unread')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  setUnread(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { unread: boolean }) {
+    return this.messages.setUnread(user, id, body?.unread !== false);
   }
 
   @Post('messages/conversations/:id/send')

@@ -96,6 +96,20 @@ export class MlMessagesService {
     return this.refresh(conv.id, true);
   }
 
+  // Conversaciones con mensajes sin leer (indicador junto a la campanita).
+  async unreadCount(user: any, companyId?: string) {
+    const count = await this.prisma.mlConversation.count({ where: { ...this.companyWhere(user, companyId), unread: { gt: 0 } } });
+    return { count };
+  }
+
+  // Marcar como no leída (o leída) solo en el panel: Mercado Libre no permite desmarcar la lectura.
+  async setUnread(user: any, id: string, unread: boolean) {
+    const conv = await this.prisma.mlConversation.findUnique({ where: { id } });
+    if (!conv) throw new NotFoundException('Conversación no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conv.companyId !== user.companyId) throw new ForbiddenException();
+    return this.prisma.mlConversation.update({ where: { id }, data: { unread: unread ? Math.max(1, conv.unread) : 0 }, select: { id: true, unread: true } });
+  }
+
   // Trae los mensajes desde Mercado Libre y actualiza la caché (markRead = el usuario la abrió).
   private async refresh(id: string, markRead: boolean) {
     const conv = await this.prisma.mlConversation.findUniqueOrThrow({ where: { id }, include: { connection: { select: { mlUserId: true } } } });

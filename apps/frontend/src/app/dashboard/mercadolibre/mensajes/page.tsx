@@ -74,7 +74,12 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
     const id = requestAnimationFrame(() => {
       setLoading(true);
       api.marketplace.messages.open(openId, getToken()!)
-        .then((c) => { if (alive) { setConv(c); setRows((r) => r.map((x) => (x.id === c.id ? { ...x, unread: 0 } : x))); } })
+        .then((c) => {
+          if (!alive) return;
+          setConv(c);
+          setRows((r) => r.map((x) => (x.id === c.id ? { ...x, unread: 0 } : x)));
+          window.dispatchEvent(new Event('ml-messages-changed'));
+        })
         .catch(() => { if (alive) setConv(null); })
         .finally(() => { if (alive) setLoading(false); });
     });
@@ -82,6 +87,15 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
   }, [openId]);
 
   const unread = rows.filter((r) => r.unread > 0).length;
+
+  // Queda como pendiente (solo en el panel) y se cierra para que no se vuelva a marcar leída.
+  async function markUnread(id: string) {
+    await api.marketplace.messages.setUnread(id, true, getToken()!).catch(() => null);
+    setRows((r) => r.map((x) => (x.id === id ? { ...x, unread: Math.max(1, x.unread) } : x)));
+    setOpenId(null);
+    setConv(null);
+    window.dispatchEvent(new Event('ml-messages-changed'));
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
@@ -142,9 +156,12 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
                   {conv.sale?.items?.[0]?.product?.name ? ` · ${conv.sale.items[0].product.name}` : ''}
                 </p>
               </div>
-              {conv.sale?.order?.id && (
-                <Link href={`/dashboard/orders/${conv.sale.order.id}`} className="shrink-0 text-xs font-medium text-[var(--brand)] hover:underline">Ver orden →</Link>
-              )}
+              <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
+                <button type="button" onClick={() => markUnread(conv.id)} className="text-gray-500 hover:text-gray-800">Marcar como no leído</button>
+                {conv.sale?.order?.id && (
+                  <Link href={`/dashboard/orders/${conv.sale.order.id}`} className="text-[var(--brand)] hover:underline">Ver orden →</Link>
+                )}
+              </div>
             </div>
             <div className="min-h-0 flex-1"><MlChat conversation={conv} onChange={(c) => { setConv(c); load(); }} /></div>
           </>

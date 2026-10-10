@@ -608,6 +608,10 @@ export const api = {
         return apiFetch<MlConversationRow[]>(`/ecommerce/ml/messages/conversations${q.toString() ? `?${q}` : ''}`, {}, token);
       },
       open: (id: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}`, {}, token),
+      unreadCount: (token: string, companyId?: string) =>
+        apiFetch<{ count: number }>(`/ecommerce/ml/messages/unread-count${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      setUnread: (id: string, unread: boolean, token: string) =>
+        apiFetch<{ id: string; unread: number }>(`/ecommerce/ml/messages/conversations/${id}/unread`, { method: 'PATCH', body: JSON.stringify({ unread }) }, token),
       send: (id: string, text: string, token: string) =>
         apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text }) }, token),
       forSale: (saleId: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/sales/${saleId}`, {}, token),

@@ -7,6 +7,7 @@ import { getToken, getUser, clearSession, saveSession } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { hasModule, planAllows, type PlanFeature } from '@/lib/modules';
 import { can } from '@/lib/permissions';
+import { MessagesIndicator } from './MessagesIndicator';
 import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
@@ -429,6 +430,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="truncate">Admin Marketplace</span>
               </span>
               <HeaderCompanyPicker />
+              {can(user, 'ml.preguntas', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'ecommerce') && <MessagesIndicator />}
               <NotificationBell />
 
               <div className="relative" ref={profileRef}>
