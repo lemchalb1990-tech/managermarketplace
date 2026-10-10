@@ -61,21 +61,21 @@ function PosLogo() {
 // Canales y dropshipping flotando alrededor del producto: posición (% del área),
 // tamaño en px y ritmo propio, para que no se muevan todos al mismo tiempo.
 const ORBIT: Record<string, { x: number; y: number; size: number; dur: number; delay: number }> = {
-  mercadolibre: { x: 9, y: 15, size: 80, dur: 3.4, delay: 0 },
-  falabella: { x: 6, y: 47, size: 60, dur: 4.1, delay: 0.6 },
-  paris: { x: 11, y: 77, size: 70, dur: 3.7, delay: 1.2 },
-  ripley: { x: 91, y: 13, size: 66, dur: 3.9, delay: 0.3 },
-  walmart: { x: 94, y: 44, size: 76, dur: 3.2, delay: 0.9 },
-  pos: { x: 90, y: 70, size: 58, dur: 4.4, delay: 1.5 },
-  shopify: { x: 18, y: 91, size: 64, dur: 3.8, delay: 1.1 },
-  dropshipping: { x: 82, y: 88, size: 56, dur: 3.6, delay: 0.4 },
+  mercadolibre: { x: 10, y: 15, size: 94, dur: 3.4, delay: 0 },
+  falabella: { x: 8, y: 47, size: 70, dur: 4.1, delay: 0.6 },
+  paris: { x: 11, y: 76, size: 82, dur: 3.7, delay: 1.2 },
+  ripley: { x: 90, y: 13, size: 78, dur: 3.9, delay: 0.3 },
+  walmart: { x: 91, y: 44, size: 88, dur: 3.2, delay: 0.9 },
+  pos: { x: 89, y: 70, size: 68, dur: 4.4, delay: 1.5 },
+  shopify: { x: 19, y: 90, size: 74, dur: 3.8, delay: 1.1 },
+  dropshipping: { x: 81, y: 89, size: 64, dur: 3.6, delay: 0.4 },
 };
 
 function Floating({ k, children }: { k: string; children: ReactNode }) {
   const o = ORBIT[k];
   return (
     <span className="absolute z-20" style={{ left: `${o.x}%`, top: `${o.y}%`, width: o.size, height: o.size, marginLeft: -o.size / 2, marginTop: -o.size / 2 }}>
-      <span className="lp-float block h-full w-full max-sm:scale-[0.7]" style={{ animationDuration: `${o.dur}s`, ["--fd" as string]: `${o.delay}s` }}>
+      <span className="lp-float block h-full w-full max-sm:scale-[0.62]" style={{ animationDuration: `${o.dur}s`, ["--fd" as string]: `${o.delay}s` }}>
         {children}
       </span>
     </span>
