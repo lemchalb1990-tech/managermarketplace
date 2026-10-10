@@ -304,25 +304,24 @@ export default async function Home() {
         <section className={`${WRAP} relative pb-24 pt-16 sm:pt-24 lg:pb-32`}>
           {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
           <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-end lg:gap-16">
-            <h1 className="lp-h1 ui-enter max-w-[14ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
-              Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
-            </h1>
-            <div className="ui-enter lg:pb-2" style={{ ["--d" as string]: "160ms" }}>
-              <p className="lp-lead max-w-[42ch] text-pretty text-[#615d59]">
-                Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
-                Vendes en uno y se descuenta en todos.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
-                  Entrar al panel <Icon d={ICONS.arrow} size={16} />
-                </Link>
-                <a href="#beneficios" className="lp-btn lp-btn--soft lp-btn--lg">Ver beneficios</a>
-              </div>
+          <h1 className="lp-h1 lp-h1--hero ui-enter max-w-[22ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
+            Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
+          </h1>
+          {/* Bajada con los botones al lado */}
+          <div className="ui-enter mt-6 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12" style={{ ["--d" as string]: "160ms" }}>
+            <p className="lp-lead max-w-[52ch] text-pretty text-[#615d59]">
+              Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
+              Vendes en uno y se descuenta en todos.
+            </p>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
+                Entrar al panel <Icon d={ICONS.arrow} size={16} />
+              </Link>
+              <a href="#beneficios" className="lp-btn lp-btn--soft lp-btn--lg">Ver beneficios</a>
             </div>
           </div>
 
-          <div className="ui-enter-panel relative mt-12 w-full text-left lg:mt-16" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+          <div className="ui-enter-panel relative mt-10 w-full text-left lg:mt-12" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
             <HeroScene
               logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
               phone={<PhoneMock />}
