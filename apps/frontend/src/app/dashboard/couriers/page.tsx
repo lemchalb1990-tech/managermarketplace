@@ -5,6 +5,9 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, type CourierConnectionInfo } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { PlatformEditModal } from '@/components/PlatformEditModal';
+import { CourierLogos } from './logos';
 
 type Provider = 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS';
 type Field = { key: string; label: string; hint?: string; secret?: boolean; options?: Array<[string, string]> };
@@ -79,8 +82,20 @@ export default function CouriersPage() {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [testing, setTesting] = useState<Provider | null>(null);
   const [testMsg, setTestMsg] = useState<Record<string, { ok: boolean; message: string }>>({});
+  // Nombre, descripción y logo editables (Super Admin), igual que E-commerce y Facturación.
+  const sharedLogos = usePlatformLogos();
+  const [savedLogos, setSavedLogos] = useState<Record<string, PlatformLogoSetting>>({});
+  const logoMap = { ...sharedLogos, ...savedLogos };
+  const [editingInfo, setEditingInfo] = useState<Provider | null>(null);
+  const infoCourier = COURIERS.find((c) => c.id === editingInfo);
 
-  const companyId = getUser()?.role === 'SUPER_ADMIN' ? selectedCompanyId || undefined : undefined;
+  // El rol se lee en el navegador (evita diferencias con el render del servidor).
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN'));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const companyId = isSuperAdmin ? selectedCompanyId || undefined : undefined;
 
   const load = useCallback(() => {
     const t = getToken();
@@ -116,34 +131,67 @@ export default function CouriersPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {COURIERS.map((c) => {
           const conn = conns.find((x) => x.provider === c.id);
+          const isActive = !!conn?.active;
+          const key = c.id.toLowerCase();
+          const displayName = resolvePlatformName(logoMap, key, c.name);
+          const displayDescription = resolvePlatformDescription(logoMap, key, c.description);
           const msg = testMsg[c.id];
           return (
-            <div key={c.id} className={`rounded-2xl border-2 bg-white p-5 ${conn?.active ? 'border-green-300' : 'border-gray-200'}`}>
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-xl text-sm font-bold text-white" style={{ background: c.color, color: c.id === 'CHILEXPRESS' ? '#1f2937' : '#fff' }}>
-                  {c.name.slice(0, 2).toUpperCase()}
-                </span>
-                <div>
-                  <h2 className="ui-section-title">{c.name}</h2>
-                  <p className={`text-xs font-medium ${conn?.active ? 'text-green-600' : 'text-gray-400'}`}>{conn?.active ? 'Conectado' : 'Sin conectar'}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs leading-relaxed text-gray-500">{c.description}</p>
-              {msg && (
-                <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.message}</p>
-              )}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" onClick={() => setEditing(c.id)} className={btnPrimary}>{conn ? 'Configurar' : 'Conectar'}</button>
-                {conn && (
-                  <button type="button" onClick={() => test(c.id)} disabled={testing === c.id} className={btnSecondary}>
-                    {testing === c.id ? 'Probando…' : 'Probar conexión'}
+            <div key={c.id} role="button" tabIndex={0} onClick={() => setEditing(c.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter') setEditing(c.id); }}
+              className="block group cursor-pointer">
+              <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'}`}>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setEditingInfo(c.id); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
+                    title="Editar courier"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                   </button>
                 )}
+                <div className="flex justify-center mb-4">
+                  <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
+                    {resolvePlatformLogo(logoMap, key, CourierLogos[key], displayName)}
+                  </div>
+                </div>
+                <h2 className="ui-section-title mb-1">{displayName}</h2>
+                <p className="text-xs text-gray-500 leading-relaxed">{displayDescription}</p>
+                {msg && (
+                  <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.message}</p>
+                )}
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <p className={`text-xs font-semibold group-hover:underline ${isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'}`}>
+                    {isActive ? 'Gestionar conexión →' : 'Conectar →'}
+                  </p>
+                  {conn && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); test(c.id); }} disabled={testing === c.id}
+                      className="text-xs font-medium text-gray-500 hover:text-gray-800 disabled:opacity-50">
+                      {testing === c.id ? 'Probando…' : 'Probar conexión'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {infoCourier && (
+        <PlatformEditModal
+          platform={infoCourier.id.toLowerCase()}
+          defaultName={infoCourier.name}
+          defaultDescription={infoCourier.description}
+          current={logoMap[infoCourier.id.toLowerCase()]}
+          fallback={CourierLogos[infoCourier.id.toLowerCase()]}
+          onClose={() => setEditingInfo(null)}
+          onSaved={(u) => { setSavedLogos((m) => ({ ...m, [u.platform]: u })); setEditingInfo(null); }}
+        />
+      )}
 
       {current && (
         <CourierForm
