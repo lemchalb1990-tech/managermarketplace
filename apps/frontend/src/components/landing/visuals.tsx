@@ -253,6 +253,30 @@ export function QuestionsMini() {
   );
 }
 
+export function DropshipMini() {
+  const rows: Array<[string, string, string, string, string]> = [
+    [PRODUCT_IMG.mochila, "Mochila urbana 25 L", "Walmart", "Enviado al proveedor", "#7c3aed"],
+    [PRODUCT_IMG.poleron, "Polerón blanco", "Ripley", "En camino al cliente", "#0075de"],
+    [PRODUCT_IMG.jockey, "Jockey blanco", "Mercado Libre", "Entregado", "#15803d"],
+  ];
+  return (
+    <Box>
+      <div className="space-y-1.5">
+        {rows.map(([img, name, ch, st, col]) => (
+          <div key={name} className="flex items-center gap-2 rounded-md bg-white px-2 py-1.5" style={{ border: LINE }}>
+            <ProductThumb src={img} size={28} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold">{name}</span>
+              <span className="block truncate text-[#757575]">Venta en {ch} · costo proveedor sincronizado</span>
+            </span>
+            <span className="shrink-0 rounded-full px-2 py-0.5 font-medium" style={{ background: `${col}1a`, color: col }}>{st}</span>
+          </div>
+        ))}
+      </div>
+    </Box>
+  );
+}
+
 /* ── Dashboard y alertas ──────────────────────────────────────────────────── */
 
 export const ALERTS: Array<{ t: string; m: string; tone: string; icon: ReactNode; when: string }> = [

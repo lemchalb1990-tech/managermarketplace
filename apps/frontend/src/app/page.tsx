@@ -11,7 +11,7 @@ import { HeroScene } from "@/components/landing/hero-scene";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
-  ALERTS, PRODUCT_IMG,
+  ALERTS, PRODUCT_IMG, DropshipMini,
 } from "@/components/landing/visuals";
 
 // Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
@@ -213,6 +213,7 @@ const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
   { t: "Boletas y facturas", b: "Documentos tributarios electrónicos con tu proveedor de facturación, enviados por correo.", mock: <InvoiceMini /> },
   { t: "Etiquetas de los marketplaces", b: "Imprimes por lote las etiquetas de Mercado Libre, Falabella, Paris y Ripley.", mock: <LabelMini /> },
   { t: "Preguntas de Mercado Libre", b: "Respondes las preguntas de tus publicaciones desde el mismo lugar donde ves el stock.", mock: <QuestionsMini /> },
+  { t: "Dropshipping", b: "Vendes productos de tu proveedor sin tenerlos en bodega. Cada venta le llega como pedido y él despacha directo a tu cliente; tu stock propio no se toca.", mock: <DropshipMini /> },
 ];
 
 /* ── Catálogo de ejemplo con fotos reales ─────────────────────────────────── */
@@ -389,15 +390,21 @@ export default async function Home() {
         <section id="funciones" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <SectionHead label="Funciones" title="Todo tu negocio desde un solo panel"
-              lead="Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema." />
+              lead="Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema, incluso productos en dropshipping." />
             <div className="ui-reveal mt-8 grid gap-4 sm:grid-cols-2 lg:mt-10 lg:grid-cols-3">
-              {TOOLS.map((x) => (
-                <div key={x.t} className="lp-card flex min-w-0 flex-col p-6">
-                  <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
-                  <p className="mt-2 text-[15px] leading-[1.5] text-[#615d59]">{x.b}</p>
-                  <div className="mt-auto" aria-hidden="true">{x.mock}</div>
-                </div>
-              ))}
+              {TOOLS.map((x, i) => {
+                // La última tarjeta ocupa la fila completa, en horizontal, para no dejar huecos.
+                const wide = i === TOOLS.length - 1 && TOOLS.length % 3 === 1;
+                return (
+                  <div key={x.t} className={`lp-card flex min-w-0 flex-col p-6 ${wide ? "sm:col-span-2 lg:col-span-3 lg:flex-row lg:items-center lg:gap-10" : ""}`}>
+                    <div className={wide ? "lg:w-[40%] lg:shrink-0" : ""}>
+                      <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
+                      <p className="mt-2 text-[15px] leading-[1.5] text-[#615d59]">{x.b}</p>
+                    </div>
+                    <div className={`mt-auto ${wide ? "lg:mt-0 lg:flex-1 lg:[&>*]:mt-0" : ""}`} aria-hidden="true">{x.mock}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
