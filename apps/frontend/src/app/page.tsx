@@ -268,7 +268,7 @@ export default async function Home() {
             <SectionHead label="Beneficios"
               title={<>Vende tranquilo, <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sin quiebres</span> de stock</>}
               lead="Cada venta se descuenta al instante en todos tus canales."
-              points={["Cero pedidos cancelados", "Reputación protegida", "Stock al día en cada canal"]} />
+              points={["Sin cancelaciones por falta de stock", "Reputación protegida", "Stock al día en cada canal"]} />
             <Benefits />
           </div>
         </section>
