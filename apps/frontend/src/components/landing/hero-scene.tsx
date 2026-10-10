@@ -17,6 +17,7 @@ const CHANNELS: Channel[] = [
   { key: "walmart", name: "Walmart" },
   { key: "pos", name: "Tienda física" },
   { key: "shopify", name: "Shopify" },
+  { key: "direct", name: "Venta directa" },
 ];
 
 // Productos que van rotando en la tarjeta. El de dropshipping es del proveedor:
@@ -33,7 +34,7 @@ const PRODUCTS: Product[] = [
 // Secuencia de ventas: canal (índice en CHANNELS) y producto (índice en PRODUCTS).
 const SALES: Array<{ ch: number; p: number }> = [
   { ch: 0, p: 0 }, { ch: 1, p: 1 }, { ch: 4, p: 2 }, { ch: 0, p: 3 },
-  { ch: 6, p: 0 }, { ch: 5, p: 4 }, { ch: 3, p: 2 }, { ch: 2, p: 1 },
+  { ch: 6, p: 0 }, { ch: 7, p: 4 }, { ch: 3, p: 2 }, { ch: 2, p: 1 }, { ch: 5, p: 3 },
 ];
 const STEP_MS = 2600;
 
@@ -41,6 +42,7 @@ const ICON = {
   doc: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4",
   truck: "M3 16V7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9M16 10h3l2 3v3h-5M7.5 19.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z",
   box: "M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+  cash: "M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 10v4M18 10v4",
   bag: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0",
 };
 const Svg = ({ d, size = 15 }: { d: string; size?: number }) => (
@@ -60,7 +62,9 @@ function PosLogo() {
 
 // Canales y dropshipping flotando alrededor del producto: posición (% del área),
 // tamaño en px y ritmo propio, para que no se muevan todos al mismo tiempo.
-const ORBIT: Record<string, { x: number; y: number; size: number; dur: number; delay: number }> = {
+// "ty" fija la posición vertical en px desde arriba (para el círculo que va sobre el producto).
+const ORBIT: Record<string, { x: number; y: number; ty?: number; size: number; dur: number; delay: number }> = {
+  direct: { x: 50, y: 0, ty: 6, size: 68, dur: 3.5, delay: 0.7 },
   mercadolibre: { x: 10, y: 15, size: 94, dur: 3.4, delay: 0 },
   falabella: { x: 8, y: 47, size: 70, dur: 4.1, delay: 0.6 },
   paris: { x: 11, y: 76, size: 82, dur: 3.7, delay: 1.2 },
@@ -74,7 +78,7 @@ const ORBIT: Record<string, { x: number; y: number; size: number; dur: number; d
 function Floating({ k, children }: { k: string; children: ReactNode }) {
   const o = ORBIT[k];
   return (
-    <span className="absolute z-20" style={{ left: `${o.x}%`, top: `${o.y}%`, width: o.size, height: o.size, marginLeft: -o.size / 2, marginTop: -o.size / 2 }}>
+    <span className="absolute z-20" style={{ left: `${o.x}%`, top: o.ty != null ? o.ty : `${o.y}%`, width: o.size, height: o.size, marginLeft: -o.size / 2, marginTop: o.ty != null ? 0 : -o.size / 2 }}>
       <span className="lp-float block h-full w-full max-sm:scale-[0.62]" style={{ animationDuration: `${o.dur}s`, ["--fd" as string]: `${o.delay}s` }}>
         {children}
       </span>
@@ -163,7 +167,11 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   const stock = product.start - SALES.slice(0, step).filter((x) => x.p === (sale ? sale.p : 0)).length;
   const logoOf = (k: string) => (k === "pos" ? <PosLogo /> : logos[k]);
 
-  const at = (k: string): [number, number] => (geo ? [(ORBIT[k].x / 100) * geo.w, (ORBIT[k].y / 100) * geo.h] : [0, 0]);
+  const at = (k: string): [number, number] => {
+    const o = ORBIT[k];
+    if (!geo) return [0, 0];
+    return [(o.x / 100) * geo.w, o.ty != null ? o.ty + o.size / 2 : (o.y / 100) * geo.h];
+  };
   const center: [number, number] = geo ? [geo.cx, geo.cy] : [0, 0];
   const nodes = [...CHANNELS.map((c) => c.key), "dropshipping"];
 
@@ -171,7 +179,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
     <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-5">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
       {/* Área con el producto al centro y los círculos alrededor */}
-      <div ref={areaRef} className="relative px-[21%] pb-[104px] pt-8 sm:pb-[112px] sm:pt-10">
+      <div ref={areaRef} className="relative px-[21%] pb-[104px] pt-[92px] sm:pb-[112px] sm:pt-[104px]">
         {/* Conexiones de cada círculo con el producto */}
         {geo && (
           <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full" viewBox={`0 0 ${geo.w} ${geo.h}`} aria-hidden="true">
@@ -235,7 +243,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p key={product.name} className="lp-fade truncate text-[14px] font-semibold leading-tight">{product.name}</p>
-              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 7 canales"}</p>
+              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 8 canales"}</p>
             </div>
             {drop ? (
               <span className="shrink-0 rounded-full bg-[#7c3aed1a] px-2 py-1 text-[11px] font-semibold text-[#7c3aed]">Sin stock propio</span>
@@ -261,7 +269,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Boleta N° {4520 + step} emitida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 7 canales</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 8 canales</span>
                 </span>
               </div>
             ) : (
@@ -288,7 +296,9 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
 
         {CHANNELS.map((ch) => (
           <Floating key={ch.key} k={ch.key}>
-            <ChannelDot logo={logoOf(ch.key)} active={active?.key === ch.key} pulse={active ? step : 0} />
+            {ch.key === "direct"
+              ? <ServiceDot icon={ICON.cash} label="Venta directa" tone={BLUE} active={active?.key === ch.key} pulse={active ? step : 0} />
+              : <ChannelDot logo={logoOf(ch.key)} active={active?.key === ch.key} pulse={active ? step : 0} />}
           </Floating>
         ))}
         <Floating k="dropshipping">
