@@ -18,6 +18,9 @@ const CHANNELS: Channel[] = [
   { key: "pos", name: "Tienda física" },
   { key: "shopify", name: "Shopify" },
   { key: "direct", name: "Venta directa" },
+  { key: "hites", name: "Hites" },
+  { key: "woocommerce", name: "WooCommerce" },
+  { key: "jumpseller", name: "JumpSeller" },
 ];
 
 // Productos que van rotando en la tarjeta. El de dropshipping es del proveedor:
@@ -33,8 +36,9 @@ const PRODUCTS: Product[] = [
 
 // Secuencia de ventas: canal (índice en CHANNELS) y producto (índice en PRODUCTS).
 const SALES: Array<{ ch: number; p: number }> = [
-  { ch: 0, p: 0 }, { ch: 1, p: 1 }, { ch: 4, p: 2 }, { ch: 0, p: 3 },
-  { ch: 6, p: 0 }, { ch: 7, p: 4 }, { ch: 3, p: 2 }, { ch: 2, p: 1 }, { ch: 5, p: 3 },
+  { ch: 0, p: 0 }, { ch: 1, p: 1 }, { ch: 4, p: 2 }, { ch: 8, p: 3 }, { ch: 0, p: 4 },
+  { ch: 6, p: 0 }, { ch: 9, p: 1 }, { ch: 7, p: 4 }, { ch: 3, p: 2 }, { ch: 10, p: 3 },
+  { ch: 2, p: 1 }, { ch: 5, p: 0 },
 ];
 const STEP_MS = 2600;
 
@@ -65,14 +69,17 @@ function PosLogo() {
 // "ty" fija la posición vertical en px desde arriba (para el círculo que va sobre el producto).
 const ORBIT: Record<string, { x: number; y: number; ty?: number; size: number; dur: number; delay: number }> = {
   direct: { x: 50, y: 0, ty: 6, size: 68, dur: 3.5, delay: 0.7 },
-  mercadolibre: { x: 10, y: 15, size: 94, dur: 3.4, delay: 0 },
-  falabella: { x: 8, y: 47, size: 70, dur: 4.1, delay: 0.6 },
-  paris: { x: 11, y: 76, size: 82, dur: 3.7, delay: 1.2 },
-  ripley: { x: 90, y: 13, size: 78, dur: 3.9, delay: 0.3 },
-  walmart: { x: 91, y: 44, size: 88, dur: 3.2, delay: 0.9 },
-  pos: { x: 89, y: 70, size: 68, dur: 4.4, delay: 1.5 },
-  shopify: { x: 19, y: 90, size: 74, dur: 3.8, delay: 1.1 },
-  dropshipping: { x: 81, y: 89, size: 64, dur: 3.6, delay: 0.4 },
+  jumpseller: { x: 27, y: 0, ty: 16, size: 58, dur: 4.2, delay: 1.3 },
+  mercadolibre: { x: 10, y: 14, size: 88, dur: 3.4, delay: 0 },
+  falabella: { x: 6, y: 37, size: 66, dur: 4.1, delay: 0.6 },
+  hites: { x: 12, y: 58, size: 60, dur: 3.9, delay: 1.6 },
+  paris: { x: 7, y: 79, size: 76, dur: 3.7, delay: 1.2 },
+  shopify: { x: 23, y: 93, size: 66, dur: 3.8, delay: 1.1 },
+  ripley: { x: 90, y: 12, size: 74, dur: 3.9, delay: 0.3 },
+  walmart: { x: 94, y: 35, size: 82, dur: 3.2, delay: 0.9 },
+  woocommerce: { x: 88, y: 57, size: 64, dur: 4.3, delay: 0.2 },
+  pos: { x: 93, y: 78, size: 62, dur: 4.4, delay: 1.5 },
+  dropshipping: { x: 77, y: 93, size: 60, dur: 3.6, delay: 0.4 },
 };
 
 function Floating({ k, children }: { k: string; children: ReactNode }) {
@@ -244,7 +251,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p key={product.name} className="lp-fade truncate text-[14px] font-semibold leading-tight">{product.name}</p>
-              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 8 canales"}</p>
+              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 11 canales"}</p>
             </div>
             {drop ? (
               <span className="shrink-0 rounded-full bg-[#7c3aed1a] px-2 py-1 text-[11px] font-semibold text-[#7c3aed]">Sin stock propio</span>
@@ -270,7 +277,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Boleta N° {4520 + step} emitida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 8 canales</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 11 canales</span>
                 </span>
               </div>
             ) : (
