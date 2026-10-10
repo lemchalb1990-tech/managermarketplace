@@ -5,6 +5,7 @@ import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { Steps } from "@/components/landing/steps";
+import { ConnectorsMarquee } from "@/components/landing/connectors-marquee";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
@@ -21,43 +22,14 @@ import {
 // Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
 const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
 
-const salesChannels = [
-  "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
-  "shopify", "woocommerce", "jumpseller",
-] as const;
 
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
-
-// Cada logo en una placa del mismo tamaño, llenándola hasta los bordes redondeados.
-function LogoChip({ node }: { node: ReactNode }) {
-  return (
-    <span className="group/logo flex h-24 shrink-0 items-center justify-center px-2">
-      <span className="h-16 w-28 overflow-hidden rounded-xl bg-white opacity-80 grayscale-[0.4] shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 sm:h-[72px] sm:w-32 [&>*]:h-full [&>*]:w-full [&>img]:object-cover"
-        style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
-        {node}
-      </span>
-    </span>
-  );
-}
 
 type LogoMap = Record<string, { logoUrl: string | null; logoScale?: number; logoScales?: Record<string, number> | null } | undefined>;
 
 // Usa el logo registrado en el panel; si el servidor no lo trajo, lo pide el navegador.
 function resolveLogoNode(map: LogoMap, key: string, fallback: ReactNode, view: LogoView = "icon"): ReactNode {
   return <RemoteLogo platform={key} initial={map[key]} view={view} fallback={fallback} />;
-}
-
-function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
-  const loop = [...salesChannels, ...salesChannels];
-  return (
-    <div className="marquee-mask group overflow-hidden">
-      <div className="flex w-max gap-7 py-1 animate-marquee group-hover:[animation-play-state:paused]">
-        {loop.map((k, i) => (
-          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k], "strip")} />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 // Se pide en el servidor (no requiere sesión): así el logo personalizado de cada
@@ -270,8 +242,8 @@ export default async function Home() {
         {/* Muro de logos */}
         <section className="border-y border-black/[0.06] bg-white py-6">
           <div className={WRAP}>
-            <p className="mb-2 text-center text-[14px] text-[#757575]">Marketplaces y tiendas que puedes conectar</p>
-            <LogosMarquee logoMap={logoMap} />
+            <p className="mb-2 text-center text-[14px] text-[#757575]">Conectores disponibles: marketplaces, tiendas, facturación y couriers</p>
+            <ConnectorsMarquee />
           </div>
         </section>
 
