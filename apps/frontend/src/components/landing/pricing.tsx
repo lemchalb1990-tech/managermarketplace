@@ -133,7 +133,33 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
         </div>
       )}
 
-      <div className={`mt-8 grid gap-4 sm:grid-cols-2 ${paid.length >= 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+      <div className={`mt-8 grid gap-4 sm:grid-cols-2 ${paid.length + (trial ? 1 : 0) >= 5 ? "lg:grid-cols-3 xl:grid-cols-5" : paid.length + (trial ? 1 : 0) === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+        {/* Prueba gratis como una columna más, al inicio */}
+        {trial && (
+          <div className="relative flex flex-col rounded-[12px] bg-[#e6f3fe] p-6 text-[#02093a]" style={{ border: "1px solid rgba(0,117,222,0.18)" }}>
+            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-white text-[#0075de]">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+              </svg>
+            </span>
+            <p className="text-[22px] font-bold tracking-[-0.011em]">{trial.name}</p>
+            <p className="mt-1 text-[14px] leading-[1.43] text-[#02093a]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
+            <div className="mt-5">
+              <p className="flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-[34px] font-semibold tracking-[-0.03em]">Gratis</span>
+                {trial.trialDays ? <span className="text-[14px] text-[#02093a]/60">por {trial.trialDays} días</span> : null}
+              </p>
+              <p className="mt-1 min-h-[1.4em] text-[12px] text-[#02093a]/60">Sin tarjeta de crédito</p>
+            </div>
+            <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              className="lp-btn lp-btn--primary mt-5 w-full">
+              Solicitar versión de prueba
+            </Link>
+            <p className="mt-4 text-[13px] text-[#02093a]/70">
+              {limit(trial.maxChannels, "canal", "canales")} · {limit(trial.maxProducts, "producto", "productos")}
+            </p>
+          </div>
+        )}
         {paid.map((p, idx) => {
           const isFeatured = p.id === featured;
           const useAnnual = annual && p.annualPrice != null;
@@ -195,20 +221,6 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
       </div>
       {compare && <CompareTable plans={paid} featured={featured} />}
 
-      {trial && (
-        <div className="mt-4 flex flex-col gap-4 rounded-[12px] bg-[#e6f3fe] p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[20px] font-bold tracking-[-0.011em] text-[#02093a]">
-              Prueba gratis{trial.trialDays ? ` ${trial.trialDays} días` : ""}
-            </p>
-            <p className="mt-1 text-[15px] text-[#02093a]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
-          </div>
-          <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-            className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
-            Solicitar versión de prueba
-          </Link>
-        </div>
-      )}
       <p className="mt-4 text-center text-[13px] text-[#757575]">Valores en pesos chilenos. No incluyen IVA.</p>
     </div>
   );
