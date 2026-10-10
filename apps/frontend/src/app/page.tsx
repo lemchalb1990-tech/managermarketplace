@@ -239,9 +239,10 @@ function SectionHead({ label, title, lead, dark = false }: { label?: string; tit
 }
 
 /** Franja de acción entre secciones. */
-function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
+// contact: en vez de los botones fijos, muestra "Agenda con un ejecutivo" y "Contáctanos".
+function CtaBand({ bg, fg = "#000", title, text, primary, secondary, contact = false }: {
   bg: string; fg?: string; title: string; text: string;
-  primary: { label: string; href: string }; secondary?: { label: string; href: string };
+  primary?: { label: string; href: string }; secondary?: { label: string; href: string }; contact?: boolean;
 }) {
   const dark = fg === "#fff";
   return (
@@ -252,9 +253,10 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
           <p className={`mt-2 max-w-[80ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "lp-btn--primary"}`}>
+          {contact && <ContactButtons dark={dark} primary size="md" />}
+          {primary && <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "lp-btn--primary"}`}>
             {primary.label} <Icon d={ICONS.arrow} size={16} />
-          </Link>
+          </Link>}
           {secondary && (
             <a href={secondary.href} className={`lp-btn ${dark ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/70 text-black hover:bg-white"}`}>
               {secondary.label}
@@ -414,9 +416,8 @@ export default async function Home() {
           </div>
         </section>
 
-        <CtaBand bg="#0075de" fg="#fff" title="Mira tus números reales, no los de ejemplo"
-          text="Entra al panel y ve tus ventas, tu neto y tus órdenes de todos los canales en una pantalla."
-          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver planes", href: "#precios" }} />
+        <CtaBand bg="#0075de" fg="#fff" contact title="Imagina este panel con tus propias ventas"
+          text="Un ejecutivo te lo muestra con tus canales y te ayuda a conectarlos, sin costo." />
 
         {/* Antes / ahora */}
         <section className={`bg-white ${BAND}`}>
