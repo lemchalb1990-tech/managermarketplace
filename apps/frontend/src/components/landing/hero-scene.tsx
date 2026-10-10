@@ -98,7 +98,7 @@ function ChannelDot({ logo, active, pulse }: { logo: ReactNode; active: boolean;
   return (
     <span className="relative grid h-full w-full place-items-center">
       {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full bg-[#0075de]/35 motion-reduce:hidden" />}
-      <span className={`relative grid h-full w-full place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#0075de,0_8px_20px_rgba(0,117,222,0.25)]" : "shadow-[0_4px_12px_rgba(0,0,0,0.1)]"}`}
+      <span className={`relative grid h-full w-full place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#0075de,0_8px_20px_rgba(0,117,222,0.25)]" : "shadow-[0_6px_18px_rgba(0,117,222,0.28)]"}`}
         style={{ border: LINE }}>
         {/* El logo llena el círculo hasta el borde */}
         <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{logo}</span>
@@ -116,12 +116,12 @@ function ServiceDot({ icon, logo, label, tone, active, pulse }: {
       {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full opacity-40 motion-reduce:hidden" style={{ background: tone }} />}
       {logo ? (
         <span className={`relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110" : ""}`}
-          style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : "0 4px 12px rgba(0,0,0,0.1)", border: active ? undefined : LINE }}>
+          style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : "0 6px 18px rgba(0,117,222,0.28)", border: active ? undefined : LINE }}>
           <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{logo}</span>
         </span>
       ) : (
         <span className={`relative grid h-full w-full place-items-center rounded-full transition-[box-shadow,transform,background-color,color] duration-300 ${active ? "scale-110 text-white" : "bg-white"}`}
-          style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+          style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE, boxShadow: "0 6px 18px rgba(0,117,222,0.28)" }}>
           <Svg d={icon} size={20} />
         </span>
       )}
@@ -184,8 +184,10 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   const nodes = [...CHANNELS.map((c) => c.key), "dropshipping"];
 
   return (
-    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-5">
-      <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
+    <div className="relative overflow-hidden rounded-[12px] p-3 sm:p-5" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
+      {/* Puntos tenues y un halo azul detrás del producto: la red conectada */}
+      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.13) 1px, transparent 1.2px)", backgroundSize: "22px 22px" }} />
+      <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 46%, rgba(0,117,222,0.38), transparent 58%)" }} />
       {/* Área con el producto al centro y los círculos alrededor */}
       <div ref={areaRef} className="relative px-[21%] pb-[104px] pt-[92px] sm:pb-[112px] sm:pt-[104px]">
         {/* Conexiones de cada círculo con el producto */}
@@ -197,7 +199,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
               const tone = k === "dropshipping" ? PURPLE : BLUE;
               return (
                 <line key={k} x1={x} y1={y} x2={center[0]} y2={center[1]}
-                  stroke={on ? tone : "rgba(2,9,58,0.22)"} strokeWidth={on ? 2.5 : 1.5} strokeDasharray={on ? undefined : "4 5"}
+                  stroke={on ? tone : "rgba(255,255,255,0.28)"} strokeWidth={on ? 2.5 : 1.5} strokeDasharray={on ? undefined : "4 5"}
                   className="transition-[stroke] duration-300" />
               );
             })}
@@ -300,7 +302,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
 
         {/* Facturación justo debajo del producto: la boleta baja desde la misma venta */}
         <span className="absolute bottom-6 left-1/2 z-20 h-14 w-14 -translate-x-1/2 sm:h-[60px] sm:w-[60px]">
-          <span className={`pointer-events-none absolute bottom-full left-1/2 h-6 w-[2px] -translate-x-1/2 sm:h-7 ${active ? "bg-[#15803d]" : "bg-[#02093a]/20"}`}>
+          <span className={`pointer-events-none absolute bottom-full left-1/2 h-6 w-[2px] -translate-x-1/2 sm:h-7 ${active ? "bg-[#22c55e]" : "bg-white/30"}`}>
             {active && <span key={step} className="lp-dot-down absolute -left-[3px] h-2 w-2 rounded-full bg-[#15803d]" />}
           </span>
           <ServiceDot icon={ICON.doc} logo={billingLogo} label="Facturación" tone={GREEN} active={!!active} pulse={step} />
