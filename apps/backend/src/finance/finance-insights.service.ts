@@ -43,10 +43,8 @@ export class FinanceInsightsService {
     }
     await this.recurring.generateDue(companyId);
     const { year, month } = await this.currentMonth();
-    const [report, prevReport, bankAccounts, upcoming] = await Promise.all([
+    const [report, bankAccounts, upcoming] = await Promise.all([
       this.finance.report(user, companyId, year),
-      // Año anterior solo si los últimos 6 meses lo incluyen (tendencia del panel de inicio).
-      month < 6 ? this.finance.report(user, companyId, year - 1) : Promise.resolve(null),
       this.banks.listBankAccounts(user, companyId),
       this.recurring.upcoming(companyId, 7),
     ]);
@@ -74,22 +72,8 @@ export class FinanceInsightsService {
       alerts.push({ level: 'info', text: `Vence el ${r.date!.split('-').reverse().join('-')}: ${r.description} ($${Math.round(r.amount).toLocaleString('es-CL')})` });
     }
 
-    // Tendencia de los últimos 6 meses (incluido el actual) y el mes anterior completo.
-    const monthAt = (k: number) => {
-      const m = month - k;
-      const r = m >= 1 ? report : prevReport;
-      const idx = ((m - 1 + 12) % 12);
-      const income = r?.totals.INCOME.actual[idx] ?? 0;
-      const expense = r?.totals.EXPENSE.actual[idx] ?? 0;
-      return { year: m >= 1 ? year : year - 1, month: idx + 1, income: round2(income), expense: round2(expense), result: round2(income - expense) };
-    };
-    const trend = [5, 4, 3, 2, 1, 0].map(monthAt);
-    const previousMonth = monthAt(1);
-
     return {
       year, month,
-      trend,
-      previousMonth,
       income: { budget: t.INCOME.budget[i], actual: t.INCOME.actual[i] },
       expense: { budget: t.EXPENSE.budget[i], actual: t.EXPENSE.actual[i] },
       result: { budget: round2(t.INCOME.budget[i] - t.EXPENSE.budget[i]), actual: round2(t.INCOME.actual[i] - t.EXPENSE.actual[i]) },

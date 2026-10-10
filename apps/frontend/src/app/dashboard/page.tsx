@@ -1,7 +1,6 @@
 'use client';
 
 import { KpiIcon } from '@/components/KpiIcon';
-import { KpiTrend, type KpiTrendData } from '@/components/KpiTrend';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -61,18 +60,15 @@ const CHANNEL_LABEL: Record<string, string> = {
 const CARD_SHADOW: CSSProperties = { boxShadow: '0 1px 2px rgba(2,9,58,0.05), 0 6px 16px rgba(2,9,58,0.06)' };
 
 function KpiCard({
-  title, value, sub, colorClass, icon, href, centerValue = false, trend,
+  title, value, sub, colorClass, icon, href, centerValue = false,
 }: {
   title: string; value: string | number; sub?: string; colorClass: string; icon: string; href?: string;
-  // Tendencia y comparación con el período anterior (pie de la tarjeta).
-  trend?: KpiTrendData | null;
   // Celular: valor centrado (cantidades) en vez de alineado a la derecha (montos).
   centerValue?: boolean;
 }) {
   const content = (
-    <div className={`group relative ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex flex-col justify-between h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
+    <div className={`group relative ui-card px-3 py-2 sm:px-4 sm:py-3 xl:px-2.5 flex items-center gap-2.5 sm:gap-3 xl:gap-2 h-full ${DASHBOARD_CARD_MIN_H} transition-shadow hover:shadow-md hover:border-[var(--border-strong,#d1d5db)]`}
       style={CARD_SHADOW}>
-      <div className="flex items-center gap-2.5 sm:gap-3 xl:gap-2">
       {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
       {/* Ícono del alto de título + valor. */}
       <div className={`w-11 h-11 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
@@ -82,8 +78,6 @@ function KpiCard({
         <p className="text-xs sm:text-[13px] text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
         <p style={kpiValueStyle(String(value))} className={`font-bold text-[var(--text)] leading-tight tracking-tight whitespace-nowrap tabular-nums ${centerValue ? 'text-center' : 'text-right'}`}><span key={String(value)} className="ui-pop">{value}</span></p>
       </div>
-      </div>
-      {trend && <KpiTrend {...trend} />}
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
           {sub}
@@ -268,21 +262,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Tendencia (7 días) y comparación con ayer a la misma hora para las tarjetas del día.
-  type DaySum = { totalSales?: number | string; totalRevenue?: number | string; totalNetReceived?: number | string } | null | undefined;
-  const dayTrend = (pick: (d: DaySum) => number, label = 'vs ayer', fmt?: (n: number) => string): KpiTrendData | null => {
-    if (!summary?.trend?.length) return null;
-    const prev = summary.previous ? pick(summary.previous) : null;
-    const cur = pick(summary);
-    const f = fmt || ((n: number) => n.toLocaleString('es-CL'));
-    return {
-      values: summary.trend.map(pick), current: cur, previous: prev, label,
-      tooltip: prev != null ? `${summary.previous?.untilSameTime ? 'Ayer a esta hora' : 'Día anterior'}: ${f(prev)} · últimos 7 días en el gráfico` : undefined,
-    };
-  };
-  const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
-  const ticket = (d: DaySum) => (Number(d?.totalSales) ? Number(d?.totalRevenue) / Number(d?.totalSales) : 0);
-
   return (
     <div className="space-y-3">
 
@@ -325,7 +304,6 @@ export default function DashboardPage() {
           sub="transacciones · POS y e-commerce"
           colorClass="bg-[#e8f1fc] text-[#0075de]"
           icon="cart"
-          trend={dayTrend((d) => Number(d?.totalSales ?? 0))}
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
@@ -334,7 +312,6 @@ export default function DashboardPage() {
           sub="total del día · POS y e-commerce"
           colorClass="bg-[#02093a] text-white"
           icon="cash"
-          trend={dayTrend((d) => Number(d?.totalRevenue ?? 0), 'vs ayer', money)}
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
@@ -343,7 +320,6 @@ export default function DashboardPage() {
           sub="hoy · descontando comisiones, envío e impuestos"
           colorClass="bg-emerald-50 text-emerald-600"
           icon="bank"
-          trend={dayTrend((d) => Number(d?.totalNetReceived ?? 0), 'vs ayer', money)}
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
@@ -361,7 +337,6 @@ export default function DashboardPage() {
           sub="ingresos del día ÷ ventas del día"
           colorClass="bg-[#e8f1fc] text-[#02093a]"
           icon="receipt"
-          trend={dayTrend(ticket, 'vs ayer', money)}
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
       </div>
