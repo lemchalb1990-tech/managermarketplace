@@ -850,6 +850,54 @@ export class MercadolibreService {
     }
   }
 
+  // ¿La categoría acepta "disponibilidad de stock" (sale_term MANUFACTURING_TIME)?
+  private async categoryAcceptsManufacturingTime(categoryId: string, token: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${ML_API}/categories/${categoryId}/sale_terms`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return false;
+      const data = await res.json() as any[];
+      return Array.isArray(data) && data.some((t) => t?.id === 'MANUFACTURING_TIME');
+    } catch {
+      return false;
+    }
+  }
+
+  // Envía la disponibilidad de stock del producto a todas sus publicaciones de ML. Sin días (o
+  // categoría que no lo acepta) se deja en entrega inmediata.
+  // POR VALIDAR en vivo: quitar el plazo enviando value_name null.
+  async applyManufacturingTime(productId: string, user: any) {
+    const product = await this.catalog.findOne(productId, user);
+    const days = Number((product as any).mlManufacturingDays || 0);
+    const listings = await this.prisma.listing.findMany({
+      where: { productId, externalId: { not: null }, status: { in: [ListingStatus.ACTIVE, ListingStatus.PAUSED] }, connection: { marketplace: MarketplaceType.MERCADO_LIBRE } },
+      include: { connection: { select: { name: true } } },
+    });
+    const results: { connection: string; ok: boolean; immediate: boolean; error?: string }[] = [];
+    for (const l of listings) {
+      try {
+        const token = await this.getValidToken(l.connectionId);
+        const accepts = (product as any).mlCategoryId ? await this.categoryAcceptsManufacturingTime((product as any).mlCategoryId, token) : false;
+        if (!accepts && days > 0) {
+          results.push({ connection: l.connection.name, ok: true, immediate: true });
+          continue;
+        }
+        const term = days > 0 ? { id: 'MANUFACTURING_TIME', value_name: `${days} días` } : { id: 'MANUFACTURING_TIME', value_name: null };
+        const res = await fetch(`${ML_API}/items/${l.externalId}`, {
+          method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sale_terms: [term] }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as any;
+          const causes = Array.isArray(err.cause) ? err.cause.map((c: any) => c.message).filter(Boolean).join('; ') : '';
+          throw new Error(causes || err.message || `HTTP ${res.status}`);
+        }
+        results.push({ connection: l.connection.name, ok: true, immediate: days <= 0 });
+      } catch (err: any) {
+        results.push({ connection: l.connection.name, ok: false, immediate: false, error: err.message });
+      }
+    }
+    return { days, results };
+  }
+
   async publishProduct(
     productId: string,
     connectionId: string,
@@ -935,6 +983,15 @@ export class MercadolibreService {
     const userAttrs = (noBarcode || removedGtins.length) && !baseAttrs.some((a: any) => a.id === 'GTIN' || a.id === 'EMPTY_GTIN_REASON')
       ? [...baseAttrs, { id: 'EMPTY_GTIN_REASON', value_id: '17055160' }]
       : baseAttrs;
+
+    // Disponibilidad de stock: si el producto tiene días y la categoría acepta el plazo, se
+    // agrega a las condiciones de venta (salvo que ya venga elegido en la ventana de publicar).
+    const mfgDays = Number((product as any).mlManufacturingDays || 0);
+    if (mfgDays > 0 && !(saleTerms || []).some((t) => t.id === 'MANUFACTURING_TIME')) {
+      if (await this.categoryAcceptsManufacturingTime(categoryId, token)) {
+        saleTerms = [...(saleTerms || []), { id: 'MANUFACTURING_TIME', value_name: `${mfgDays} días` }];
+      }
+    }
 
     const mlItem = {
       title: accountTitle,

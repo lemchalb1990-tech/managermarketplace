@@ -503,6 +503,14 @@ export class MercadolibreController {
 
   // ─── Publicaciones ─────────────────────────────────────────────────────────
 
+  // Envía la disponibilidad de stock (días) del producto a todas sus publicaciones de ML.
+  @Post('products/:productId/manufacturing-time')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  applyManufacturingTime(@Param('productId') productId: string, @CurrentUser() user: any) {
+    return this.service.applyManufacturingTime(productId, user);
+  }
+
   @Post('products/:productId/publish/:connectionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)

@@ -1,5 +1,6 @@
 'use client';
 
+import MlAvailabilityField from './MlAvailabilityField';
 import { useEffect, useState, FormEvent, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
@@ -1425,7 +1426,7 @@ function channelPriceMap(product: any): Record<string, string> {
 
 const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
-  stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '',
+  stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '', mlManufacturingDays: '',
   packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '', noBarcode: false,
   channelPrices: {} as Record<string, string>,
 };
@@ -1857,6 +1858,7 @@ export default function CatalogPage() {
       editForm.category !== orig.category ||
       editForm.mlCategoryId !== orig.mlCategoryId ||
       editForm.mlDescription !== orig.mlDescription ||
+      (editForm.mlManufacturingDays || '') !== (orig.mlManufacturingDays || '') ||
       JSON.stringify(editForm.mlAttributes) !== orig.mlAttributes ||
       JSON.stringify(editForm.channelPrices || {}) !== orig.channelPrices ||
       editForm.warehouseId !== orig.warehouseId ||
@@ -1904,6 +1906,7 @@ export default function CatalogPage() {
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
+      mlManufacturingDays: product.mlManufacturingDays != null ? String(product.mlManufacturingDays) : '',
       mlAttributes: existingAttrs,
       warehouseId: product.warehouseId || '',
       packageHeight: product.packageHeight != null ? String(Number(product.packageHeight)) : '',
@@ -1932,6 +1935,7 @@ export default function CatalogPage() {
       category: product.category || '',
       mlCategoryId: product.mlCategoryId || '',
       mlDescription: product.mlDescription || '',
+      mlManufacturingDays: product.mlManufacturingDays != null ? String(product.mlManufacturingDays) : '',
       mlAttributes: JSON.stringify(existingAttrs),
       warehouseId: product.warehouseId || '',
       packageHeight: product.packageHeight != null ? String(Number(product.packageHeight)) : '',
@@ -2004,6 +2008,7 @@ export default function CatalogPage() {
         category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
+        mlManufacturingDays: editForm.mlManufacturingDays !== '' && Number(editForm.mlManufacturingDays) > 0 ? parseInt(editForm.mlManufacturingDays) : null,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
         warehouseId: editForm.warehouseId || undefined,
         packageHeight: editForm.packageHeight !== '' ? parseFloat(editForm.packageHeight) : undefined,
@@ -2014,6 +2019,10 @@ export default function CatalogPage() {
         noBarcode: !!editForm.noBarcode,
       };
       await api.catalog.update(selected.id, payload, token);
+      const prevDays = selected.mlManufacturingDays != null ? Number(selected.mlManufacturingDays) : 0;
+      if ((payload.mlManufacturingDays || 0) !== prevDays && (selected.listings || []).some((l: any) => l.externalId && connections.some((c) => c.id === l.connectionId))) {
+        await api.marketplace.applyManufacturingTime(selected.id, token).catch(() => null);
+      }
       await saveWebChannelPrices(selected.id, editForm.channelPrices || {}, channelPriceMap(selected), token);
       await refreshSelected(selected.id);
       setIsDirty(false);
@@ -2055,6 +2064,7 @@ export default function CatalogPage() {
         category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
         mlDescription: editForm.mlDescription || undefined,
+        mlManufacturingDays: editForm.mlManufacturingDays !== '' && Number(editForm.mlManufacturingDays) > 0 ? parseInt(editForm.mlManufacturingDays) : null,
         mlAttributes: editForm.mlAttributes?.length ? editForm.mlAttributes : undefined,
         warehouseId: editForm.warehouseId || undefined,
         packageHeight: editForm.packageHeight !== '' ? parseFloat(editForm.packageHeight) : undefined,
@@ -2348,6 +2358,10 @@ export default function CatalogPage() {
         const defaults: Record<string, { value_id?: string; value_name?: string }> = {};
         for (const t of terms) {
           if (t.values.length === 1) defaults[t.id] = { value_id: t.values[0].id, value_name: t.values[0].name };
+        }
+        // Disponibilidad de stock: la definida en la ficha del producto.
+        if (terms.some((t) => t.id === 'MANUFACTURING_TIME') && Number(editForm.mlManufacturingDays) > 0) {
+          defaults.MANUFACTURING_TIME = { value_name: `${parseInt(editForm.mlManufacturingDays)} días` };
         }
         setPublishModal((m) => m ? { ...m, saleTerms: terms, saleTermsLoading: false, saleTermsValues: { ...defaults, ...m.saleTermsValues } } : m);
       })
@@ -3641,6 +3655,14 @@ export default function CatalogPage() {
                         }}
                       />
                     </div>
+                  )}
+                  {hasMlModule && (selected.id || mlChecked) && editForm.mlCategoryId && (
+                    <MlAvailabilityField
+                      categoryId={editForm.mlCategoryId}
+                      connectionId={connections[0]?.id}
+                      value={editForm.mlManufacturingDays || ''}
+                      onChange={(v) => setEditForm((f: any) => ({ ...f, mlManufacturingDays: v }))}
+                    />
                   )}
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div className="sm:col-span-2">

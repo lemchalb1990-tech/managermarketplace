@@ -67,6 +67,12 @@ export class CreateProductDto {
   @IsString()
   mlDescription?: string;
 
+  // Disponibilidad de stock en Mercado Libre, en días (null = entrega inmediata).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  mlManufacturingDays?: number | null;
+
   @IsOptional()
   @IsArray()
   mlAttributes?: { id: string; value_name: string }[];
@@ -164,6 +170,12 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   mlDescription?: string;
+
+  // Disponibilidad de stock en Mercado Libre, en días (null = entrega inmediata).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  mlManufacturingDays?: number | null;
 
   @IsOptional()
   @IsArray()

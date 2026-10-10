@@ -580,6 +580,9 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix/apply`, {
         method: 'POST', body: JSON.stringify({ url }),
       }, token),
+    applyManufacturingTime: (productId: string, token: string) =>
+      apiFetch<{ days: number; results: { connection: string; ok: boolean; immediate: boolean; error?: string }[] }>(
+        `/ecommerce/ml/products/${productId}/manufacturing-time`, { method: 'POST' }, token),
     getSaleTerms: (connectionId: string, categoryId: string, token: string) =>
       apiFetch<{ id: string; name: string; valueType: string; required: boolean; values: { id: string; name: string }[] }[]>(
         `/ecommerce/ml/connections/${connectionId}/categories/${categoryId}/sale-terms`, {}, token),
