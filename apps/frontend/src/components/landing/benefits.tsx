@@ -16,18 +16,14 @@ function Card({ title, text, dark = false, className = "", children }: {
   title: string; text: string; dark?: boolean; className?: string; children: ReactNode;
 }) {
   return (
-    <div className={`relative flex flex-col overflow-hidden rounded-[12px] p-5 sm:p-6 ${dark ? "text-white" : "bg-white"} ${className}`}
+    <div className={`relative flex flex-col overflow-hidden rounded-[12px] p-5 ${dark ? "text-white" : "bg-white"} ${className}`}
       style={dark ? { background: NAVY } : { border: LINE }}>
       <p className={`font-bold tracking-[-0.015em] ${dark ? "text-[24px] leading-[1.15] sm:text-[28px]" : "text-[19px] leading-[1.25]"}`}>{title}</p>
       <p className={`mt-1.5 text-[14px] leading-[1.5] ${dark ? "text-white/65" : "text-[#615d59]"}`}>{text}</p>
-      <div className="mt-5 flex-1">{children}</div>
+      <div className="mt-4 flex flex-1 flex-col justify-end">{children}</div>
     </div>
   );
 }
-
-const Hint = ({ children, dark = false }: { children: ReactNode; dark?: boolean }) => (
-  <p className={`mt-2 text-[11px] ${dark ? "text-white/45" : "text-[#9a968f]"}`}>{children}</p>
-);
 
 /* 1. Stock sincronizado: se simula una venta y baja en todos los canales */
 function StockDemo() {
@@ -86,7 +82,7 @@ function OrdersDemo() {
           </button>
         ))}
       </div>
-      <ul className="mt-2 space-y-1.5">
+      <ul className="mt-2 min-h-[176px] space-y-1.5">
         {list.map((o) => (
           <li key={o.n} className="lp-slide flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ border: LINE }}>
             <Photo src={o.img} className="h-8 w-8" />
@@ -102,21 +98,34 @@ function OrdersDemo() {
 }
 
 /* 3. Boleta automática: cada venta emite su documento */
+const DOCS: Array<[string, string, number]> = [
+  [PRODUCT_IMG.zapatillas, "Zapatillas urbanas blancas", 49990],
+  [PRODUCT_IMG.polera, "Polera oversize negra", 12990],
+  [PRODUCT_IMG.jockey, "Jockey blanco", 8990],
+  [PRODUCT_IMG.poleron, "Polerón blanco", 24990],
+];
 function InvoiceDemo() {
   const [folio, setFolio] = useState(4520);
   const [fresh, setFresh] = useState(false);
   return (
     <div>
-      <div key={folio} className={`${fresh ? "lp-slide" : ""} rounded-lg p-3`} style={{ border: LINE }}>
-        <div className="flex items-center justify-between text-[12px]">
-          <span className="font-semibold">Boleta electrónica N° {folio}</span>
-          <span className="rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">Aceptada SII</span>
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <Photo src={PRODUCT_IMG.zapatillas} className="h-8 w-8" />
-          <span className="flex-1 truncate text-[12px] text-[#615d59]">Zapatillas urbanas blancas</span>
-          <span className="font-mono text-[12px] font-semibold">{clp(49990)}</span>
-        </div>
+      <div className="space-y-1.5">
+        {[folio, folio - 1].map((f, i) => {
+          const item = DOCS[f % DOCS.length];
+          return (
+            <div key={f} className={`${fresh && i === 0 ? "lp-slide" : ""} rounded-lg p-2.5 ${i === 1 ? "opacity-60" : ""}`} style={{ border: LINE }}>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="font-semibold">Boleta N° {f}</span>
+                <span className="rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">Aceptada SII</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Photo src={item[0]} className="h-7 w-7" />
+                <span className="flex-1 truncate text-[12px] text-[#615d59]">{item[1]}</span>
+                <span className="font-mono text-[12px] font-semibold">{clp(item[2])}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
       <button type="button" onClick={() => { setFolio((f) => f + 1); setFresh(true); }}
         className="mt-2 w-full rounded-lg bg-[#02093a] py-2 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
@@ -148,11 +157,17 @@ function ProfitDemo() {
             className={`h-full transition-opacity ${sel === i ? "" : "opacity-50"}`} style={{ width: `${v * 100}%`, background: c }} />
         ))}
       </div>
-      <p key={sel} className="lp-slide mt-2 flex items-baseline justify-between text-[13px]">
-        <span className="font-medium">{parts[sel][0]}</span>
-        <span className="font-mono font-semibold">{clp(Math.round((price / 1.19) * parts[sel][1]))} · {Math.round(parts[sel][1] * 100)}%</span>
-      </p>
-      <Hint>Pasa el mouse o toca la barra.</Hint>
+      <ul className="mt-2.5 grid grid-cols-2 gap-1.5 text-[12px]">
+        {parts.map(([k, v, c], i) => (
+          <li key={k}>
+            <button type="button" onMouseEnter={() => setSel(i)} onClick={() => setSel(i)}
+              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition ${sel === i ? "bg-[#f6f5f4] font-semibold" : "text-[#615d59]"}`}>
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: c }} />{k}
+              <span className="ml-auto font-mono">{clp(Math.round((price / 1.19) * v))}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -171,7 +186,7 @@ function PhotoAiDemo() {
       <p className="text-[12px] text-[#757575]">Título: <span className="font-medium text-black">Zapatillas urbanas blancas</span></p>
       <div className="relative mt-2 overflow-hidden rounded-lg" style={{ border: LINE }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={wrong ? PRODUCT_IMG.jockey : PRODUCT_IMG.zapatillas} alt="" className="aspect-[16/9] w-full object-cover" />
+        <img src={wrong ? PRODUCT_IMG.jockey : PRODUCT_IMG.zapatillas} alt="" className="aspect-[5/2] w-full object-cover" />
         {scanning && <span className="lp-scan pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[#0075de]/35 to-transparent" />}
         {!scanning && (
           <span className={`lp-slide absolute bottom-2 left-2 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white ${wrong ? "bg-red-600" : "bg-green-600"}`}>
