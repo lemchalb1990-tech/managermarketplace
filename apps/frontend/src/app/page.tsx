@@ -218,7 +218,37 @@ const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
 
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
-const WRAP = "mx-auto w-full max-w-[1200px] px-4 sm:px-6";
+const WRAP = "mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10";
+// Cada sección es una franja a todo el ancho con su propio fondo.
+const BAND = "py-20 sm:py-24";
+
+/** Franja de acción entre secciones. */
+function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
+  bg: string; fg?: string; title: string; text: string;
+  primary: { label: string; href: string }; secondary?: { label: string; href: string };
+}) {
+  const dark = fg === "#fff";
+  return (
+    <section style={{ background: bg, color: fg }}>
+      <div className={`${WRAP} ui-reveal flex flex-col gap-6 py-12 sm:py-14 lg:flex-row lg:items-center lg:justify-between`}>
+        <div className="max-w-3xl">
+          <p className="lp-display text-[clamp(1.7rem,3.6vw,40px)]">{title}</p>
+          <p className={`lp-serif mt-2 text-[17px] leading-[1.5] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-[#111]"}`}>
+            {primary.label} <Icon d={ICONS.arrow} size={16} />
+          </Link>
+          {secondary && (
+            <a href={secondary.href} className={`lp-btn ${dark ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/70 text-black hover:bg-white"}`}>
+              {secondary.label}
+            </a>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default async function Home() {
   const [logoMap, plans] = await Promise.all([getPlatformLogoMap(), getPublicPlans()]);
@@ -272,7 +302,7 @@ export default async function Home() {
             <a href="#beneficios" className="lp-btn lp-btn--soft">Ver beneficios</a>
           </div>
 
-          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[1080px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[1280px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
             <HeroScene
               logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
               phone={<PhoneMock />}
@@ -295,7 +325,7 @@ export default async function Home() {
         </section>
 
         {/* Beneficios */}
-        <section id="beneficios" className="py-20">
+        <section id="beneficios" className={BAND}>
           <div className={WRAP}>
             <div className="ui-reveal mx-auto max-w-2xl text-center">
               <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">
@@ -328,8 +358,12 @@ export default async function Home() {
           </div>
         </section>
 
+        <CtaBand bg="#ffb110" title="Deja de actualizar el stock a mano en cada canal"
+          text="Conectas tus cuentas una vez y cada venta se descuenta sola en todos lados."
+          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver funciones", href: "#funciones" }} />
+
         {/* Todo desde el panel */}
-        <section id="funciones" className="pb-20">
+        <section id="funciones" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <div className="ui-reveal max-w-2xl">
               <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Funciones</span>
@@ -351,7 +385,7 @@ export default async function Home() {
         </section>
 
         {/* Dashboard y alertas */}
-        <section id="dashboard" className="mb-20 bg-[#02093a] py-14 text-white sm:py-20">
+        <section id="dashboard" className={`bg-[#02093a] text-white ${BAND}`}>
           <div className="mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10">
             <div>
               <div className="ui-reveal grid gap-4 lg:grid-cols-[1fr_1fr] lg:items-end">
@@ -387,10 +421,14 @@ export default async function Home() {
           </div>
         </section>
 
+        <CtaBand bg="#0075de" fg="#fff" title="Mira tus números reales, no los de ejemplo"
+          text="Entra al panel y ve tus ventas, tu neto y tus órdenes de todos los canales en una pantalla."
+          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver planes", href: "#precios" }} />
+
         {/* Antes / ahora */}
-        <section className="pb-20">
+        <section className={`bg-white ${BAND}`}>
           <div className={WRAP}>
-            <div className="lp-card relative overflow-hidden p-6 sm:p-10">
+            <div className="relative">
               <h2 className="lp-display ui-reveal max-w-2xl text-[clamp(2rem,4.5vw,48px)]">
                 Lo que deja de pasarte en el día a día
               </h2>
@@ -417,7 +455,7 @@ export default async function Home() {
         </section>
 
         {/* Canales: texto a la izquierda, bloque de color a la derecha */}
-        <section id="canales" className="pb-20">
+        <section id="canales" className={`bg-[#e6f3fe] ${BAND}`}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
             <div className="ui-reveal">
               <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Canales</span>
@@ -438,8 +476,12 @@ export default async function Home() {
           </div>
         </section>
 
+        <CtaBand bg="#02093a" fg="#fff" title="Conecta tu primera cuenta en minutos"
+          text="Mercado Libre, Falabella, Paris, Ripley o Walmart: autorizas tu cuenta y el panel trae tus publicaciones."
+          primary={{ label: "Entrar al panel", href: "/login" }} secondary={{ label: "Ver versión móvil", href: "#movil" }} />
+
         {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
-        <section id="movil" className="pb-20">
+        <section id="movil" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
             <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
               <div className="relative mx-auto max-w-[420px]">
@@ -469,7 +511,7 @@ export default async function Home() {
         </section>
 
         {/* Planes y precios */}
-        <section id="precios" className="pb-20">
+        <section id="precios" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <div className="ui-reveal mx-auto max-w-2xl text-center">
               <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Planes y precios</span>
@@ -482,10 +524,14 @@ export default async function Home() {
           </div>
         </section>
 
+        <CtaBand bg="#f6d5b8" title="Pruébalo gratis 15 días"
+          text="Con todo lo del plan Crece y sin compromiso. Al final eliges si sigues."
+          primary={{ label: "Empezar la prueba", href: "/login" }} secondary={{ label: "Ver cómo funciona", href: "#modulos" }} />
+
         {/* Módulos */}
-        <section id="modulos" className="pb-20">
+        <section id="modulos" className={BAND}>
           <div className={WRAP}>
-            <div className="lp-card p-6 sm:p-10">
+            <div>
               <div className="ui-reveal max-w-2xl">
                 <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">Desde que entra el pedido hasta que llega al cliente</h2>
                 <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
@@ -498,9 +544,9 @@ export default async function Home() {
         </section>
 
         {/* Cierre */}
-        <section className="pb-20">
+        <section className="bg-[#02093a] text-white">
           <div className={WRAP}>
-            <div className="relative flex flex-col gap-8 overflow-hidden rounded-[12px] bg-[#02093a] p-8 text-white sm:flex-row sm:items-end sm:justify-between sm:p-12">
+            <div className="relative flex flex-col gap-8 py-16 sm:flex-row sm:items-end sm:justify-between sm:py-20">
               <div>
                 <h2 className="lp-display text-[clamp(2rem,4.5vw,48px)]">¿Ya tienes cuenta?</h2>
                 <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
@@ -513,14 +559,14 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-black/[0.06]">
-        <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px] text-[#757575]`}>
+      <footer className="bg-[#02093a] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
+        <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px]`}>
           <span>Creado por OnDataSolution</span>
           <div className="flex gap-5">
-            <a href="#beneficios" className="hover:text-black">Beneficios</a>
-            <a href="#canales" className="hover:text-black">Canales</a>
-            <a href="#movil" className="hover:text-black">Versión móvil</a>
-            <Link href="/login" className="hover:text-black">Entrar al panel</Link>
+            <a href="#beneficios" className="hover:text-white">Beneficios</a>
+            <a href="#canales" className="hover:text-white">Canales</a>
+            <a href="#movil" className="hover:text-white">Versión móvil</a>
+            <Link href="/login" className="hover:text-white">Entrar al panel</Link>
           </div>
         </div>
       </footer>
