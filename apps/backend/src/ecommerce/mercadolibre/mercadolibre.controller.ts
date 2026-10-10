@@ -9,6 +9,7 @@ import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { MercadolibreService, MlAuthResult } from './mercadolibre.service';
 import { MlPhotoService } from './ml-photo.service';
+import { MlMessagesService } from './ml-messages.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -124,7 +125,7 @@ class PhotoFixApplyDto {
 export class MercadolibreController {
   private readonly logger = new Logger(MercadolibreController.name);
 
-  constructor(private service: MercadolibreService, private photos: MlPhotoService) {}
+  constructor(private service: MercadolibreService, private photos: MlPhotoService, private messages: MlMessagesService) {}
 
   // ─── Credenciales ─────────────────────────────────────────────────────────
 
@@ -498,7 +499,67 @@ export class MercadolibreController {
 
   @Post('webhook')
   webhook(@Body() body: any) {
+    // Mensajes postventa: los atiende el servicio de mensajería.
+    if (body?.topic === 'messages') return this.messages.handleWebhook(body);
     return this.service.handleWebhook(body);
+  }
+
+  // ─── Mensajes postventa ─────────────────────────────────────────────────────
+
+  @Get('messages/conversations')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  listConversations(@CurrentUser() user: any, @Query() q: any) {
+    return this.messages.list(user, q || {});
+  }
+
+  @Get('messages/conversations/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  openConversation(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.messages.open(user, id);
+  }
+
+  @Post('messages/conversations/:id/send')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  sendMessage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { text: string }) {
+    return this.messages.send(user, id, body?.text);
+  }
+
+  @Get('messages/sales/:saleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  saleConversation(@CurrentUser() user: any, @Param('saleId') saleId: string) {
+    return this.messages.forSale(user, saleId);
+  }
+
+  @Get('messages/rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  listRules(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.messages.listRules(user, companyId);
+  }
+
+  @Post('messages/rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  createRule(@CurrentUser() user: any, @Body() body: any) {
+    return this.messages.createRule(user, body || {});
+  }
+
+  @Patch('messages/rules/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  updateRule(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.messages.updateRule(user, id, body || {});
+  }
+
+  @Delete('messages/rules/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  deleteRule(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.messages.deleteRule(user, id);
   }
 
   // ─── Publicaciones ─────────────────────────────────────────────────────────

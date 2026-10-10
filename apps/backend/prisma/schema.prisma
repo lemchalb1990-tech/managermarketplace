@@ -226,6 +226,8 @@ model Company {
   @@map("companies")
   courierConnections CourierConnection[]
   courierShipments   CourierShipment[]
+  mlConversations MlConversation[]
+  mlMessageRules  MlMessageRule[]
 }
 
 // Perfil de acceso: rol con nombre + lista de permisos por página.
@@ -335,6 +337,7 @@ model MarketplaceConnection {
   listings   Listing[]
   sales      Sale[]
   mlQuestions MlQuestion[]
+  mlConversations MlConversation[]
   mlClaims    MlClaim[]
   channelPrices  ChannelPrice[]
   syncQueueItems SyncQueueItem[]
@@ -953,6 +956,8 @@ model Sale {
   @@index([companyId, externalAltId])
   @@unique([companyId, saleNumber])
   @@map("sales")
+  mlConversations MlConversation[]
+  mlMessageLogs   MlMessageLog[]
 }
 
 model SaleItem {
@@ -2273,4 +2278,75 @@ model CourierShipment {
   @@index([companyId, status])
   @@index([orderId])
   @@map("courier_shipments")
+}
+
+// ── Mensajería postventa de Mercado Libre ────────────────────────────────────
+
+// Conversación de una venta (pack) con el comprador. Los mensajes se guardan en caché (JSON)
+// y se refrescan desde Mercado Libre al abrirla, por aviso (webhook) o cada pocos minutos.
+model MlConversation {
+  id            String    @id @default(cuid())
+  packId        String
+  buyerId       String?
+  buyerName     String?
+  lastText      String?   @db.Text
+  lastFrom      String?   // BUYER | SELLER
+  lastMessageAt DateTime?
+  unread        Int       @default(0)
+  blocked       Boolean   @default(false)
+  blockedReason String?
+  messages      Json?
+  syncedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  companyId    String
+  company      Company               @relation(fields: [companyId], references: [id])
+  connectionId String
+  connection   MarketplaceConnection @relation(fields: [connectionId], references: [id])
+  saleId       String?
+  sale         Sale?                 @relation(fields: [saleId], references: [id])
+
+  @@unique([connectionId, packId])
+  @@index([companyId, lastMessageAt])
+  @@map("ml_conversations")
+}
+
+// Mensaje programado: se envía solo al comprador cuando la venta cumple el criterio
+// (venta nueva, despachada, entregada o con boleta emitida), tras una espera opcional.
+model MlMessageRule {
+  id           String   @id @default(cuid())
+  name         String
+  active       Boolean  @default(true)
+  trigger      String   // SALE_CREATED | INVOICE_ISSUED | ORDER_DISPATCHED | ORDER_DELIVERED
+  delayMinutes Int      @default(0)
+  text         String   @db.Text
+  // Criterios opcionales: una cuenta de ML y/o monto mínimo de la venta.
+  connectionId String?
+  minTotal     Decimal? @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id])
+  logs      MlMessageLog[]
+
+  @@index([companyId, active])
+  @@map("ml_message_rules")
+}
+
+// Registro de cada envío programado (evita mandar dos veces el mismo mensaje a una venta).
+model MlMessageLog {
+  id        String   @id @default(cuid())
+  status    String   // SENT | FAILED | SKIPPED
+  detail    String?
+  createdAt DateTime @default(now())
+
+  ruleId String
+  rule   MlMessageRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  saleId String
+  sale   Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, saleId])
+  @@map("ml_message_logs")
 }

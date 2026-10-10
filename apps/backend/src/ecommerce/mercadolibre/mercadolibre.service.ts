@@ -426,7 +426,7 @@ export class MercadolibreService {
     });
   }
 
-  private async getValidToken(connectionId: string): Promise<string> {
+  async getValidToken(connectionId: string): Promise<string> {
     assertIntegrationsEnabled();
     let conn = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
     if (!conn) throw new NotFoundException('Conexión no encontrada');
@@ -5104,6 +5104,22 @@ export class MercadolibreService {
         orderRef: null as string | null,
         createdAt: q.createdAt,
         href: '/dashboard/mercadolibre/preguntas',
+      })),
+      // Mensajes nuevos de compradores en la mensajería postventa.
+      ...(await this.prisma.mlConversation.findMany({
+        where: { ...where, lastFrom: 'BUYER', unread: { gt: 0 }, lastMessageAt: { gt: since } },
+        select: { id: true, lastText: true, lastMessageAt: true, buyerName: true, connection: { select: { name: true } }, sale: { select: { externalId: true } } },
+        orderBy: { lastMessageAt: 'desc' }, take: 20,
+      })).map((m) => ({
+        type: 'message' as const,
+        id: `${m.id}-${m.lastMessageAt!.getTime()}`,
+        title: `Nuevo mensaje${m.buyerName ? ` de ${m.buyerName}` : ''}`,
+        channel: 'Mercado Libre',
+        connectionName: m.connection?.name || null,
+        productName: m.lastText?.slice(0, 60) || null,
+        orderRef: m.sale?.externalId || null,
+        createdAt: m.lastMessageAt!,
+        href: `/dashboard/mercadolibre/mensajes?c=${m.id}`,
       })),
       ...claims.map((c) => ({
         type: 'claim' as const,

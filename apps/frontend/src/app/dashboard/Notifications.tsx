@@ -70,13 +70,14 @@ function playBeep() {
 
 // Reproduce el sonido que Super Admin eligió para este tipo de evento (venta/pregunta/
 // reclamo) en Configuración, o el beep por defecto si no eligió ninguno.
-async function playNotificationSound(type: 'sale' | 'question' | 'claim' | 'alert') {
+async function playNotificationSound(type: 'sale' | 'question' | 'claim' | 'alert' | 'message') {
   try {
     if (localStorage.getItem(MUTED_KEY) === '1') return;
   } catch {}
   if (!hasUserGesture) return; // todavía no hubo ninguna interacción real del usuario en esta sesión
   const map = await getNotificationSoundMap();
-  const url = type === 'alert' ? undefined : map[type];
+  // Los mensajes de compradores usan el sonido de las preguntas.
+  const url = type === 'alert' ? undefined : map[type === 'message' ? 'question' : type];
   if (url) {
     try {
       const audio = new Audio(url);
@@ -92,7 +93,7 @@ async function playNotificationSound(type: 'sale' | 'question' | 'claim' | 'aler
 
 export type NotifEvent = {
   key: string;
-  type: 'sale' | 'question' | 'claim' | 'alert';
+  type: 'sale' | 'question' | 'claim' | 'alert' | 'message';
   title: string;
   channel: string;
   connectionName: string | null;
@@ -104,7 +105,7 @@ export type NotifEvent = {
 };
 
 const TYPE_LABEL: Record<NotifEvent['type'], string> = {
-  sale: 'Venta', question: 'Pregunta', claim: 'Reclamo', alert: 'Alerta',
+  sale: 'Venta', question: 'Pregunta', claim: 'Reclamo', alert: 'Alerta', message: 'Mensaje',
 };
 
 const TYPE_STYLE: Record<NotifEvent['type'], { icon: string; accent: string }> = {
@@ -112,6 +113,7 @@ const TYPE_STYLE: Record<NotifEvent['type'], { icon: string; accent: string }> =
   question: { icon: '❓', accent: 'var(--info)' },
   claim: { icon: '⚠️', accent: 'var(--warn)' },
   alert: { icon: '🚨', accent: 'var(--danger)' },
+  message: { icon: '💬', accent: 'var(--info)' },
 };
 
 interface NotificationsCtx {

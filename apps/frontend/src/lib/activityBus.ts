@@ -6,7 +6,7 @@
 // claim); cada página que muestra ese tipo de dato se suscribe y vuelve a pedir su propia
 // data — no hay estado compartido, cada vista sigue siendo dueña de su propio fetch.
 
-export type ActivityType = 'sale' | 'question' | 'claim' | 'alert';
+export type ActivityType = 'sale' | 'question' | 'claim' | 'alert' | 'message';
 
 type Listener = (types: ActivityType[]) => void;
 

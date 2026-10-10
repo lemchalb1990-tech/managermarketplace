@@ -11,6 +11,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { PurchasesModule } from '../purchases/purchases.module';
 import { AiModule } from '../ai/ai.module';
 import { MlPhotoService } from './mercadolibre/ml-photo.service';
+import { MlMessagesService } from './mercadolibre/ml-messages.service';
 
 @Module({
   imports: [CatalogModule, SettingsModule, PurchasesModule, SyncModule, AiModule],
@@ -20,6 +21,7 @@ import { MlPhotoService } from './mercadolibre/ml-photo.service';
     ConnectionsService,
     PhotoIndexService,
     MlPhotoService,
+    MlMessagesService,
   ],
   controllers: [MercadolibreController, ConnectionsController],
   // Re-exporta SyncModule para que quien ya importaba EcommerceModule por SyncService

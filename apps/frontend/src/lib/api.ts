@@ -91,6 +91,23 @@ export async function apiUploadForm<T>(
   return res.json();
 }
 
+export type MlChatMessage = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[] };
+export type MlConversationRow = {
+  id: string; packId: string; buyerName: string | null; lastText: string | null; lastFrom: string | null;
+  lastMessageAt: string | null; unread: number; blocked: boolean;
+  connection: { id: string; name: string };
+  sale: { id: string; saleNumber: number | null; items: Array<{ product: { name: string; images: { url: string }[] } | null }> } | null;
+};
+export type MlConversationFull = MlConversationRow & {
+  messages: MlChatMessage[] | null; blockedReason: string | null; syncedAt: string | null;
+  sale: (MlConversationRow['sale'] & { externalId: string | null; total: string; order: { id: string } | null; items: Array<{ quantity: number; product: { name: string; images: { url: string }[] } | null }> }) | null;
+};
+export type MlMessageRule = {
+  id: string; name: string; active: boolean; trigger: 'SALE_CREATED' | 'INVOICE_ISSUED' | 'ORDER_DISPATCHED' | 'ORDER_DELIVERED';
+  delayMinutes: number; text: string; connectionId: string | null; minTotal: string | number | null; createdAt: string;
+  _count?: { logs: number };
+};
+
 export type CourierConnectionInfo = {
   id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
   settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
@@ -580,6 +597,28 @@ export const api = {
       apiFetch<any>(`/ecommerce/ml/products/${productId}/images/${imageId}/ai-fix/apply`, {
         method: 'POST', body: JSON.stringify({ url }),
       }, token),
+    // Mensajería postventa: bandeja, conversación por venta y mensajes programados.
+    messages: {
+      list: (token: string, params: { companyId?: string; unread?: boolean; connectionId?: string; search?: string } = {}) => {
+        const q = new URLSearchParams();
+        if (params.companyId) q.set('companyId', params.companyId);
+        if (params.unread) q.set('unread', '1');
+        if (params.connectionId) q.set('connectionId', params.connectionId);
+        if (params.search) q.set('search', params.search);
+        return apiFetch<MlConversationRow[]>(`/ecommerce/ml/messages/conversations${q.toString() ? `?${q}` : ''}`, {}, token);
+      },
+      open: (id: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}`, {}, token),
+      send: (id: string, text: string, token: string) =>
+        apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+      forSale: (saleId: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/sales/${saleId}`, {}, token),
+      rules: (token: string, companyId?: string) =>
+        apiFetch<MlMessageRule[]>(`/ecommerce/ml/messages/rules${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      createRule: (data: Partial<MlMessageRule> & { companyId?: string }, token: string) =>
+        apiFetch<MlMessageRule>('/ecommerce/ml/messages/rules', { method: 'POST', body: JSON.stringify(data) }, token),
+      updateRule: (id: string, data: Partial<MlMessageRule>, token: string) =>
+        apiFetch<MlMessageRule>(`/ecommerce/ml/messages/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      deleteRule: (id: string, token: string) => apiFetch<any>(`/ecommerce/ml/messages/rules/${id}`, { method: 'DELETE' }, token),
+    },
     applyManufacturingTime: (productId: string, token: string) =>
       apiFetch<{ days: number; results: { connection: string; ok: boolean; immediate: boolean; error?: string }[] }>(
         `/ecommerce/ml/products/${productId}/manufacturing-time`, { method: 'POST' }, token),
@@ -734,7 +773,7 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{
         events: Array<{
-          type: 'sale' | 'question' | 'claim' | 'alert'; id: string; title: string;
+          type: 'sale' | 'question' | 'claim' | 'alert' | 'message'; id: string; title: string;
           channel: string; connectionName: string | null; productName: string | null; orderRef: string | null;
           createdAt: string; href: string;
         }>;

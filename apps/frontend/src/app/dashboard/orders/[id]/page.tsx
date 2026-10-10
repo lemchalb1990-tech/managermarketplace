@@ -10,6 +10,7 @@ import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
 import OrderCourierCard from './OrderCourierCard';
+import OrderMlMessagesCard from './OrderMlMessagesCard';
 import { SkeletonDetail } from '@/components/Skeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
@@ -965,6 +966,9 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
               </div>
             </div>
           )}
+
+          {/* Mensajería postventa de Mercado Libre */}
+          {order.sale && isMlOrder && <OrderMlMessagesCard saleId={order.sale.id} />}
 
           {/* Envío con courier (Chilexpress, Starken, Blue Express): solo despachos que no gestiona el marketplace */}
           {isDelivery && !['MERCADO_LIBRE', 'FALABELLA', 'PARIS', 'RIPLEY', 'WALMART', 'HITES'].includes(order.sale?.channel) && (
