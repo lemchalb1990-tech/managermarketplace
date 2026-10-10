@@ -490,11 +490,12 @@ export default async function Home() {
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
               <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
-              <div className="mt-3 grid max-w-[360px] grid-cols-3 gap-2">
+              <div className="mt-3 flex flex-wrap gap-3">
                 {billingChannels.map((k) => (
-                  <span key={k} className="flex h-14 items-center justify-center rounded-[10px] bg-white px-3" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
-                    <span className="h-9 w-[58px] [&>img]:h-full [&>img]:w-full [&>img]:object-contain [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[7px]">
-                      {resolveLogoNode(logoMap, k, BillingLogos[k])}
+                  <span key={k} title={k} className="relative h-14 w-14 overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(2,9,58,0.12)]"
+                    style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
+                    <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:rounded-full [&>img]:object-cover [&>svg]:scale-[1.7]">
+                      {resolveLogoNode(logoMap, k, BillingLogos[k], "circle")}
                     </span>
                   </span>
                 ))}
