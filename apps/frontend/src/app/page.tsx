@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
@@ -17,7 +17,6 @@ import {
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
 // para las bajadas de sección. El panel sigue con Hanken Grotesk.
 const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
-const serif = Source_Serif_4({ variable: "--font-lp-serif", subsets: ["latin"], weight: "400", display: "swap" });
 
 const salesChannels = [
   "mercadolibre", "falabella", "paris", "ripley", "hites", "walmart",
@@ -229,7 +228,20 @@ const CATALOG = [
 
 const WRAP = "w-full px-4 sm:px-6 lg:px-12 2xl:px-20";
 // Cada sección es una franja a todo el ancho con su propio fondo.
-const BAND = "py-20 sm:py-24";
+const BAND = "py-24 lg:py-32";
+
+/** Encabezado de sección: título a la izquierda y bajada a la derecha en escritorio. */
+function SectionHead({ label, title, lead, dark = false }: { label?: string; title: string; lead?: string; dark?: boolean }) {
+  return (
+    <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-16">
+      <div>
+        {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
+        <h2 className="lp-h2 mt-3 max-w-[20ch] text-balance">{title}</h2>
+      </div>
+      {lead && <p className={`lp-lead max-w-[46ch] text-pretty lg:pb-1.5 ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
+    </div>
+  );
+}
 
 /** Franja de acción entre secciones. */
 function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
@@ -239,10 +251,10 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
   const dark = fg === "#fff";
   return (
     <section style={{ background: bg, color: fg }}>
-      <div className={`${WRAP} ui-reveal flex flex-col gap-6 py-12 sm:py-14 lg:flex-row lg:items-center lg:justify-between`}>
+      <div className={`${WRAP} ui-reveal flex flex-col gap-8 py-14 lg:flex-row lg:items-center lg:justify-between lg:py-16`}>
         <div className="max-w-3xl">
-          <p className="lp-display text-[clamp(1.7rem,3.6vw,40px)]">{title}</p>
-          <p className={`lp-serif mt-2 text-[17px] leading-[1.5] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
+          <p className="lp-h3 text-balance">{title}</p>
+          <p className={`mt-3 max-w-[56ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-[#111]"}`}>
@@ -262,7 +274,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
 export default async function Home() {
   const [logoMap, plans] = await Promise.all([getPlatformLogoMap(), getPublicPlans()]);
   return (
-    <div className={`lp ${sans.variable} ${serif.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
+    <div className={`lp ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
         Saltar al contenido
       </a>
@@ -290,28 +302,28 @@ export default async function Home() {
 
       <main id="contenido">
         {/* Hero centrado */}
-        <section className={`${WRAP} relative pb-20 pt-14 text-center sm:pt-20`}>
+        <section className={`${WRAP} relative pb-24 pt-16 sm:pt-24 lg:pb-32`}>
           {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
           <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
-          <span className="ui-enter lp-tag max-w-full flex-wrap justify-center bg-white text-center text-[#615d59]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-[#15803d]" />
-            Mercado Libre · Falabella · Paris · Ripley · Walmart
-          </span>
-          <h1 className="lp-display ui-enter mx-auto mt-6 max-w-[15ch] text-balance text-[clamp(2.6rem,7vw,72px)]" style={{ ["--d" as string]: "80ms" }}>
-            Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
-          </h1>
-          <p className="lp-serif ui-enter mx-auto mt-6 max-w-[36rem] text-pretty text-[18px] leading-[1.56] text-[#615d59]" style={{ ["--d" as string]: "160ms" }}>
-            Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
-            Vendes en uno y se descuenta en todos.
-          </p>
-          <div className="ui-enter mt-8 flex flex-wrap justify-center gap-2" style={{ ["--d" as string]: "240ms" }}>
-            <Link href="/login" className="lp-btn lp-btn--primary">
-              Entrar al panel <Icon d={ICONS.arrow} size={16} />
-            </Link>
-            <a href="#beneficios" className="lp-btn lp-btn--soft">Ver beneficios</a>
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-end lg:gap-16">
+            <h1 className="lp-h1 ui-enter max-w-[14ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
+              Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
+            </h1>
+            <div className="ui-enter lg:pb-2" style={{ ["--d" as string]: "160ms" }}>
+              <p className="lp-lead max-w-[42ch] text-pretty text-[#615d59]">
+                Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
+                Vendes en uno y se descuenta en todos.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
+                  Entrar al panel <Icon d={ICONS.arrow} size={16} />
+                </Link>
+                <a href="#beneficios" className="lp-btn lp-btn--soft lp-btn--lg">Ver beneficios</a>
+              </div>
+            </div>
           </div>
 
-          <div className="ui-enter-panel relative mt-14 w-full text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+          <div className="ui-enter-panel relative mt-12 w-full text-left lg:mt-16" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
             <HeroScene
               logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
               phone={<PhoneMock />}
@@ -323,7 +335,7 @@ export default async function Home() {
         {/* Muro de logos */}
         <section className="border-y border-black/[0.06] bg-white py-10">
           <div className={WRAP}>
-            <p className="mb-4 text-center text-[15px] font-medium text-[#615d59]">Marketplaces y tiendas que puedes conectar</p>
+            <p className="mb-2 text-center text-[14px] text-[#757575]">Marketplaces y tiendas que puedes conectar</p>
             <LogosMarquee logoMap={logoMap} />
           </div>
         </section>
@@ -331,15 +343,9 @@ export default async function Home() {
         {/* Beneficios */}
         <section id="beneficios" className={BAND}>
           <div className={WRAP}>
-            <div className="ui-reveal mx-auto max-w-2xl text-center">
-              <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">
-                Lo que ganas desde el <span className="lp-pill">primer día</span>
-              </h2>
-              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
-                Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir.
-              </p>
-            </div>
-            <div className="ui-reveal mt-12 grid gap-4 md:grid-cols-3">
+            <SectionHead label="Beneficios" title="Lo que ganas desde el primer día"
+              lead="Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir." />
+            <div className="ui-reveal mt-12 grid gap-4 md:grid-cols-3 lg:mt-16 lg:gap-5">
               {BENEFITS.map((b, i) => (
                 <div key={b.t}
                   className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
@@ -349,10 +355,10 @@ export default async function Home() {
                       <Icon d={b.icon} size={20} />
                     </span>
                   ) : (
-                    <span className="lp-tag mb-6 self-start bg-white/80 text-black">0{i + 1}</span>
+                    <span className="mb-6 self-start font-mono text-[13px] font-medium opacity-60">0{i + 1}</span>
                   )}
-                  <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[28px] leading-[1.15] sm:text-[34px]" : "text-[22px] leading-[1.27]"}`}>{b.t}</p>
-                  <p className={`mt-2 text-[16px] leading-[1.5] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
+                  <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[26px] leading-[1.15] sm:text-[30px]" : "text-[20px] leading-[1.3]"}`}>{b.t}</p>
+                  <p className={`mt-2 text-[15px] leading-[1.55] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
                   {b.bg === "#ffb110" && <StockMini />}
                   {b.bg === "#62aef0" && <ProfitMini />}
                   {b.bg === "#02093a" && <ClaimMini />}
@@ -369,14 +375,9 @@ export default async function Home() {
         {/* Todo desde el panel */}
         <section id="funciones" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
-            <div className="ui-reveal max-w-2xl">
-              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Funciones</span>
-              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Todo tu negocio desde un solo panel</h2>
-              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
-                Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema.
-              </p>
-            </div>
-            <div className="ui-reveal mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <SectionHead label="Funciones" title="Todo tu negocio desde un solo panel"
+              lead="Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema." />
+            <div className="ui-reveal mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-5">
               {TOOLS.map((x) => (
                 <div key={x.t} className="lp-card flex min-w-0 flex-col p-6">
                   <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
@@ -392,22 +393,14 @@ export default async function Home() {
         <section id="dashboard" className={`bg-[#02093a] text-white ${BAND}`}>
           <div className={WRAP}>
             <div>
-              <div className="ui-reveal grid gap-4 lg:grid-cols-[1fr_1fr] lg:items-end">
-                <div>
-                  <span className="lp-tag bg-white/10 text-white">Dashboard y alertas</span>
-                  <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Tu negocio de un vistazo, y avisos cuando importa</h2>
-                </div>
-                <p className="lp-serif text-[18px] leading-[1.56] text-white/70">
-                  Ventas, neto, órdenes y ticket promedio de todos tus canales en una pantalla.
-                  Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo.
-                </p>
-              </div>
-              <div className="ui-reveal mt-10" aria-label="Ejemplo del dashboard con datos de muestra">
+              <SectionHead dark label="Dashboard y alertas" title="Tu negocio de un vistazo, y avisos cuando importa"
+                lead="Ventas, neto, órdenes y ticket promedio de todos tus canales en una pantalla. Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo." />
+              <div className="ui-reveal mt-12 lg:mt-16" aria-label="Ejemplo del dashboard con datos de muestra">
                 <DashboardReplica />
               </div>
-              <ul className="ui-reveal mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <ul className="ui-reveal mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                 {ALERTS.map((a) => (
-                  <li key={a.t} className="flex items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
+                  <li key={a.t} className="flex min-w-0 items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1f`, color: a.tone }}>
                       {a.icon}
                     </span>
@@ -433,7 +426,7 @@ export default async function Home() {
         <section className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <div className="relative">
-              <h2 className="lp-display ui-reveal max-w-2xl text-[clamp(2rem,4.5vw,48px)]">
+              <h2 className="lp-h2 ui-reveal max-w-[20ch] text-balance">
                 Lo que deja de pasarte en el día a día
               </h2>
               <div className="mt-10 hidden grid-cols-2 gap-10 pb-3 text-[13px] font-medium text-[#757575] md:grid">
@@ -462,9 +455,9 @@ export default async function Home() {
         <section id="canales" className={`bg-[#e6f3fe] ${BAND}`}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
             <div className="ui-reveal">
-              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Canales</span>
-              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Stock, precios y documentos al día en cada canal</h2>
-              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+              <span className="lp-eyebrow text-[#0075de]">Canales</span>
+              <h2 className="lp-h2 mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
+              <p className="lp-lead mt-5 max-w-[46ch] text-[#615d59]">
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
               <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
@@ -520,9 +513,9 @@ export default async function Home() {
               </div>
             </div>
             <div className="ui-reveal order-1 lg:order-2">
-              <span className="lp-tag bg-[#f6d5b8] text-black">Versión móvil</span>
-              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Tu equipo trabaja desde el celular</h2>
-              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
+              <span className="lp-eyebrow text-[#c43b1c]">Versión móvil</span>
+              <h2 className="lp-h2 mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
+              <p className="lp-lead mt-5 max-w-[46ch] text-[#615d59]">
                 El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.
               </p>
               <ul className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -540,13 +533,8 @@ export default async function Home() {
         {/* Planes y precios */}
         <section id="precios" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
-            <div className="ui-reveal mx-auto max-w-2xl text-center">
-              <span className="lp-tag bg-[#e6f3fe] text-[#0075de]">Planes y precios</span>
-              <h2 className="lp-display mt-4 text-[clamp(2.2rem,5vw,54px)]">Un plan para cada etapa de tu negocio</h2>
-              <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
-                Empiezas con los canales que tienes hoy y subes de plan cuando creces.
-              </p>
-            </div>
+            <SectionHead label="Planes y precios" title="Un plan para cada etapa de tu negocio"
+              lead="Empiezas con los canales que tienes hoy y subes de plan cuando creces." />
             <Pricing plans={plans} />
           </div>
         </section>
@@ -559,12 +547,8 @@ export default async function Home() {
         <section id="modulos" className={BAND}>
           <div className={WRAP}>
             <div>
-              <div className="ui-reveal max-w-2xl">
-                <h2 className="lp-display text-[clamp(2.2rem,5vw,54px)]">Desde que entra el pedido hasta que llega al cliente</h2>
-                <p className="lp-serif mt-4 text-[18px] leading-[1.56] text-[#615d59]">
-                  Estas son pantallas reales del panel, con datos de ejemplo.
-                </p>
-              </div>
+              <SectionHead label="Módulos" title="Desde que entra el pedido hasta que llega al cliente"
+                lead="Estas son pantallas reales del panel, con datos de ejemplo." />
               <ModulesExplorer />
             </div>
           </div>
@@ -575,8 +559,8 @@ export default async function Home() {
           <div className={WRAP}>
             <div className="relative flex flex-col gap-8 py-16 sm:flex-row sm:items-end sm:justify-between sm:py-20">
               <div>
-                <h2 className="lp-display text-[clamp(2rem,4.5vw,48px)]">¿Ya tienes cuenta?</h2>
-                <p className="lp-serif mt-3 text-[18px] text-white/70">Entra con tu correo y sigue donde quedaste.</p>
+                <h2 className="lp-h2">¿Ya tienes cuenta?</h2>
+                <p className="lp-lead mt-4 text-white/70">Entra con tu correo y sigue donde quedaste.</p>
               </div>
               <Link href="/login" className="lp-btn lp-btn--primary shrink-0 self-start sm:self-auto">
                 Entrar al panel <Icon d={ICONS.arrow} size={16} />

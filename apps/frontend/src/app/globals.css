@@ -511,6 +511,13 @@ body {
 
 .lp-serif { font-family: var(--font-lp-serif), Georgia, serif; font-weight: 400; }
 .lp-display { font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
+/* Escala tipográfica de la landing (razón ~1.33, espacios en múltiplos de 8). */
+.lp-h1 { font-size: clamp(2.75rem, 1.4rem + 4.6vw, 5.25rem); font-weight: 700; letter-spacing: -0.045em; line-height: 1; }
+.lp-h2 { font-size: clamp(2rem, 1.45rem + 1.9vw, 3.25rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.06; }
+.lp-h3 { font-size: clamp(1.5rem, 1.25rem + 0.9vw, 2rem); font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; }
+.lp-lead { font-size: clamp(1.0625rem, 1rem + 0.25vw, 1.25rem); line-height: 1.55; letter-spacing: -0.005em; }
+.lp-eyebrow { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
+.lp-btn--lg { padding: 13px 22px; font-size: 16px; border-radius: 10px; }
 .lp-card { background: #fff; border: 1px solid var(--lp-line); border-radius: 12px; }
 .lp-shot { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
 .lp-pill {

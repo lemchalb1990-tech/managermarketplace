@@ -213,7 +213,7 @@ const MODULES = [
   {
     icon: ICONS.pos,
     title: "Punto de venta",
-    body: "El POS usa el mismo inventario que tus canales online. Selecciona o agrega el cliente, cobra y emite el documento tributario —boleta o factura 33/34— en la misma operación, con envío por correo.",
+    body: "El POS usa el mismo inventario que tus canales online. Selecciona o agrega el cliente, cobra y emite la boleta o factura (33/34) en la misma operación, con envío por correo.",
     mock: <PosMock />,
   },
   {
