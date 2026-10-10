@@ -305,19 +305,23 @@ export default async function Home() {
       </header>
 
       <main id="contenido">
-        {/* Hero centrado */}
-        <section className={`${WRAP} relative pb-16 pt-10 sm:pt-14 lg:pb-20`}>
-          {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
-          <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
+        {/* Inicio: franja azul noche a todo el ancho */}
+        <section className="relative overflow-hidden text-white" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
+          {/* Puntos tenues y halo azul detrás de la escena */}
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true"
+            style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1.2px)", backgroundSize: "22px 22px" }} />
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true"
+            style={{ background: "radial-gradient(ellipse 55% 70% at 72% 50%, rgba(0,117,222,0.32), transparent 70%)" }} />
+          <div className={`${WRAP} relative pb-16 pt-10 sm:pt-14 lg:pb-20`}>
           <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-10 2xl:gap-16">
             {/* Izquierda: titular, bajada y botones */}
             <div>
-              <p className="lp-eyebrow ui-enter text-[#0075de]">Para tiendas que venden en marketplaces en Chile</p>
+              <p className="lp-eyebrow ui-enter text-[#62aef0]">Para tiendas que venden en marketplaces en Chile</p>
               <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[20ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
                 Vende en todos tus canales sin <span className="lp-pill">sobrevender</span>
               </h1>
               <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
-                <p className="lp-lead max-w-[46ch] text-pretty text-[#615d59]">
+                <p className="lp-lead max-w-[46ch] text-pretty text-white/75">
                   Conecta Mercado Libre, Falabella, Paris, Ripley y Walmart a tu bodega.
                   Cada venta descuenta el stock en todos y emite la boleta sola.
                 </p>
@@ -325,12 +329,12 @@ export default async function Home() {
                   <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
                     Entrar al panel <Icon d={ICONS.arrow} size={16} />
                   </Link>
-                  <a href="#funciones" className="lp-btn lp-btn--soft lp-btn--lg">Ver cómo funciona</a>
+                  <a href="#funciones" className="lp-btn lp-btn--lg bg-white/10 text-white hover:bg-white/20" style={{ border: "1px solid rgba(255,255,255,0.18)" }}>Ver cómo funciona</a>
                 </div>
-                <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-[#615d59]">
+                <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-white/75">
                   {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (
                     <li key={t} className="flex items-center gap-2">
-                      <span className="text-[#15803d]"><Icon d={ICONS.check} size={16} /></span>
+                      <span className="text-[#4ade80]"><Icon d={ICONS.check} size={16} /></span>
                       {t}
                     </li>
                   ))}
@@ -345,6 +349,7 @@ export default async function Home() {
                 billingLogo={resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura, "circle")}
               />
             </div>
+          </div>
           </div>
         </section>
 

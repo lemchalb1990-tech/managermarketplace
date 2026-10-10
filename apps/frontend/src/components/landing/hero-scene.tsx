@@ -184,10 +184,9 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   const nodes = [...CHANNELS.map((c) => c.key), "dropshipping"];
 
   return (
-    <div className="relative overflow-hidden rounded-[12px] p-3 sm:p-5" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
-      {/* Puntos tenues y un halo azul detrás del producto: la red conectada */}
-      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.13) 1px, transparent 1.2px)", backgroundSize: "22px 22px" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 46%, rgba(0,117,222,0.38), transparent 58%)" }} />
+    <div className="relative p-1 sm:p-2">
+      {/* Halo azul detrás del producto (el fondo azul lo pone la franja del inicio) */}
+      <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(circle at 50% 46%, rgba(0,117,222,0.3), transparent 55%)" }} />
       {/* Área con el producto al centro y los círculos alrededor */}
       <div ref={areaRef} className="relative px-[21%] pb-[104px] pt-[92px] sm:pb-[112px] sm:pt-[104px]">
         {/* Conexiones de cada círculo con el producto */}
