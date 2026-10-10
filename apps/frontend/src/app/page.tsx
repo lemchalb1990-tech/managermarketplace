@@ -125,7 +125,16 @@ const BAND = "py-16 lg:py-20";
 
 /** Encabezado de sección: título a la izquierda y bajada a la derecha en escritorio. */
 // points: frases cortas con check bajo la bajada (opcional).
-function SectionHead({ label, title, lead, points, dark = false }: { label?: string; title: ReactNode; lead?: string; points?: string[]; dark?: boolean }) {
+function SectionHead({ label, title, lead, points, dark = false, center = false }: { label?: string; title: ReactNode; lead?: string; points?: string[]; dark?: boolean; center?: boolean }) {
+  // Centrado: solo etiqueta y título, al medio de la página.
+  if (center) {
+    return (
+      <div className="ui-reveal text-center">
+        {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
+        <h2 className="lp-h2 mx-auto mt-3 max-w-[22ch] text-balance">{title}</h2>
+      </div>
+    );
+  }
   return (
     <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-16">
       <div>
@@ -265,7 +274,7 @@ export default async function Home() {
         {/* Beneficios */}
         <section id="beneficios" className={BAND}>
           <div className={WRAP}>
-            <SectionHead label="Beneficios"
+            <SectionHead center label="Beneficios"
               title={<>Vende tranquilo, <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sin quiebres</span> de stock</>} />
             <Benefits />
           </div>
