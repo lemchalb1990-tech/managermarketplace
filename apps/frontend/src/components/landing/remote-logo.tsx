@@ -16,5 +16,5 @@ export function RemoteLogo({ platform, initial, view, fallback }: {
   const s = map[platform] || initial;
   const url = s?.logoUrl;
   // eslint-disable-next-line @next/next/no-img-element
-  return url ? <img src={url} alt={platform} className="h-full w-full object-contain" style={logoScaleStyle(viewScale(s, view))} /> : <>{fallback}</>;
+  return url ? <img src={url} alt="" className="h-full w-full object-contain" style={logoScaleStyle(viewScale(s, view))} /> : <>{fallback}</>;
 }

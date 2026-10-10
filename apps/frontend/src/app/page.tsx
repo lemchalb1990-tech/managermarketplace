@@ -9,12 +9,13 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
+import { ChannelsPanel } from "@/components/landing/channels-panel";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
   Toast, TOAST_ICONS,
-  ALERTS, PRODUCT_IMG,
+  ALERTS,
 } from "@/components/landing/visuals";
 
 // Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
@@ -25,44 +26,13 @@ const salesChannels = [
   "shopify", "woocommerce", "jumpseller",
 ] as const;
 const billingChannels = ["openfactura", "facto", "bsale", "defontana", "nubox", "siigo"] as const;
+const CHANNEL_NAMES: Record<string, string> = {
+  mercadolibre: "Mercado Libre", falabella: "Falabella", paris: "Paris", ripley: "Ripley", hites: "Hites",
+  walmart: "Walmart", shopify: "Shopify", woocommerce: "WooCommerce", jumpseller: "JumpSeller",
+  openfactura: "OpenFactura", facto: "Facto", bsale: "Bsale", defontana: "Defontana", nubox: "Nubox", siigo: "Siigo",
+};
 
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
-
-function ChannelsMock() {
-  const rows = [
-    { name: "Mercado Libre", acc: "MI TIENDA.CL", prod: 237, ok: true },
-    { name: "Falabella", acc: "Seller Center", prod: 184, ok: true },
-    { name: "Paris", acc: "Cencosud", prod: 96, ok: true },
-    { name: "Líder / Walmart", acc: "Marketplace", prod: 41, ok: false },
-  ];
-  return (
-    <div className="ui-card overflow-hidden">
-      <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-5 py-3.5">
-        <p className="text-sm font-semibold">Mis canales</p>
-        <span className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--ok)]" />
-          Sincronizado 14:57
-        </span>
-      </div>
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-[var(--border-soft)]">
-          {rows.map((r) => (
-            <tr key={r.name}>
-              <td className="px-4 py-3 font-medium sm:px-5">{r.name}</td>
-              <td className="hidden px-2 py-3 text-xs text-[var(--text-muted)] sm:table-cell">{r.acc}</td>
-              <td className="px-2 py-3 text-right font-mono text-xs text-[var(--text-2)]">{r.prod} prod.</td>
-              <td className="px-4 py-3 text-right sm:px-5">
-                <span className={`ui-badge ${r.ok ? "ui-badge--ok" : "ui-badge--warn"}`}>
-                  {r.ok ? "Activo" : "Revisar"}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 // Cada logo en una placa del mismo tamaño, llenándola hasta los bordes redondeados.
 function LogoChip({ node }: { node: ReactNode }) {
@@ -198,14 +168,6 @@ const MOBILE_POINTS = [
 ] as const;
 
 
-/* ── Catálogo de ejemplo con fotos reales ─────────────────────────────────── */
-
-const CATALOG = [
-  { name: "Zapatillas urbanas blancas", img: PRODUCT_IMG.zapatillas, price: "$49.990", stock: 24, channels: 6 },
-  { name: "Polera oversize negra", img: PRODUCT_IMG.polera, price: "$12.990", stock: 58, channels: 5 },
-  { name: "Mochila urbana 25 L", img: PRODUCT_IMG.mochila, price: "$34.990", stock: 17, channels: 4 },
-  { name: "Polerón blanco", img: PRODUCT_IMG.poleron, price: "$24.990", stock: 31, channels: 5 },
-];
 
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
@@ -408,47 +370,33 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Canales: texto a la izquierda, bloque de color a la derecha */}
+        {/* Canales: texto y logos a la izquierda, producto por canal a la derecha */}
         <section id="canales" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
             <div className="ui-reveal">
               <span className="lp-eyebrow text-[#0075de]">Canales</span>
               <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
-              <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
-                Conectas cada cuenta una vez con su API. Lo demás corre solo.
-              </p>
-              <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {billingChannels.map((k) => (
-                  <span key={k} title={k} className="relative h-14 w-14 overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(2,9,58,0.12)]"
-                    style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
-                    <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:rounded-full [&>img]:object-cover [&>svg]:scale-[1.7]">
-                      {resolveLogoNode(logoMap, k, BillingLogos[k], "circle")}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="ui-reveal relative rounded-[12px] p-4 sm:p-8" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {CATALOG.map((p) => (
-                  <div key={p.name} className="lp-shot overflow-hidden rounded-[12px] bg-white">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.img} alt={p.name} width={480} height={480} loading="lazy" className="aspect-square w-full object-cover" />
-                    <div className="p-2.5">
-                      <p className="truncate text-[13px] font-semibold leading-tight">{p.name}</p>
-                      <p className="mt-0.5 flex items-center justify-between text-[12px] text-[#615d59]">
-                        <span className="font-mono">{p.price}</span>
-                        <span>{p.stock} en stock</span>
-                      </p>
-                      <p className="mt-1.5 inline-flex rounded-full bg-[#e6f3fe] px-2 py-0.5 text-[11px] font-medium text-[#0075de]">
-                        En {p.channels} canales
-                      </p>
-                    </div>
+              <p className="lp-lead mt-4 max-w-[40ch] text-[#615d59]">Conectas cada cuenta una vez. Lo demás corre solo.</p>
+              {([["Marketplaces y tiendas", salesChannels, Logos], ["Facturación electrónica", billingChannels, BillingLogos]] as const).map(([label, keys, fallback]) => (
+                <div key={label} className="mt-7">
+                  <p className="text-[13px] font-semibold text-[#615d59]">{label}</p>
+                  <div className="mt-2.5 flex flex-wrap gap-2.5">
+                    {keys.map((k) => (
+                      <span key={k} title={CHANNEL_NAMES[k] || k}
+                        className="relative h-12 w-12 overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(2,9,58,0.12)] transition hover:-translate-y-0.5"
+                        style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
+                        <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:rounded-full [&>img]:object-cover [&>svg]:scale-[1.7]">
+                          {resolveLogoNode(logoMap, k, (fallback as Record<string, ReactNode>)[k], "circle")}
+                        </span>
+                      </span>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="lp-shot rounded-[12px]"><ChannelsMock /></div>
+                </div>
+              ))}
+            </div>
+            <div className="ui-reveal">
+              <ChannelsPanel logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k], "circle")]))} />
+              <p className="mt-2 text-center text-[12px] text-[#9a968f]">Elige un producto para ver su precio y estado en cada canal.</p>
             </div>
           </div>
         </section>
