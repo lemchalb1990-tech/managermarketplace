@@ -641,6 +641,8 @@ body {
 .lp-fade { animation: lp-fade 0.45s ease-out both; }
 @keyframes lp-scan { from { transform: translateY(-100%); } to { transform: translateY(300%); } }
 .lp-scan { animation: lp-scan 0.9s ease-in-out both; }
+@keyframes lp-progress { from { width: 0; } to { width: 100%; } }
+.lp-progress { animation: lp-progress linear both; }
 @media (prefers-reduced-motion: reduce) {
   .lp-pop, .lp-slide, .lp-wire, .lp-dot-in, .lp-dot-out, .lp-dot-down, .lp-fade { animation: none; }
   .lp-travel { display: none; }

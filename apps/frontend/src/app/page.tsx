@@ -9,6 +9,7 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
+import { Features, type Feature } from "@/components/landing/features";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
@@ -200,14 +201,16 @@ const MOBILE_POINTS = [
 
 /* ── Todo desde el panel ──────────────────────────────────────────────────── */
 
-const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
-  { t: "Publica en los marketplaces", b: "Creas el producto una vez y lo publicas en Mercado Libre, Falabella, Paris y Ripley desde el panel.", mock: <PublishMini /> },
-  { t: "Ventas directas", b: "Punto de venta para tu tienda o bodega, con el mismo stock que tus canales online.", mock: <DirectSaleMini /> },
-  { t: "Presupuestos y órdenes de compra", b: "Cotizas a tus clientes y pides mercadería a tus proveedores sin salir del sistema.", mock: <QuoteMini /> },
-  { t: "Boletas y facturas", b: "Documentos tributarios electrónicos con tu proveedor de facturación, enviados por correo.", mock: <InvoiceMini /> },
-  { t: "Etiquetas de los marketplaces", b: "Imprimes por lote las etiquetas de Mercado Libre, Falabella, Paris y Ripley.", mock: <LabelMini /> },
-  { t: "Preguntas de Mercado Libre", b: "Respondes las preguntas de tus publicaciones desde el mismo lugar donde ves el stock.", mock: <QuestionsMini /> },
-  { t: "Dropshipping", b: "Vendes productos de tu proveedor sin tenerlos en bodega. Cada venta le llega como pedido y él despacha directo a tu cliente; tu stock propio no se toca.", mock: <DropshipMini /> },
+const CHAT = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z";
+const CLIP = "M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2M8 12h8M8 16h5";
+const TOOLS: Feature[] = [
+  { t: "Publica en los marketplaces", b: "Un producto, publicado en todos tus canales.", icon: ICONS.catalog, mock: <PublishMini /> },
+  { t: "Venta directa", b: "Punto de venta con el mismo stock.", icon: ICONS.pos, mock: <DirectSaleMini /> },
+  { t: "Presupuestos y órdenes de compra", b: "Cotiza a clientes y pide a proveedores.", icon: CLIP, mock: <QuoteMini /> },
+  { t: "Boletas y facturas", b: "Emitidas y enviadas por correo.", icon: ICONS.doc, mock: <InvoiceMini /> },
+  { t: "Etiquetas de envío", b: "Imprime por lote las de cada marketplace.", icon: ICONS.scan, mock: <LabelMini /> },
+  { t: "Preguntas de Mercado Libre", b: "Responde sin salir del panel.", icon: CHAT, mock: <QuestionsMini /> },
+  { t: "Dropshipping", b: "Vende sin stock; despacha tu proveedor.", icon: ICONS.truck, mock: <DropshipMini /> },
 ];
 
 /* ── Catálogo de ejemplo con fotos reales ─────────────────────────────────── */
@@ -368,22 +371,8 @@ export default async function Home() {
         <section id="funciones" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
             <SectionHead label="Funciones" title="Todo tu negocio desde un solo panel"
-              lead="Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema, incluso productos en dropshipping." />
-            <div className="ui-reveal mt-8 grid gap-4 sm:grid-cols-2 lg:mt-10 lg:grid-cols-3">
-              {TOOLS.map((x, i) => {
-                // La última tarjeta ocupa la fila completa, en horizontal, para no dejar huecos.
-                const wide = i === TOOLS.length - 1 && TOOLS.length % 3 === 1;
-                return (
-                  <div key={x.t} className={`lp-card flex min-w-0 flex-col p-6 ${wide ? "sm:col-span-2 lg:col-span-3 lg:flex-row lg:items-center lg:gap-10" : ""}`}>
-                    <div className={wide ? "lg:w-[40%] lg:shrink-0" : ""}>
-                      <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
-                      <p className="mt-2 text-[15px] leading-[1.5] text-[#615d59]">{x.b}</p>
-                    </div>
-                    <div className={`mt-auto ${wide ? "lg:mt-0 lg:flex-1 lg:[&>*]:mt-0" : ""}`} aria-hidden="true">{x.mock}</div>
-                  </div>
-                );
-              })}
-            </div>
+              lead="Publica, vende, factura y despacha sin cambiar de sistema." />
+            <Features items={TOOLS} />
           </div>
         </section>
 
