@@ -364,8 +364,8 @@ export default async function Home() {
         {/* Beneficios */}
         <section id="beneficios" className={BAND}>
           <div className={WRAP}>
-            <SectionHead label="Beneficios" title="Lo que ganas desde el primer día"
-              lead="Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir." />
+            <SectionHead label="Beneficios" title="Vende tranquilo: nunca más una venta sin stock"
+              lead="Cada venta descuenta en todos tus canales al instante, para que no tengas que cancelar pedidos ni perder reputación." />
             <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-3 lg:mt-10">
               {BENEFITS.map((b, i) => (
                 <div key={b.t}
