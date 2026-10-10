@@ -307,20 +307,29 @@ export default async function Home() {
           <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-12 2xl:gap-20">
             {/* Izquierda: titular, bajada y botones */}
             <div>
-              <h1 className="lp-h1 lp-h1--hero ui-enter max-w-[16ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
-                Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
+              <p className="lp-eyebrow ui-enter text-[#0075de]">Para tiendas que venden en marketplaces en Chile</p>
+              <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[15ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
+                Vende en todos tus canales sin <span className="lp-pill">sobrevender</span>
               </h1>
               <div className="ui-enter mt-6 flex flex-col gap-8" style={{ ["--d" as string]: "160ms" }}>
                 <p className="lp-lead max-w-[46ch] text-pretty text-[#615d59]">
-                  Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
-                  Vendes en uno y se descuenta en todos.
+                  Conecta Mercado Libre, Falabella, Paris, Ripley y Walmart a tu bodega.
+                  Cada venta descuenta el stock en todos y emite la boleta sola.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <Link href="/login" className="lp-btn lp-btn--primary lp-btn--lg">
                     Entrar al panel <Icon d={ICONS.arrow} size={16} />
                   </Link>
-                  <a href="#beneficios" className="lp-btn lp-btn--soft lp-btn--lg">Ver beneficios</a>
+                  <a href="#funciones" className="lp-btn lp-btn--soft lp-btn--lg">Ver cómo funciona</a>
                 </div>
+                <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-[#615d59]">
+                  {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (
+                    <li key={t} className="flex items-center gap-2">
+                      <span className="text-[#15803d]"><Icon d={ICONS.check} size={16} /></span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 

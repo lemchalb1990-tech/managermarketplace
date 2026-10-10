@@ -30,8 +30,8 @@ function PosLogo() {
   );
 }
 
-function ChannelCard({ ch, logo, stock, active }: {
-  ch: Channel; logo: ReactNode; stock: number; active: boolean;
+function ChannelCard({ ch, logo, stock, active, pulse }: {
+  ch: Channel; logo: ReactNode; stock: number; active: boolean; pulse: number;
 }) {
   return (
     <div className={`relative flex items-center gap-2 rounded-[10px] bg-white px-2 py-1.5 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
@@ -51,7 +51,12 @@ function ChannelCard({ ch, logo, stock, active }: {
         </span>
       )}
       {/* Conector hacia el producto (cuando los canales van en columna al lado) */}
-      <span className={`pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 xl:block ${active ? "lp-wire bg-[#0075de]" : "bg-black/15"}`} />
+      <span className={`pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 xl:block ${active ? "bg-[#0075de]" : "bg-black/15"}`}>
+        {/* Punto que viaja: del canal que vendió al producto, y del producto a los demás */}
+        {pulse > 0 && (
+          <span key={pulse} className={`absolute -top-[3px] h-[7px] w-[7px] rounded-full bg-[#0075de] ${active ? "lp-dot-in" : "lp-dot-out"}`} />
+        )}
+      </span>
     </div>
   );
 }
@@ -120,7 +125,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
               </div>
               <div className="pb-1 text-right text-[11px] leading-snug text-[#615d59]">
                 <p><span className="font-semibold text-black">6</span> canales</p>
-                <p>actualizados en 1 s</p>
+                <p>actualizados solos</p>
               </div>
             </div>
             <div className="mt-4 min-h-[52px] rounded-[10px] bg-[#f6f5f4] p-2.5">
@@ -155,9 +160,14 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
           {/* Canales: en columna al lado del producto en pantallas anchas */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
             {CHANNELS.map((ch) => (
-              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} />
+              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} pulse={active ? step : 0} />
             ))}
           </div>
+      </div>
+      {/* Contador del día */}
+      <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white/80 px-4 py-2.5 text-[13px]">
+        <span>Hoy: <span key={`v-${step}`} className="lp-pop font-semibold tabular-nums">{30 + step}</span> ventas</span>
+        <span className="text-[#615d59]"><span className="font-semibold text-black">0</span> quiebres de stock</span>
       </div>
     </div>
   );
