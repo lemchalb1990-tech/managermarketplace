@@ -9,14 +9,12 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
-import { Features, type Feature } from "@/components/landing/features";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
   Toast, TOAST_ICONS,
-  PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
-  ALERTS, PRODUCT_IMG, DropshipMini,
+  ALERTS, PRODUCT_IMG,
 } from "@/components/landing/visuals";
 
 // Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
@@ -199,19 +197,6 @@ const MOBILE_POINTS = [
   ["Tú", "Revisas ventas, stock y reclamos de Mercado Libre desde donde estés."],
 ] as const;
 
-/* ── Todo desde el panel ──────────────────────────────────────────────────── */
-
-const CHAT = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z";
-const CLIP = "M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2M8 12h8M8 16h5";
-const TOOLS: Feature[] = [
-  { t: "Publica en los marketplaces", b: "Un producto, publicado en todos tus canales.", icon: ICONS.catalog, mock: <PublishMini /> },
-  { t: "Venta directa", b: "Punto de venta con el mismo stock.", icon: ICONS.pos, mock: <DirectSaleMini /> },
-  { t: "Presupuestos y órdenes de compra", b: "Cotiza a clientes y pide a proveedores.", icon: CLIP, mock: <QuoteMini /> },
-  { t: "Boletas y facturas", b: "Emitidas y enviadas por correo.", icon: ICONS.doc, mock: <InvoiceMini /> },
-  { t: "Etiquetas de envío", b: "Imprime por lote las de cada marketplace.", icon: ICONS.scan, mock: <LabelMini /> },
-  { t: "Preguntas de Mercado Libre", b: "Responde sin salir del panel.", icon: CHAT, mock: <QuestionsMini /> },
-  { t: "Dropshipping", b: "Vende sin stock; despacha tu proveedor.", icon: ICONS.truck, mock: <DropshipMini /> },
-];
 
 /* ── Catálogo de ejemplo con fotos reales ─────────────────────────────────── */
 
@@ -288,7 +273,6 @@ export default async function Home() {
           </Link>
           <div className="hidden items-center text-[15px] font-medium lg:flex">
             <a href="#beneficios" className="lp-nav-link">Beneficios</a>
-            <a href="#funciones" className="lp-nav-link">Funciones</a>
             <a href="#dashboard" className="lp-nav-link">Dashboard</a>
             <a href="#canales" className="lp-nav-link">Canales</a>
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
@@ -360,15 +344,6 @@ export default async function Home() {
             <SectionHead label="Beneficios" title="Vende tranquilo: nunca más una venta sin stock"
               lead="Cada venta descuenta en todos tus canales al instante, para que no tengas que cancelar pedidos ni perder reputación." />
             <Benefits />
-          </div>
-        </section>
-
-        {/* Todo desde el panel */}
-        <section id="funciones" className={`bg-white ${BAND}`}>
-          <div className={WRAP}>
-            <SectionHead label="Funciones" title="Todo tu negocio desde un solo panel"
-              lead="Publica, vende, factura y despacha sin cambiar de sistema." />
-            <Features items={TOOLS} />
           </div>
         </section>
 
