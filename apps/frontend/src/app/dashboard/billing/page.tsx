@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { BillingLogos } from './components/logos';
 import { useBillingCompany } from './BillingCompanyContext';
-import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription } from '@/lib/platformLogos';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { PlatformEditModal } from '@/components/PlatformEditModal';
 
 const PROVIDERS = [
   {
@@ -59,8 +60,19 @@ const PROVIDER_ENUM: Record<string, string> = {
 
 export default function BillingPage() {
   const { companyId } = useBillingCompany();
-  const logoMap = usePlatformLogos();
+  const sharedLogos = usePlatformLogos();
+  // Cambios guardados en esta página: se ven al tiro, sin esperar a recargar.
+  const [saved, setSaved] = useState<Record<string, PlatformLogoSetting>>({});
+  const logoMap = { ...sharedLogos, ...saved };
   const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set());
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = PROVIDERS.find((p) => p.id === editingId);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setIsSuperAdmin(getUser()?.role === 'SUPER_ADMIN'));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -117,9 +129,21 @@ export default function BillingPage() {
           const displayDescription = resolvePlatformDescription(logoMap, p.id, p.description);
           return (
             <Link key={p.id} href={p.href} className="block group">
-              <div className={`bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${
+              <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${
                 isActive ? p.activeBorder : 'border-gray-200 hover:border-gray-300'
               }`}>
+                {isSuperAdmin && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); setEditingId(p.id); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
+                    title="Editar facturador"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
                 <div className="flex justify-center mb-4">
                   <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
                     {resolvePlatformLogo(logoMap, p.id, BillingLogos[p.id], displayName)}
@@ -137,6 +161,18 @@ export default function BillingPage() {
           );
         })}
       </div>
+
+      {editing && (
+        <PlatformEditModal
+          platform={editing.id}
+          defaultName={editing.name}
+          defaultDescription={editing.description}
+          current={logoMap[editing.id]}
+          fallback={BillingLogos[editing.id]}
+          onClose={() => setEditingId(null)}
+          onSaved={(u) => { setSaved((m) => ({ ...m, [u.platform]: u })); setEditingId(null); }}
+        />
+      )}
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
