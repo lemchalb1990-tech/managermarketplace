@@ -93,7 +93,8 @@ function ChannelDot({ logo, active, pulse }: { logo: ReactNode; active: boolean;
       {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full bg-[#0075de]/35 motion-reduce:hidden" />}
       <span className={`relative grid h-full w-full place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#0075de,0_8px_20px_rgba(0,117,222,0.25)]" : "shadow-[0_4px_12px_rgba(0,0,0,0.1)]"}`}
         style={{ border: LINE }}>
-        <span className="h-[42%] w-[62%] overflow-hidden rounded-[5px] [&>*]:h-full [&>*]:w-full [&>img]:object-contain">{logo}</span>
+        {/* El logo llena el círculo hasta el borde */}
+        <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>svg]:scale-[1.7]">{logo}</span>
       </span>
     </span>
   );
@@ -109,7 +110,7 @@ function ServiceDot({ icon, logo, label, tone, active, pulse }: {
       {logo ? (
         <span className={`relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110" : ""}`}
           style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : "0 4px 12px rgba(0,0,0,0.1)", border: active ? undefined : LINE }}>
-          <span className="h-[42%] w-[62%] overflow-hidden rounded-[4px] [&>*]:h-full [&>*]:w-full [&>img]:object-contain">{logo}</span>
+          <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>svg]:scale-[1.7]">{logo}</span>
         </span>
       ) : (
         <span className={`relative grid h-full w-full place-items-center rounded-full transition-[box-shadow,transform,background-color,color] duration-300 ${active ? "scale-110 text-white" : "bg-white"}`}
