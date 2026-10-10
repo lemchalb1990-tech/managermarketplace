@@ -71,3 +71,11 @@ export function ContactButtons({ dark = false, primary = false, size = "lg" }: {
     </>
   );
 }
+
+/** Un solo botón para hablar con un ejecutivo (agenda configurada o WhatsApp). */
+export function ExecutiveButton({ label = "Contactar con un ejecutivo", className = "" }: { label?: string; className?: string }) {
+  const href = scheduleHref(useContact());
+  if (!href) return null;
+  const ext = href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {};
+  return <a href={href} {...ext} className={`lp-btn ${className}`}>{label}</a>;
+}

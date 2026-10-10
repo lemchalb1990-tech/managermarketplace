@@ -9,7 +9,7 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
-import { ContactButtons } from "@/components/landing/contact";
+import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
@@ -553,12 +553,10 @@ export default async function Home() {
           <div className={WRAP}>
             <div className="relative flex flex-col gap-6 py-12 sm:flex-row sm:items-end sm:justify-between sm:py-14">
               <div>
-                <h2 className="lp-h2">¿Ya tienes cuenta?</h2>
-                <p className="lp-lead mt-4 text-white/70">Entra con tu correo y sigue donde quedaste.</p>
+                <h2 className="lp-h2">¿Conversamos?</h2>
+                <p className="lp-lead mt-4 text-white/70">Un ejecutivo te ayuda a elegir el plan y a conectar tus canales.</p>
               </div>
-              <Link href="/login" className="lp-btn lp-btn--light shrink-0 self-start sm:self-auto">
-                Entrar al panel <Icon d={ICONS.arrow} size={16} />
-              </Link>
+              <ExecutiveButton className="lp-btn--light lp-btn--lg shrink-0 self-start sm:self-auto" />
             </div>
           </div>
         </section>
