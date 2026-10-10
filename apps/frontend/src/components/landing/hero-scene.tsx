@@ -78,7 +78,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
   const logoOf = (k: string) => (k === "pos" ? <PosLogo /> : logos[k]);
 
   return (
-    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-6">
+    <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-5">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
       <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1fr)_188px] xl:items-center xl:gap-5">
           {/* Producto */}
@@ -96,7 +96,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
             <div className="relative mt-3 overflow-hidden rounded-[10px] bg-[#f6f5f4]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/landing/products/zapatillas-blancas-ancha.jpg" alt="" width={960} height={640}
-                className="aspect-[16/10] w-full object-cover" fetchPriority="high" />
+                className="aspect-[2/1] w-full object-cover" fetchPriority="high" />
               {/* Aviso de venta flotando sobre la foto (siempre dentro del recuadro) */}
               {active && (
                 <div key={`sale-${step}`} className="lp-slide absolute inset-x-2 top-2 sm:inset-x-auto sm:left-3 sm:top-3 sm:max-w-[85%]">
@@ -114,21 +114,15 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
                 </div>
               )}
             </div>
-            <div className="mt-3 min-w-0">
-              <p className="truncate text-[15px] font-semibold leading-tight">Zapatillas urbanas blancas</p>
-              <p className="mt-0.5 text-[12px] text-[#757575]">SKU ZAP-URB-40 · Talla 40</p>
-            </div>
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[12px] text-[#757575]">Stock en todos los canales</p>
-                <p key={stock} className="lp-pop text-[48px] font-semibold leading-none tracking-[-0.04em] tabular-nums">{stock}</p>
+            {/* Nombre y stock en una sola fila */}
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold leading-tight">Zapatillas urbanas blancas</p>
+                <p className="mt-0.5 truncate text-[12px] text-[#757575]">SKU ZAP-URB-40 · stock en 6 canales</p>
               </div>
-              <div className="pb-1 text-right text-[11px] leading-snug text-[#615d59]">
-                <p><span className="font-semibold text-black">6</span> canales</p>
-                <p>actualizados solos</p>
-              </div>
+              <p key={stock} className="lp-pop shrink-0 text-[40px] font-semibold leading-none tracking-[-0.04em] tabular-nums">{stock}</p>
             </div>
-            <div className="mt-4 min-h-[52px] rounded-[10px] bg-[#f6f5f4] p-2.5">
+            <div className="mt-3 min-h-[52px] rounded-[10px] bg-[#f6f5f4] p-2.5">
               {active ? (
                 <div key={step} className="lp-slide flex items-center gap-2.5">
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#15803d1f] text-[#15803d]">
@@ -165,7 +159,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
           </div>
       </div>
       {/* Contador del día */}
-      <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white/80 px-4 py-2.5 text-[13px]">
+      <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white/80 px-4 py-2 text-[13px]">
         <span>Hoy: <span key={`v-${step}`} className="lp-pop font-semibold tabular-nums">{30 + step}</span> ventas</span>
         <span className="text-[#615d59]"><span className="font-semibold text-black">0</span> quiebres de stock</span>
       </div>

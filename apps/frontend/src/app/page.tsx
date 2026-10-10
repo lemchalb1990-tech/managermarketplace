@@ -61,10 +61,11 @@ function ChannelsMock() {
   );
 }
 
-function LogoChip({ node, large = false }: { node: ReactNode; large?: boolean }) {
+// Todos los logos a la misma altura; el ancho sale de cada logo (con tope).
+function LogoChip({ node }: { node: ReactNode }) {
   return (
-    <span className={`group/logo flex shrink-0 items-center justify-center px-2 ${large ? "h-24 w-[176px] sm:h-28 sm:w-[200px]" : "h-16 w-[132px]"}`}>
-      <span className={`${large ? "h-16 w-[112px] sm:h-[76px] sm:w-[132px]" : "h-11 w-[74px]"} opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[9px]`}>
+    <span className="group/logo flex h-20 shrink-0 items-center justify-center px-4">
+      <span className="flex h-14 max-w-[150px] items-center opacity-75 grayscale-[0.5] transition duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0 [&>img]:h-full [&>img]:w-auto [&>img]:max-w-[150px] [&>img]:object-contain [&>svg]:h-full [&>svg]:w-[90px] [&>svg]:rounded-[9px]">
         {node}
       </span>
     </span>
@@ -84,7 +85,7 @@ function LogosMarquee({ logoMap }: { logoMap: LogoMap }) {
     <div className="marquee-mask group overflow-hidden">
       <div className="flex w-max gap-7 py-1 animate-marquee group-hover:[animation-play-state:paused]">
         {loop.map((k, i) => (
-          <LogoChip large key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
+          <LogoChip key={`${k}-${i}`} node={resolveLogoNode(logoMap, k, Logos[k])} />
         ))}
       </div>
     </div>
@@ -232,12 +233,12 @@ const BAND = "py-16 lg:py-20";
 /** Encabezado de sección: título a la izquierda y bajada a la derecha en escritorio. */
 function SectionHead({ label, title, lead, dark = false }: { label?: string; title: string; lead?: string; dark?: boolean }) {
   return (
-    <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-16">
+    <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-16">
       <div>
         {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
         <h2 className="lp-h2 mt-3 max-w-[20ch] text-balance">{title}</h2>
       </div>
-      {lead && <p className={`lp-lead max-w-[46ch] text-pretty lg:pb-1.5 ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
+      {lead && <p className={`lp-lead max-w-[46ch] text-pretty ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
     </div>
   );
 }
@@ -251,9 +252,9 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
   return (
     <section style={{ background: bg, color: fg }}>
       <div className={`${WRAP} ui-reveal flex flex-col gap-6 py-10 lg:flex-row lg:items-center lg:justify-between lg:py-12`}>
-        <div className="max-w-3xl">
+        <div className="max-w-5xl">
           <p className="lp-h3 text-balance">{title}</p>
-          <p className={`mt-3 max-w-[56ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
+          <p className={`mt-2 max-w-[80ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link href={primary.href} className={`lp-btn ${dark ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-[#111]"}`}>
@@ -308,7 +309,7 @@ export default async function Home() {
             {/* Izquierda: titular, bajada y botones */}
             <div>
               <p className="lp-eyebrow ui-enter text-[#0075de]">Para tiendas que venden en marketplaces en Chile</p>
-              <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[15ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
+              <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[20ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
                 Vende en todos tus canales sin <span className="lp-pill">sobrevender</span>
               </h1>
               <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
@@ -358,8 +359,9 @@ export default async function Home() {
             <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-3 lg:mt-10">
               {BENEFITS.map((b, i) => (
                 <div key={b.t}
-                  className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
+                  className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""} ${i === BENEFITS.length - 1 ? "md:col-span-3 md:flex-row md:items-center md:gap-10" : ""}`}
                   style={{ background: b.bg, color: b.fg }}>
+                  <div className="min-w-0 flex-1">
                   {"icon" in b && b.icon ? (
                     <span className="mb-6 grid h-10 w-10 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
                       <Icon d={b.icon} size={20} />
@@ -369,9 +371,10 @@ export default async function Home() {
                   )}
                   <p className={`font-bold tracking-[-0.011em] ${i === 0 ? "text-[26px] leading-[1.15] sm:text-[30px]" : "text-[20px] leading-[1.3]"}`}>{b.t}</p>
                   <p className={`mt-2 text-[15px] leading-[1.55] ${b.fg === "#fff" ? "text-white/70" : b.bg === "#ffffff" ? "text-[#615d59]" : "text-black/70"}`}>{b.b}</p>
+                  </div>
                   {b.bg === "#ffb110" && <StockMini />}
                   {b.bg === "#62aef0" && <ProfitMini />}
-                  {b.bg === "#02093a" && <ClaimMini />}
+                  {b.bg === "#02093a" && <div className="md:w-[46%] md:shrink-0 md:[&>*]:mt-0"><ClaimMini /></div>}
                 </div>
               ))}
             </div>
@@ -439,14 +442,14 @@ export default async function Home() {
               <h2 className="lp-h2 ui-reveal max-w-[20ch] text-balance">
                 Lo que deja de pasarte en el día a día
               </h2>
-              <div className="mt-10 hidden grid-cols-2 gap-10 pb-3 text-[13px] font-medium text-[#757575] md:grid">
+              <div className="mt-8 hidden grid-cols-2 gap-10 pb-3 text-[14px] font-semibold text-[#615d59] md:grid">
                 <p>Hoy</p>
                 <p className="text-[#0075de]">Con el panel</p>
               </div>
               <ol className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
                 {BEFORE_AFTER.map(([before, after], i) => (
-                  <li key={i} className="ui-reveal grid gap-3 py-6 md:grid-cols-2 md:gap-10">
-                    <p className="text-[16px] leading-[1.5] text-[#757575]">
+                  <li key={i} className="ui-reveal grid gap-2 py-4 md:grid-cols-2 md:gap-10">
+                    <p className="text-[16px] leading-[1.5] text-[#615d59]">
                       <span className="mr-2 font-medium md:hidden">Hoy:</span>
                       {before}
                     </p>
@@ -466,14 +469,18 @@ export default async function Home() {
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]`}>
             <div className="ui-reveal">
               <span className="lp-eyebrow text-[#0075de]">Canales</span>
-              <h2 className="lp-h2 mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
+              <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
               <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
               <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2">
+              <div className="mt-3 grid max-w-[360px] grid-cols-3 gap-2">
                 {billingChannels.map((k) => (
-                  <LogoChip key={k} node={resolveLogoNode(logoMap, k, BillingLogos[k])} />
+                  <span key={k} className="flex h-14 items-center justify-center rounded-[10px] bg-white px-3" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
+                    <span className="h-9 w-[58px] [&>img]:h-full [&>img]:w-full [&>img]:object-contain [&>svg]:h-full [&>svg]:w-full [&>svg]:rounded-[7px]">
+                      {resolveLogoNode(logoMap, k, BillingLogos[k])}
+                    </span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -524,7 +531,7 @@ export default async function Home() {
             </div>
             <div className="ui-reveal order-1 lg:order-2">
               <span className="lp-eyebrow text-[#c43b1c]">Versión móvil</span>
-              <h2 className="lp-h2 mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
+              <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
               <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
                 El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.
               </p>
@@ -532,7 +539,7 @@ export default async function Home() {
                 {MOBILE_POINTS.map(([t, b]) => (
                   <li key={t} className="lp-card p-5">
                     <p className="text-[16px] font-semibold">{t}</p>
-                    <p className="mt-1 text-[14px] leading-[1.43] text-[#615d59]">{b}</p>
+                    <p className="mt-1 text-[15px] leading-[1.5] text-[#615d59]">{b}</p>
                   </li>
                 ))}
               </ul>
@@ -548,10 +555,6 @@ export default async function Home() {
             <Pricing plans={plans} />
           </div>
         </section>
-
-        <CtaBand bg="#f6d5b8" title="Pruébalo gratis 15 días"
-          text="Con todo lo del plan Crece y sin compromiso. Al final eliges si sigues."
-          primary={{ label: "Empezar la prueba", href: "/login" }} secondary={{ label: "Ver cómo funciona", href: "#modulos" }} />
 
         {/* Módulos */}
         <section id="modulos" className={BAND}>
