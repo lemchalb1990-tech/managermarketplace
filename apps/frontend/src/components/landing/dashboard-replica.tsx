@@ -3,11 +3,12 @@
 /* Réplica del Inicio del panel (src/app/dashboard/page.tsx) con datos de ejemplo:
    mismas tarjetas, íconos, colores, gráfico de barras, dona por canal y filtros. */
 
+import { KpiIcon } from "@/components/KpiIcon";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { SectionCard } from "@/components/ui";
 
 const CARD_SHADOW: CSSProperties = { boxShadow: "0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)" };
-const DONUT_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899", "#64748b"];
+const DONUT_COLORS = ["#02093a", "#0075de", "#62aef0", "#15803d", "#f59e0b", "#8b5cf6", "#ec4899", "#94a3b8"];
 const compact = new Intl.NumberFormat("es-CL", { notation: "compact", maximumFractionDigits: 1 });
 const clp = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 
@@ -69,7 +70,7 @@ function RowOpenIcon() {
 function Kpi({ title, value, icon, colorClass, center = false }: { title: string; value: string; icon: string; colorClass: string; center?: boolean }) {
   return (
     <div className="ui-card flex h-full items-center gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3" style={CARD_SHADOW}>
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg sm:h-11 sm:w-11 sm:text-xl ${colorClass}`}>{icon}</div>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg sm:h-11 sm:w-11 sm:text-xl ${colorClass}`}><KpiIcon name={icon} size={20} /></div>
       <div className="min-w-0 flex-1">
         <p className="mb-0.5 line-clamp-2 text-xs font-bold leading-tight text-[var(--text-2)] sm:text-[13px]">{title}</p>
         <p className={`whitespace-nowrap text-[1.15rem] font-bold leading-tight tracking-tight text-[var(--text)] sm:text-[1.35rem] ${center ? "text-center" : "text-right"}`}>{value}</p>
@@ -134,12 +135,12 @@ export function DashboardReplica() {
 
       {/* Indicadores del día */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <Kpi title="Ventas hoy" value="48" icon="🛒" colorClass="bg-blue-50 text-blue-500" center />
-        <Kpi title="Ingresos hoy" value="$1.284.500" icon="💰" colorClass="bg-green-50 text-green-500" />
-        <Kpi title="Total neto recibido" value="$1.052.290" icon="🏦" colorClass="bg-emerald-50 text-emerald-600" />
-        <Kpi title="Órdenes activas" value="23" icon="📦" colorClass="bg-amber-50 text-amber-500" center />
+        <Kpi title="Ventas hoy" value="48" icon="cart" colorClass="bg-[#e8f1fc] text-[#0075de]" center />
+        <Kpi title="Ingresos hoy" value="$1.284.500" icon="cash" colorClass="bg-[#02093a] text-white" />
+        <Kpi title="Total neto recibido" value="$1.052.290" icon="bank" colorClass="bg-emerald-50 text-emerald-600" />
+        <Kpi title="Órdenes activas" value="23" icon="box" colorClass="bg-[#eef7fe] text-[#0b1d5c]" center />
         <div className="col-span-2 lg:col-span-1">
-          <Kpi title="Ticket promedio hoy" value="$26.760" icon="🧾" colorClass="bg-violet-50 text-violet-500" />
+          <Kpi title="Ticket promedio hoy" value="$26.760" icon="receipt" colorClass="bg-[#e8f1fc] text-[#02093a]" />
         </div>
       </div>
 
@@ -180,7 +181,7 @@ export function DashboardReplica() {
                       style={{ bottom: ready ? `${h + 4}px` : "4px", transition: dense ? "opacity 150ms" : `bottom 700ms ${i * 25}ms` }}>
                       ${compact.format(d.total)}
                     </span>
-                    <div className="w-full rounded-t-md bg-[#b8ccfa] ease-out group-hover:bg-[#9fb9f7]"
+                    <div className="w-full rounded-t-md bg-[#b6d1f6] ease-out group-hover:bg-[#62aef0]"
                       style={{ height: ready ? `${h}px` : "0px", transition: `height 700ms ${i * 25}ms, background-color 150ms` }} />
                   </div>
                   <p className={`w-full truncate text-center text-[9px] capitalize leading-tight sm:text-xs ${current ? "font-semibold" : "text-[var(--text-muted)]"}`}
@@ -200,7 +201,7 @@ export function DashboardReplica() {
             <div className="flex flex-wrap items-center gap-1 rounded-full bg-white p-1">
               {PERIODS.map((p) => (
                 <button key={p.key} type="button" onClick={() => setPeriod(p.key)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${period === p.key ? "bg-[var(--brand)] text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${period === p.key ? "bg-[#02093a] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>
                   {p.label}
                 </button>
               ))}

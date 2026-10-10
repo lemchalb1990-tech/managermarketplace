@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// Una sola familia para toda la app: landing, login y panel. Grotesca cálida,
-// con carácter en los pesos altos (titulares) y muy legible en tablas densas.
-const hanken = Hanken_Grotesk({
+// Una sola familia para toda la app (landing, login y panel): Inter, muy legible en
+// tablas y números. La variable conserva su nombre histórico (--font-hanken).
+const hanken = Inter({
   variable: "--font-hanken",
   subsets: ["latin"],
   display: "swap",

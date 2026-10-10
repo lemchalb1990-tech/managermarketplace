@@ -1,5 +1,6 @@
 'use client';
 
+import { KpiIcon } from '@/components/KpiIcon';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -56,7 +57,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 // Sombra más marcada que la de `.ui-card` para que los recuadros del dashboard
 // se vean "levantados" (efecto 3D), sin tocar el shadow por defecto del resto del panel.
-const CARD_SHADOW: CSSProperties = { boxShadow: '0 10px 24px rgba(43,42,39,0.12), 0 2px 6px rgba(43,42,39,0.08)' };
+const CARD_SHADOW: CSSProperties = { boxShadow: '0 1px 2px rgba(2,9,58,0.05), 0 6px 16px rgba(2,9,58,0.06)' };
 
 function KpiCard({
   title, value, sub, colorClass, icon, href, centerValue = false,
@@ -71,11 +72,11 @@ function KpiCard({
       {/* Celular: ícono del alto de título + valor; valor alineado a la derecha. */}
       {/* Ícono del alto de título + valor. */}
       <div className={`w-11 h-11 xl:w-10 xl:h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${colorClass}`}>
-        {icon}
+        <KpiIcon name={icon} />
       </div>
       <div className={`@container min-w-0 flex-1 ${KPI_VALUE_MAX}`}>
         <p className="text-xs sm:text-[13px] text-[var(--text-2)] font-bold mb-0.5 leading-tight line-clamp-2">{title}</p>
-        <p style={kpiValueStyle(String(value))} className={`font-bold text-[var(--text)] leading-tight tracking-tight whitespace-nowrap ${centerValue ? 'text-center' : 'text-right'}`}>{value}</p>
+        <p style={kpiValueStyle(String(value))} className={`font-bold text-[var(--text)] leading-tight tracking-tight whitespace-nowrap tabular-nums ${centerValue ? 'text-center' : 'text-right'}`}><span key={String(value)} className="ui-pop">{value}</span></p>
       </div>
       {sub && (
         <div className="pointer-events-none absolute left-3 top-full z-20 mt-1.5 max-w-[220px] rounded-lg bg-[var(--text)] px-2.5 py-1.5 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
@@ -232,7 +233,7 @@ export default function DashboardPage() {
   const reportTotal = reportData.reduce((s, d) => s + (d.total || 0), 0);
   const reportAvg = reportData.length > 0 ? reportTotal / reportData.length : 0;
 
-  const DONUT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'];
+  const DONUT_COLORS = ['#02093a', '#0075de', '#62aef0', '#15803d', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8'];
   const totalStoreSales = storeBreakdown.reduce((s, x) => s + x.count, 0);
   let donutCumulative = 0;
   const donutSegments = storeBreakdown.map((s, i) => {
@@ -301,16 +302,16 @@ export default function DashboardPage() {
           centerValue
           value={summary?.totalSales ?? 0}
           sub="transacciones · POS y e-commerce"
-          colorClass="bg-blue-50 text-blue-500"
-          icon="🛒"
+          colorClass="bg-[#e8f1fc] text-[#0075de]"
+          icon="cart"
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
           title="Ingresos hoy"
           value={`$${Number(summary?.totalRevenue ?? 0).toLocaleString('es-CL')}`}
           sub="total del día · POS y e-commerce"
-          colorClass="bg-green-50 text-green-500"
-          icon="💰"
+          colorClass="bg-[#02093a] text-white"
+          icon="cash"
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
@@ -318,7 +319,7 @@ export default function DashboardPage() {
           value={`$${Number(summary?.totalNetReceived ?? 0).toLocaleString('es-CL')}`}
           sub="hoy · descontando comisiones, envío e impuestos"
           colorClass="bg-emerald-50 text-emerald-600"
-          icon="🏦"
+          icon="bank"
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
         <KpiCard
@@ -326,16 +327,16 @@ export default function DashboardPage() {
           centerValue
           value={activeOrdersCount}
           sub="pendiente / preparando / listo"
-          colorClass="bg-amber-50 text-amber-500"
-          icon="📦"
+          colorClass="bg-[#eef7fe] text-[#0b1d5c]"
+          icon="box"
           href="/dashboard/orders"
         />
         <KpiCard
           title="Ticket promedio hoy"
           value={`$${Math.round(Number(summary?.totalSales) ? Number(summary?.totalRevenue ?? 0) / Number(summary.totalSales) : 0).toLocaleString('es-CL')}`}
           sub="ingresos del día ÷ ventas del día"
-          colorClass="bg-violet-50 text-violet-500"
-          icon="🧾"
+          colorClass="bg-[#e8f1fc] text-[#02093a]"
+          icon="receipt"
           href={`/dashboard/sales?from=${todayStr}&to=${todayStr}`}
         />
       </div>
@@ -420,7 +421,7 @@ export default function DashboardPage() {
                         </span>
                       )}
                       {h > 0 ? (
-                        <div className="w-full rounded-t-md bg-[#b8ccfa] ease-out transition-colors group-hover:bg-[#9fb9f7]"
+                        <div className="w-full rounded-t-md bg-[#b6d1f6] ease-out transition-colors group-hover:bg-[#62aef0]"
                           style={{ height: reportChartReady ? `${h}px` : '0px', transitionProperty: 'height, background-color', transitionDuration: '700ms', transitionDelay: `${i * 25}ms` }} />
                       ) : (
                         <div className="w-full h-0.5 rounded-full bg-[var(--border)]" />
@@ -450,7 +451,7 @@ export default function DashboardPage() {
                   onClick={() => setDashboardPeriod(p.key)}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
                     dashboardPeriod === p.key
-                      ? 'bg-[var(--brand)] text-[var(--text)]'
+                      ? 'bg-[var(--navy)] text-white'
                       : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`}
                 >

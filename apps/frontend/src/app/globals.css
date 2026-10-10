@@ -7,19 +7,21 @@
   usan var(--…) o las clases utilitarias de más abajo.
 */
 :root {
-  /* Marca */
-  --brand: #e0a833;
-  --brand-dark: #c19332;
-  --brand-ink: #8a6d31;
-  --brand-light: #ffefcf;
-  --brand-soft: #e0a83318;
+  /* Marca: azul noche (botones, barra) y azul de acción (enlaces, activos), igual que la landing */
+  --brand: #0075de;
+  --brand-dark: #02093a;
+  --brand-ink: #0b1d5c;
+  --brand-light: #e8f1fc;
+  --brand-soft: #0075de1f;
+  --navy: #02093a;
+  --navy-2: #0b1d5c;
 
   /* Superficies */
   --page-bg: #f7f6f2;
   --surface: #ffffff;
   --surface-soft: #fbfaf7;
-  --topbar-bg: #2b2a27;
-  --topbar-fg: #f4f2ec;
+  --topbar-bg: #02093a;
+  --topbar-fg: #ffffff;
 
   /* Texto */
   --text: #2b2a27;
@@ -37,20 +39,20 @@
   --warn-bg: #b4530916;
   --danger: #dc2626;
   --danger-bg: #dc262616;
-  --info: #2563eb;
-  --info-bg: #2563eb14;
+  --info: #0075de;
+  --info-bg: #0075de14;
 
   /* Radios */
   --r-sm: 6px;
   --r-md: 10px;
-  --r-lg: 16px;
-  --r-xl: 22px;
+  --r-lg: 14px;
+  --r-xl: 18px;
 
   /* Sombras (tintadas en cálido) */
-  --shadow-xs: 0 1px 2px #2b2a2712;
-  --shadow-sm: 0 6px 20px #2b2a270f;
-  --shadow-md: 0 14px 36px #2b2a271a;
-  --shadow-lg: 0 26px 60px #2b2a2726;
+  --shadow-xs: 0 1px 2px #02093a0a;
+  --shadow-sm: 0 4px 14px #02093a0d;
+  --shadow-md: 0 12px 30px #02093a17;
+  --shadow-lg: 0 24px 56px #02093a24;
 
   /* Layout */
   --topbar-h: 56px;
@@ -90,15 +92,15 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 
 /* Encabezado de página */
 .ui-page-title {
-  font-size: 1.5rem;
-  line-height: 1.2;
+  font-size: 1.625rem;
+  line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--text);
 }
 /* Jerarquía visual del panel: 1) título de página, 2) título de sección, 3) subsección,
@@ -146,9 +148,10 @@ body {
   padding: 14px 16px;
 }
 .ui-stat-value {
-  font-size: 1.375rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 .ui-stat-label {
@@ -172,19 +175,19 @@ body {
 .ui-badge--warn { color: var(--warn); background: var(--warn-bg); }
 .ui-badge--danger { color: var(--danger); background: var(--danger-bg); }
 .ui-badge--info { color: var(--info); background: var(--info-bg); }
-.ui-badge--neutral { color: var(--text-2); background: #2b2a270d; }
+.ui-badge--neutral { color: var(--text-2); background: #02093a0d; }
 
 /* Botón primario de marca */
 .ui-btn-brand {
-  background: var(--brand);
-  color: #35301f;
+  background: var(--navy);
+  color: #fff;
   font-weight: 600;
   border-radius: var(--r-md);
   padding: 8px 16px;
   font-size: 0.875rem;
   transition: background 0.15s ease;
 }
-.ui-btn-brand:hover { background: var(--brand-dark); }
+.ui-btn-brand:hover { background: var(--navy-2); }
 .ui-btn-brand:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Acción secundaria (filtrar, buscar, exportar): visible pero sin competir con la principal. */
@@ -394,37 +397,37 @@ body {
   --color-stone-800: #3f3d39;
   --color-stone-900: #2b2a27;
 
-  /* Azul / índigo / celeste → dorado-bronce de marca (acciones primarias) */
-  --color-blue-50: #faf3e0;
-  --color-blue-100: #f3e5c6;
-  --color-blue-200: #e9d29c;
-  --color-blue-300: #ddbb6d;
-  --color-blue-400: #cfa243;
-  --color-blue-500: #c19332;
-  --color-blue-600: #8a6d31;
-  --color-blue-700: #6f5726;
-  --color-blue-800: #5a4620;
-  --color-blue-900: #46371a;
-  --color-indigo-50: #faf3e0;
-  --color-indigo-100: #f3e5c6;
-  --color-indigo-200: #e9d29c;
-  --color-indigo-300: #ddbb6d;
-  --color-indigo-400: #cfa243;
-  --color-indigo-500: #c19332;
-  --color-indigo-600: #8a6d31;
-  --color-indigo-700: #6f5726;
-  --color-indigo-800: #5a4620;
-  --color-indigo-900: #46371a;
-  --color-sky-50: #faf3e0;
-  --color-sky-100: #f3e5c6;
-  --color-sky-200: #e9d29c;
-  --color-sky-300: #ddbb6d;
-  --color-sky-400: #cfa243;
-  --color-sky-500: #c19332;
-  --color-sky-600: #8a6d31;
-  --color-sky-700: #6f5726;
-  --color-sky-800: #5a4620;
-  --color-sky-900: #46371a;
+  /* Azul / índigo / celeste → azul noche y azul de la landing (acciones primarias) */
+  --color-blue-50: #eef4fd;
+  --color-blue-100: #d9e7fb;
+  --color-blue-200: #b6d1f6;
+  --color-blue-300: #85b3ef;
+  --color-blue-400: #3d8ce6;
+  --color-blue-500: #0075de;
+  --color-blue-600: #0b1d5c;
+  --color-blue-700: #02093a;
+  --color-blue-800: #020732;
+  --color-blue-900: #01052a;
+  --color-indigo-50: #eef4fd;
+  --color-indigo-100: #d9e7fb;
+  --color-indigo-200: #b6d1f6;
+  --color-indigo-300: #85b3ef;
+  --color-indigo-400: #3d8ce6;
+  --color-indigo-500: #0075de;
+  --color-indigo-600: #0b1d5c;
+  --color-indigo-700: #02093a;
+  --color-indigo-800: #020732;
+  --color-indigo-900: #01052a;
+  --color-sky-50: #eef7fe;
+  --color-sky-100: #d8edfd;
+  --color-sky-200: #b3dbfb;
+  --color-sky-300: #86c3f6;
+  --color-sky-400: #62aef0;
+  --color-sky-500: #3796e6;
+  --color-sky-600: #0075de;
+  --color-sky-700: #005fb6;
+  --color-sky-800: #0b1d5c;
+  --color-sky-900: #02093a;
 }
 
 /* Detalles finos comunes a todo el panel */
@@ -665,11 +668,12 @@ body {
 /* Réplica del dashboard dentro de la landing: recupera la paleta, tipografía y
    tarjetas del panel (en claro) para que se vea igual que el sistema real. */
 .lp .lp-panel {
-  --brand: #e0a833;
-  --brand-dark: #c19332;
-  --brand-ink: #8a6d31;
-  --brand-light: #ffefcf;
-  --brand-soft: #e0a83318;
+  --brand: #0075de;
+  --brand-dark: #02093a;
+  --brand-ink: #0b1d5c;
+  --brand-light: #e8f1fc;
+  --brand-soft: #0075de1f;
+  --navy: #02093a;
   --page-bg: #f7f6f2;
   --surface: #ffffff;
   --surface-soft: #fbfaf7;
@@ -678,7 +682,7 @@ body {
   --text-muted: #8a8884;
   --border: #e4e2dc;
   --border-soft: #eeece7;
-  --info: #2563eb;
+  --info: #0075de;
   background: var(--page-bg);
   color: var(--text);
   font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
@@ -688,4 +692,14 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
+}
+
+/* ── Panel: animaciones suaves (estilo landing) ───────────────────────────── */
+@keyframes ui-pop { 0% { transform: scale(1.12); color: var(--brand); } 100% { transform: scale(1); } }
+.ui-pop { display: inline-block; animation: ui-pop 0.45s ease-out both; transform-origin: left center; }
+@keyframes ui-slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.ui-slide-in { animation: ui-slide-in 0.3s ease-out both; }
+.ui-dashboard .ui-card { transition: box-shadow 0.2s ease, border-color 0.2s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .ui-pop, .ui-slide-in { animation: none; }
 }

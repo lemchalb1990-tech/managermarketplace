@@ -2769,7 +2769,7 @@ export default function CatalogPage() {
         >
           {showMoreFilters ? 'Menos filtros' : 'Más filtros'}
           {advancedFilterCount > 0 && (
-            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-[#35301f] inline-flex items-center justify-center">{advancedFilterCount}</span>
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-white inline-flex items-center justify-center">{advancedFilterCount}</span>
           )}
         </button>
         <button

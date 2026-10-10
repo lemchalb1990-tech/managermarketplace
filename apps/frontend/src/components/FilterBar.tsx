@@ -70,7 +70,7 @@ export function FilterBar({
             className={`ui-btn-secondary inline-flex items-center gap-1.5 ${open ? '!border-[var(--brand)]' : ''}`}>
             {open ? 'Menos filtros' : 'Más filtros'}
             {activeCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-[#35301f] inline-flex items-center justify-center">{activeCount}</span>
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-white inline-flex items-center justify-center">{activeCount}</span>
             )}
           </button>
         )}

@@ -291,7 +291,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebarContent = (
     <>
       <div className="md:hidden h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
-        <span className="font-bold text-[var(--text)] text-base tracking-tight">Marketplace</span>
+        <span className="flex items-center gap-2 font-bold text-[var(--text)] text-base tracking-tight">
+          <span className="grid h-6 w-6 place-items-center rounded-[6px] bg-[var(--navy)] text-[0.7rem] font-bold text-white">M</span>
+          Admin Marketplace
+        </span>
         <button
           onClick={() => setSidebarOpen(false)}
           className="text-[var(--text-muted)] hover:text-[var(--text)] text-xl leading-none"
@@ -311,7 +314,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={item.href}
                 className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-[17px] transition-colors ${
                   active
-                    ? 'bg-[#f5dfa8] text-[var(--brand-ink)] font-semibold'
+                    ? 'bg-[var(--brand-light)] text-[var(--brand-ink)] font-semibold'
                     : 'text-[var(--text-2)] font-medium hover:bg-[var(--brand-light)]'
                 }`}
               >
@@ -419,7 +422,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 {MenuIcon}
               </button>
-              <span className="font-bold tracking-tight flex-1 min-w-0 truncate">Marketplace</span>
+              <span className="flex flex-1 min-w-0 items-center gap-2 font-bold tracking-tight">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-white text-[0.8rem] font-bold text-[var(--navy)]">M</span>
+                <span className="truncate">Admin Marketplace</span>
+              </span>
               <HeaderCompanyPicker />
               <NotificationBell />
 
@@ -444,7 +450,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="px-4 py-3.5">
                       <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</p>
-                      <p className="text-[11px] font-semibold mt-1 text-[#8a6d31]">{roleLabel}</p>
+                      <p className="text-[11px] font-semibold mt-1 text-[var(--brand)]">{roleLabel}</p>
                     </div>
                     <div className="border-t border-gray-100" />
                     <button
