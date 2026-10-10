@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
+import { PlatformLogoField } from '@/components/PlatformLogoField';
 import { usePlatformLogos, resolvePlatformLogo, invalidatePlatformLogosCache } from '@/lib/platformLogos';
 import { confirmDialog } from '../ConfirmDialog';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
@@ -119,7 +120,7 @@ export default function DropshippingPage() {
 
   const logoMap = usePlatformLogos();
   const [editingLogoKey, setEditingLogoKey] = useState<string | null>(null);
-  const [logoForm, setLogoForm] = useState({ displayName: '', logoUrl: '' });
+  const [logoForm, setLogoForm] = useState({ displayName: '', logoUrl: '', logoScale: 100 });
   const [logoSaving, setLogoSaving] = useState(false);
   const [logoError, setLogoError] = useState('');
 
@@ -234,7 +235,7 @@ export default function DropshippingPage() {
     const key = CONNECTOR_LOGO_KEY[connectorType];
     if (!key) return;
     const current = logoMap[key];
-    setLogoForm({ displayName: current?.displayName || '', logoUrl: current?.logoUrl || '' });
+    setLogoForm({ displayName: current?.displayName || '', logoUrl: current?.logoUrl || '', logoScale: current?.logoScale || 100 });
     setLogoError('');
     setEditingLogoKey(key);
   }
@@ -247,6 +248,7 @@ export default function DropshippingPage() {
       await api.settings.platforms.update(editingLogoKey, {
         displayName: logoForm.displayName.trim() || undefined,
         logoUrl: logoForm.logoUrl.trim() || undefined,
+        logoScale: logoForm.logoScale,
       }, token());
       invalidatePlatformLogosCache();
       setEditingLogoKey(null);
@@ -1076,17 +1078,14 @@ export default function DropshippingPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">URL del logo</label>
-                <input value={logoForm.logoUrl} placeholder="https://ejemplo.com/logo.png" type="url"
-                  onChange={(e) => setLogoForm((f) => ({ ...f, logoUrl: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                {logoForm.logoUrl && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Vista previa:</span>
-                    <img src={logoForm.logoUrl} alt="preview" className="w-16 h-10 object-contain rounded border border-gray-200"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  </div>
-                )}
+                <label className="block text-xs font-medium text-gray-600 mb-2">Logo</label>
+                <PlatformLogoField
+                  platform={editingLogoKey}
+                  name={logoForm.displayName || 'Proveedor'}
+                  logoUrl={logoForm.logoUrl}
+                  logoScale={logoForm.logoScale}
+                  onChange={(v) => setLogoForm((f) => ({ ...f, ...v }))}
+                />
                 <p className="text-xs text-gray-400 mt-1">Se muestra en Mis conexiones y en esta tabla en vez del ícono genérico.</p>
               </div>
             </div>

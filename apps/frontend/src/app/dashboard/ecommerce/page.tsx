@@ -6,7 +6,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
 import { invalidatePlatformLogosCache, logoScaleStyle } from '@/lib/platformLogos';
-import PlatformLogoAdjustModal from './components/PlatformLogoAdjustModal';
+import { PlatformLogoField } from '@/components/PlatformLogoField';
 import { useAdminCompany } from '../AdminCompanyContext';
 
 const DEFAULT_PLATFORMS = [
@@ -96,8 +96,6 @@ export default function EcommercePage() {
   const [activeMarketplaces, setActiveMarketplaces] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyEdit);
-  // Imagen abierta en "Ajustar logo" (archivo recién elegido o el logo actual).
-  const [adjustSrc, setAdjustSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -241,22 +239,6 @@ export default function EcommercePage() {
         )}
       </div>
 
-      {editingId && adjustSrc && (
-        <PlatformLogoAdjustModal
-          src={adjustSrc}
-          scale={editForm.logoScale}
-          name={editForm.displayName || DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.name || ''}
-          onClose={() => setAdjustSrc(null)}
-          onConfirm={async ({ file, scale }) => {
-            let url = editForm.logoUrl;
-            if (file) url = (await api.settings.platforms.uploadLogo(editingId, file, getToken()!)).url;
-            else if (adjustSrc.startsWith('blob:')) throw new Error('Ajusta el recorte o súbelo de nuevo para guardar el archivo.');
-            setEditForm((f) => ({ ...f, logoUrl: url, logoScale: scale }));
-            setAdjustSrc(null);
-          }}
-        />
-      )}
-
       {/* Modal edición (solo Super Admin) */}
       {editingId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -293,40 +275,15 @@ export default function EcommercePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Logo</label>
-                <div className="flex items-center gap-3">
-                  <div className="w-24 h-16 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
-                    {editForm.logoUrl
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={editForm.logoUrl} alt="logo" className="w-full h-full object-contain" style={logoScaleStyle(editForm.logoScale)} />
-                      : Logos[editingId]}
-                  </div>
-                  <div className="flex flex-col items-start gap-1.5">
-                    <label className="cursor-pointer rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-                      Subir archivo
-                      <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          e.target.value = '';
-                          if (f) setAdjustSrc(URL.createObjectURL(f));
-                        }} />
-                    </label>
-                    {editForm.logoUrl && (
-                      <button type="button" onClick={() => setAdjustSrc(editForm.logoUrl)}
-                        className="text-xs font-medium text-blue-600 hover:underline">
-                        Ajustar logo ({editForm.logoScale}%)
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <input
-                  value={editForm.logoUrl}
-                  onChange={(e) => setEditForm((f) => ({ ...f, logoUrl: e.target.value }))}
-                  placeholder="o pega la URL: https://ejemplo.com/logo.png"
-                  type="url"
-                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Logo</label>
+                <PlatformLogoField
+                  platform={editingId}
+                  name={editForm.displayName || DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.name || ''}
+                  logoUrl={editForm.logoUrl}
+                  logoScale={editForm.logoScale}
+                  fallback={Logos[editingId]}
+                  onChange={(v) => setEditForm((f) => ({ ...f, ...v }))}
                 />
-                <p className="text-xs text-gray-400 mt-1">Deja vacío para usar el logo SVG por defecto.</p>
               </div>
 
               {saveError && (
