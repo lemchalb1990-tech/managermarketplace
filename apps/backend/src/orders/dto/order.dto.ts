@@ -134,6 +134,11 @@ export class FindOrdersDto {
   @IsString()
   companyId?: string;
 
+  // "pending": solo órdenes pendientes de verificación.
+  @IsOptional()
+  @IsIn(['pending'])
+  verification?: string;
+
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;

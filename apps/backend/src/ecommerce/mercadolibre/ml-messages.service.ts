@@ -11,6 +11,19 @@ const MAX_TEXT = 350; // límite de Mercado Libre para mensajes postventa
 export type MlMsg = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[] };
 
 export const RULE_TRIGGERS = ['SALE_CREATED', 'INVOICE_ISSUED', 'ORDER_DISPATCHED', 'ORDER_DELIVERED'] as const;
+const COND_FIELDS = ['category', 'product', 'shipping', 'total', 'account'] as const;
+type Cond = { field: (typeof COND_FIELDS)[number]; values: string[]; labels?: Record<string, string> };
+
+// Tipo de envío guardado en la venta ("Flex", "Full", "Turbo", "Colecta (agencia)"...) → grupo.
+const shippingGroup = (m?: string | null) => {
+  const s = String(m || '');
+  if (/^Colecta/i.test(s)) return 'COLECTA';
+  if (/flex/i.test(s)) return 'FLEX';
+  if (/full/i.test(s)) return 'FULL';
+  if (/turbo/i.test(s)) return 'TURBO';
+  if (/coordinar/i.test(s)) return 'COORDINAR';
+  return s ? 'OTRO' : 'NINGUNO';
+};
 
 /**
  * Mensajería postventa de Mercado Libre: bandeja de conversaciones de las ventas, chat por
@@ -259,9 +272,21 @@ export class MlMessagesService {
     const text = String(dto.text || '').trim();
     if (!text) throw new BadRequestException('Escribe el mensaje');
     if (text.length > MAX_TEXT) throw new BadRequestException(`El mensaje no puede superar ${MAX_TEXT} caracteres`);
+    const conditions: Cond[] = (Array.isArray(dto.conditions) ? dto.conditions : [])
+      .filter((c: any) => COND_FIELDS.includes(c?.field))
+      .map((c: any) => ({
+        field: c.field,
+        values: (Array.isArray(c.values) ? c.values : [c.values]).map((v: any) => String(v ?? '').trim()).filter(Boolean),
+        // Nombres para mostrar (productos): solo texto, no se usan para decidir.
+        ...(c.labels && typeof c.labels === 'object' ? { labels: Object.fromEntries(Object.entries(c.labels).map(([k, v]) => [String(k), String(v).slice(0, 120)])) } : {}),
+      }))
+      .filter((c: Cond) => c.values.length);
     return {
       name: String(dto.name || '').trim() || 'Mensaje programado',
       active: dto.active !== false,
+      conditions: conditions as unknown as Prisma.InputJsonValue,
+      match: dto.match === 'ANY' ? 'ANY' : 'ALL',
+      markVerification: !!dto.markVerification,
       trigger: dto.trigger,
       delayMinutes: Math.max(0, Math.round(Number(dto.delayMinutes) || 0)),
       text,
@@ -283,6 +308,23 @@ export class MlMessagesService {
     return this.prisma.mlMessageRule.update({ where: { id }, data: this.checkRule({ ...rule, minTotal: rule.minTotal != null ? Number(rule.minTotal) : null, ...dto }) });
   }
 
+  // ¿La venta cumple las condiciones de la regla? (Y = todas, O = cualquiera)
+  private matches(rule: { conditions: unknown; match: string }, sale: any) {
+    const conds = (Array.isArray(rule.conditions) ? rule.conditions : []) as Cond[];
+    if (!conds.length) return true;
+    const cats = new Set<string>(sale.items.map((i: any) => String(i.product?.category || '').toLowerCase()).filter(Boolean));
+    const prods = new Set<string>(sale.items.map((i: any) => i.productId));
+    const test = (c: Cond) => {
+      if (c.field === 'category') return c.values.some((v) => cats.has(v.toLowerCase()));
+      if (c.field === 'product') return c.values.some((v) => prods.has(v));
+      if (c.field === 'shipping') return c.values.includes(shippingGroup(sale.shippingMethod));
+      if (c.field === 'total') return Number(sale.total) >= Number(c.values[0] || 0);
+      if (c.field === 'account') return c.values.includes(String(sale.connectionId));
+      return false;
+    };
+    return rule.match === 'ANY' ? conds.some(test) : conds.every(test);
+  }
+
   async deleteRule(user: any, id: string) {
     const rule = await this.prisma.mlMessageRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException('Mensaje programado no encontrado');
@@ -297,6 +339,7 @@ export class MlMessagesService {
     const vars: Record<string, string> = {
       nombre: String(sale.customerName || '').split(' ')[0] || 'cliente',
       producto: sale.items?.[0]?.product?.name || 'tu compra',
+      productos: (sale.items || []).map((i: any) => `${i.quantity}x ${i.product?.name || ''}`).join(', ') || 'tu compra',
       numero_venta: sale.saleNumber ? String(sale.saleNumber) : String(sale.externalId || ''),
       boleta: inv?.folio ? `N° ${inv.folio}` : '',
       link_boleta: inv?.pdfUrl || '',
@@ -332,15 +375,20 @@ export class MlMessagesService {
         take: 50,
         orderBy: { createdAt: 'asc' },
         include: {
-          items: { take: 1, select: { product: { select: { name: true } } } },
+          items: { select: { productId: true, quantity: true, product: { select: { name: true, category: true } } } },
           invoices: { orderBy: { createdAt: 'desc' }, select: { folio: true, pdfUrl: true, status: true, createdAt: true } },
-          order: { select: { status: true, dispatchedAt: true, deliveredAt: true, updatedAt: true } },
+          order: { select: { id: true, status: true, dispatchedAt: true, deliveredAt: true, updatedAt: true, verificationPending: true } },
           company: { select: { name: true } },
         },
       });
       for (const sale of sales) {
         const at = this.triggerAt(rule.trigger, sale);
         if (!at || at.getTime() + rule.delayMinutes * 60_000 > now) continue;
+        // Solo compras que cumplen las condiciones (las demás quedan registradas como omitidas).
+        if (!this.matches(rule, sale)) {
+          await this.prisma.mlMessageLog.create({ data: { ruleId: rule.id, saleId: sale.id, status: 'SKIPPED', detail: 'No cumple las condiciones' } }).catch(() => {});
+          continue;
+        }
         let status = 'SENT';
         let detail: string | null = null;
         try {
@@ -359,6 +407,17 @@ export class MlMessagesService {
           detail = e.message;
         }
         await this.prisma.mlMessageLog.create({ data: { ruleId: rule.id, saleId: sale.id, status, detail } }).catch(() => {});
+        // Verificación de la compra: la orden queda marcada para que alguien la revise.
+        if (rule.markVerification && sale.order && !sale.order.verificationPending) {
+          await this.prisma.order.update({ where: { id: sale.order.id }, data: { verificationPending: true, verifiedAt: null, verifiedByName: null } });
+          await this.prisma.orderStatusEvent.create({
+            data: {
+              orderId: sale.order.id, source: 'SYSTEM', title: 'Pendiente de verificación',
+              detail: `Mensaje programado "${rule.name}"${status === 'SENT' ? ' enviado al comprador' : ''}`,
+              externalKey: `verify:${rule.id}`, occurredAt: new Date(),
+            },
+          }).catch(() => {});
+        }
       }
     }
   }

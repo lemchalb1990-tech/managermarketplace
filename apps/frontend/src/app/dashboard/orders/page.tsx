@@ -94,6 +94,7 @@ const STATUS_TABS = [
   { key: 'IN_TRANSIT', label: 'En camino' },
   { key: 'DELIVERED', label: 'Entregadas' },
   { key: 'CANCELLED', label: 'Canceladas' },
+  { key: 'VERIFY', label: 'Pendientes de verificación' },
 ];
 
 
@@ -391,6 +392,7 @@ export default function OrdersPage() {
                   </div>
                   <p className="mt-1 text-sm font-medium text-gray-900">
                     {o.customerName || <span className="text-gray-400">Sin cliente</span>}
+                    {o.verificationPending && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Verificar</span>}
                     {o.commune && <span className="font-normal text-gray-500"> · {o.commune}</span>}
                   </p>
                   <p className="text-xs text-gray-500">
@@ -490,7 +492,10 @@ export default function OrdersPage() {
                         {o.sale?.mlPackId && <span className="block font-sans font-medium text-[10px] text-sky-700">pack</span>}
                       </td>
                       <td className="px-3 py-3">
-                        <p className="font-medium text-gray-900 text-xs">{o.customerName || <span className="text-gray-400">—</span>}</p>
+                        <p className="font-medium text-gray-900 text-xs">
+                          {o.customerName || <span className="text-gray-400">—</span>}
+                          {o.verificationPending && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Verificar</span>}
+                        </p>
                         {o.sale?.channel === 'MERCADO_LIBRE' && !o.sale?.mlShippingId && (
                           <span className="inline-block my-0.5 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[11px] font-medium"
                             title="Venta sin Mercado Envíos: la entrega se acuerda con el comprador">🤝 Acordar entrega</span>

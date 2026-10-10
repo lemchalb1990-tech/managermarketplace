@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
-import { api, imgUrl, type MlConversationFull, type MlConversationRow, type MlMessageRule } from '@/lib/api';
+import { api, imgUrl, type MlConversationFull, type MlConversationRow, type MlMessageRule, type MlRuleCondition } from '@/lib/api';
 import { useMlCompany } from '../MlCompanyContext';
 import { onActivity } from '@/lib/activityBus';
 import { MlChat } from '@/components/MlChat';
@@ -179,13 +179,15 @@ const TRIGGERS: Record<MlMessageRule['trigger'], string> = {
   ORDER_DISPATCHED: 'Cuando la orden se despacha',
   ORDER_DELIVERED: 'Cuando la orden se entrega',
 };
-const VARS = ['{nombre}', '{producto}', '{numero_venta}', '{boleta}', '{link_boleta}', '{tienda}'];
+const VARS = ['{nombre}', '{producto}', '{productos}', '{numero_venta}', '{boleta}', '{link_boleta}', '{tienda}'];
 const delayLabel = (m: number) => (!m ? 'al instante' : m % 1440 === 0 ? `${m / 1440} día(s) después` : m % 60 === 0 ? `${m / 60} h después` : `${m} min después`);
 
 function Rules({ companyId }: { companyId?: string }) {
   const [rules, setRules] = useState<MlMessageRule[]>([]);
   const [conns, setConns] = useState<Array<{ id: string; name: string }>>([]);
   const [editing, setEditing] = useState<MlMessageRule | 'new' | null>(null);
+  // Nombres de los productos usados en las condiciones (para mostrarlos en vez del id).
+  const [productNames, setProductNames] = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
     const t = getToken()!;
@@ -229,9 +231,9 @@ function Rules({ companyId }: { companyId?: string }) {
             <p className="mt-2 rounded-lg bg-[var(--page-bg)] px-3 py-2 text-xs text-gray-700">{r.text}</p>
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
               <span>
-                {r.connectionId ? `Cuenta: ${conns.find((c) => c.id === r.connectionId)?.name || '—'}` : 'Todas las cuentas'}
-                {r.minTotal != null ? ` · ventas desde $${Number(r.minTotal).toLocaleString('es-CL')}` : ''}
-                {r._count ? ` · ${r._count.logs} enviado(s)` : ''}
+                {describe(r, conns, productNames)}
+                {r.markVerification ? ' · marca verificación' : ''}
+                {r._count ? ` · ${r._count.logs} procesada(s)` : ''}
               </span>
               <span className="flex gap-3 font-medium">
                 <button type="button" onClick={() => setEditing(r)} className="text-[var(--brand)] hover:underline">Editar</button>
@@ -242,26 +244,157 @@ function Rules({ companyId }: { companyId?: string }) {
         ))}
       </div>
       {editing && <RuleForm rule={editing === 'new' ? null : editing} conns={conns} companyId={companyId}
+        productNames={productNames} onProductName={(id, name) => setProductNames((m) => ({ ...m, [id]: name }))}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
   );
 }
 
-function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
-  rule: MlMessageRule | null; conns: Array<{ id: string; name: string }>; companyId?: string; onClose: () => void; onSaved: () => void;
+const COND_FIELDS: Record<MlRuleCondition['field'], string> = {
+  category: 'Categoría del catálogo',
+  product: 'Producto específico',
+  shipping: 'Tipo de envío',
+  total: 'Monto de la venta',
+  account: 'Cuenta de Mercado Libre',
+};
+const SHIPPING: Array<[string, string]> = [
+  ['FLEX', 'Flex'], ['TURBO', 'Turbo'], ['COLECTA', 'Colecta'], ['FULL', 'Full'], ['COORDINAR', 'A coordinar / retiro'],
+];
+const TEMPLATES: Array<{ label: string; name: string; trigger: MlMessageRule['trigger']; text: string; verify: boolean }> = [
+  { label: 'Confirmación de compra', name: 'Confirmación de compra', trigger: 'SALE_CREATED', verify: false,
+    text: 'Hola {nombre}, confirmamos tu compra de {productos}. Te avisaremos cuando tu pedido salga. ¡Gracias!' },
+  { label: 'Solicitud de datos para verificar', name: 'Verificación de compra', trigger: 'SALE_CREATED', verify: true,
+    text: 'Hola {nombre}, para despachar tu compra de {producto} necesitamos verificar tus datos. ¿Nos confirmas tu RUT y un teléfono de contacto?' },
+  { label: 'Envío de boleta', name: 'Envío de boleta', trigger: 'INVOICE_ISSUED', verify: false,
+    text: 'Hola {nombre}, gracias por tu compra. Tu boleta {boleta}: {link_boleta}' },
+];
+
+// Condiciones guardadas + las antiguas (cuenta y monto mínimo) convertidas al nuevo formato.
+const ruleConditions = (r: MlMessageRule | null): MlRuleCondition[] => {
+  const out: MlRuleCondition[] = [...(r?.conditions || [])];
+  if (r?.connectionId && !out.some((c) => c.field === 'account')) out.push({ field: 'account', values: [r.connectionId] });
+  if (r?.minTotal != null && !out.some((c) => c.field === 'total')) out.push({ field: 'total', values: [String(Number(r.minTotal))] });
+  return out;
+};
+
+function describe(r: MlMessageRule, conns: Array<{ id: string; name: string }>, products: Record<string, string>) {
+  const conds = ruleConditions(r);
+  if (!conds.length) return 'Todas las ventas';
+  const parts = conds.map((c) => {
+    if (c.field === 'total') return `monto desde $${Number(c.values[0]).toLocaleString('es-CL')}`;
+    if (c.field === 'account') return `cuenta ${c.values.map((v) => conns.find((x) => x.id === v)?.name || '—').join(' o ')}`;
+    if (c.field === 'shipping') return `envío ${c.values.map((v) => SHIPPING.find(([k]) => k === v)?.[1] || v).join(' o ')}`;
+    if (c.field === 'product') return `producto ${c.values.map((v) => c.labels?.[v] || products[v] || 'seleccionado').join(' o ')}`;
+    return `categoría ${c.values.join(' o ')}`;
+  });
+  return parts.join(r.match === 'ANY' ? ' O ' : ' Y ');
+}
+
+function ValuePicker({ cond, onChange, conns, categories, companyId, productNames, onProductName }: {
+  cond: MlRuleCondition; onChange: (values: string[], labels?: Record<string, string>) => void; conns: Array<{ id: string; name: string }>;
+  categories: string[]; companyId?: string; productNames: Record<string, string>; onProductName: (id: string, name: string) => void;
+}) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<Array<{ id: string; name: string; sku: string }>>([]);
+  useEffect(() => {
+    if (cond.field !== 'product' || q.trim().length < 2) return;
+    const t = setTimeout(() => {
+      api.catalog.search({ search: q.trim(), pageSize: 8, companyId }, getToken()!)
+        .then((r) => setResults((r.products || []).map((p: { id: string; name: string; sku: string }) => ({ id: p.id, name: p.name, sku: p.sku }))))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, cond.field, companyId]);
+
+  const chips = (label: (v: string) => string) => (
+    <div className="flex flex-wrap gap-1">
+      {cond.values.map((v) => (
+        <span key={v} className="flex items-center gap-1 rounded-full bg-[var(--brand-light)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand-ink)]">
+          {label(v)}
+          <button type="button" onClick={() => onChange(cond.values.filter((x) => x !== v))} aria-label="Quitar" className="opacity-60 hover:opacity-100">×</button>
+        </span>
+      ))}
+    </div>
+  );
+  const toggle = (v: string) => onChange(cond.values.includes(v) ? cond.values.filter((x) => x !== v) : [...cond.values, v]);
+
+  if (cond.field === 'total') {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-600">
+        <span>mayor o igual a $</span>
+        <input type="number" min={0} value={cond.values[0] || ''} onChange={(e) => onChange(e.target.value ? [e.target.value] : [])} className={`${inputCls} w-32`} />
+      </div>
+    );
+  }
+  if (cond.field === 'shipping' || cond.field === 'account') {
+    const opts = cond.field === 'shipping' ? SHIPPING : conns.map((c) => [c.id, c.name] as [string, string]);
+    return (
+      <div className="flex flex-wrap gap-1">
+        {opts.map(([k, l]) => (
+          <button key={k} type="button" onClick={() => toggle(k)}
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${cond.values.includes(k) ? 'border-[var(--navy)] bg-[var(--navy)] text-white' : 'border-gray-200 bg-white text-gray-600'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  if (cond.field === 'category') {
+    return (
+      <div className="space-y-1.5">
+        {chips((v) => v)}
+        <select value="" onChange={(e) => e.target.value && toggle(e.target.value)} className={inputCls}>
+          <option value="">+ Agregar categoría…</option>
+          {categories.filter((c) => !cond.values.includes(c)).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+    );
+  }
+  return (
+    <div className="relative space-y-1.5">
+      {chips((v) => cond.labels?.[v] || productNames[v] || 'Producto')}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto por nombre o SKU…" className={inputCls} />
+      {q.trim().length >= 2 && results.length > 0 && (
+        <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          {results.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => { onProductName(p.id, p.name); if (!cond.values.includes(p.id)) onChange([...cond.values, p.id], { ...(cond.labels || {}), [p.id]: p.name }); setQ(''); setResults([]); }}
+                className="block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50">
+                <span className="font-medium">{p.name}</span> <span className="text-gray-400">· {p.sku}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function RuleForm({ rule, conns, companyId, productNames, onProductName, onClose, onSaved }: {
+  rule: MlMessageRule | null; conns: Array<{ id: string; name: string }>; companyId?: string;
+  productNames: Record<string, string>; onProductName: (id: string, name: string) => void;
+  onClose: () => void; onSaved: () => void;
 }) {
   const [form, setForm] = useState({
     name: rule?.name || '',
-    trigger: rule?.trigger || 'INVOICE_ISSUED',
+    trigger: rule?.trigger || 'SALE_CREATED',
     delayValue: rule ? String(rule.delayMinutes % 1440 === 0 && rule.delayMinutes ? rule.delayMinutes / 1440 : rule.delayMinutes % 60 === 0 && rule.delayMinutes ? rule.delayMinutes / 60 : rule.delayMinutes) : '0',
     delayUnit: rule ? (rule.delayMinutes % 1440 === 0 && rule.delayMinutes ? 'd' : rule.delayMinutes % 60 === 0 && rule.delayMinutes ? 'h' : 'm') : 'm',
-    text: rule?.text || 'Hola {nombre}, gracias por tu compra. Tu boleta {boleta}: {link_boleta}',
-    connectionId: rule?.connectionId || '',
-    minTotal: rule?.minTotal != null ? String(Number(rule.minTotal)) : '',
+    text: rule?.text || TEMPLATES[0].text,
+    match: (rule?.match || 'ALL') as 'ALL' | 'ANY',
+    markVerification: rule?.markVerification ?? false,
     active: rule?.active ?? true,
   });
+  const [conds, setConds] = useState<MlRuleCondition[]>(() => ruleConditions(rule));
+  const [categories, setCategories] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.catalog.categories(getToken()!, companyId).then(setCategories).catch(() => setCategories([]));
+  }, [companyId]);
+
+  const setCond = (i: number, c: MlRuleCondition) => setConds((cs) => cs.map((x, j) => (j === i ? c : x)));
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -271,7 +404,10 @@ function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
     const data = {
       name: form.name, trigger: form.trigger as MlMessageRule['trigger'], text: form.text, active: form.active,
       delayMinutes: Math.max(0, Math.round(Number(form.delayValue) || 0) * mult),
-      connectionId: form.connectionId || null, minTotal: form.minTotal !== '' ? Number(form.minTotal) : null,
+      match: form.match, markVerification: form.markVerification,
+      conditions: conds.filter((c) => c.values.length),
+      // Las condiciones reemplazan a los campos antiguos de cuenta y monto.
+      connectionId: null, minTotal: null,
     };
     try {
       if (rule) await api.marketplace.messages.updateRule(rule.id, data, getToken()!);
@@ -284,19 +420,33 @@ function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
   }
 
   return (
-    <Modal title={rule ? 'Editar mensaje programado' : 'Nuevo mensaje programado'} size="lg" busy={busy} onClose={onClose} onSubmit={save}
+    <Modal title={rule ? 'Editar mensaje programado' : 'Nuevo mensaje programado'} size="xl" busy={busy} onClose={onClose} onSubmit={save}
       footer={(
         <>
           <button type="button" onClick={onClose} disabled={busy} className={btnSecondary}>Cancelar</button>
           <button type="submit" disabled={busy} className={btnPrimary}>{busy ? 'Guardando…' : 'Guardar'}</button>
         </>
       )}>
-      <div className="space-y-4">
-        <div>
-          <label className={labelCls}>Nombre</label>
-          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Envío de boleta" className={inputCls} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+      <div className="space-y-5">
+        {!rule && (
+          <div>
+            <p className={labelCls}>Partir de una plantilla</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATES.map((t) => (
+                <button key={t.label} type="button"
+                  onClick={() => setForm((f) => ({ ...f, name: t.name, trigger: t.trigger, text: t.text, markVerification: t.verify }))}
+                  className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_auto_auto]">
+          <div>
+            <label className={labelCls}>Nombre</label>
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Confirmación de compra" className={inputCls} />
+          </div>
           <div>
             <label className={labelCls}>Cuándo se envía</label>
             <select value={form.trigger} onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value as MlMessageRule['trigger'] }))} className={inputCls}>
@@ -305,7 +455,7 @@ function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
           </div>
           <div>
             <label className={labelCls}>Espera</label>
-            <input type="number" min={0} value={form.delayValue} onChange={(e) => setForm((f) => ({ ...f, delayValue: e.target.value }))} className={`${inputCls} w-24`} />
+            <input type="number" min={0} value={form.delayValue} onChange={(e) => setForm((f) => ({ ...f, delayValue: e.target.value }))} className={`${inputCls} w-20`} />
           </div>
           <div>
             <label className={labelCls}>&nbsp;</label>
@@ -314,6 +464,36 @@ function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
             </select>
           </div>
         </div>
+
+        {/* Condiciones con Y / O */}
+        <div className="rounded-xl border border-gray-200 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-gray-800">Condiciones de la venta</p>
+            <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5 text-[11px] font-semibold">
+              {([['ALL', 'Cumplir todas (Y)'], ['ANY', 'Cumplir cualquiera (O)']] as const).map(([k, l]) => (
+                <button key={k} type="button" onClick={() => setForm((f) => ({ ...f, match: k }))}
+                  className={`rounded-md px-2.5 py-1 ${form.match === k ? 'bg-white shadow-sm' : 'text-gray-500'}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+          {conds.length === 0 && <p className="mb-2 text-xs text-gray-400">Sin condiciones: se envía a todas las ventas de Mercado Libre.</p>}
+          <div className="space-y-2">
+            {conds.map((c, i) => (
+              <div key={i} className="grid gap-2 rounded-lg bg-[var(--page-bg)] p-2 sm:grid-cols-[200px_1fr_auto] sm:items-start">
+                <select value={c.field} onChange={(e) => setCond(i, { field: e.target.value as MlRuleCondition['field'], values: [] })} className={inputCls}>
+                  {Object.entries(COND_FIELDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                <ValuePicker cond={c} onChange={(values, labels) => setCond(i, { ...c, values, ...(labels ? { labels } : {}) })} conns={conns} categories={categories}
+                  companyId={companyId} productNames={productNames} onProductName={onProductName} />
+                <button type="button" onClick={() => setConds((cs) => cs.filter((_, j) => j !== i))} className="px-2 py-1.5 text-xs text-red-500 hover:underline">Quitar</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setConds((cs) => [...cs, { field: 'category', values: [] }])}
+            className="mt-2 text-xs font-medium text-[var(--brand)] hover:underline">+ Agregar condición</button>
+          <p className="mt-1 text-[11px] text-gray-400">Categoría y producto se cumplen si la venta incluye al menos uno de los elegidos.</p>
+        </div>
+
         <div>
           <label className={labelCls}>Mensaje ({form.text.length}/350)</label>
           <textarea value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value.slice(0, 350) }))} rows={4} className={`${inputCls} resize-none`} />
@@ -323,21 +503,15 @@ function RuleForm({ rule, conns, companyId, onClose, onSaved }: {
                 className="rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono text-[11px] text-gray-600 hover:bg-gray-50">{v}</button>
             ))}
           </div>
-          <p className="mt-1 text-[11px] text-gray-400">Las variables se reemplazan con los datos de cada venta.</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className={labelCls}>Cuenta de Mercado Libre</label>
-            <select value={form.connectionId} onChange={(e) => setForm((f) => ({ ...f, connectionId: e.target.value }))} className={inputCls}>
-              <option value="">Todas las cuentas</option>
-              {conns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Solo ventas desde (monto)</label>
-            <input type="number" min={0} value={form.minTotal} onChange={(e) => setForm((f) => ({ ...f, minTotal: e.target.value }))} placeholder="Cualquier monto" className={inputCls} />
-          </div>
-        </div>
+
+        <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+          <input type="checkbox" checked={form.markVerification} onChange={(e) => setForm((f) => ({ ...f, markVerification: e.target.checked }))} className="mt-0.5 accent-amber-600" />
+          <span>
+            <strong>Marcar la orden como &quot;Pendiente de verificación&quot;</strong>
+            <span className="block text-xs text-amber-800">Útil para la solicitud de datos: la orden queda con aviso hasta que alguien la marque como verificada. No bloquea la preparación.</span>
+          </span>
+        </label>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="accent-blue-600" />
           Activo

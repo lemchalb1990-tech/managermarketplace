@@ -52,6 +52,13 @@ export class OrdersController {
     return this.service.update(id, dto, user);
   }
 
+  // Marca la compra como verificada (o la vuelve a dejar pendiente).
+  @Patch(':id/verification')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  setVerification(@Param('id') id: string, @Body() body: { verified: boolean }, @CurrentUser() user: any) {
+    return this.service.setVerification(id, body?.verified !== false, user);
+  }
+
   @Patch(':id/status')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @CurrentUser() user: any) {

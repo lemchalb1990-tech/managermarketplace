@@ -1472,6 +1472,10 @@ model Order {
   trackingCode    String?
   scheduledDate   DateTime?
   deliveredAt     DateTime?
+  // Verificación de la compra (la marca un mensaje programado; solo aviso, no bloquea).
+  verificationPending Boolean   @default(false)
+  verifiedAt          DateTime?
+  verifiedByName      String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -1501,6 +1505,7 @@ model Order {
   returns    Return[]
 
   @@index([companyId, status, prepStage])
+  @@index([companyId, verificationPending])
   photos     ShipmentPhoto[]
   courierShipments CourierShipment[]
   routeStop  RouteStop?
@@ -2324,6 +2329,12 @@ model MlMessageRule {
   // Criterios opcionales: una cuenta de ML y/o monto mínimo de la venta.
   connectionId String?
   minTotal     Decimal? @db.Decimal(12, 2)
+  // Condiciones sobre la venta: [{ field: category|product|shipping|total|account, values: [...] }]
+  // combinadas con "ALL" (todas, Y) o "ANY" (cualquiera, O).
+  conditions   Json?
+  match        String   @default("ALL")
+  // Además del mensaje, deja la orden "Pendiente de verificación".
+  markVerification Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

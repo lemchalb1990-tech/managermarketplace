@@ -113,6 +113,7 @@ export class OrdersService {
     else if (query.companyId) where.companyId = query.companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
+    if (query.verification === 'pending') where.verificationPending = true;
     if (query.channel) where.sale = { channel: query.channel };
     if (query.from || query.to) {
       where.createdAt = {};
@@ -313,6 +314,23 @@ export class OrdersService {
     }
     await this.validateWarehouseId(dto.warehouseId, order.companyId);
     return this.prisma.order.update({ where: { id }, data: dto, include: ORDER_INCLUDE });
+  }
+
+  async setVerification(id: string, verified: boolean, user: any) {
+    const order = await this.findOne(id, user);
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: verified
+        ? { verificationPending: false, verifiedAt: new Date(), verifiedByName: user?.name || null }
+        : { verificationPending: true, verifiedAt: null, verifiedByName: null },
+    });
+    await this.prisma.orderStatusEvent.create({
+      data: {
+        orderId: order.id, source: 'MANUAL', title: verified ? 'Compra verificada' : 'Vuelve a pendiente de verificación',
+        actorName: user?.name || null, occurredAt: new Date(),
+      },
+    }).catch(() => {});
+    return this.findOne(id, user);
   }
 
   async updateStatus(id: string, dto: UpdateStatusDto, user: any) {

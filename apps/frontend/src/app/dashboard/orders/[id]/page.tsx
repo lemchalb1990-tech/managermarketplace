@@ -11,6 +11,7 @@ import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
 import OrderCourierCard from './OrderCourierCard';
 import OrderMlMessagesCard from './OrderMlMessagesCard';
+import OrderVerificationBanner from './OrderVerificationBanner';
 import { SkeletonDetail } from '@/components/Skeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string }> = {
@@ -550,6 +551,8 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         </div>
       </div>
 
+      <OrderVerificationBanner order={order} fmtDateTime={(d) => fmtDateTime(d)}
+        onChanged={() => { api.orders.get(id, getToken()!).then(setOrder).catch(() => {}); }} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
 
         {/* Columna 1 — productos y fotos del pedido */}

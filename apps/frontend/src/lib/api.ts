@@ -102,9 +102,11 @@ export type MlConversationFull = MlConversationRow & {
   messages: MlChatMessage[] | null; blockedReason: string | null; syncedAt: string | null;
   sale: (MlConversationRow['sale'] & { externalId: string | null; total: string; order: { id: string } | null; items: Array<{ quantity: number; product: { name: string; images: { url: string }[] } | null }> }) | null;
 };
+export type MlRuleCondition = { field: 'category' | 'product' | 'shipping' | 'total' | 'account'; values: string[]; labels?: Record<string, string> };
 export type MlMessageRule = {
   id: string; name: string; active: boolean; trigger: 'SALE_CREATED' | 'INVOICE_ISSUED' | 'ORDER_DISPATCHED' | 'ORDER_DELIVERED';
   delayMinutes: number; text: string; connectionId: string | null; minTotal: string | number | null; createdAt: string;
+  conditions: MlRuleCondition[] | null; match: 'ALL' | 'ANY'; markVerification: boolean;
   _count?: { logs: number };
 };
 
@@ -1016,7 +1018,9 @@ export const api = {
   orders: {
     list: (token: string, params?: { status?: string; channel?: string; warehouseId?: string; from?: string; to?: string; page?: number; companyId?: string; search?: string; sortBy?: string; sortDir?: 'asc' | 'desc' }) => {
       const q = new URLSearchParams();
-      if (params?.status) q.set('status', params.status);
+      // "VERIFY" no es un estado: filtra las órdenes pendientes de verificación.
+      if (params?.status === 'VERIFY') q.set('verification', 'pending');
+      else if (params?.status) q.set('status', params.status);
       if (params?.sortBy) { q.set('sortBy', params.sortBy); q.set('sortDir', params.sortDir || 'asc'); }
       if (params?.channel) q.set('channel', params.channel);
       if (params?.warehouseId) q.set('warehouseId', params.warehouseId);
@@ -1028,6 +1032,8 @@ export const api = {
       return apiFetch<any>(`/orders?${q}`, {}, token);
     },
     get: (id: string, token: string) => apiFetch<any>(`/orders/${id}`, {}, token),
+    setVerification: (id: string, verified: boolean, token: string) =>
+      apiFetch<any>(`/orders/${id}/verification`, { method: 'PATCH', body: JSON.stringify({ verified }) }, token),
     create: (data: any, token: string) =>
       apiFetch<any>('/orders', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: any, token: string) =>
