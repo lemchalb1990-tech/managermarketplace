@@ -362,8 +362,7 @@ export default async function Home() {
         {/* Planes y precios */}
         <section id="precios" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
-            <SectionHead label="Planes y precios" title="Un plan para cada etapa de tu negocio"
-              lead="Empiezas con los canales que tienes hoy y subes de plan cuando creces." />
+            <SectionHead center label="Planes y precios" title="Un plan para cada etapa de tu negocio" />
             <Pricing plans={plans} />
           </div>
         </section>
