@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -257,6 +257,21 @@ export default function PosPage() {
   }
 
   const total = cart.reduce((s, c) => s + c.price * c.quantity, 0);
+  const units = cart.reduce((n, c) => n + c.quantity, 0);
+  const clp = (n: number) => `$${n.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
+
+  // F2 = Cobrar (atajo de caja). Se guarda la última versión de la función para el listener.
+  const openCheckoutRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    openCheckoutRef.current = () => { if (cart.length > 0 && !showCheckout) openCheckout(); };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F2') { e.preventDefault(); openCheckoutRef.current(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const checkout = useCallback(async () => {
     if (cart.length === 0) return;
@@ -655,74 +670,89 @@ export default function PosPage() {
       )}
 
       {/* Carrito */}
-      <div className={`${showCartMobile ? 'flex' : 'hidden'} lg:flex fixed inset-0 z-40 lg:static lg:z-auto lg:w-80 lg:shrink-0 min-h-0 flex-col bg-white lg:border lg:border-gray-200 lg:rounded-2xl lg:shadow-sm`}>
-        <div className="px-4 py-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
-          <h2 className="ui-section-title">Carrito</h2>
-          <button
-            type="button"
-            onClick={() => setShowCartMobile(false)}
-            className="lg:hidden text-sm font-semibold text-blue-600"
-          >
-            ← Seguir agregando
+      <div className={`${showCartMobile ? 'flex' : 'hidden'} lg:flex fixed inset-0 z-40 lg:static lg:z-auto lg:w-[340px] xl:w-[380px] lg:shrink-0 min-h-0 flex-col bg-white lg:border lg:border-gray-200 lg:rounded-2xl lg:shadow-sm`}>
+        <div className="px-4 py-3 border-b border-gray-100 shrink-0 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="ui-section-title">
+              Carrito{units > 0 && <span className="ml-1.5 text-sm font-medium text-gray-400">({units})</span>}
+            </h2>
+            <div className="flex items-center gap-3">
+              {cart.length > 0 && (
+                <button type="button" onClick={() => setCart([])}
+                  className="text-xs font-medium text-gray-400 hover:text-red-500">
+                  Vaciar
+                </button>
+              )}
+              <button type="button" onClick={() => setShowCartMobile(false)}
+                className="lg:hidden text-sm font-semibold text-blue-600">
+                ← Seguir agregando
+              </button>
+            </div>
+          </div>
+          {/* Cliente de la venta: se elige al cobrar */}
+          <button type="button" onClick={openCheckout} disabled={cart.length === 0}
+            className="w-full flex items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-100 disabled:hover:bg-gray-50">
+            <span aria-hidden="true">👤</span>
+            <span className="min-w-0 flex-1 truncate">
+              {selectedClient?.name || customerName || 'Consumidor final'}
+            </span>
+            <span className="text-gray-400" aria-hidden="true">✎</span>
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
           {cart.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-8">Agrega productos al carrito</p>
-          )}
-          {cart.map((item) => (
-            <div key={item.productId} className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-                {item.imageUrl ? (
-                  <img src={imgUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">📦</div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
-                <p className="text-xs text-gray-400">${item.price.toLocaleString('es-CL', { maximumFractionDigits: 0 })} c/u</p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => updateQty(item.productId, -1)}
-                  className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-sm font-bold hover:bg-gray-200 flex items-center justify-center"
-                >
-                  −
-                </button>
-                <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
-                <button
-                  onClick={() => updateQty(item.productId, 1)}
-                  className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-sm font-bold hover:bg-gray-200 flex items-center justify-center"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => removeFromCart(item.productId)}
-                  className="w-6 h-6 rounded-full bg-red-50 text-red-400 text-xs font-bold hover:bg-red-100 flex items-center justify-center ml-1"
-                >
-                  ×
-                </button>
-              </div>
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center text-gray-400">
+              <span className="text-3xl" aria-hidden="true">🛒</span>
+              <p className="text-sm">Busca o escanea un producto para agregarlo</p>
             </div>
-          ))}
+          )}
+          <ul className="divide-y divide-gray-100">
+            {cart.map((item) => (
+              <li key={item.productId} className="flex items-center gap-2.5 py-2">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                  {item.imageUrl ? (
+                    <img src={imgUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">📦</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 leading-tight truncate" title={item.name}>{item.name}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateQty(item.productId, -1)} aria-label="Quitar uno"
+                        className="w-6 h-6 rounded-md border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
+                      <button onClick={() => updateQty(item.productId, 1)} aria-label="Agregar uno"
+                        className="w-6 h-6 rounded-md border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">
+                        +
+                      </button>
+                      <span className="ml-1 text-[11px] text-gray-400 whitespace-nowrap">× {clp(item.price)}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 tabular-nums">{clp(item.price * item.quantity)}</span>
+                  </div>
+                </div>
+                <button onClick={() => removeFromCart(item.productId)} aria-label={`Quitar ${item.name}`}
+                  className="w-7 h-7 shrink-0 rounded-md text-gray-300 hover:bg-red-50 hover:text-red-500 flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7" />
+                  </svg>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-100 space-y-3 shrink-0 overflow-y-auto max-h-[60%]">
-          {cart.length > 0 && (
-            <div className="text-xs text-gray-500 space-y-1">
-              {cart.map((item) => (
-                <div key={item.productId} className="flex justify-between">
-                  <span className="truncate max-w-[140px]">{item.name} x{item.quantity}</span>
-                  <span>${(item.price * item.quantity).toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
-                </div>
-              ))}
+        <div className="px-4 py-3 border-t border-gray-100 space-y-3 shrink-0">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-[11px] text-gray-400">{units} {units === 1 ? 'unidad' : 'unidades'}</p>
             </div>
-          )}
-          <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
-            <span>Total</span>
-            <span>${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+            <span className="text-[28px] font-bold leading-none tracking-tight text-gray-900 tabular-nums">{clp(total)}</span>
           </div>
 
           {successMsg && (
@@ -758,15 +788,15 @@ export default function PosPage() {
           <button
             onClick={openCheckout}
             disabled={cart.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-base transition flex items-center justify-center gap-2"
           >
-            Cobrar
-            <span className="text-base leading-none">→</span>
+            {cart.length > 0 ? `Cobrar ${clp(total)}` : 'Cobrar'}
+            <kbd className="hidden lg:inline rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">F2</kbd>
           </button>
           <button
             onClick={() => { setErrorMsg(''); setSuccessMsg(''); setWorkOrderError(''); setShowWorkOrderModal(true); }}
             disabled={cart.length === 0}
-            className="w-full bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed text-indigo-700 font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
+            className="w-full text-center text-sm font-medium text-indigo-600 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
           >
             Crear orden de trabajo
           </button>
