@@ -239,6 +239,38 @@ export class SettingsService implements OnModuleInit {
   }
 
   /** Zona horaria configurada por el Super Admin para "hoy" en dashboard/despacho/entregas. */
+  // Empresas que usan cada sincronizador (clave = la misma de PlatformSetting.platform).
+  async platformUsage(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    const add = (key: string, companies: Set<string>) => { out[key] = (out[key] || 0) + companies.size; };
+    const group = <T extends { companyId: string }>(rows: T[], keyOf: (r: T) => string) => {
+      const m = new Map<string, Set<string>>();
+      for (const r of rows) {
+        const k = keyOf(r);
+        if (!m.has(k)) m.set(k, new Set());
+        m.get(k)!.add(r.companyId);
+      }
+      m.forEach((v, k) => add(k, v));
+    };
+    const [mk, bill, cour, drop] = await Promise.all([
+      this.prisma.marketplaceConnection.findMany({ select: { marketplace: true, companyId: true } }),
+      this.prisma.billingConnection.findMany({ where: { active: true }, select: { provider: true, companyId: true } }),
+      this.prisma.courierConnection.findMany({ where: { active: true }, select: { provider: true, companyId: true } }),
+      this.prisma.dropshipSupplier.findMany({ select: { connectorType: true, companyId: true } }),
+    ]);
+    group(mk, (r) => (r.marketplace === 'MERCADO_LIBRE' ? 'mercadolibre' : r.marketplace.toLowerCase()));
+    group(bill, (r) => r.provider.toLowerCase());
+    group(cour, (r) => r.provider.toLowerCase());
+    group(drop.filter((d) => d.connectorType !== 'FEED'), (r) => `dropship-${r.connectorType.toLowerCase()}`);
+    return out;
+  }
+
+  // Estado efectivo de un sincronizador (el guardado o el valor por defecto).
+  async platformStatus(key: string, fallback: 'AVAILABLE' | 'SOON' | 'DISABLED' = 'AVAILABLE') {
+    const row = await this.prisma.platformSetting.findUnique({ where: { platform: key }, select: { status: true } });
+    return (row?.status as 'AVAILABLE' | 'SOON' | 'DISABLED' | null) || fallback;
+  }
+
   // Datos de contacto para la página de inicio (públicos, sin sesión).
   async getPublicContact() {
     const [whatsapp, email, scheduleUrl] = await Promise.all([
@@ -259,7 +291,7 @@ export class SettingsService implements OnModuleInit {
     return this.prisma.platformSetting.findMany({ orderBy: { platform: 'asc' } });
   }
 
-  async upsertPlatformSetting(platform: string, input: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number> }) {
+  async upsertPlatformSetting(platform: string, input: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number>; status?: string }) {
     const { logoScales, ...rest } = input;
     const data: Record<string, unknown> = { ...rest };
     if (logoScales !== undefined) {

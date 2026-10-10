@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { CourierProvider, CourierShipmentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -57,6 +57,11 @@ export class CouriersService {
   async upsert(user: any, providerRaw: string, dto: { companyId?: string; credentials?: Record<string, string>; settings?: CourierSettings; active?: boolean }) {
     const provider = this.provider(providerRaw);
     const companyId = resolveCompanyId(user, dto.companyId);
+    // Los couriers nacen desactivados: solo se conectan cuando el Super Admin los habilita.
+    if (user?.role !== 'SUPER_ADMIN') {
+      const row = await this.prisma.platformSetting.findUnique({ where: { platform: provider.toLowerCase() }, select: { status: true } });
+      if ((row?.status || 'DISABLED') !== 'AVAILABLE') throw new ForbiddenException(`${COURIER_NAMES[provider]} no está disponible por ahora`);
+    }
     const prev = await this.prisma.courierConnection.findUnique({ where: { companyId_provider: { companyId, provider } } });
     // Las credenciales vacías no borran las guardadas (el formulario no las muestra).
     const credentials = { ...((prev?.credentials as Record<string, string>) || {}) };

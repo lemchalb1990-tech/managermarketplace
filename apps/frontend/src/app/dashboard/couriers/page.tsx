@@ -1,5 +1,6 @@
 'use client';
 
+import { connectorStatus } from '@/lib/connectors';
 import { useCallback, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, type CourierConnectionInfo } from '@/lib/api';
@@ -136,11 +137,20 @@ export default function CouriersPage() {
           const displayName = resolvePlatformName(logoMap, key, c.name);
           const displayDescription = resolvePlatformDescription(logoMap, key, c.description);
           const msg = testMsg[c.id];
+          // Estado definido por el Super Admin en Sincronizadores (los couriers parten desactivados).
+          const st = connectorStatus(logoMap, key);
+          if (!isSuperAdmin && st === 'DISABLED' && !conn) return null;
+          const locked = !isSuperAdmin && st !== 'AVAILABLE' && !conn;
           return (
-            <div key={c.id} role="button" tabIndex={0} onClick={() => setEditing(c.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setEditing(c.id); }}
-              className="block group cursor-pointer">
+            <div key={c.id} role="button" tabIndex={0} onClick={() => { if (!locked) setEditing(c.id); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !locked) setEditing(c.id); }}
+              className={`block group ${locked ? 'cursor-default opacity-70' : 'cursor-pointer'}`}>
               <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'}`}>
+                {st !== 'AVAILABLE' && (
+                  <span className={`absolute left-3 top-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${st === 'SOON' ? 'bg-[var(--brand)] text-white' : 'bg-gray-700 text-white'}`}>
+                    {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
+                  </span>
+                )}
                 {isSuperAdmin && (
                   <button
                     type="button"

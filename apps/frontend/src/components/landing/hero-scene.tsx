@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePlatformLogos } from "@/lib/platformLogos";
+import { connectorStatus } from "@/lib/connectors";
 
 const LINE = "1px solid rgba(0,0,0,0.08)";
 const BLUE = "#0075de";
@@ -143,6 +145,10 @@ function Traveler({ from, to, tone, delay = 0 }: { from: [number, number]; to: [
 /** Escena del inicio: una venta en cualquier canal descuenta el stock y lo publica en todos. */
 export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactNode>; billingLogo?: ReactNode }) {
   const [step, setStep] = useState(0);
+  // Solo los canales disponibles (los desactivados o "próximamente" no aparecen en la animación).
+  const platforms = usePlatformLogos();
+  const channels = CHANNELS.filter((c) => connectorStatus(platforms, c.key) === "AVAILABLE");
+  const sales = SALES.filter((x) => channels.some((c) => c.key === CHANNELS[x.ch].key));
   const areaRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   // Medidas reales del área y del producto, para dibujar las conexiones en píxeles.
@@ -150,7 +156,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = window.setInterval(() => setStep((s) => (s + 1) % (SALES.length + 1)), STEP_MS);
+    const id = window.setInterval(() => setStep((s) => s + 1), STEP_MS);
     return () => window.clearInterval(id);
   }, []);
 
@@ -168,11 +174,13 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   }, []);
 
   // step 0: recién repuesto; step n: n ventas hechas.
-  const sale = step > 0 ? SALES[step - 1] : null;
+  const cycle = sales.length + 1;
+  const pos = step % cycle;
+  const sale = pos > 0 ? sales[pos - 1] : null;
   const active = sale ? CHANNELS[sale.ch] : null;
   const product = PRODUCTS[sale ? sale.p : 0];
   const drop = !!product.drop && !!sale;
-  const stock = product.start - SALES.slice(0, step).filter((x) => x.p === (sale ? sale.p : 0)).length;
+  const stock = product.start - sales.slice(0, pos).filter((x) => x.p === (sale ? sale.p : 0)).length;
   const logoOf = (k: string) => (k === "pos" ? <PosLogo /> : logos[k]);
 
   const at = (k: string): [number, number] => {
@@ -181,7 +189,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
     return [(o.x / 100) * geo.w, o.ty != null ? o.ty + o.size / 2 : (o.y / 100) * geo.h];
   };
   const center: [number, number] = geo ? [geo.cx, geo.cy] : [0, 0];
-  const nodes = [...CHANNELS.map((c) => c.key), "dropshipping"];
+  const nodes = [...channels.map((c) => c.key), "dropshipping"];
 
   return (
     <div className="relative p-1 sm:p-2">
@@ -211,7 +219,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
             <Traveler from={at(active.key)} to={center} tone={BLUE} />
             {drop
               ? <Traveler from={center} to={at("dropshipping")} tone={PURPLE} delay={0.6} />
-              : CHANNELS.filter((c) => c.key !== active.key).map((c) => (
+              : channels.filter((c) => c.key !== active.key).map((c) => (
                 <Traveler key={c.key} from={center} to={at(c.key)} tone={BLUE} delay={0.6} />
               ))}
           </span>
@@ -307,7 +315,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
           <ServiceDot icon={ICON.doc} logo={billingLogo} label="Facturación" tone={GREEN} active={!!active} pulse={step} />
         </span>
 
-        {CHANNELS.map((ch) => (
+        {channels.map((ch) => (
           <Floating key={ch.key} k={ch.key}>
             {ch.key === "direct"
               ? <ServiceDot icon={ICON.cash} label="Venta directa" tone={BLUE} active={active?.key === ch.key} pulse={active ? step : 0} />

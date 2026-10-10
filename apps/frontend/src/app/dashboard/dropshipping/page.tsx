@@ -1,5 +1,6 @@
 'use client';
 
+import { connectorStatus } from '@/lib/connectors';
 import { useEffect, useRef, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -529,7 +530,9 @@ export default function DropshippingPage() {
                   onChange={(e) => setSupplierForm((f) => ({ ...f, connectorType: e.target.value as 'FEED' | 'NORIEGA_API' }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   <option value="FEED">Feed URL (CSV/JSON público)</option>
-                  <option value="NORIEGA_API">API Noriega (login + token)</option>
+                  {(isSuperAdmin || connectorStatus(logoMap, CONNECTOR_LOGO_KEY.NORIEGA_API) === 'AVAILABLE') && (
+                    <option value="NORIEGA_API">API Noriega (login + token)</option>
+                  )}
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-600">

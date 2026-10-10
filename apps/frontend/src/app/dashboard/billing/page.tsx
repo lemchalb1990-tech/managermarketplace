@@ -1,5 +1,6 @@
 'use client';
 
+import { connectorStatus } from '@/lib/connectors';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
@@ -127,11 +128,20 @@ export default function BillingPage() {
           const isActive = activeProviders.has(PROVIDER_ENUM[p.id]);
           const displayName = resolvePlatformName(logoMap, p.id, p.name);
           const displayDescription = resolvePlatformDescription(logoMap, p.id, p.description);
+          // Estado definido por el Super Admin en Sincronizadores.
+          const st = connectorStatus(logoMap, p.id);
+          if (!isSuperAdmin && st === 'DISABLED' && !isActive) return null;
+          const locked = !isSuperAdmin && st === 'SOON' && !isActive;
           return (
-            <Link key={p.id} href={p.href} className="block group">
+            <Link key={p.id} href={p.href} aria-disabled={locked} className={`block group ${locked ? 'pointer-events-none opacity-70' : ''}`}>
               <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${
                 isActive ? p.activeBorder : 'border-gray-200 hover:border-gray-300'
               }`}>
+                {st !== 'AVAILABLE' && (
+                  <span className={`absolute left-3 top-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${st === 'SOON' ? 'bg-[var(--brand)] text-white' : 'bg-gray-700 text-white'}`}>
+                    {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
+                  </span>
+                )}
                 {isSuperAdmin && (
                   <button
                     onClick={(e) => { e.preventDefault(); setEditingId(p.id); }}

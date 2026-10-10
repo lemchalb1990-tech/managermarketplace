@@ -10,6 +10,7 @@ export type PlatformLogoSetting = {
   logoUrl: string | null;
   logoScale?: number;
   logoScales?: Record<string, number> | null;
+  status?: string | null;
 };
 
 // Vistas donde se muestra un logo; cada una puede tener su propio tamaño.

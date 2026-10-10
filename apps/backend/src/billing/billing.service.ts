@@ -83,6 +83,11 @@ export class BillingService {
 
   async createConnection(dto: CreateBillingConnectionDto, user: any) {
     const cId = this.resolveCompanyId(user, dto);
+    // Solo se conectan facturadores disponibles (el Super Admin puede probar cualquiera).
+    if (user.role !== 'SUPER_ADMIN') {
+      const row = await this.prisma.platformSetting.findUnique({ where: { platform: String(dto.provider).toLowerCase() }, select: { status: true } });
+      if (row?.status && row.status !== 'AVAILABLE') throw new ForbiddenException('Este facturador no está disponible por ahora');
+    }
     const conn = await this.prisma.billingConnection.create({
       data: {
         name: dto.name,

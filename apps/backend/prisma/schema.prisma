@@ -1425,6 +1425,9 @@ model PlatformSetting {
   logoScale   Int      @default(100)
   // Tamaño por vista (panel, circle, strip, login, icon), en %; si falta una, usa logoScale.
   logoScales  Json?
+  // Estado del sincronizador (solo Super Admin): AVAILABLE, SOON (se ve como "Próximamente",
+  // no se puede conectar) o DISABLED (oculto). Null = el valor por defecto del sincronizador.
+  status      String?
   updatedAt   DateTime @updatedAt
 
   @@map("platform_settings")

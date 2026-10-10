@@ -233,7 +233,7 @@ export const api = {
   public: {
     // Sin token: se usa también en el login y la landing, antes de iniciar sesión.
     platformLogos: () =>
-      apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null; logoScale?: number; logoScales?: Record<string, number> | null }[]>(
+      apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null; logoScale?: number; logoScales?: Record<string, number> | null; status?: string | null }[]>(
         '/public/platform-logos', {}),
     timezone: () => apiFetch<{ timezone: string }>('/public/timezone', {}),
     contact: () => apiFetch<{ whatsapp: string | null; email: string | null; scheduleUrl: string | null }>('/public/contact', {}),
@@ -1109,8 +1109,9 @@ export const api = {
       apiFetch<any>('/settings', { method: 'PATCH', body: JSON.stringify({ settings }) }, token),
     platforms: {
       list: (token: string) => apiFetch<any[]>('/settings/platforms', {}, token),
-      update: (platform: string, data: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number> }, token: string) =>
+      update: (platform: string, data: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number>; status?: string }, token: string) =>
         apiFetch<any>(`/settings/platforms/${platform}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      usage: (token: string) => apiFetch<Record<string, number>>('/settings/platforms/usage', {}, token),
       uploadLogo: (platform: string, file: File, token: string) =>
         apiUpload<{ url: string }>(`/settings/platforms/${platform}/logo`, file, token),
     },

@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { StorageService } from '../common/storage/storage.service';
-import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max, IsObject } from 'class-validator';
+import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max, IsObject, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
 import { SettingsService } from './settings.service';
@@ -36,6 +36,7 @@ class PlatformSettingDto {
   @IsOptional() @IsString() logoUrl?: string;
   @IsOptional() @IsInt() @Min(30) @Max(250) logoScale?: number;
   @IsOptional() @IsObject() logoScales?: Record<string, number>;
+  @IsOptional() @IsIn(['AVAILABLE', 'SOON', 'DISABLED']) status?: string;
 }
 
 @Controller('settings')
@@ -61,6 +62,13 @@ export class SettingsController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
   getPlatforms() {
     return this.service.getPlatformSettings();
+  }
+
+  // Cuántas empresas usan cada sincronizador (para avisar antes de desactivarlo).
+  @Get('platforms/usage')
+  @Roles(Role.SUPER_ADMIN)
+  platformUsage() {
+    return this.service.platformUsage();
   }
 
   @Patch('platforms/:platform')
