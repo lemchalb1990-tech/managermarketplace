@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { contactHref, useContact } from "./contact";
 
 export type PublicPlan = {
   id: string;
@@ -52,6 +53,8 @@ function Check() {
 
 export function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [annual, setAnnual] = useState(false);
+  // "Conversemos" (plan a medida) va al contacto configurado; si no hay, al panel.
+  const talk = contactHref(useContact());
   const trial = plans.find((p) => p.isTrial);
   const paid = plans.filter((p) => !p.isTrial);
   // Se destaca el plan del medio (el más elegido en la propuesta comercial).
@@ -115,7 +118,8 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                       : ""}
                 </p>
               </div>
-              <Link href="/login"
+              <Link href={p.priceFrom && talk ? talk : "/login"}
+                {...(p.priceFrom && talk?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
                 {p.priceFrom ? "Conversemos" : "Empezar"}
               </Link>

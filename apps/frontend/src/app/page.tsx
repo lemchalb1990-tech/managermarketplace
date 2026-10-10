@@ -9,6 +9,7 @@ import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pr
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
+import { ContactButtons } from "@/components/landing/contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
@@ -319,7 +320,7 @@ export default async function Home() {
                   <Link href="/login" className="lp-btn lp-btn--light lp-btn--lg">
                     Entrar al panel <Icon d={ICONS.arrow} size={16} />
                   </Link>
-                  <a href="#funciones" className="lp-btn lp-btn--lg bg-white/10 text-white hover:bg-white/20" style={{ border: "1px solid rgba(255,255,255,0.18)" }}>Ver cómo funciona</a>
+                  <ContactButtons dark />
                 </div>
                 <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-white/75">
                   {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (

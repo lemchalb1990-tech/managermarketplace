@@ -28,6 +28,7 @@ const GROUP_LABELS: Record<string, string> = {
   mercadolibre: 'Mercado Libre',
   notificaciones: 'Notificaciones',
   publicacion: 'Publicación: largo del nombre',
+  landing: 'Página de inicio: contacto',
   otros: 'Otros',
 };
 
@@ -35,6 +36,7 @@ const GROUP_HINTS: Record<string, string> = {
   sistema: 'URLs base de la plataforma. Requieren redespliegue si se cambian en variables de entorno.',
   mercadolibre: 'Configuración de integración con Mercado Libre. La URL de callback debe coincidir exactamente con la registrada en ML Developer.',
   publicacion: 'Caracteres que admite cada marketplace en el nombre del producto. La ficha del producto muestra el conteo y avisa si se excede; Mercado Libre se toma solo de la categoría.',
+  landing: 'WhatsApp, correo y agenda que usan los botones de contacto de la página de inicio (adminmarket.ondatasolution.com).',
   notificaciones: 'Sonido que suena en la campanita al llegar cada tipo de evento. Sube archivos MP3/WAV/OGG (máx. 2 MB) y elige cuál usa cada tipo.',
 };
 
@@ -151,7 +153,7 @@ export default function SettingsPage() {
     return acc;
   }, {});
 
-  const groupOrder = ['sistema', 'mercadolibre', 'notificaciones', 'otros'];
+  const groupOrder = ['sistema', 'landing', 'mercadolibre', 'notificaciones', 'otros'];
   const callbackUri = draft['APP_URL']
     ? `${draft['APP_URL'].replace(/\/+$/, '')}/api/ecommerce/ml/callback`
     : '';

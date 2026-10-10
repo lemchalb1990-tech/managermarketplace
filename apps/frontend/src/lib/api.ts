@@ -225,6 +225,7 @@ export const api = {
       apiFetch<{ platform: string; displayName: string | null; description: string | null; logoUrl: string | null; logoScale?: number; logoScales?: Record<string, number> | null }[]>(
         '/public/platform-logos', {}),
     timezone: () => apiFetch<{ timezone: string }>('/public/timezone', {}),
+    contact: () => apiFetch<{ whatsapp: string | null; email: string | null; scheduleUrl: string | null }>('/public/contact', {}),
     notificationSounds: () =>
       apiFetch<{ sale: string | null; question: string | null; claim: string | null }>('/public/notification-sounds', {}),
   },

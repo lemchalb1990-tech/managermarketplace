@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_TIMEZONE } from '../common/timezone';
 
+// WhatsApp de ventas por defecto (Contáctanos de la landing), editable en Configuración.
+const DEFAULT_CONTACT_WHATSAPP = '56982853197';
+
 export const SETTING_DEFINITIONS: { key: string; label: string; group: string; hint: string; sensitive: boolean; default?: string }[] = [
   {
     key: 'TITLE_MAX_PARIS',
@@ -66,6 +69,30 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     label: 'Largo máximo del nombre en WooCommerce',
     group: 'publicacion',
     hint: 'Caracteres que admite WooCommerce en el nombre del producto. Vacío = solo se cuenta, sin validar.',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'CONTACT_WHATSAPP',
+    label: 'WhatsApp de contacto',
+    group: 'landing',
+    hint: 'Número con código de país, sin + ni espacios. Ej: 56912345678. Lo usan los botones "Contáctanos" y "Agenda con un ejecutivo" de la página de inicio.',
+    sensitive: false,
+    default: DEFAULT_CONTACT_WHATSAPP,
+  },
+  {
+    key: 'CONTACT_EMAIL',
+    label: 'Correo de contacto',
+    group: 'landing',
+    hint: 'Se usa en "Contáctanos" si no hay WhatsApp. Ej: ventas@tudominio.com',
+    sensitive: false,
+    default: '',
+  },
+  {
+    key: 'CONTACT_SCHEDULE_URL',
+    label: 'Link para agendar con un ejecutivo',
+    group: 'landing',
+    hint: 'Link de tu agenda (Calendly, Google Calendar, etc.). Si está vacío, "Agenda con un ejecutivo" abre WhatsApp o el correo.',
     sensitive: false,
     default: '',
   },
@@ -212,6 +239,18 @@ export class SettingsService implements OnModuleInit {
   }
 
   /** Zona horaria configurada por el Super Admin para "hoy" en dashboard/despacho/entregas. */
+  // Datos de contacto para la página de inicio (públicos, sin sesión).
+  async getPublicContact() {
+    const [whatsapp, email, scheduleUrl] = await Promise.all([
+      this.get('CONTACT_WHATSAPP'), this.get('CONTACT_EMAIL'), this.get('CONTACT_SCHEDULE_URL'),
+    ]);
+    return {
+      whatsapp: (whatsapp || DEFAULT_CONTACT_WHATSAPP).replace(/[^0-9]/g, '') || null,
+      email: (email || '').trim() || null,
+      scheduleUrl: (scheduleUrl || '').trim() || null,
+    };
+  }
+
   async getTimezone(): Promise<string> {
     return (await this.get('DASHBOARD_TIMEZONE')) || DEFAULT_TIMEZONE;
   }

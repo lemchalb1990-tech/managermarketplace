@@ -27,6 +27,18 @@ export class PublicTimezoneController {
   }
 }
 
+// Sin guard a propósito: los botones "Contáctanos" y "Agenda con un ejecutivo" de la
+// landing pública necesitan el WhatsApp, el correo y el link de agenda.
+@Controller('public/contact')
+export class PublicContactController {
+  constructor(private service: SettingsService) {}
+
+  @Get()
+  getContact() {
+    return this.service.getPublicContact();
+  }
+}
+
 // Sin guard a propósito: cualquier rol con la campanita de notificaciones abierta debe
 // poder reproducir el sonido elegido por Super Admin para cada tipo de evento, no solo
 // quien puede subir/elegir sonidos (eso sigue restringido a Super Admin).
