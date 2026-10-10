@@ -37,15 +37,30 @@ const Svg = ({ d, size = 15 }: { d: string; size?: number }) => (
 );
 
 /** Servicio que se activa con la venta (facturación o dropshipping), como círculo con nombre. */
-function ServiceDot({ icon, label, tone, active, pulse }: { icon: string; label: string; tone: string; active: boolean; pulse: number }) {
+function ServiceDot({ icon, logo, label, tone, active, pulse, wire = false }: {
+  icon: string; logo?: ReactNode; label: string; tone: string; active: boolean; pulse: number; wire?: boolean;
+}) {
   return (
     <span className="flex items-center gap-2">
       <span className="relative grid h-9 w-9 place-items-center">
+        {/* Línea desde el producto: el punto de la venta baja hasta aquí (la boleta sale de la misma venta) */}
+        {wire && (
+          <span className={`pointer-events-none absolute bottom-full left-1/2 h-5 w-px -translate-x-1/2 ${active ? "" : "bg-black/15"}`} style={active ? { background: tone } : undefined}>
+            {active && <span key={pulse} className="lp-dot-down absolute -left-[3px] h-[7px] w-[7px] rounded-full" style={{ background: tone }} />}
+          </span>
+        )}
         {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full opacity-40 motion-reduce:hidden" style={{ background: tone }} />}
-        <span className={`relative grid h-9 w-9 place-items-center rounded-full transition-[box-shadow,transform,background-color,color] duration-300 ${active ? "scale-110 text-white" : "bg-white"}`}
-          style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE }}>
-          <Svg d={icon} />
-        </span>
+        {logo ? (
+          <span className={`relative grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110" : ""}`}
+            style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : undefined, border: active ? undefined : LINE }}>
+            <span className="h-[22px] w-[30px] overflow-hidden rounded-[4px] [&>*]:h-full [&>*]:w-full [&>img]:object-contain">{logo}</span>
+          </span>
+        ) : (
+          <span className={`relative grid h-9 w-9 place-items-center rounded-full transition-[box-shadow,transform,background-color,color] duration-300 ${active ? "scale-110 text-white" : "bg-white"}`}
+            style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE }}>
+            <Svg d={icon} />
+          </span>
+        )}
       </span>
       <span className={`text-[13px] font-medium transition-colors ${active ? "text-black" : "text-[#615d59]"}`}>{label}</span>
     </span>
@@ -83,7 +98,7 @@ function ChannelDot({ logo, active, pulse }: { logo: ReactNode; active: boolean;
 }
 
 /** Escena del inicio: una venta en cualquier canal descuenta el stock y lo publica en todos. */
-export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
+export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactNode>; billingLogo?: ReactNode }) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -191,7 +206,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
       {/* Facturación y dropshipping se activan con cada venta; a la derecha, el contador del día */}
       <div className="relative mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[10px] bg-white/80 px-3 py-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <ServiceDot icon={ICON.doc} label="Facturación" tone="#15803d" active={!!active} pulse={step} />
+          <ServiceDot icon={ICON.doc} logo={billingLogo} label="Facturación" tone="#15803d" active={!!active} pulse={step} wire />
           <ServiceDot icon={ICON.truck} label="Dropshipping" tone="#7c3aed" active={drop} pulse={step} />
         </div>
         <span className="text-[13px]">Hoy: <span key={`v-${step}`} className="lp-pop font-semibold tabular-nums">{30 + step}</span> ventas</span>
