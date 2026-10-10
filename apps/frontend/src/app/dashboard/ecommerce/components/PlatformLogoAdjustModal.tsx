@@ -99,7 +99,7 @@ function Previews({ src, scale, name }: { src: string | null; scale: number; nam
       ))}
       {item('Inicio · círculo', (
         <div className="relative h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm">
-          <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover">{logo}</span>
+          <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover [&>img]:rounded-full">{logo}</span>
         </div>
       ))}
       {item('Inicio · cinta de logos', (
@@ -109,7 +109,7 @@ function Previews({ src, scale, name }: { src: string | null; scale: number; nam
       ))}
       {item('Login', (
         <div className="relative h-12 w-12 overflow-hidden rounded-full border-2 border-amber-400 bg-white">
-          <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover">{logo}</span>
+          <span className="absolute inset-0 overflow-hidden rounded-full [&>img]:object-cover [&>img]:rounded-full">{logo}</span>
         </div>
       ))}
       {item('Ícono pequeño', (

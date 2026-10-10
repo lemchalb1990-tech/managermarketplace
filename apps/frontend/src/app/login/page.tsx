@@ -74,7 +74,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-2.5">
             {brandChannels.map((k, i) => (
               <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
-                <span className="h-full w-full overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>svg]:scale-[1.7]">{resolvePlatformLogo(logoMap, k, Logos[k], k)}</span>
+                <span className="h-full w-full overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{resolvePlatformLogo(logoMap, k, Logos[k], k)}</span>
               </span>
             ))}
           </div>
