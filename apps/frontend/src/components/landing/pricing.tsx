@@ -39,9 +39,19 @@ const FEATURE_LABEL: Record<string, string> = {
   MULTICOMPANY: "Multiempresa",
 };
 
+// Ícono de cada plan (por nombre; si es un plan nuevo, según su posición).
+const PLAN_ICONS: Record<string, string> = {
+  emprende: "M12 2c3 2 5 6 5 10l-2 3H9l-2-3c0-4 2-8 5-10zM9 15l-2 5 3-1M15 15l2 5-3-1M12 9.5a1.5 1.5 0 1 0 0-.01",
+  crece: "M3 17l6-6 4 4 8-8M14 7h7v7",
+  escala: "M3 21V9l9-6 9 6v12M3 21h18M9 21v-6h6v6M8 11h.01M16 11h.01",
+  corporativo: "M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10M8 7h4M8 11h4M8 15h4",
+};
+const ICON_ORDER = ["emprende", "crece", "escala", "corporativo"];
+const planIcon = (name: string, i: number) => PLAN_ICONS[name.toLowerCase()] || PLAN_ICONS[ICON_ORDER[Math.min(i, 3)]];
+
 const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
-const limit = (n: number | null, one: string, many: string) =>
-  n == null ? `${many[0].toUpperCase()}${many.slice(1)} ilimitados` : `${n.toLocaleString("es-CL")} ${n === 1 ? one : many}`;
+const limit = (n: number | null, one: string, many: string, fem = false) =>
+  n == null ? `${many[0].toUpperCase()}${many.slice(1)} ${fem ? "ilimitadas" : "ilimitados"}` : `${n.toLocaleString("es-CL")} ${n === 1 ? one : many}`;
 
 function Check() {
   return (
@@ -79,7 +89,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
       )}
 
       <div className={`mt-8 grid gap-4 sm:grid-cols-2 ${paid.length >= 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
-        {paid.map((p) => {
+        {paid.map((p, idx) => {
           const isFeatured = p.id === featured;
           const useAnnual = annual && p.annualPrice != null;
           const price = useAnnual ? Math.round(p.annualPrice! / 12) : p.monthlyPrice;
@@ -87,7 +97,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
             limit(p.maxChannels, "canal de venta", "canales de venta"),
             limit(p.maxProducts, "producto", "productos"),
             limit(p.maxUsers, "usuario", "usuarios"),
-            limit(p.maxWarehouses, "bodega", "bodegas"),
+            limit(p.maxWarehouses, "bodega", "bodegas", true),
             ...p.features.map((f) => FEATURE_LABEL[f] || f),
             ...(p.addons ? [`Módulos adicionales: ${p.addons.toLowerCase()}`] : []),
           ];
@@ -98,6 +108,11 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               {isFeatured && (
                 <span className="lp-tag absolute -top-3 left-6 bg-[#0075de] text-white">Más elegido</span>
               )}
+              <span className={`mb-3 grid h-11 w-11 place-items-center rounded-xl ${isFeatured ? "bg-white/10 text-white" : "bg-[#eceef5] text-[#02093a]"}`}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={planIcon(p.name, idx)} />
+                </svg>
+              </span>
               <p className="text-[22px] font-bold tracking-[-0.011em]">{p.name}</p>
               {p.description && (
                 <p className={`mt-1 min-h-[2.6em] text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#615d59]"}`}>{p.description}</p>
