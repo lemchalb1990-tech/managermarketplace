@@ -227,7 +227,7 @@ const CATALOG = [
 
 const WRAP = "w-full px-4 sm:px-6 lg:px-12 2xl:px-20";
 // Cada sección es una franja a todo el ancho con su propio fondo.
-const BAND = "py-24 lg:py-32";
+const BAND = "py-16 lg:py-20";
 
 /** Encabezado de sección: título a la izquierda y bajada a la derecha en escritorio. */
 function SectionHead({ label, title, lead, dark = false }: { label?: string; title: string; lead?: string; dark?: boolean }) {
@@ -250,7 +250,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary }: {
   const dark = fg === "#fff";
   return (
     <section style={{ background: bg, color: fg }}>
-      <div className={`${WRAP} ui-reveal flex flex-col gap-8 py-14 lg:flex-row lg:items-center lg:justify-between lg:py-16`}>
+      <div className={`${WRAP} ui-reveal flex flex-col gap-6 py-10 lg:flex-row lg:items-center lg:justify-between lg:py-12`}>
         <div className="max-w-3xl">
           <p className="lp-h3 text-balance">{title}</p>
           <p className={`mt-3 max-w-[56ch] text-[16px] leading-[1.55] ${dark ? "text-white/75" : "text-black/70"}`}>{text}</p>
@@ -301,17 +301,17 @@ export default async function Home() {
 
       <main id="contenido">
         {/* Hero centrado */}
-        <section className={`${WRAP} relative pb-24 pt-16 sm:pt-24 lg:pb-32`}>
+        <section className={`${WRAP} relative pb-16 pt-10 sm:pt-14 lg:pb-20`}>
           {/* Puntos de cuaderno y marcas decorativas alrededor del titular */}
           <div className="lp-dotgrid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px]" aria-hidden="true" />
-          <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-12 2xl:gap-20">
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-10 2xl:gap-16">
             {/* Izquierda: titular, bajada y botones */}
             <div>
               <p className="lp-eyebrow ui-enter text-[#0075de]">Para tiendas que venden en marketplaces en Chile</p>
               <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[15ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
                 Vende en todos tus canales sin <span className="lp-pill">sobrevender</span>
               </h1>
-              <div className="ui-enter mt-6 flex flex-col gap-8" style={{ ["--d" as string]: "160ms" }}>
+              <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
                 <p className="lp-lead max-w-[46ch] text-pretty text-[#615d59]">
                   Conecta Mercado Libre, Falabella, Paris, Ripley y Walmart a tu bodega.
                   Cada venta descuenta el stock en todos y emite la boleta sola.
@@ -343,7 +343,7 @@ export default async function Home() {
         </section>
 
         {/* Muro de logos */}
-        <section className="border-y border-black/[0.06] bg-white py-10">
+        <section className="border-y border-black/[0.06] bg-white py-6">
           <div className={WRAP}>
             <p className="mb-2 text-center text-[14px] text-[#757575]">Marketplaces y tiendas que puedes conectar</p>
             <LogosMarquee logoMap={logoMap} />
@@ -355,7 +355,7 @@ export default async function Home() {
           <div className={WRAP}>
             <SectionHead label="Beneficios" title="Lo que ganas desde el primer día"
               lead="Menos planillas, menos Seller Center abiertos y menos ventas que no puedes cumplir." />
-            <div className="ui-reveal mt-12 grid gap-4 md:grid-cols-3 lg:mt-16 lg:gap-5">
+            <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-3 lg:mt-10">
               {BENEFITS.map((b, i) => (
                 <div key={b.t}
                   className={`relative flex flex-col overflow-hidden rounded-[12px] p-6 ${b.bg === "#ffffff" ? "border border-black/[0.08]" : ""} ${i === 0 ? "md:col-span-2" : ""}`}
@@ -387,7 +387,7 @@ export default async function Home() {
           <div className={WRAP}>
             <SectionHead label="Funciones" title="Todo tu negocio desde un solo panel"
               lead="Publicas, vendes, cotizas, facturas y despachas sin cambiar de sistema." />
-            <div className="ui-reveal mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-5">
+            <div className="ui-reveal mt-8 grid gap-4 sm:grid-cols-2 lg:mt-10 lg:grid-cols-3">
               {TOOLS.map((x) => (
                 <div key={x.t} className="lp-card flex min-w-0 flex-col p-6">
                   <p className="text-[20px] font-bold leading-[1.27] tracking-[-0.011em]">{x.t}</p>
@@ -405,7 +405,7 @@ export default async function Home() {
             <div>
               <SectionHead dark label="Dashboard y alertas" title="Tu negocio de un vistazo, y avisos cuando importa"
                 lead="Ventas, neto, órdenes y ticket promedio de todos tus canales en una pantalla. Y un aviso, con sonido, cada vez que entra una venta, una pregunta o un reclamo." />
-              <div className="ui-reveal mt-12 lg:mt-16" aria-label="Ejemplo del dashboard con datos de muestra">
+              <div className="ui-reveal mt-8 lg:mt-10" aria-label="Ejemplo del dashboard con datos de muestra">
                 <DashboardReplica />
               </div>
               <ul className="ui-reveal mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
@@ -467,7 +467,7 @@ export default async function Home() {
             <div className="ui-reveal">
               <span className="lp-eyebrow text-[#0075de]">Canales</span>
               <h2 className="lp-h2 mt-3 text-balance">Stock, precios y documentos al día en cada canal</h2>
-              <p className="lp-lead mt-5 max-w-[46ch] text-[#615d59]">
+              <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
                 Conectas cada cuenta una vez con su API. Lo demás corre solo.
               </p>
               <p className="mt-8 text-[14px] text-[#757575]">Proveedores de facturación electrónica</p>
@@ -525,7 +525,7 @@ export default async function Home() {
             <div className="ui-reveal order-1 lg:order-2">
               <span className="lp-eyebrow text-[#c43b1c]">Versión móvil</span>
               <h2 className="lp-h2 mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
-              <p className="lp-lead mt-5 max-w-[46ch] text-[#615d59]">
+              <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
                 El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.
               </p>
               <ul className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -567,7 +567,7 @@ export default async function Home() {
         {/* Cierre */}
         <section className="bg-[#02093a] text-white">
           <div className={WRAP}>
-            <div className="relative flex flex-col gap-8 py-16 sm:flex-row sm:items-end sm:justify-between sm:py-20">
+            <div className="relative flex flex-col gap-6 py-12 sm:flex-row sm:items-end sm:justify-between sm:py-14">
               <div>
                 <h2 className="lp-h2">¿Ya tienes cuenta?</h2>
                 <p className="lp-lead mt-4 text-white/70">Entra con tu correo y sigue donde quedaste.</p>
