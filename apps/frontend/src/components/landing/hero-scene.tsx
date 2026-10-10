@@ -30,26 +30,15 @@ function PosLogo() {
   );
 }
 
-function ChannelCard({ ch, logo, stock, active, pulse }: {
-  ch: Channel; logo: ReactNode; stock: number; active: boolean; pulse: number;
-}) {
+// Canal como círculo con su logo: sin precios ni stock, solo el movimiento de la venta.
+function ChannelDot({ logo, active, pulse }: { logo: ReactNode; active: boolean; pulse: number }) {
   return (
-    <div className={`relative flex items-center gap-2 rounded-[10px] bg-white px-2 py-1.5 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
-      style={{ border: LINE }}>
-      <span className="h-7 w-10 shrink-0 overflow-hidden rounded-[6px] [&>*]:h-full [&>*]:w-full">{logo}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px] font-semibold leading-tight">{ch.name}</span>
-        <span className="block text-[11px] leading-tight text-[#757575]">{ch.price}</span>
+    <div className="relative grid h-14 w-14 place-items-center">
+      {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full bg-[#0075de]/35 motion-reduce:hidden" />}
+      <span className={`relative grid h-14 w-14 place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#0075de,0_8px_20px_rgba(0,117,222,0.25)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.08)]"}`}
+        style={{ border: LINE }}>
+        <span className="h-6 w-9 overflow-hidden rounded-[5px] [&>*]:h-full [&>*]:w-full [&>img]:object-contain">{logo}</span>
       </span>
-      <span className="text-right">
-        <span key={stock} className="lp-pop block font-mono text-[14px] font-semibold leading-tight tabular-nums">{stock}</span>
-        <span className="block text-[10px] leading-tight text-[#757575]">stock</span>
-      </span>
-      {active && (
-        <span className="lp-pop absolute -top-2.5 right-2 rounded-full bg-[#0075de] px-2 py-0.5 text-[10px] font-semibold text-white">
-          Vendido −1
-        </span>
-      )}
       {/* Conector hacia el producto (cuando los canales van en columna al lado) */}
       <span className={`pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 xl:block ${active ? "bg-[#0075de]" : "bg-black/15"}`}>
         {/* Punto que viaja: del canal que vendió al producto, y del producto a los demás */}
@@ -80,7 +69,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
   return (
     <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-5">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
-      <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1fr)_188px] xl:items-center xl:gap-5">
+      <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1fr)_56px] xl:items-center xl:gap-5">
           {/* Producto */}
           <div className="lp-shot rounded-[12px] bg-white p-4" style={{ border: LINE }}>
             <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -152,9 +141,9 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
           </div>
 
           {/* Canales: en columna al lado del producto en pantallas anchas */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+          <div className="flex flex-wrap justify-center gap-3 py-1 xl:flex-col xl:gap-4">
             {CHANNELS.map((ch) => (
-              <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} pulse={active ? step : 0} />
+              <ChannelDot key={ch.key} logo={logoOf(ch.key)} active={active?.key === ch.key} pulse={active ? step : 0} />
             ))}
           </div>
       </div>
