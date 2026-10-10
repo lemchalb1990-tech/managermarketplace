@@ -90,10 +90,10 @@ const URGENT: Array<[keyof typeof STATUS, string, string, string, boolean]> = [
   ["PENDING", "7712045", "Ignacio Pérez", "Paris", true],
 ];
 const RECENT: Array<[string, string, string, number, string]> = [
-  ["Zapatillas urbanas blancas", "Mercado Libre", "12:48", 49990, "ML"],
-  ["Polera oversize negra +1 más", "POS", "12:31", 25980, "PO"],
-  ["Mochila urbana 25 L", "Falabella", "12:05", 34990, "Fa"],
-  ["Jockey bordado", "Paris", "11:52", 12990, "Pa"],
+  ["Zapatillas urbanas blancas", "Mercado Libre", "12:48", 49990, "/landing/products/zapatillas-blancas.jpg"],
+  ["Polera oversize negra +1 más", "POS", "12:31", 25980, "/landing/products/polera-negra.jpg"],
+  ["Mochila urbana 25 L", "Falabella", "12:05", 34990, "/landing/products/mochila-urbana.jpg"],
+  ["Jockey blanco", "Paris", "11:52", 12990, "/landing/products/jockey-blanco.jpg"],
 ];
 
 export function DashboardReplica() {
@@ -279,9 +279,10 @@ export function DashboardReplica() {
         <SectionCard title="Últimas ventas" style={CARD_SHADOW} compactHeader
           actions={<span className="text-xs font-medium text-blue-500">Ver todas →</span>}>
           <div className="divide-y divide-[var(--border-soft)]">
-            {RECENT.map(([name, ch, time, total, ab]) => (
+            {RECENT.map(([name, ch, time, total, img]) => (
               <div key={name} className="group flex items-center gap-3 py-[5px]">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-600">{ab}</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img} alt="" width={32} height={32} loading="lazy" className="h-8 w-8 shrink-0 rounded-lg bg-blue-50 object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-gray-800">{name}</p>
                   <p className="truncate text-xs text-gray-400">{ch} · {time}</p>

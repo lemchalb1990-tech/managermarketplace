@@ -30,18 +30,6 @@ function PosLogo() {
   );
 }
 
-function ShoeThumb() {
-  return (
-    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[10px] bg-[#f6f5f4]" style={{ border: LINE }}>
-      <svg width="40" height="24" viewBox="0 0 40 24" fill="none" aria-hidden="true">
-        <path d="M3 17c0-4 1-9 3-11 2 1 4 3 7 3 2 0 3-1 4-2l4 4c3 2 9 3 14 4 2 0 3 1 3 3v1H3z" fill="#fff" stroke="#2b2a27" strokeWidth="1.4" strokeLinejoin="round" />
-        <path d="M3 19h34v2H3z" fill="#e4e2dc" stroke="#2b2a27" strokeWidth="1.4" strokeLinejoin="round" />
-        <path d="M17 10l2 2M19 8.5l2 2M21.5 7l2 2" stroke="#0075de" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
-
 function ChannelCard({ ch, logo, stock, active, side }: {
   ch: Channel; logo: ReactNode; stock: number; active: boolean; side: "left" | "right";
 }) {
@@ -91,7 +79,7 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
     <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-8 lg:p-10">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
       <div className="relative grid items-center gap-6 md:grid-cols-[1fr_210px] lg:grid-cols-[1fr_240px] lg:gap-10">
-        <div className="grid gap-3 lg:grid-cols-[1fr_minmax(0,1.15fr)_1fr] lg:items-center lg:gap-6">
+        <div className="grid gap-3 lg:grid-cols-[1fr_minmax(0,1.3fr)_1fr] lg:items-center lg:gap-6">
           {/* Producto al centro (primero en el celular) */}
           <div className="lp-shot order-first rounded-[12px] bg-white p-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:p-5" style={{ border: LINE }}>
             <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -104,12 +92,30 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
                 Sincronizado
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-3">
-              <ShoeThumb />
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-semibold leading-tight">Zapatillas urbanas blancas</p>
-                <p className="mt-0.5 text-[12px] text-[#757575]">SKU ZAP-URB-40 · Talla 40</p>
-              </div>
+            <div className="relative mt-3 overflow-hidden rounded-[10px] bg-[#f6f5f4]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/landing/products/zapatillas-blancas-ancha.jpg" alt="" width={960} height={640}
+                className="aspect-[3/2] w-full object-cover" fetchPriority="high" />
+              {/* Aviso de venta flotando sobre la foto (siempre dentro del recuadro) */}
+              {active && (
+                <div key={`sale-${step}`} className="lp-slide absolute inset-x-2 top-2 sm:inset-x-auto sm:left-3 sm:top-3 sm:max-w-[85%]">
+                  <div className="lp-float flex w-full items-center gap-2.5 rounded-[10px] bg-white/95 px-3 py-2 shadow-[0_6px_18px_rgba(0,0,0,0.18)]">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0075de1f] text-[#0075de]">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[12px] font-semibold leading-tight">¡Nueva venta! · {active.name}</span>
+                      <span className="block truncate text-[11px] leading-tight text-[#757575]">Zapatillas urbanas blancas · {active.price}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-3 min-w-0">
+              <p className="truncate text-[15px] font-semibold leading-tight">Zapatillas urbanas blancas</p>
+              <p className="mt-0.5 text-[12px] text-[#757575]">SKU ZAP-URB-40 · Talla 40</p>
             </div>
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
@@ -124,14 +130,14 @@ export function HeroScene({ logos, phone }: { logos: Record<string, ReactNode>; 
             <div className="mt-4 min-h-[52px] rounded-[10px] bg-[#f6f5f4] p-2.5">
               {active ? (
                 <div key={step} className="lp-slide flex items-center gap-2.5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0075de1f] text-[#0075de]">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#15803d1f] text-[#15803d]">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" />
+                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4" />
                     </svg>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-semibold leading-tight">Nueva venta · {active.name}</span>
-                    <span className="block truncate text-[11px] leading-tight text-[#757575]">{active.price} · Boleta N° {4520 + step} emitida</span>
+                    <span className="block truncate text-[12px] font-semibold leading-tight">Boleta N° {4520 + step} emitida</span>
+                    <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 6 canales</span>
                   </span>
                 </div>
               ) : (

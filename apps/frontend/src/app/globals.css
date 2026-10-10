@@ -596,7 +596,7 @@ body {
 @keyframes lp-spin { to { transform: rotate(360deg); } }
 @keyframes lp-ride { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
 @keyframes lp-speed { 0% { opacity: 0; transform: translateX(10px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateX(-14px); } }
-.lp-float { display: inline-block; animation: lp-float 3.2s ease-in-out var(--fd, 0s) infinite; }
+.lp-float { animation: lp-float 3.2s ease-in-out var(--fd, 0s) infinite; }
 .lp-twinkle { animation: lp-twinkle 2.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
 .lp-draw { stroke-dasharray: 120; animation: lp-draw 1.4s ease-out both; }
 .lp-spin { animation: lp-spin 18s linear infinite; transform-origin: center; transform-box: fill-box; }

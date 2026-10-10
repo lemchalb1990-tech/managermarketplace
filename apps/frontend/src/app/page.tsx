@@ -11,7 +11,7 @@ import { HeroScene } from "@/components/landing/hero-scene";
 import {
   Toast, TOAST_ICONS, StockMini, ProfitMini, ClaimMini,
   PublishMini, DirectSaleMini, QuoteMini, InvoiceMini, LabelMini, QuestionsMini,
-  ALERTS,
+  ALERTS, PRODUCT_IMG,
 } from "@/components/landing/visuals";
 
 // Tipografías propias de la landing: sans neutra para todo y una serif editorial
@@ -216,9 +216,18 @@ const TOOLS: Array<{ t: string; b: string; mock: ReactNode }> = [
   { t: "Preguntas de Mercado Libre", b: "Respondes las preguntas de tus publicaciones desde el mismo lugar donde ves el stock.", mock: <QuestionsMini /> },
 ];
 
+/* ── Catálogo de ejemplo con fotos reales ─────────────────────────────────── */
+
+const CATALOG = [
+  { name: "Zapatillas urbanas blancas", img: PRODUCT_IMG.zapatillas, price: "$49.990", stock: 24, channels: 6 },
+  { name: "Polera oversize negra", img: PRODUCT_IMG.polera, price: "$12.990", stock: 58, channels: 5 },
+  { name: "Mochila urbana 25 L", img: PRODUCT_IMG.mochila, price: "$34.990", stock: 17, channels: 4 },
+  { name: "Polerón blanco", img: PRODUCT_IMG.poleron, price: "$24.990", stock: 31, channels: 5 },
+];
+
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
-const WRAP = "mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10";
+const WRAP = "w-full px-4 sm:px-6 lg:px-12 2xl:px-20";
 // Cada sección es una franja a todo el ancho con su propio fondo.
 const BAND = "py-20 sm:py-24";
 
@@ -302,17 +311,12 @@ export default async function Home() {
             <a href="#beneficios" className="lp-btn lp-btn--soft">Ver beneficios</a>
           </div>
 
-          <div className="ui-enter-panel relative mx-auto mt-14 max-w-[1280px] text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
+          <div className="ui-enter-panel relative mt-14 w-full text-left" style={{ ["--d" as string]: "300ms" }} aria-hidden="true">
             <HeroScene
               logos={Object.fromEntries((["mercadolibre", "falabella", "paris", "ripley", "walmart"] as const).map((k) => [k, resolveLogoNode(logoMap, k, Logos[k])]))}
               phone={<PhoneMock />}
             />
 
-            {/* Avisos flotantes: solo en pantallas anchas, donde hay margen a los lados */}
-            <Toast className="absolute -left-24 top-10 z-10 hidden w-60 2xl:flex" tone="#15803d" icon={TOAST_ICONS.doc}
-              title="Boleta emitida" meta="OpenFactura · automática" />
-            <Toast className="absolute -right-24 bottom-12 z-10 hidden w-60 2xl:flex" tone="#e89d01" icon={TOAST_ICONS.truck}
-              title="Etiqueta lista" meta="Mercado Envíos Flex" style={{ ["--fd" as string]: "1.2s" }} />
           </div>
         </section>
 
@@ -386,7 +390,7 @@ export default async function Home() {
 
         {/* Dashboard y alertas */}
         <section id="dashboard" className={`bg-[#02093a] text-white ${BAND}`}>
-          <div className="mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10">
+          <div className={WRAP}>
             <div>
               <div className="ui-reveal grid gap-4 lg:grid-cols-[1fr_1fr] lg:items-end">
                 <div>
@@ -471,6 +475,24 @@ export default async function Home() {
               </div>
             </div>
             <div className="ui-reveal relative rounded-[12px] bg-[#62aef0] p-4 sm:p-8">
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {CATALOG.map((p) => (
+                  <div key={p.name} className="lp-shot overflow-hidden rounded-[12px] bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.img} alt={p.name} width={480} height={480} loading="lazy" className="aspect-square w-full object-cover" />
+                    <div className="p-2.5">
+                      <p className="truncate text-[13px] font-semibold leading-tight">{p.name}</p>
+                      <p className="mt-0.5 flex items-center justify-between text-[12px] text-[#615d59]">
+                        <span className="font-mono">{p.price}</span>
+                        <span>{p.stock} en stock</span>
+                      </p>
+                      <p className="mt-1.5 inline-flex rounded-full bg-[#e6f3fe] px-2 py-0.5 text-[11px] font-medium text-[#0075de]">
+                        En {p.channels} canales
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
               <div className="lp-shot rounded-[12px]"><ChannelsMock /></div>
             </div>
           </div>
@@ -484,12 +506,17 @@ export default async function Home() {
         <section id="movil" className={BAND}>
           <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
             <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] bg-[#f64932] px-4 py-10 lg:order-1" aria-hidden="true">
-              <div className="relative mx-auto max-w-[420px]">
+              <div className="relative mx-auto max-w-[560px]">
                 <PhoneMock />
-                <Toast className="absolute -left-2 top-16 hidden w-52 sm:flex" tone="#0075de" icon={TOAST_ICONS.truck}
-                  title="Ruta asignada" meta="Andrea · 8 paradas" />
-                <Toast className="absolute -right-2 bottom-24 hidden w-52 sm:flex" tone="#15803d" icon={TOAST_ICONS.check}
-                  title="Entregado con foto" meta="Los Leones 455 · 12:48" style={{ ["--fd" as string]: "1.2s" }} />
+                {/* Avisos flotantes: al costado del teléfono en pantallas medianas, debajo en el celular */}
+                <div className="mt-6 grid gap-2 sm:mt-0 sm:block">
+                  <Toast className="w-full sm:absolute sm:left-0 sm:top-10 sm:w-52" tone="#0075de" icon={TOAST_ICONS.sale}
+                    title="¡Nueva venta!" meta="Falabella · Mochila urbana · $34.990" />
+                  <Toast className="w-full sm:absolute sm:right-0 sm:top-40 sm:w-52" tone="#e89d01" icon={TOAST_ICONS.truck}
+                    title="Ruta asignada" meta="Andrea · 8 paradas" style={{ ["--fd" as string]: "0.6s" }} />
+                  <Toast className="w-full sm:absolute sm:bottom-16 sm:left-0 sm:w-52" tone="#15803d" icon={TOAST_ICONS.check}
+                    title="Entregado con foto" meta="Los Leones 455 · 12:48" style={{ ["--fd" as string]: "1.2s" }} />
+                </div>
               </div>
             </div>
             <div className="ui-reveal order-1 lg:order-2">

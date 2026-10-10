@@ -5,6 +5,24 @@ import type { CSSProperties, ReactNode } from "react";
 
 const LINE = "1px solid rgba(0,0,0,0.08)";
 
+// Fotos reales de producto (Unsplash, licencia libre) guardadas en /public.
+export const PRODUCT_IMG = {
+  zapatillas: "/landing/products/zapatillas-blancas.jpg",
+  zapatillasAncha: "/landing/products/zapatillas-blancas-ancha.jpg",
+  polera: "/landing/products/polera-negra.jpg",
+  mochila: "/landing/products/mochila-urbana.jpg",
+  jockey: "/landing/products/jockey-blanco.jpg",
+  poleron: "/landing/products/poleron-blanco.jpg",
+} as const;
+
+export function ProductThumb({ src, size = 32, className = "" }: { src: string; size?: number; className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async"
+      className={`shrink-0 rounded-md bg-[#f6f5f4] object-cover ${className}`} style={{ width: size, height: size, border: LINE }} />
+  );
+}
+
 /* Aviso flotante (venta nueva, boleta emitida, etc.). */
 export function Toast({ icon, tone, title, meta, className = "", style }: {
   icon: ReactNode; tone: string; title: string; meta: string; className?: string; style?: CSSProperties;
@@ -109,7 +127,13 @@ export function PublishMini() {
   const ch: Array<[string, boolean]> = [["Mercado Libre", true], ["Falabella", true], ["Paris", true], ["Ripley", false]];
   return (
     <Box>
-      <p className="font-semibold">Zapatillas urbanas blancas</p>
+      <div className="flex items-center gap-2.5">
+        <ProductThumb src={PRODUCT_IMG.zapatillas} size={40} />
+        <span className="min-w-0">
+          <span className="block truncate font-semibold">Zapatillas urbanas blancas</span>
+          <span className="block text-[#757575]">$49.990 · 24 en stock</span>
+        </span>
+      </div>
       <div className="mt-2 space-y-1">
         {ch.map(([c, on]) => (
           <div key={c} className="flex items-center justify-between rounded-md bg-white px-2 py-1" style={{ border: LINE }}>
@@ -128,8 +152,11 @@ export function PublishMini() {
 export function DirectSaleMini() {
   return (
     <Box>
-      {[["Polera oversize negra ×2", "$25.980"], ["Gorro lana", "$8.990"]].map(([a, b]) => (
-        <div key={a} className="flex justify-between gap-2 py-0.5"><span className="truncate">{a}</span><span className="font-mono">{b}</span></div>
+      {([[PRODUCT_IMG.polera, "Polera oversize negra ×2", "$25.980"], [PRODUCT_IMG.jockey, "Jockey blanco", "$8.990"]] as const).map(([img, a, b]) => (
+        <div key={a} className="flex items-center gap-2 py-0.5">
+          <ProductThumb src={img} size={26} />
+          <span className="min-w-0 flex-1 truncate">{a}</span><span className="font-mono">{b}</span>
+        </div>
       ))}
       <div className="mt-1.5 flex justify-between border-t border-black/[0.08] pt-1.5 text-[13px] font-semibold">
         <span>Total</span><span className="font-mono">$34.970</span>
@@ -211,9 +238,12 @@ export function LabelMini() {
 export function QuestionsMini() {
   return (
     <Box>
-      <div className="rounded-md bg-white p-2.5" style={{ border: LINE }}>
-        <p className="text-[#757575]">Pregunta · hace 3 min</p>
-        <p className="mt-0.5 font-medium">¿Tienen talla 40?</p>
+      <div className="flex items-center gap-2.5 rounded-md bg-white p-2.5" style={{ border: LINE }}>
+        <ProductThumb src={PRODUCT_IMG.zapatillas} size={34} />
+        <span className="min-w-0">
+          <span className="block truncate text-[#757575]">Zapatillas urbanas blancas · hace 3 min</span>
+          <span className="mt-0.5 block font-medium">¿Tienen talla 40?</span>
+        </span>
       </div>
       <div className="mt-1.5 rounded-md bg-[#e6f3fe] p-2.5 text-[#02093a]">
         Sí, tenemos talla 40 con despacho en 24 horas.
