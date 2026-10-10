@@ -219,7 +219,11 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
         {/* Producto (va cambiando con cada venta) */}
         <div ref={cardRef} className="lp-shot relative z-10 mx-auto w-full max-w-[300px] rounded-[12px] bg-white p-3" style={{ border: LINE }}>
           <div className="flex items-center justify-between gap-2 text-[11px]">
-            <span className="rounded-full bg-[#f6f5f4] px-2 py-0.5 font-medium text-[#615d59]">{drop ? "Proveedor" : "Bodega Centro"}</span>
+            {/* El centralizador: todo pasa por Admin Marketplace */}
+            <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[#f6f5f4] py-0.5 pl-0.5 pr-2 font-semibold text-black">
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-black text-[9px] font-bold text-white">M</span>
+              <span className="truncate">Admin Marketplace{drop ? " · Proveedor" : ""}</span>
+            </span>
             <span className="flex items-center gap-1.5 font-medium text-[#15803d]">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#15803d] opacity-60 motion-reduce:hidden" />
@@ -287,7 +291,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Reposición recibida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Orden de compra N° 318 · Bodega Centro</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Orden de compra N° 318 · Admin Marketplace</span>
                 </span>
               </div>
             )}
