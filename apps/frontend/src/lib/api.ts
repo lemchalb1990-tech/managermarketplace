@@ -1099,6 +1099,8 @@ export const api = {
       list: (token: string) => apiFetch<any[]>('/settings/platforms', {}, token),
       update: (platform: string, data: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number }, token: string) =>
         apiFetch<any>(`/settings/platforms/${platform}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      uploadLogo: (platform: string, file: File, token: string) =>
+        apiUpload<{ url: string }>(`/settings/platforms/${platform}/logo`, file, token),
     },
   },
   notificationSounds: {
