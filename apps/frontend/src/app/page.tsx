@@ -307,8 +307,8 @@ export default async function Home() {
           <h1 className="lp-h1 lp-h1--hero ui-enter max-w-[22ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
             Un solo stock para <span className="lp-pill">vender</span> en todos tus canales
           </h1>
-          {/* Bajada con los botones al lado */}
-          <div className="ui-enter mt-6 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12" style={{ ["--d" as string]: "160ms" }}>
+          {/* Bajada con los botones debajo */}
+          <div className="ui-enter mt-6 flex flex-col gap-8" style={{ ["--d" as string]: "160ms" }}>
             <p className="lp-lead max-w-[52ch] text-pretty text-[#615d59]">
               Mercado Libre, Falabella, Paris, Ripley y Walmart conectados a tu bodega.
               Vendes en uno y se descuenta en todos.
