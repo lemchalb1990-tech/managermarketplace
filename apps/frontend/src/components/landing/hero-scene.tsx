@@ -34,9 +34,9 @@ function ChannelCard({ ch, logo, stock, active }: {
   ch: Channel; logo: ReactNode; stock: number; active: boolean;
 }) {
   return (
-    <div className={`relative flex items-center gap-2.5 rounded-[10px] bg-white px-2.5 py-2 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
+    <div className={`relative flex items-center gap-2 rounded-[10px] bg-white px-2 py-1.5 transition-[box-shadow,transform] duration-300 ${active ? "-translate-y-0.5 shadow-[0_0_0_2px_#0075de,0_8px_20px_rgba(0,117,222,0.18)]" : "shadow-[0_2px_8px_rgba(0,0,0,0.06)]"}`}
       style={{ border: LINE }}>
-      <span className="h-8 w-[50px] shrink-0 overflow-hidden rounded-[6px] [&>*]:h-full [&>*]:w-full">{logo}</span>
+      <span className="h-7 w-10 shrink-0 overflow-hidden rounded-[6px] [&>*]:h-full [&>*]:w-full">{logo}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12px] font-semibold leading-tight">{ch.name}</span>
         <span className="block text-[11px] leading-tight text-[#757575]">{ch.price}</span>
@@ -75,7 +75,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
   return (
     <div className="relative overflow-hidden rounded-[12px] bg-[#ffb110] p-3 sm:p-6">
       <div className="lp-dotgrid absolute inset-0 opacity-50" style={{ WebkitMaskImage: "none", maskImage: "none" }} />
-      <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-center xl:gap-5">
+      <div className="relative grid gap-3 xl:grid-cols-[minmax(0,1fr)_188px] xl:items-center xl:gap-5">
           {/* Producto */}
           <div className="lp-shot rounded-[12px] bg-white p-4" style={{ border: LINE }}>
             <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -153,7 +153,7 @@ export function HeroScene({ logos }: { logos: Record<string, ReactNode> }) {
           </div>
 
           {/* Canales: en columna al lado del producto en pantallas anchas */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1 xl:gap-2.5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
             {CHANNELS.map((ch) => (
               <ChannelCard key={ch.key} ch={ch} logo={logoOf(ch.key)} stock={stock} active={active?.key === ch.key} />
             ))}
