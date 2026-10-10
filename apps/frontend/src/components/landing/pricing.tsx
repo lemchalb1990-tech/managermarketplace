@@ -149,7 +149,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                 <span className="text-[34px] font-semibold tracking-[-0.03em]">Gratis</span>
                 {trial.trialDays ? <span className="text-[14px] text-[#02093a]/60">por {trial.trialDays} días</span> : null}
               </p>
-              <p className="mt-1 min-h-[1.4em] text-[12px] text-[#02093a]/60">Sin tarjeta de crédito</p>
+              <p className="mt-1 min-h-[1.4em] text-[12px] text-[#02093a]/60">Te la activa un ejecutivo</p>
             </div>
             <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               className="lp-btn lp-btn--primary mt-5 w-full">
