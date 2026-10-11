@@ -16,7 +16,12 @@ import { DialogProvider } from './ConfirmDialog';
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
 // anyPerm: el ítem se ve con cualquiera de esos permisos (además de `perm`).
 // planFeature: función del plan comercial que debe incluir la empresa (si no, se oculta).
-type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean; planFeature?: PlanFeature };
+// Visibilidad = mismo criterio que el servidor: la mayoría de las páginas las valida por ROL
+// (el ítem exige el permiso Y uno de `roles`); las que el servidor valida solo por PERMISO
+// (permOnly) se muestran con el permiso aunque el rol no esté en la lista. Así un perfil
+// amplio (p. ej. "Acceso total") en un rol menor no ve opciones que luego dirían
+// "No tienes permisos para esta acción".
+type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean; planFeature?: PlanFeature; permOnly?: boolean };
 type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -36,7 +41,7 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/pos', label: 'Punto de Venta', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/pos/ordenes-trabajo', label: 'Órdenes de trabajo', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/clientes', label: 'Registro de Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
-      { href: '/dashboard/devoluciones', label: 'Devoluciones', perm: 'returns', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/devoluciones', label: 'Devoluciones', perm: 'returns', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null, permOnly: true },
       { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
       { href: '/dashboard/sales', label: 'Reporte de Ventas', perm: 'sales', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
     ],
@@ -61,7 +66,7 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/mercadolibre/reclamos', label: 'Reclamos', perm: 'ml.reclamos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/devoluciones', label: 'Devoluciones', perm: 'ml.devoluciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/calificaciones', label: 'Calificaciones', perm: 'ml.calificaciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
-      { href: '/dashboard/mercadolibre/promociones', label: 'Promociones', perm: 'ml.promociones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce', planFeature: 'ML_PROMOTIONS' },
+      { href: '/dashboard/mercadolibre/promociones', label: 'Promociones', perm: 'ml.promociones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce', planFeature: 'ML_PROMOTIONS', permOnly: true },
       { href: '/dashboard/mercadolibre/registros-sin-conexion', label: 'Registros sin conexión', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
     ],
   },
@@ -71,7 +76,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/catalog', label: 'Catálogo', perm: 'catalog', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
       { href: '/dashboard/warehouses', label: 'Bodegas', perm: 'warehouses', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
-      { href: '/dashboard/inventario', label: 'Inventario y traspasos', perm: 'inventory', anyPerm: ['warehouses', 'transfers', 'transfers.receive'], roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog' },
+      { href: '/dashboard/inventario', label: 'Inventario y traspasos', perm: 'inventory', anyPerm: ['warehouses', 'transfers', 'transfers.receive'], roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'catalog', permOnly: true },
       { href: '/dashboard/purchases', label: 'Compras', perm: 'purchases', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
       { href: '/dashboard/suppliers', label: 'Proveedores', perm: 'suppliers', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'purchases' },
       { href: '/dashboard/rentabilidad', label: 'Rentabilidad', perm: 'rentabilidad', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'rentabilidad' },
@@ -81,7 +86,7 @@ const navGroups: NavGroup[] = [
     key: 'finanzas',
     label: 'Finanzas',
     items: [
-      { href: '/dashboard/finanzas', label: 'Finanzas y presupuesto', perm: 'finance', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'finance' },
+      { href: '/dashboard/finanzas', label: 'Finanzas y presupuesto', perm: 'finance', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'finance', permOnly: true },
     ],
   },
   {
@@ -89,9 +94,9 @@ const navGroups: NavGroup[] = [
     label: 'Operación',
     items: [
       { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
-      { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null },
-      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING' },
-      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING' },
+      { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null, permOnly: true },
+      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
+      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
     ],
   },
   {
@@ -100,10 +105,10 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/despachos', label: 'Rutas', perm: 'despachos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
       { href: '/dashboard/mis-rutas', label: 'Mis rutas', perm: 'mis-rutas', roles: ['DESPACHADOR'], module: 'dispatch' },
-      { href: '/dashboard/repartidores/flota', label: 'Flota', perm: 'drivers.fleet', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
-      { href: '/dashboard/repartidores/metricas', label: 'Métricas', perm: 'drivers.metrics', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
-      { href: '/dashboard/repartidores/remuneracion', label: 'Remuneración', perm: 'drivers.payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'dispatch' },
-      { href: '/dashboard/repartidores/zonas', label: 'Zonas de demanda', perm: 'drivers.zones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch' },
+      { href: '/dashboard/repartidores/flota', label: 'Flota', perm: 'drivers.fleet', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch', permOnly: true },
+      { href: '/dashboard/repartidores/metricas', label: 'Métricas', perm: 'drivers.metrics', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch', permOnly: true },
+      { href: '/dashboard/repartidores/remuneracion', label: 'Remuneración', perm: 'drivers.payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'dispatch', permOnly: true },
+      { href: '/dashboard/repartidores/zonas', label: 'Zonas de demanda', perm: 'drivers.zones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dispatch', permOnly: true },
     ],
   },
   {
@@ -285,7 +290,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navGroups
       .map((g) => ({
         ...g,
-        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN') && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles))) && hasModule(user, n.module) && planAllows(user, n.planFeature)),
+        items: g.items.filter((n) => (!n.superOnly || user.role === 'SUPER_ADMIN')
+          && (n.permOnly || user.role === 'SUPER_ADMIN' || n.roles.includes(user.role))
+          && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles)))
+          && hasModule(user, n.module) && planAllows(user, n.planFeature)),
       }))
       .filter((g) => g.items.length > 0);
   }, [user]);
