@@ -141,7 +141,7 @@ export default function EscanearVentaPage() {
           </p>
         )}
         <p className="text-xs text-gray-400 mt-2 mb-4">
-          Escanea la etiqueta con la pistola de escanear o ingresa el número de envío o de venta de manera manual
+          Escanea la etiqueta de envío o el código de barras del ticket del Punto de venta con la pistola, o ingresa el número de envío o de venta de manera manual
         </p>
         <button onClick={openManual} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
           ✎ Entrada manual

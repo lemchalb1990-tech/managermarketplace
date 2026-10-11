@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import { Barcode128 } from '@/components/Barcode128';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
@@ -59,6 +60,8 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
   const clientRut = sale.client?.rut;
   const docs = (sale.invoices || []).filter((inv: any) => inv.folio);
   const { date, time } = formatDateTime(sale.createdAt, tz);
+  // Código para escanear la orden en bodega: el número de venta (solo si la venta tiene orden).
+  const scanCode = sale.order && sale.saleNumber != null ? String(sale.saleNumber).padStart(4, '0') : null;
   const header: DocHeaderData = {
     commercialName: sale.company?.name || user?.company?.name || profile?.razonSocial || 'Venta',
     profile,
@@ -107,6 +110,13 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
           <div style={{ marginTop: 6 }}>
             <p style={{ fontWeight: 'bold' }}>Notas</p>
             <p style={{ whiteSpace: 'pre-wrap' }}>{sale.notes}</p>
+          </div>
+        )}
+
+        {scanCode && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Barcode128 value={scanCode} height={44} module={printFormat === 'TICKET_58' ? 1.4 : 1.8} />
+            <p style={{ fontSize: '0.8em', marginTop: 2 }}>{sale.order.fulfillmentType === 'DELIVERY' ? 'Despacho' : 'Retiro'} · escanear en bodega</p>
           </div>
         )}
 
@@ -181,6 +191,13 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
         <div style={{ marginTop: 20, fontSize: 13 }}>
           <p style={{ fontWeight: 'bold', margin: '0 0 4px' }}>Notas</p>
           <p style={{ margin: 0, color: '#475569', whiteSpace: 'pre-wrap' }}>{sale.notes}</p>
+        </div>
+      )}
+
+      {scanCode && (
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Barcode128 value={scanCode} height={56} module={2} />
+          <p style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Orden de {sale.order.fulfillmentType === 'DELIVERY' ? 'despacho' : 'retiro'} · escanear en bodega</p>
         </div>
       )}
 

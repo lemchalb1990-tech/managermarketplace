@@ -130,6 +130,8 @@ export class OrdersService {
         { sale: { mlPackId: { contains: search } } },
         { sale: { mlShippingId: { contains: search } } },
         { sale: { mlMergedOrderIds: { has: search } } },
+        // Número de venta del Punto de venta (código de barras del ticket, ej. "0042").
+        ...(/^\d{1,9}$/.test(search) ? [{ sale: { saleNumber: Number(search) } }] : []),
       ];
     }
 

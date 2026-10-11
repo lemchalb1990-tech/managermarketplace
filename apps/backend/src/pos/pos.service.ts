@@ -417,6 +417,8 @@ export class PosService {
         user: { select: { id: true, name: true } },
         connection: { select: { id: true, name: true, marketplace: true } },
         company: { select: { id: true, name: true } },
+        // Orden de la venta: el ticket lleva su código de barras para escanearla en bodega.
+        order: { select: { id: true, fulfillmentType: true } },
       },
     });
     if (!sale) throw new NotFoundException('Venta no encontrada');
