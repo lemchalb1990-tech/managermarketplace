@@ -218,9 +218,9 @@ export default function LoginPage() {
                   {mode === 'register' ? '15 días de prueba gratis. Entra con tu cuenta de Google y crea tu empresa en un minuto.' : 'Ingresa con tu cuenta para continuar.'}
                 </p>
 
-                {authCfg.googleClientId && (mode === 'login' || authCfg.signupEnabled) && (
+                {mode === 'register' && authCfg.googleClientId && authCfg.signupEnabled && (
                   <div className="mt-7">
-                    <GoogleSignInButton clientId={authCfg.googleClientId} onCredential={handleGoogle} text={mode === 'register' ? 'signup_with' : 'continue_with'} />
+                    <GoogleSignInButton clientId={authCfg.googleClientId} onCredential={handleGoogle} text="signup_with" />
                   </div>
                 )}
                 {mode === 'register' && !authCfg.signupEnabled && (
@@ -229,12 +229,7 @@ export default function LoginPage() {
 
                 {mode === 'login' && (
                   <>
-                    {authCfg.googleClientId && (
-                      <div className="my-5 flex items-center gap-3 text-[12px] text-black/40">
-                        <span className="h-px flex-1 bg-black/10" />o con tu correo<span className="h-px flex-1 bg-black/10" />
-                      </div>
-                    )}
-                    <form onSubmit={handleSubmit} className={`${authCfg.googleClientId ? '' : 'mt-7 '}space-y-4`}>
+                    <form onSubmit={handleSubmit} className="mt-7 space-y-4">
                       <div>
                         <label className="mb-1.5 block text-[13px] font-medium text-black/70">Correo electrónico</label>
                         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -271,6 +266,14 @@ export default function LoginPage() {
                         {loading ? 'Ingresando…' : 'Ingresar'}
                       </button>
                     </form>
+                    {authCfg.googleClientId && (
+                      <>
+                        <div className="my-5 flex items-center gap-3 text-[12px] text-black/40">
+                          <span className="h-px flex-1 bg-black/10" />o<span className="h-px flex-1 bg-black/10" />
+                        </div>
+                        <GoogleSignInButton clientId={authCfg.googleClientId} onCredential={handleGoogle} text="continue_with" />
+                      </>
+                    )}
                   </>
                 )}
                 {mode === 'register' && error && <p className="mt-4 rounded-lg bg-[#fdecea] px-3.5 py-2.5 text-sm text-[#e32d14]">{error}</p>}
