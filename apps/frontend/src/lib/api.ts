@@ -110,6 +110,70 @@ export type MlMessageRule = {
   _count?: { logs: number };
 };
 
+// ── Promociones de Mercado Libre ──
+export type MlPromoType = 'PRICE_DISCOUNT' | 'SELLER_CAMPAIGN' | 'VOLUME' | 'DEAL' | 'MARKETPLACE_CAMPAIGN' | 'SMART' | 'PRICE_MATCHING'
+  | 'PRE_NEGOTIATED' | 'UNHEALTHY_STOCK' | 'DOD' | 'LIGHTNING';
+export type MlPromoEstimate = { revenue: number; fee: number | null; cost: number | null; profit: number | null; marginPct: number | null };
+export type MlPromoProduct = { id: string; name: string; sku: string; cost: number | null; stock: number; category: string | null; image: string | null };
+export type MlPromoActive = {
+  type: MlPromoType; typeLabel: string; status: string; promoKey: string; promotionId: string | null; offerId: string | null;
+  price: number | null; originalPrice: number | null; discountPct: number | null; finishDate: string | null;
+};
+export type MlPromoSummary = {
+  connections: Array<{ id: string; name: string }>; invitations: number; candidates: number; active: number; suggestions: number; lastSyncAt: string | null;
+};
+export type MlPromoCampaign = {
+  id: string; mlId: string; type: MlPromoType; typeLabel: string; subType: string | null; status: string; name: string | null;
+  startDate: string | null; finishDate: string | null; deadlineDate: string | null; benefits: any; createdByUs: boolean;
+  origin: 'INVITATION' | 'OWN'; pricing: 'SELLER' | 'ML'; connection: { id: string; name: string }; candidates: number; active: number; itemsSyncedAt: string | null;
+};
+export type MlPromoItemRow = {
+  itemId: string; title: string; thumbnail: string | null; permalink: string | null; product: MlPromoProduct | null; stock: number | null;
+  mlStatus: string | null; originalPrice: number | null; feePct: number | null; currentEstimate: MlPromoEstimate | null;
+  promo: {
+    type: MlPromoType; status: string; offerId: string | null; price: number | null; minPrice: number | null; maxPrice: number | null; suggestedPrice: number | null;
+    topPrice: number | null; meliPct: number | null; sellerPct: number | null; stockMin: number | null; stockMax: number | null; discountPct: number | null;
+    boosted: boolean; boostedPrice: number | null; startDate: string | null; finishDate: string | null;
+  } | null;
+  promoEstimate: MlPromoEstimate | null; activePromos: MlPromoActive[]; invitations: number;
+};
+export type MlPromoItemsPage = {
+  promotion: { mlId: string; type: MlPromoType; name: string | null; status: string; startDate: string | null; finishDate: string | null; deadlineDate: string | null; benefits: any } | null;
+  total: number; page: number; pageSize: number; categories: string[]; rows: MlPromoItemRow[]; allIds: string[];
+};
+export type MlPromoPriceMode = 'PERCENT' | 'SUGGESTED' | 'BEST_MARGIN' | 'MANUAL';
+export type MlPromoPreviewRow = {
+  itemId: string; title: string; thumbnail: string | null; product: MlPromoProduct | null; originalPrice: number | null; price: number | null;
+  topPrice: number | null; stock: number | null; discountPct: number | null; offerId: string | null; minPrice: number | null; maxPrice: number | null;
+  meliPct: number | null; estimate: MlPromoEstimate | null; status: 'ok' | 'warn' | 'error'; messages: string[];
+};
+export type MlPromoPreview = { rows: MlPromoPreviewRow[]; totals: { ok: number; warn: number; error: number; avgDiscount: number | null; avgMargin: number | null } };
+export type MlPromoJob = {
+  id: string; kind: 'APPLY' | 'REMOVE'; status: 'RUNNING' | 'DONE' | 'FAILED'; title: string; type: MlPromoType | null; total: number; done: number; ok: number; failed: number;
+  results: Array<{ itemId: string; title?: string | null; ok: boolean; price?: number | null; error?: string }> | null;
+  createdByName: string | null; createdAt: string; finishedAt: string | null; connection?: { name: string };
+};
+export type MlPromoActiveRow = {
+  id: string; itemId: string; connection: { id: string; name: string }; type: MlPromoType; typeLabel: string; status: string; promotionId: string | null;
+  promotionName: string | null; offerId: string | null; title: string; thumbnail: string | null; permalink: string | null; product: MlPromoProduct | null;
+  price: number | null; originalPrice: number | null; topPrice: number | null; discountPct: number | null; meliPct: number | null; boosted: boolean;
+  boostedPrice: number | null; startDate: string | null; finishDate: string | null; estimate: MlPromoEstimate | null; removable: boolean;
+};
+export type MlPromoRuleConfig = {
+  minMarginPct?: number; categories?: string[]; excludeProductIds?: string[]; excludeLabels?: Record<string, string>;
+  types?: MlPromoType[]; maxDiscountPct?: number; minMeliPct?: number | null; priceMode?: 'SUGGESTED' | 'BEST_MARGIN';
+  discountPct?: number; durationDays?: number; minStock?: number; noSalesDays?: number;
+};
+export type MlPromoRule = {
+  id: string; name: string; active: boolean; kind: 'INVITATIONS' | 'DISCOUNT'; connectionId: string | null; config: MlPromoRuleConfig;
+  lastRunAt: string | null; createdAt: string; pending: number; applied: number;
+};
+export type MlPromoSuggestion = {
+  id: string; rule: { id: string; name: string; kind: string }; connection: { id: string; name: string }; itemId: string; type: MlPromoType; typeLabel: string;
+  promotionId: string | null; price: number | null; originalPrice: number | null; discountPct: number | null; profit: number | null; marginPct: number | null;
+  reason: string; startDate: string | null; finishDate: string | null; createdAt: string; title: string; thumbnail: string | null; product: MlPromoProduct | null;
+};
+
 export type CourierConnectionInfo = {
   id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
   settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
@@ -119,6 +183,13 @@ export type CourierShipmentInfo = {
   price: string | null; labelUrl: string | null; status: 'CREATED' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'EXCEPTION' | 'CANCELLED';
   statusText: string | null; events: Array<{ date: string; description: string; location?: string | null }> | null;
   lastSyncAt: string | null; createdAt: string;
+};
+
+// Query string sin los parámetros vacíos.
+const qs = (params: Record<string, string | number | undefined | null>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') q.set(k, String(v));
+  return q.toString();
 };
 
 export const imgUrl = (path: string) => /^https?:\/\//.test(path) ? path : `${API_URL}${path}`;
@@ -625,6 +696,48 @@ export const api = {
         apiFetch<MlMessageRule>(`/ecommerce/ml/messages/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       deleteRule: (id: string, token: string) => apiFetch<any>(`/ecommerce/ml/messages/rules/${id}`, { method: 'DELETE' }, token),
     },
+    // Promociones: invitaciones de ML, promociones propias, aplicación masiva y reglas que sugieren.
+    promotions: {
+      summary: (token: string, params: { companyId?: string; connectionId?: string } = {}) =>
+        apiFetch<MlPromoSummary>(`/ecommerce/ml/promotions/summary?${qs(params)}`, {}, token),
+      sync: (connectionId: string, token: string) =>
+        apiFetch<MlPromoSummary>('/ecommerce/ml/promotions/sync', { method: 'POST', body: JSON.stringify({ connectionId }) }, token),
+      campaigns: (token: string, params: { companyId?: string; connectionId?: string; scope?: 'INVITATION' | 'OWN' } = {}) =>
+        apiFetch<MlPromoCampaign[]>(`/ecommerce/ml/promotions/campaigns?${qs(params)}`, {}, token),
+      createCampaign: (data: Record<string, unknown>, token: string) =>
+        apiFetch<{ id: string; mlId: string; type: MlPromoType; name: string | null }>('/ecommerce/ml/promotions/campaigns', { method: 'POST', body: JSON.stringify(data) }, token),
+      deleteCampaign: (id: string, token: string) => apiFetch<{ ok: boolean }>(`/ecommerce/ml/promotions/campaigns/${id}`, { method: 'DELETE' }, token),
+      items: (token: string, params: Record<string, string | number | undefined>) =>
+        apiFetch<MlPromoItemsPage>(`/ecommerce/ml/promotions/items?${qs(params)}`, {}, token),
+      active: (token: string, params: { companyId?: string; connectionId?: string; type?: string; search?: string } = {}) =>
+        apiFetch<MlPromoActiveRow[]>(`/ecommerce/ml/promotions/active?${qs(params)}`, {}, token),
+      forProduct: (productId: string, token: string) =>
+        apiFetch<Array<{ connection: string; connectionId: string; itemId: string; active: MlPromoActive[]; invitations: number }>>(`/ecommerce/ml/promotions/products/${productId}`, {}, token),
+      activeByProducts: (productIds: string[], token: string) =>
+        apiFetch<Record<string, { discountPct: number | null; status: string; type: MlPromoType; count: number }>>('/ecommerce/ml/promotions/products/active', { method: 'POST', body: JSON.stringify({ productIds }) }, token),
+      preview: (data: Record<string, unknown>, token: string) =>
+        apiFetch<MlPromoPreview>('/ecommerce/ml/promotions/preview', { method: 'POST', body: JSON.stringify(data) }, token),
+      apply: (data: Record<string, unknown>, token: string) =>
+        apiFetch<MlPromoJob>('/ecommerce/ml/promotions/apply', { method: 'POST', body: JSON.stringify(data) }, token),
+      remove: (connectionId: string, entries: Array<{ itemId: string; type: MlPromoType; promotionId?: string | null; offerId?: string | null }>, token: string) =>
+        apiFetch<MlPromoJob>('/ecommerce/ml/promotions/remove', { method: 'POST', body: JSON.stringify({ connectionId, entries }) }, token),
+      jobs: (token: string, params: { companyId?: string; connectionId?: string } = {}) =>
+        apiFetch<MlPromoJob[]>(`/ecommerce/ml/promotions/jobs?${qs(params)}`, {}, token),
+      job: (id: string, token: string) => apiFetch<MlPromoJob>(`/ecommerce/ml/promotions/jobs/${id}`, {}, token),
+      rules: (token: string, companyId?: string) =>
+        apiFetch<MlPromoRule[]>(`/ecommerce/ml/promotions/rules${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      createRule: (data: Partial<MlPromoRule> & { companyId?: string }, token: string) =>
+        apiFetch<MlPromoRule>('/ecommerce/ml/promotions/rules', { method: 'POST', body: JSON.stringify(data) }, token),
+      updateRule: (id: string, data: Partial<MlPromoRule>, token: string) =>
+        apiFetch<MlPromoRule>(`/ecommerce/ml/promotions/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+      deleteRule: (id: string, token: string) => apiFetch<{ ok: boolean }>(`/ecommerce/ml/promotions/rules/${id}`, { method: 'DELETE' }, token),
+      suggestions: (token: string, params: { companyId?: string; connectionId?: string; ruleId?: string } = {}) =>
+        apiFetch<MlPromoSuggestion[]>(`/ecommerce/ml/promotions/suggestions?${qs(params)}`, {}, token),
+      applySuggestions: (ids: string[], token: string) =>
+        apiFetch<{ jobs: MlPromoJob[]; errors: string[] }>('/ecommerce/ml/promotions/suggestions/apply', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+      dismissSuggestions: (ids: string[], token: string) =>
+        apiFetch<{ dismissed: number }>('/ecommerce/ml/promotions/suggestions/dismiss', { method: 'POST', body: JSON.stringify({ ids }) }, token),
+    },
     applyManufacturingTime: (productId: string, token: string) =>
       apiFetch<{ days: number; results: { connection: string; ok: boolean; immediate: boolean; error?: string }[] }>(
         `/ecommerce/ml/products/${productId}/manufacturing-time`, { method: 'POST' }, token),
@@ -779,7 +892,7 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{
         events: Array<{
-          type: 'sale' | 'question' | 'claim' | 'alert' | 'message'; id: string; title: string;
+          type: 'sale' | 'question' | 'claim' | 'alert' | 'message' | 'promo'; id: string; title: string;
           channel: string; connectionName: string | null; productName: string | null; orderRef: string | null;
           createdAt: string; href: string;
         }>;
@@ -1628,13 +1741,14 @@ export interface PhotoCheckResult {
 }
 
 // ── Planes comerciales ──
-export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY';
+export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS';
 
 export const SUBSCRIPTION_FEATURE_LABEL: Record<SubscriptionFeature, string> = {
   POS: 'Punto de venta',
   PURCHASES: 'Compras y costo promedio',
   PICKING: 'Picking y packing con escaneo',
   MULTICOMPANY: 'Multiempresa',
+  ML_PROMOTIONS: 'Promociones de Mercado Libre',
 };
 
 export interface SubscriptionPlan {

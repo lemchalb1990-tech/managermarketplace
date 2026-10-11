@@ -2,11 +2,12 @@
 
 import MlAvailabilityField from './MlAvailabilityField';
 import { useEffect, useState, FormEvent, useRef, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { ImportProgress } from '@/components/ImportProgress';
 import { api, imgUrl, ApiError } from '@/lib/api';
-import { hasModule, matchesModule } from '@/lib/modules';
+import { hasModule, matchesModule, planAllows } from '@/lib/modules';
+import { can } from '@/lib/permissions';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
@@ -14,6 +15,7 @@ import MergeModal from './MergeModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
 import MlPhotoCheck from './MlPhotoCheck';
+import MlProductPromos from './MlProductPromos';
 import {
   type PreflightCheck, type CheckStatus, PreflightRows, PublishCheckModal, MissingBanner, MissingNotice,
   fieldDomId, fieldBorder, isFieldInvalid, focusField,
@@ -1536,6 +1538,28 @@ export default function CatalogPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
+  // Promociones de Mercado Libre: etiqueta "En promo" y acción "Poner en promoción".
+  const router = useRouter();
+  const canPromos = !!currentUser && can(currentUser, 'ml.promociones', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER']) && planAllows(currentUser, 'ML_PROMOTIONS');
+  const [promoByProduct, setPromoByProduct] = useState<Record<string, { discountPct: number | null; status: string; count: number }>>({});
+  useEffect(() => {
+    if (!canPromos || !products.length) return;
+    let alive = true;
+    api.marketplace.promotions.activeByProducts(products.map((p) => p.id), getToken()!)
+      .then((m) => { if (alive) setPromoByProduct(m); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [canPromos, products]);
+  const promoBadge = (id: string) => {
+    const pr = promoByProduct[id];
+    if (!pr) return null;
+    return (
+      <span title={pr.status === 'pending' ? 'Promoción programada en Mercado Libre' : 'En promoción en Mercado Libre: el precio no se envía mientras dure'}
+        className="ml-2 inline-block px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
+        {pr.status === 'pending' ? 'Promo programada' : 'En promo'}{pr.discountPct ? ` −${Math.round(pr.discountPct)}%` : ''}
+      </span>
+    );
+  };
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
   // (antes el Super Admin veía todo, p. ej. "Precio proveedor" en empresas sin Dropshipping).
@@ -3034,6 +3058,13 @@ export default function CatalogPage() {
               {mergeLoading ? 'Cargando...' : 'Unificar'}
             </button>
           )}
+          {canPromos && (
+            <button onClick={() => router.push(`/dashboard/mercadolibre/promociones?products=${Array.from(selectedIds).join(',')}`)}
+              title="Descuento individual en Mercado Libre para los productos seleccionados, con vista previa de la ganancia"
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
+              Poner en promoción
+            </button>
+          )}
           <button onClick={() => setSelectedIds(new Set())}
             className="ml-auto text-xs text-blue-600 hover:text-blue-800">
             Limpiar selección
@@ -3084,6 +3115,7 @@ export default function CatalogPage() {
                 </div>
                 <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>
+                {promoBadge(p.id) && <div className="-ml-2 mb-1">{promoBadge(p.id)}</div>}
                 {p.productMaster && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); setSearch(p.productMaster.name); }}
                     title="Ver todas las variantes de este producto"
@@ -3197,6 +3229,7 @@ export default function CatalogPage() {
                   <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>
                   <td className={`${cellPad} font-medium text-gray-900`}>
                     {p.name}
+                    {promoBadge(p.id)}
                     {p.type === 'SERVICIO' && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                         Servicio
@@ -3962,6 +3995,7 @@ export default function CatalogPage() {
                   <p className="text-xs text-gray-500">
                     Stock, descripción y fotos son los mismos en todas las publicaciones. El precio y el título pueden ser los mismos (base) o propios de cada cuenta o publicación.
                   </p>
+                  {canPromos && <MlProductPromos productId={selected.id} />}
                   {connectionGroups.map((g) => {
                     const key = `${g.marketplace}-${selected.id}-${selected.updatedAt}`;
                     const refresh = () => refreshSelected(selected.id);

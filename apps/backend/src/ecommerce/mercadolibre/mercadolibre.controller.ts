@@ -10,6 +10,7 @@ import { Role } from '@prisma/client';
 import { MercadolibreService, MlAuthResult } from './mercadolibre.service';
 import { MlPhotoService } from './ml-photo.service';
 import { MlMessagesService } from './ml-messages.service';
+import { MlPromotionsService } from './ml-promotions.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -125,7 +126,7 @@ class PhotoFixApplyDto {
 export class MercadolibreController {
   private readonly logger = new Logger(MercadolibreController.name);
 
-  constructor(private service: MercadolibreService, private photos: MlPhotoService, private messages: MlMessagesService) {}
+  constructor(private service: MercadolibreService, private photos: MlPhotoService, private messages: MlMessagesService, private promotions: MlPromotionsService) {}
 
   // ─── Credenciales ─────────────────────────────────────────────────────────
 
@@ -501,6 +502,8 @@ export class MercadolibreController {
   webhook(@Body() body: any) {
     // Mensajes postventa: los atiende el servicio de mensajería.
     if (body?.topic === 'messages') return this.messages.handleWebhook(body);
+    // Promociones: candidatos nuevos y cambios en las ofertas.
+    if (/^public_(candidates|offers)$/.test(String(body?.topic || ''))) return this.promotions.handleWebhook(body);
     return this.service.handleWebhook(body);
   }
 

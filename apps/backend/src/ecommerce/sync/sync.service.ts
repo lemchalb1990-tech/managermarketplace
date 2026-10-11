@@ -13,6 +13,7 @@ import { WalmartAdapter } from '../platforms/walmart.adapter';
 import { StubAdapter } from '../platforms/stub.adapter';
 import { PlatformAdapter, SyncPayload } from '../platforms/platform.interface';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
+import { isInPromotion } from '../../common/ml-promo-guard.util';
 
 const ML_API = 'https://api.mercadolibre.com';
 
@@ -83,6 +84,11 @@ export class SyncService {
       const effectivePayload: SyncPayload = { ...payload, price: effectivePrice };
 
       if (connection.marketplace === MarketplaceType.MERCADO_LIBRE) {
+        // En promoción no se envía el precio (ML quitaría el descuento); el stock sí.
+        if (effectivePayload.price != null && await isInPromotion(this.prisma, connection.id, listing.externalId)) {
+          this.logger.log(`ML sync: item=${listing.externalId} en promoción, se omite el precio`);
+          effectivePayload.price = undefined;
+        }
         await this.syncMlListing(listing, effectivePayload.stock, effectivePayload.price);
       } else {
         if (!listing.externalId) {

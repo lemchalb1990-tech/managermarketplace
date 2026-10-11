@@ -21,6 +21,7 @@ import { SyncService } from '../sync/sync.service';
 import { InventoryCostingService } from '../../purchases/inventory-costing.service';
 import { StockLedgerService } from '../../purchases/stock-ledger.service';
 import { getEffectivePrice, getListingPrice } from '../../common/effective-price.util';
+import { isInPromotion } from '../../common/ml-promo-guard.util';
 import { SubscriptionService } from '../../subscription/subscription.service';
 import { StorageService } from '../../common/storage/storage.service';
 
@@ -229,6 +230,8 @@ export class MercadolibreService {
         { id: 'claims', label: 'Claims (reclamos)' },
         { id: 'shipments', label: 'Shipments (envíos)' },
         { id: 'orders_feedback', label: 'Orders feedback (calificaciones)' },
+        { id: 'public_candidates', label: 'Public candidates (invitaciones a promociones)' },
+        { id: 'public_offers', label: 'Public offers (cambios en promociones)' },
       ],
     };
   }
@@ -1140,12 +1143,15 @@ export class MercadolibreService {
 
     const price = await getListingPrice(this.prisma, { productId: product.id, connectionId: listing.connectionId, price: listing.price }, Number(product.mlPrice ?? product.price));
 
-    // Sincronizar precio y stock (ML no permite cambiar título de items activos)
+    // Sincronizar precio y stock (ML no permite cambiar título de items activos). En promoción
+    // solo el stock: enviar el precio haría que ML quite el descuento.
+    const inPromo = await isInPromotion(this.prisma, listing.connectionId, listing.externalId);
+    if (inPromo) warnings.push('Precio no enviado: la publicación está en una promoción de Mercado Libre');
     const itemRes = await fetch(`${ML_API}/items/${listing.externalId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        price: Math.round(price),
+        ...(inPromo ? {} : { price: Math.round(price) }),
         available_quantity: product.stock,
       }),
     });
@@ -1546,6 +1552,10 @@ export class MercadolibreService {
     const results: { connection: string; price: number; ok: boolean; error?: string }[] = [];
     for (const l of listings) {
       const price = Math.round(await getListingPrice(this.prisma, l, base));
+      if (await isInPromotion(this.prisma, l.connectionId, l.externalId)) {
+        results.push({ connection: l.connection.name, price, ok: false, error: 'en promoción: el precio se enviará cuando termine' });
+        continue;
+      }
       try {
         const token = await this.getValidToken(l.connectionId);
         const res = await fetch(`${ML_API}/items/${l.externalId}`, {
@@ -1900,7 +1910,7 @@ export class MercadolibreService {
   }
 
   private async fetchMlItems(itemIds: string[], token: string): Promise<any[]> {
-    const attrs = 'id,title,price,available_quantity,sold_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures,family_name';
+    const attrs = 'id,title,price,original_price,available_quantity,sold_quantity,thumbnail,secure_thumbnail,permalink,status,category_id,attributes,pictures,family_name';
     const items: any[] = [];
     for (let i = 0; i < itemIds.length; i += 20) {
       const batch = itemIds.slice(i, i + 20);
@@ -1915,7 +1925,12 @@ export class MercadolibreService {
         }
         const data = await res.json() as any[];
         for (const entry of data) {
-          if (entry.code === 200 && entry.body) items.push(entry.body);
+          if (entry.code !== 200 || !entry.body) continue;
+          // Con una promoción activa ML informa el precio rebajado en `price` y el de lista en
+          // `original_price`: se usa el de lista para no guardar el de la promoción como precio.
+          const b = entry.body;
+          if (Number(b.original_price) > Number(b.price)) b.price = b.original_price;
+          items.push(b);
         }
       } catch (err: any) {
         this.logger.warn(`ML items batch fetch error, se omite este lote: ${err?.message || err}`);
@@ -5120,6 +5135,35 @@ export class MercadolibreService {
         orderRef: m.sale?.externalId || null,
         createdAt: m.lastMessageAt!,
         href: `/dashboard/mercadolibre/mensajes?c=${m.id}`,
+      })),
+      // Promociones: invitaciones nuevas de ML y sugerencias nuevas de las reglas (para aprobar).
+      ...(await this.prisma.mlPromotion.findMany({
+        where: { ...where, createdAt: { gt: since }, status: { not: 'finished' }, createdByUs: false, type: { in: ['DEAL', 'MARKETPLACE_CAMPAIGN', 'SMART', 'PRICE_MATCHING', 'PRE_NEGOTIATED', 'UNHEALTHY_STOCK', 'DOD', 'LIGHTNING'] } },
+        select: { id: true, name: true, createdAt: true, connection: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }, take: 10,
+      })).map((p) => ({
+        type: 'promo' as const,
+        id: p.id,
+        title: 'Nueva invitación a promoción',
+        channel: 'Mercado Libre',
+        connectionName: p.connection?.name || null,
+        productName: p.name || null,
+        orderRef: null as string | null,
+        createdAt: p.createdAt,
+        href: '/dashboard/mercadolibre/promociones',
+      })),
+      ...(await this.prisma.mlPromotionSuggestion.groupBy({
+        by: ['ruleId'], where: { ...where, createdAt: { gt: since }, status: 'PENDING' }, _count: { _all: true }, _max: { createdAt: true },
+      })).map((g) => ({
+        type: 'promo' as const,
+        id: `sug-${g.ruleId}-${g._max.createdAt!.getTime()}`,
+        title: `${g._count._all} promoción(es) sugerida(s) para aprobar`,
+        channel: 'Mercado Libre',
+        connectionName: null as string | null,
+        productName: null as string | null,
+        orderRef: null as string | null,
+        createdAt: g._max.createdAt!,
+        href: '/dashboard/mercadolibre/promociones?tab=suggestions',
       })),
       ...claims.map((c) => ({
         type: 'claim' as const,
