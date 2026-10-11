@@ -65,7 +65,10 @@ export default function EscanearVentaPage() {
         return;
       }
       if (res.total === 0) {
-        setError(`No se encontró ninguna venta con el código "${code}".`);
+        // Número de venta del Punto de venta sin orden (p. ej. venta solo de servicios): nada que preparar.
+        setError(/^\d{1,9}$/.test(code)
+          ? `No hay una orden de bodega para la venta N° ${code}. Si fue una venta solo de servicios, no hay nada que preparar.`
+          : `No se encontró ninguna venta con el código "${code}".`);
       } else {
         setMatches(res.orders);
       }
