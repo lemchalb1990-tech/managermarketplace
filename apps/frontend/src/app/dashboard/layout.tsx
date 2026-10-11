@@ -469,9 +469,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </div>
             </header>
-            <main className="flex-1 overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-4 sm:pb-6 lg:px-8 lg:pt-5 lg:pb-8 min-w-0">
-              <CompanyGate>{children}</CompanyGate>
-              <footer className="mt-4 pt-2 -mb-2 sm:-mb-3 lg:-mb-4 border-t border-[var(--border-soft)] text-center text-xs text-[var(--text-muted)]">
+            {/* Columna: el contenido ocupa el alto libre y el pie queda siempre abajo, aunque la página tenga pocos datos. */}
+            <main className="flex-1 flex flex-col overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-4 sm:pb-6 lg:px-8 lg:pt-5 lg:pb-8 min-w-0">
+              <div className="flex-1 min-w-0">
+                <CompanyGate>{children}</CompanyGate>
+              </div>
+              <footer className="shrink-0 mt-4 pt-2 -mb-2 sm:-mb-3 lg:-mb-4 border-t border-[var(--border-soft)] text-center text-xs text-[var(--text-muted)]">
                 © {new Date().getFullYear()} AdminMarket de OnDataSolution
               </footer>
             </main>
