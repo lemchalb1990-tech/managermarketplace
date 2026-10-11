@@ -18,6 +18,10 @@ interface ChannelSalesAdapter {
   confirmSalesImport(conn: any, companyId: string, externalIds: string[], onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: string[] }>;
   importRecentSales(conn: any, companyId: string, onCreated?: OnSaleCreated): Promise<{ imported: number; skipped: number; errors: number }>;
   getOrderStates(conn: any, externalIds: string[]): Promise<Map<string, ChannelOrderState>>;
+  previewSalesImport(conn: any, companyId: string, from?: string, to?: string): Promise<{
+    truncated?: boolean;
+    orders: Array<{ externalId: string; date: string; total: number; importable: boolean; alreadyRegistered: boolean; items: Array<{ title: string; resolved: boolean }> }>;
+  }>;
 }
 
 // Orden del ciclo de vida: una sincronización nunca hace retroceder la Orden interna.
@@ -71,6 +75,37 @@ export class ChannelOrdersService {
       this.createOrderForSale(tx, created, ch.platform, touched));
     await this.pushStock(touched, ch.platform);
     return result;
+  }
+
+  // Verificador de órdenes: revisa las ventas desde `from` (ventana más amplia que la del cron)
+  // e importa las que faltan por el mismo camino que la importación automática (venta + orden +
+  // stock). No mueve el cursor del cron. Devuelve lo captado y lo que no se pudo importar.
+  async auditRecentSales(conn: any, from: Date) {
+    const ch = this.channelOf(conn.marketplace);
+    if (!ch) throw new Error(`${conn.marketplace} no soporta importación de ventas`);
+    const preview = await ch.adapter.previewSalesImport(conn, conn.companyId, from.toISOString());
+    const missing = preview.orders.filter((o) => !o.alreadyRegistered);
+    const ids = missing.filter((o) => o.importable).map((o) => o.externalId);
+    const out = {
+      checked: preview.orders.length, truncated: !!preview.truncated, registered: preview.orders.length - missing.length, cancelled: 0,
+      imported: [] as Array<{ externalId: string; saleId: string | null; total: number; date: string }>,
+      unlinked: missing.filter((o) => !o.importable && o.items.some((i) => !i.resolved))
+        .map((o) => ({ externalId: o.externalId, total: o.total, date: o.date, titles: o.items.filter((i) => !i.resolved).map((i) => i.title).slice(0, 5) })),
+      errors: [] as Array<{ externalId: string; message: string }>,
+    };
+    if (ids.length) {
+      const touched = new Set<string>();
+      const res = await ch.adapter.confirmSalesImport(conn, conn.companyId, ids, (tx, created) =>
+        this.createOrderForSale(tx, created, ch.platform, touched));
+      await this.pushStock(touched, ch.platform);
+      res.errors.forEach((message) => out.errors.push({ externalId: '', message }));
+      const sales = await this.prisma.sale.findMany({ where: { channel: ch.channel, externalId: { in: ids } }, select: { id: true, externalId: true } });
+      const byId = new Map(sales.map((x) => [x.externalId, x.id]));
+      for (const o of missing.filter((x) => ids.includes(x.externalId))) {
+        if (byId.has(o.externalId)) out.imported.push({ externalId: o.externalId, saleId: byId.get(o.externalId)!, total: o.total, date: o.date });
+      }
+    }
+    return out;
   }
 
   // Importación manual desde el modal. Con createOrders, además de la venta crea su Orden

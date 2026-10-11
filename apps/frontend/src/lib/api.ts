@@ -174,6 +174,30 @@ export type MlPromoSuggestion = {
   reason: string; startDate: string | null; finishDate: string | null; createdAt: string; title: string; thumbnail: string | null; product: MlPromoProduct | null;
 };
 
+// ── Verificador de órdenes (Super Admin) ──
+export type OrderAuditConnRow = {
+  connectionId: string; connection: string; companyId: string; company: string; marketplace: string;
+  checked: number; registered: number; imported: number; unlinked: number; cancelled: number; errors: number; statusFixed: number;
+  truncated: boolean; error: string | null; openIssues: number; captured30d: number;
+};
+export type OrderAuditRun = {
+  id: string; kind: 'QUICK' | 'FULL' | 'MANUAL'; status: 'RUNNING' | 'DONE' | 'FAILED'; windowFrom: string; connections: number;
+  ordersChecked: number; imported: number; statusFixed: number; newIssues: number; openIssues: number; errors: number;
+  createdByName: string | null; startedAt: string; finishedAt: string | null;
+};
+export type OrderAuditSummary = {
+  running: boolean; lastRun: OrderAuditRun | null; lastDone: OrderAuditRun | null;
+  captured: { today: number; week: number; month: number };
+  open: { critical: number; warning: number; byType: Record<string, number>; companies: number };
+  connections: OrderAuditConnRow[];
+};
+export type OrderAuditIssue = {
+  id: string; key: string; type: string; severity: 'CRITICAL' | 'WARNING' | 'INFO'; status: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  title: string; detail: string | null; channel: string | null; externalId: string | null; saleId: string | null; orderId: string | null;
+  amount: string | null; autoFixed: boolean; firstSeenAt: string; lastSeenAt: string; resolvedAt: string | null; resolvedByName: string | null;
+  company: { id: string; name: string }; connection: { id: string; name: string } | null;
+};
+
 export type CourierConnectionInfo = {
   id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
   settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
@@ -590,6 +614,15 @@ export const api = {
       stockOverride?: number;
     }, token: string) =>
       apiFetch<any>('/catalog/products/bulk/merge', { method: 'POST', body: JSON.stringify(dto) }, token),
+  },
+  orderAudit: {
+    summary: (token: string) => apiFetch<OrderAuditSummary>('/order-audit/summary', {}, token),
+    issues: (token: string, params: Record<string, string | undefined>) =>
+      apiFetch<{ total: number; page: number; pageSize: number; rows: OrderAuditIssue[] }>(`/order-audit/issues?${qs(params)}`, {}, token),
+    runs: (token: string) => apiFetch<OrderAuditRun[]>('/order-audit/runs', {}, token),
+    run: (full: boolean, token: string) => apiFetch<OrderAuditRun>('/order-audit/run', { method: 'POST', body: JSON.stringify({ full }) }, token),
+    setStatus: (id: string, status: 'OPEN' | 'RESOLVED' | 'IGNORED', token: string) =>
+      apiFetch<OrderAuditIssue>(`/order-audit/issues/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }, token),
   },
   marketplace: {
     getSettings: (token: string, companyId?: string) =>

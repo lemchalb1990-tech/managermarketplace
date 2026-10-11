@@ -4491,6 +4491,71 @@ export class MercadolibreService {
     return { imported, skipped, errors };
   }
 
+  // Verificador de órdenes: revisa las ventas de ML de una ventana de tiempo (más amplia que la
+  // del cron) y procesa las que faltan por el mismo camino que el webhook (venta + orden +
+  // stock). No mueve el cursor de la importación automática. Devuelve qué captó, qué no se
+  // pudo importar (productos sin vincular) y los errores.
+  async auditOrders(connectionId: string, from: Date, to: Date, maxOrders = 500) {
+    const connection = await this.prisma.marketplaceConnection.findUnique({ where: { id: connectionId } });
+    if (!connection) throw new NotFoundException('Conexión no encontrada');
+    const token = await this.getValidToken(connectionId);
+    let seller = connection.mlUserId;
+    if (!seller) {
+      const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!meRes.ok) throw new InternalServerErrorException(`No se pudo obtener el usuario de Mercado Libre (HTTP ${meRes.status})`);
+      seller = String(((await meRes.json()) as any).id);
+    }
+    const orders: any[] = [];
+    let offset = 0;
+    let total = 0;
+    do {
+      const params = new URLSearchParams({
+        seller, limit: '50', offset: String(offset), sort: 'date_desc',
+        'order.date_created.from': from.toISOString(), 'order.date_created.to': to.toISOString(),
+      });
+      const res = await fetch(`${ML_API}/orders/search?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new InternalServerErrorException(`Mercado Libre rechazó la búsqueda de ventas (HTTP ${res.status})`);
+      const data = await res.json() as any;
+      total = data.paging?.total || 0;
+      orders.push(...(data.results || []));
+      offset += 50;
+    } while (offset < total && orders.length < maxOrders);
+
+    const out = {
+      checked: orders.length, truncated: total > orders.length, registered: 0, cancelled: 0,
+      imported: [] as Array<{ externalId: string; saleId: string | null; total: number; date: string }>,
+      unlinked: [] as Array<{ externalId: string; total: number; date: string; titles: string[] }>,
+      errors: [] as Array<{ externalId: string; message: string }>,
+    };
+    for (const o of orders) {
+      const orderId = String(o.id);
+      try {
+        const existing = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderId) }, select: { id: true } });
+        if (existing) { out.registered++; continue; }
+        if (String(o.status) === 'cancelled') { out.cancelled++; continue; }
+        const orderRes = await fetch(`${ML_API}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!orderRes.ok) { out.errors.push({ externalId: orderId, message: `ML respondió HTTP ${orderRes.status} al pedir la orden` }); continue; }
+        const order = await orderRes.json() as any;
+        const result = await this.processOrder(orderId, order, token, connection.companyId, connection.id);
+        const sale = await this.prisma.sale.findFirst({ where: { channel: SaleChannel.MERCADO_LIBRE, ...this.mlOrderMatch(orderId) }, select: { id: true } });
+        const date = order.date_created || o.date_created || new Date().toISOString();
+        if (result === 'imported' || result === 'merged') {
+          out.imported.push({ externalId: orderId, saleId: sale?.id ?? null, total: Number(order.total_amount || 0), date });
+        } else if (sale) {
+          out.registered++;
+        } else {
+          out.unlinked.push({
+            externalId: orderId, total: Number(order.total_amount || 0), date,
+            titles: (order.order_items || []).map((oi: any) => `${oi.item?.title || ''} (${oi.item?.id || ''})`).slice(0, 5),
+          });
+        }
+      } catch (err: any) {
+        out.errors.push({ externalId: orderId, message: err?.message || String(err) });
+      }
+    }
+    return out;
+  }
+
   // ─── Módulo Mercado Libre: helpers comunes ───────────────────────────────────
 
   private async findActiveMlConnections() {
