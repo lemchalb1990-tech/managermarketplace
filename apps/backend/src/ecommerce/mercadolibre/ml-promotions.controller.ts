@@ -19,8 +19,8 @@ export class MlPromotionsController {
   }
 
   @Post('sync')
-  sync(@CurrentUser() user: any, @Body() body: { connectionId: string }) {
-    return this.service.syncNow(user, body?.connectionId);
+  sync(@CurrentUser() user: any, @Body() body: { connectionId?: string; companyId?: string }) {
+    return this.service.syncNow(user, body?.connectionId, body?.companyId);
   }
 
   @Get('campaigns')
@@ -65,7 +65,7 @@ export class MlPromotionsController {
 
   @Post('apply')
   apply(@CurrentUser() user: any, @Body() body: any) {
-    return this.service.apply(user, body || {});
+    return this.service.applyMany(user, body || {});
   }
 
   @Post('remove')

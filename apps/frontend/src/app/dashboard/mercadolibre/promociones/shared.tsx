@@ -89,3 +89,21 @@ export function PriceChange({ from, to, discount }: { from: number | null; to: n
 }
 
 export const MARGIN_NOTE = 'Ganancia estimada sin IVA: precio − comisión de ML − costo del producto. No incluye el costo de envío.';
+
+// ── Cuentas: un color por cuenta, el mismo en toda la pantalla ──
+const ACCOUNT_COLORS = ['#2563eb', '#16a34a', '#d97706', '#9333ea', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
+export type Account = { id: string; name: string };
+
+export function accountColor(accounts: Account[], id: string) {
+  const i = accounts.findIndex((a) => a.id === id);
+  return ACCOUNT_COLORS[(i < 0 ? 0 : i) % ACCOUNT_COLORS.length];
+}
+
+export function AccountDot({ accounts, id, name, showName = true }: { accounts: Account[]; id: string; name?: string; showName?: boolean }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-gray-600" title={name}>
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: accountColor(accounts, id) }} />
+      {showName && <span className="truncate">{name || accounts.find((a) => a.id === id)?.name}</span>}
+    </span>
+  );
+}

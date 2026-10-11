@@ -120,7 +120,8 @@ export type MlPromoActive = {
   price: number | null; originalPrice: number | null; discountPct: number | null; finishDate: string | null;
 };
 export type MlPromoSummary = {
-  connections: Array<{ id: string; name: string }>; invitations: number; candidates: number; active: number; suggestions: number; lastSyncAt: string | null;
+  connections: Array<{ id: string; name: string }>; invitations: number; urgent: number; candidates: number; active: number; endingSoon: number;
+  suggestions: number; rules: number; lastSyncAt: string | null; errors?: string[];
 };
 export type MlPromoCampaign = {
   id: string; mlId: string; type: MlPromoType; typeLabel: string; subType: string | null; status: string; name: string | null;
@@ -128,6 +129,7 @@ export type MlPromoCampaign = {
   origin: 'INVITATION' | 'OWN'; pricing: 'SELLER' | 'ML'; connection: { id: string; name: string }; candidates: number; active: number; itemsSyncedAt: string | null;
 };
 export type MlPromoItemRow = {
+  key: string; connection: { id: string; name: string }; promotionId: string | null;
   itemId: string; title: string; thumbnail: string | null; permalink: string | null; product: MlPromoProduct | null; stock: number | null;
   mlStatus: string | null; originalPrice: number | null; feePct: number | null; currentEstimate: MlPromoEstimate | null;
   promo: {
@@ -138,11 +140,11 @@ export type MlPromoItemRow = {
   promoEstimate: MlPromoEstimate | null; activePromos: MlPromoActive[]; invitations: number;
 };
 export type MlPromoItemsPage = {
-  promotion: { mlId: string; type: MlPromoType; name: string | null; status: string; startDate: string | null; finishDate: string | null; deadlineDate: string | null; benefits: any } | null;
   total: number; page: number; pageSize: number; categories: string[]; rows: MlPromoItemRow[]; allIds: string[];
 };
 export type MlPromoPriceMode = 'PERCENT' | 'SUGGESTED' | 'BEST_MARGIN' | 'MANUAL';
 export type MlPromoPreviewRow = {
+  key: string; connection: { id: string; name: string }; promotionId: string | null;
   itemId: string; title: string; thumbnail: string | null; product: MlPromoProduct | null; originalPrice: number | null; price: number | null;
   topPrice: number | null; stock: number | null; discountPct: number | null; offerId: string | null; minPrice: number | null; maxPrice: number | null;
   meliPct: number | null; estimate: MlPromoEstimate | null; status: 'ok' | 'warn' | 'error'; messages: string[];
@@ -731,10 +733,10 @@ export const api = {
     },
     // Promociones: invitaciones de ML, promociones propias, aplicación masiva y reglas que sugieren.
     promotions: {
-      summary: (token: string, params: { companyId?: string; connectionId?: string } = {}) =>
+      summary: (token: string, params: { companyId?: string; connectionIds?: string } = {}) =>
         apiFetch<MlPromoSummary>(`/ecommerce/ml/promotions/summary?${qs(params)}`, {}, token),
-      sync: (connectionId: string, token: string) =>
-        apiFetch<MlPromoSummary>('/ecommerce/ml/promotions/sync', { method: 'POST', body: JSON.stringify({ connectionId }) }, token),
+      sync: (params: { connectionId?: string; companyId?: string }, token: string) =>
+        apiFetch<MlPromoSummary>('/ecommerce/ml/promotions/sync', { method: 'POST', body: JSON.stringify(params) }, token),
       campaigns: (token: string, params: { companyId?: string; connectionId?: string; scope?: 'INVITATION' | 'OWN' } = {}) =>
         apiFetch<MlPromoCampaign[]>(`/ecommerce/ml/promotions/campaigns?${qs(params)}`, {}, token),
       createCampaign: (data: Record<string, unknown>, token: string) =>
@@ -751,7 +753,7 @@ export const api = {
       preview: (data: Record<string, unknown>, token: string) =>
         apiFetch<MlPromoPreview>('/ecommerce/ml/promotions/preview', { method: 'POST', body: JSON.stringify(data) }, token),
       apply: (data: Record<string, unknown>, token: string) =>
-        apiFetch<MlPromoJob>('/ecommerce/ml/promotions/apply', { method: 'POST', body: JSON.stringify(data) }, token),
+        apiFetch<{ jobs: MlPromoJob[] }>('/ecommerce/ml/promotions/apply', { method: 'POST', body: JSON.stringify(data) }, token),
       remove: (connectionId: string, entries: Array<{ itemId: string; type: MlPromoType; promotionId?: string | null; offerId?: string | null }>, token: string) =>
         apiFetch<MlPromoJob>('/ecommerce/ml/promotions/remove', { method: 'POST', body: JSON.stringify({ connectionId, entries }) }, token),
       jobs: (token: string, params: { companyId?: string; connectionId?: string } = {}) =>

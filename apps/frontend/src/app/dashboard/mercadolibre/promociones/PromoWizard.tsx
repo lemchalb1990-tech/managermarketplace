@@ -9,25 +9,47 @@ import { FilterBar, FilterCount, FilterField, filterInputCls, filterSelectCls } 
 import { btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 import { confirmDialog } from '../../ConfirmDialog';
 import {
-  MARGIN_NOTE, MarginCell, PriceChange, ProductCell, StatusBadge, TYPE_INFO, TypeBadge, clp, day, daysLeft, pct, todayYmd,
+  AccountDot, MARGIN_NOTE, MarginCell, PriceChange, ProductCell, StatusBadge, TYPE_INFO, TypeBadge, clp, day, daysLeft, pct, todayYmd,
+  type Account,
 } from './shared';
 
-export type WizardStart = { type?: MlPromoType; campaign?: MlPromoCampaign; productIds?: string[] };
+// Una misma campaña de ML existe por separado en cada cuenta: se agrupan por tipo y nombre.
+export type CampaignGroup = { key: string; type: MlPromoType; name: string; members: MlPromoCampaign[] };
 
-type Choice = { type: MlPromoType; campaign: MlPromoCampaign | null };
+export function groupCampaigns(list: MlPromoCampaign[]): CampaignGroup[] {
+  const map = new Map<string, CampaignGroup>();
+  for (const c of list) {
+    const name = c.name || TYPE_INFO[c.type]?.label || c.type;
+    // Las propias (campaña del vendedor, por cantidad) no se agrupan entre cuentas.
+    const key = c.origin === 'OWN' ? c.id : `${c.type}|${name.trim().toLowerCase()}`;
+    const g = map.get(key) || { key, type: c.type, name, members: [] };
+    g.members.push(c);
+    map.set(key, g);
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const da = Math.min(...a.members.map((m) => (m.deadlineDate ? new Date(m.deadlineDate).getTime() : Infinity)));
+    const db = Math.min(...b.members.map((m) => (m.deadlineDate ? new Date(m.deadlineDate).getTime() : Infinity)));
+    return da - db;
+  });
+}
+
+export type WizardStart = { type?: MlPromoType; group?: CampaignGroup; productIds?: string[] };
+type Choice = { type: MlPromoType; group: CampaignGroup | null };
 
 const STEPS = ['Qué quieres hacer', 'Elige productos', 'Define el descuento', 'Resultado'];
 
-export function PromoWizard({ connectionId, start, onClose, onFinished }: {
-  connectionId: string; start: WizardStart; onClose: () => void; onFinished: () => void;
+export function PromoWizard({ accounts, selectedAccounts, companyId, start, onClose, onFinished }: {
+  accounts: Account[]; selectedAccounts: string[]; companyId?: string; start: WizardStart; onClose: () => void; onFinished: () => void;
 }) {
-  const initialChoice: Choice | null = start.campaign ? { type: start.campaign.type, campaign: start.campaign }
-    : start.type && start.type !== 'SELLER_CAMPAIGN' && start.type !== 'VOLUME' ? { type: start.type, campaign: null } : null;
-  const [step, setStep] = useState(initialChoice ? 2 : 1);
-  const [choice, setChoice] = useState<Choice | null>(initialChoice);
+  const initial: Choice | null = start.group ? { type: start.group.type, group: start.group }
+    : start.type && start.type !== 'SELLER_CAMPAIGN' && start.type !== 'VOLUME' ? { type: start.type, group: null } : null;
+  const [step, setStep] = useState(initial ? 2 : 1);
+  const [choice, setChoice] = useState<Choice | null>(initial);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [job, setJob] = useState<MlPromoJob | null>(null);
-  const [preselectProducts] = useState(start.productIds || null);
+  const [allAccounts, setAllAccounts] = useState(false);
+  const [jobs, setJobs] = useState<MlPromoJob[]>([]);
+  // Cuentas en que se trabaja: las elegidas arriba (todas si no hay filtro).
+  const scope = selectedAccounts.length ? accounts.filter((a) => selectedAccounts.includes(a.id)) : accounts;
 
   return (
     <div className="ui-card p-4 sm:p-5">
@@ -49,23 +71,27 @@ export function PromoWizard({ connectionId, start, onClose, onFinished }: {
       {choice && step > 1 && step < 4 && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--page-bg)] px-3 py-2 text-sm">
           <TypeBadge type={choice.type} />
-          <span className="font-medium text-gray-800">{choice.campaign?.name || TYPE_INFO[choice.type].label}</span>
-          <span className="text-xs text-gray-500">{TYPE_INFO[choice.type].hint}</span>
+          <span className="font-medium text-gray-800">{choice.group?.name || TYPE_INFO[choice.type].label}</span>
+          <span className="flex flex-wrap gap-2">
+            {(choice.group ? choice.group.members.map((m) => m.connection) : scope).map((a) => <AccountDot key={a.id} accounts={accounts} id={a.id} name={a.name} />)}
+          </span>
+          <span className="basis-full text-xs text-gray-500">{TYPE_INFO[choice.type].hint}</span>
         </div>
       )}
 
       {step === 1 && (
-        <StepChoose connectionId={connectionId} onChoose={(c) => { setChoice(c); setSelected(new Set()); setStep(2); }} />
+        <StepChoose accounts={accounts} scope={scope} onChoose={(c) => { setChoice(c); setSelected(new Set()); setStep(2); }} />
       )}
       {step === 2 && choice && (
-        <StepProducts connectionId={connectionId} choice={choice} selected={selected} setSelected={setSelected} preselectProducts={preselectProducts}
+        <StepProducts accounts={accounts} scope={scope} companyId={companyId} choice={choice} selected={selected} setSelected={setSelected}
+          preselectProducts={start.productIds || null} allAccounts={allAccounts} setAllAccounts={setAllAccounts}
           onBack={() => setStep(1)} onNext={() => setStep(3)} />
       )}
       {step === 3 && choice && (
-        <StepDiscount connectionId={connectionId} choice={choice} itemIds={Array.from(selected)}
-          onBack={() => setStep(2)} onStarted={(j) => { setJob(j); setStep(4); }} />
+        <StepDiscount accounts={accounts} choice={choice} keys={Array.from(selected)} allAccounts={allAccounts}
+          onBack={() => setStep(2)} onStarted={(j) => { setJobs(j); setStep(4); }} />
       )}
-      {step === 4 && job && <StepResult job={job} onClose={() => { onFinished(); onClose(); }} />}
+      {step === 4 && <JobsResult jobs={jobs} onClose={() => { onFinished(); onClose(); }} />}
     </div>
   );
 }
@@ -86,31 +112,32 @@ function ChoiceCard({ icon, title, text, onClick, badge }: { icon: string; title
   );
 }
 
-function StepChoose({ connectionId, onChoose }: { connectionId: string; onChoose: (c: Choice) => void }) {
+function StepChoose({ accounts, scope, onChoose }: { accounts: Account[]; scope: Account[]; onChoose: (c: Choice) => void }) {
   const [campaigns, setCampaigns] = useState<MlPromoCampaign[] | null>(null);
   const [creating, setCreating] = useState<'SELLER_CAMPAIGN' | 'VOLUME' | null>(null);
 
   useEffect(() => {
-    api.marketplace.promotions.campaigns(getToken()!, { connectionId }).then(setCampaigns).catch(() => setCampaigns([]));
-  }, [connectionId]);
+    api.marketplace.promotions.campaigns(getToken()!).then(setCampaigns).catch(() => setCampaigns([]));
+  }, []);
 
-  const invitations = (campaigns || []).filter((c) => c.origin === 'INVITATION' && (daysLeft(c.deadlineDate) ?? 1) >= 0);
-  const own = (campaigns || []).filter((c) => c.origin === 'OWN');
+  const inScope = (campaigns || []).filter((c) => scope.some((a) => a.id === c.connection.id));
+  const invitations = groupCampaigns(inScope.filter((c) => c.origin === 'INVITATION' && (daysLeft(c.deadlineDate) ?? 1) >= 0));
+  const own = groupCampaigns(inScope.filter((c) => c.origin === 'OWN'));
 
   if (creating) {
-    return <CreateCampaign connectionId={connectionId} type={creating} onCancel={() => setCreating(null)}
-      onCreated={(c) => onChoose({ type: c.type, campaign: c })} />;
+    return <CreateCampaign accounts={accounts} scope={scope} type={creating} onCancel={() => setCreating(null)}
+      onCreated={(c) => onChoose({ type: c.type, group: { key: c.id, type: c.type, name: c.name || TYPE_INFO[c.type].label, members: [c] } })} />;
   }
 
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ChoiceCard icon="🏷️" title="Bajar el precio unos días" text="Descuento individual en los productos que elijas. Entre 5% y 80%, hasta 14 días."
-          onClick={() => onChoose({ type: 'PRICE_DISCOUNT', campaign: null })} />
+        <ChoiceCard icon="🏷️" title="Bajar el precio unos días" text="Descuento individual en los productos que elijas, en una o varias cuentas. Entre 5% y 80%, hasta 14 días."
+          onClick={() => onChoose({ type: 'PRICE_DISCOUNT', group: null })} />
         <ChoiceCard icon="🤝" title="Sumarme a una campaña de ML" text="Invitaciones de Mercado Libre, muchas con parte del descuento pagado por ML."
           badge={invitations.length ? `${invitations.length} vigente(s)` : undefined}
           onClick={() => document.getElementById('promo-invitations')?.scrollIntoView({ behavior: 'smooth' })} />
-        <ChoiceCard icon="📣" title="Crear mi campaña" text="Una campaña con nombre propio (ej. “Cyber”) para agrupar descuentos, hasta 14 días."
+        <ChoiceCard icon="📣" title="Crear mi campaña" text="Una campaña con nombre propio (ej. “Cyber”) en una cuenta, hasta 14 días."
           onClick={() => setCreating('SELLER_CAMPAIGN')} />
         <ChoiceCard icon="🛍️" title="2x1 / 3x2 / 2da unidad" text="Descuento por cantidad: el comprador lleva más y paga menos."
           onClick={() => setCreating('VOLUME')} />
@@ -119,10 +146,10 @@ function StepChoose({ connectionId, onChoose }: { connectionId: string; onChoose
       <div id="promo-invitations">
         <p className="ui-subsection-title mb-2">Invitaciones de Mercado Libre</p>
         {campaigns === null ? <p className="text-sm text-gray-400">Cargando…</p>
-          : invitations.length === 0 ? <p className="text-sm text-gray-400">No hay invitaciones vigentes en esta cuenta. Usa “Actualizar desde ML” para revisar de nuevo.</p>
+          : invitations.length === 0 ? <p className="text-sm text-gray-400">No hay invitaciones vigentes en las cuentas elegidas. Usa “Actualizar desde ML” para revisar de nuevo.</p>
             : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {invitations.map((c) => <CampaignCard key={c.id} c={c} onClick={() => onChoose({ type: c.type, campaign: c })} cta="Elegir productos" />)}
+                {invitations.map((g) => <CampaignGroupCard key={g.key} g={g} accounts={accounts} onClick={() => onChoose({ type: g.type, group: g })} cta="Elegir productos" />)}
               </div>
             )}
       </div>
@@ -131,7 +158,7 @@ function StepChoose({ connectionId, onChoose }: { connectionId: string; onChoose
         <div>
           <p className="ui-subsection-title mb-2">Mis campañas</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {own.map((c) => <CampaignCard key={c.id} c={c} onClick={() => onChoose({ type: c.type, campaign: c })} cta="Agregar productos" />)}
+            {own.map((g) => <CampaignGroupCard key={g.key} g={g} accounts={accounts} onClick={() => onChoose({ type: g.type, group: g })} cta="Agregar productos" />)}
           </div>
         </div>
       )}
@@ -139,41 +166,58 @@ function StepChoose({ connectionId, onChoose }: { connectionId: string; onChoose
   );
 }
 
-export function CampaignCard({ c, onClick, cta, extra }: { c: MlPromoCampaign; onClick: () => void; cta: string; extra?: React.ReactNode }) {
-  const left = daysLeft(c.deadlineDate);
-  const meli = Number(c.benefits?.meli_percent ?? 0);
-  const seller = Number(c.benefits?.seller_percent ?? 0);
-  const volume = c.type === 'VOLUME' ? (c.benefits?.name || (c.benefits?.buy_quantity ? `Lleva ${c.benefits.buy_quantity}${c.benefits.pay_quantity ? `, paga ${c.benefits.pay_quantity}` : ''}` : null)) : null;
+// Tarjeta de campaña agrupada: una línea por cuenta con sus invitados y participantes.
+export function CampaignGroupCard({ g, accounts, onClick, cta, extra }: {
+  g: CampaignGroup; accounts: Account[]; onClick: () => void; cta: string; extra?: (c: MlPromoCampaign) => React.ReactNode;
+}) {
+  const first = g.members[0];
+  const deadlines = g.members.map((m) => daysLeft(m.deadlineDate)).filter((x): x is number => x != null);
+  const left = deadlines.length ? Math.min(...deadlines) : null;
+  const meli = Number(first.benefits?.meli_percent ?? 0);
+  const seller = Number(first.benefits?.seller_percent ?? 0);
+  const volume = g.type === 'VOLUME' ? (first.benefits?.name || (first.benefits?.buy_quantity ? `Lleva ${first.benefits.buy_quantity}${first.benefits.pay_quantity ? `, paga ${first.benefits.pay_quantity}` : ''}` : null)) : null;
   return (
     <div className="flex flex-col rounded-xl border border-gray-200 bg-white p-4">
       <div className="mb-1 flex items-start justify-between gap-2">
-        <TypeBadge type={c.type} />
+        <TypeBadge type={g.type} />
         {left != null && left <= 3 && left >= 0 && <span className="ui-badge ui-badge--warn">Vence {left === 0 ? 'hoy' : `en ${left} día(s)`}</span>}
       </div>
-      <p className="text-sm font-semibold text-gray-900">{c.name || TYPE_INFO[c.type]?.label}</p>
+      <p className="text-sm font-semibold text-gray-900">{g.name}</p>
       <p className="mb-2 text-xs text-gray-500">
-        {day(c.startDate)} → {day(c.finishDate)}
-        {c.deadlineDate ? ` · sumarse hasta ${day(c.deadlineDate)}` : ''}
+        {day(first.startDate)} → {day(first.finishDate)}
+        {first.deadlineDate ? ` · sumarse hasta ${day(first.deadlineDate)}` : ''}
       </p>
-      <div className="mb-3 flex flex-wrap gap-1.5 text-[11px]">
-        {meli > 0 && <span className="rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700">ML aporta {pct(meli)}</span>}
-        {seller > 0 && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">tú {pct(seller)}</span>}
-        {volume && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{volume}</span>}
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{c.candidates} invitado(s)</span>
-        {c.active > 0 && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{c.active} participando</span>}
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <button type="button" onClick={onClick} className="text-sm font-semibold text-[var(--brand)] hover:underline">{cta} →</button>
-        {extra}
-      </div>
+      {(meli > 0 || seller > 0 || volume) && (
+        <div className="mb-2 flex flex-wrap gap-1.5 text-[11px]">
+          {meli > 0 && <span className="rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700">ML aporta {pct(meli)}</span>}
+          {seller > 0 && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">tú {pct(seller)}</span>}
+          {volume && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{volume}</span>}
+        </div>
+      )}
+      <ul className="mb-3 space-y-1 border-t border-[var(--border-soft)] pt-2">
+        {g.members.map((m) => (
+          <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
+            <AccountDot accounts={accounts} id={m.connection.id} name={m.connection.name} />
+            <span className="flex shrink-0 items-center gap-2 text-gray-500">
+              <span>{m.candidates} invitado(s)</span>
+              {m.active > 0 && <span className="text-blue-700">{m.active} participando</span>}
+              {extra?.(m)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={onClick} className="mt-auto self-start text-sm font-semibold text-[var(--brand)] hover:underline">{cta} →</button>
     </div>
   );
 }
 
-function CreateCampaign({ connectionId, type, onCancel, onCreated }: {
-  connectionId: string; type: 'SELLER_CAMPAIGN' | 'VOLUME'; onCancel: () => void; onCreated: (c: MlPromoCampaign) => void;
+function CreateCampaign({ accounts, scope, type, onCancel, onCreated }: {
+  accounts: Account[]; scope: Account[]; type: 'SELLER_CAMPAIGN' | 'VOLUME'; onCancel: () => void; onCreated: (c: MlPromoCampaign) => void;
 }) {
-  const [form, setForm] = useState({ name: '', startDate: todayYmd(), days: '7', subType: 'BNGM', buyQuantity: '2', payQuantity: '1', discountPercentage: '50', allowCombination: true });
+  const [form, setForm] = useState({
+    connectionId: scope[0]?.id || accounts[0]?.id || '', name: '', startDate: todayYmd(), days: '7',
+    subType: 'BNGM', buyQuantity: '2', payQuantity: '1', discountPercentage: '50', allowCombination: true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -183,14 +227,14 @@ function CreateCampaign({ connectionId, type, onCancel, onCreated }: {
     setError('');
     try {
       const p = await api.marketplace.promotions.createCampaign({
-        connectionId, type, name: form.name, startDate: form.startDate, days: Number(form.days),
+        connectionId: form.connectionId, type, name: form.name, startDate: form.startDate, days: Number(form.days),
         ...(type === 'VOLUME' ? {
           subType: form.subType, buyQuantity: Number(form.buyQuantity), payQuantity: Number(form.payQuantity),
           discountPercentage: Number(form.discountPercentage), allowCombination: form.allowCombination,
         } : {}),
       }, getToken()!);
       // La campaña recién creada se elige con sus productos candidatos.
-      const list = await api.marketplace.promotions.campaigns(getToken()!, { connectionId });
+      const list = await api.marketplace.promotions.campaigns(getToken()!, { connectionId: form.connectionId });
       const c = list.find((x) => x.mlId === p.mlId);
       if (!c) throw new Error('La campaña se creó, pero aún no aparece. Actualiza desde ML en unos minutos.');
       onCreated(c);
@@ -203,10 +247,19 @@ function CreateCampaign({ connectionId, type, onCancel, onCreated }: {
   return (
     <div className="max-w-xl space-y-4">
       <p className="text-sm font-semibold text-gray-900">{type === 'VOLUME' ? 'Nueva promoción por cantidad' : 'Nueva campaña del vendedor'}</p>
-      <div>
-        <label className={labelCls}>Nombre</label>
-        <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={type === 'VOLUME' ? 'Lleva 2 y ahorra' : 'Cyber octubre'} className={inputCls} />
+      <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
+        <div>
+          <label className={labelCls}>Cuenta</label>
+          <select value={form.connectionId} onChange={(e) => set('connectionId', e.target.value)} className={inputCls}>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Nombre</label>
+          <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={type === 'VOLUME' ? 'Lleva 2 y ahorra' : 'Cyber octubre'} className={inputCls} />
+        </div>
       </div>
+      <p className="text-[11px] text-gray-400">Mercado Libre crea estas campañas por cuenta. Para otra cuenta, créala de nuevo eligiendo esa cuenta.</p>
       {type === 'VOLUME' && (
         <div className="space-y-3 rounded-xl border border-gray-200 p-3">
           <div className="flex flex-wrap gap-1.5">
@@ -237,7 +290,7 @@ function CreateCampaign({ connectionId, type, onCancel, onCreated }: {
       <FormError message={error} />
       <div className="flex gap-2">
         <button type="button" onClick={onCancel} disabled={busy} className={btnSecondary}>Volver</button>
-        <button type="button" onClick={create} disabled={busy || !form.name.trim()} className={btnPrimary}>{busy ? 'Creando en Mercado Libre…' : 'Crear y elegir productos'}</button>
+        <button type="button" onClick={create} disabled={busy || !form.name.trim() || !form.connectionId} className={btnPrimary}>{busy ? 'Creando en Mercado Libre…' : 'Crear y elegir productos'}</button>
       </div>
     </div>
   );
@@ -246,27 +299,32 @@ function CreateCampaign({ connectionId, type, onCancel, onCreated }: {
 // ── Paso 2 ────────────────────────────────────────────────────────────────
 
 const PROMO_FILTERS: Array<[string, string]> = [['', 'Todas'], ['none', 'Sin promoción'], ['active', 'Ya en promoción'], ['invited', 'Invitadas por ML'], ['nocost', 'Sin costo cargado']];
+const emptyFilters = (campaign: boolean) => ({ search: '', account: '', category: '', minStock: '', minMargin: '', noSalesDays: '', promo: '', status: campaign ? 'candidate' : '' });
 
-function StepProducts({ connectionId, choice, selected, setSelected, preselectProducts, onBack, onNext }: {
-  connectionId: string; choice: Choice; selected: Set<string>; setSelected: (s: Set<string>) => void; preselectProducts: string[] | null;
-  onBack: () => void; onNext: () => void;
+function StepProducts({ accounts, scope, companyId, choice, selected, setSelected, preselectProducts, allAccounts, setAllAccounts, onBack, onNext }: {
+  accounts: Account[]; scope: Account[]; companyId?: string; choice: Choice; selected: Set<string>; setSelected: (s: Set<string>) => void;
+  preselectProducts: string[] | null; allAccounts: boolean; setAllAccounts: (v: boolean) => void; onBack: () => void; onNext: () => void;
 }) {
-  const isCampaign = !!choice.campaign;
-  const [filters, setFilters] = useState({ search: '', category: '', minStock: '', minMargin: '', noSalesDays: '', promo: '', status: isCampaign ? 'candidate' : '' });
+  const isCampaign = !!choice.group;
+  const accountsHere = isCampaign ? choice.group!.members.map((m) => m.connection) : scope;
+  const [filters, setFilters] = useState(emptyFilters(isCampaign));
   const [applied, setApplied] = useState(filters);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<MlPromoItemsPage | null>(null);
   const [loading, setLoading] = useState(false);
   const preselected = useRef(false);
+  const target = useMemo(() => (isCampaign
+    ? { targets: choice.group!.members.map((m) => `${m.connection.id}:${m.mlId}`).join(',') }
+    : { connectionIds: scope.map((a) => a.id).join(','), companyId }), [isCampaign, choice.group, scope, companyId]);
 
   const load = useCallback(() => {
     setLoading(true);
+    const first = preselectProducts && !preselected.current;
     api.marketplace.promotions.items(getToken()!, {
-      connectionId, promoKey: choice.campaign?.mlId, page, pageSize: 50, ...applied,
-      ...(preselectProducts && !preselected.current ? { productIds: preselectProducts.join(',') } : {}),
+      ...target, page, pageSize: 50, ...applied, ...(first ? { productIds: preselectProducts!.join(',') } : {}),
     }).then((d) => {
-      // Desde el catálogo: los productos elegidos llegan seleccionados.
-      if (preselectProducts && !preselected.current) {
+      // Desde el catálogo: los productos elegidos llegan seleccionados (en todas sus cuentas).
+      if (first) {
         preselected.current = true;
         setSelected(new Set(d.allIds));
         setApplied((a) => ({ ...a }));
@@ -274,7 +332,7 @@ function StepProducts({ connectionId, choice, selected, setSelected, preselectPr
       }
       setData(d);
     }).catch(() => setData(null)).finally(() => setLoading(false));
-  }, [connectionId, choice.campaign?.mlId, page, applied, preselectProducts, setSelected]);
+  }, [target, page, applied, preselectProducts, setSelected]);
   useEffect(() => {
     const id = setTimeout(load, 0);
     return () => clearTimeout(id);
@@ -282,29 +340,42 @@ function StepProducts({ connectionId, choice, selected, setSelected, preselectPr
 
   const advanced = [applied.category, applied.minStock, applied.minMargin, applied.noSalesDays, applied.promo].filter(Boolean).length;
   const rows = data?.rows || [];
-  const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.itemId));
-  const toggle = (id: string) => { const n = new Set(selected); if (n.has(id)) n.delete(id); else n.add(id); setSelected(n); };
-  const togglePage = () => { const n = new Set(selected); rows.forEach((r) => (allOnPage ? n.delete(r.itemId) : n.add(r.itemId))); setSelected(n); };
+  const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.key));
+  const toggle = (k: string) => { const n = new Set(selected); if (n.has(k)) n.delete(k); else n.add(k); setSelected(n); };
+  const togglePage = () => { const n = new Set(selected); rows.forEach((r) => (allOnPage ? n.delete(r.key) : n.add(r.key))); setSelected(n); };
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+  const accountsSelected = new Set(Array.from(selected).map((k) => k.split('|')[0])).size;
 
   return (
     <div>
       <FilterBar
         sticky={false}
         search={{ label: 'Buscar', value: filters.search, onChange: (v) => setFilters((f) => ({ ...f, search: v })), placeholder: 'Nombre, SKU o código ML…' }}
-        primary={isCampaign ? (
-          <FilterField label="Estado">
-            <select value={filters.status} onChange={(e) => { const f = { ...filters, status: e.target.value }; setFilters(f); setApplied(f); setPage(1); }} className={filterSelectCls}>
-              <option value="candidate">Invitados (para sumar)</option>
-              <option value="started">Participando</option>
-              <option value="pending">Programados</option>
-              <option value="">Todos</option>
-            </select>
-          </FilterField>
-        ) : undefined}
+        primary={(
+          <>
+            {accountsHere.length > 1 && (
+              <FilterField label="Cuenta">
+                <select value={filters.account} onChange={(e) => { const f = { ...filters, account: e.target.value }; setFilters(f); setApplied(f); setPage(1); }} className={filterSelectCls}>
+                  <option value="">Todas</option>
+                  {accountsHere.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </FilterField>
+            )}
+            {isCampaign && (
+              <FilterField label="Estado">
+                <select value={filters.status} onChange={(e) => { const f = { ...filters, status: e.target.value }; setFilters(f); setApplied(f); setPage(1); }} className={filterSelectCls}>
+                  <option value="candidate">Invitados (para sumar)</option>
+                  <option value="started">Participando</option>
+                  <option value="pending">Programados</option>
+                  <option value="">Todos</option>
+                </select>
+              </FilterField>
+            )}
+          </>
+        )}
         activeCount={advanced}
         onApply={() => { setApplied(filters); setPage(1); }}
-        onClear={() => { const f = { search: '', category: '', minStock: '', minMargin: '', noSalesDays: '', promo: '', status: isCampaign ? 'candidate' : '' }; setFilters(f); setApplied(f); setPage(1); }}
+        onClear={() => { const f = emptyFilters(isCampaign); setFilters(f); setApplied(f); setPage(1); }}
         summary={data ? <FilterCount n={data.total} label="publicaciones" /> : null}
       >
         <FilterField label="Categoría">
@@ -333,39 +404,47 @@ function StepProducts({ connectionId, choice, selected, setSelected, preselectPr
       </FilterBar>
 
       <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
-        <span className="font-semibold text-gray-800">{selected.size} seleccionada(s)</span>
+        <span className="font-semibold text-gray-800">{selected.size} seleccionada(s){accountsSelected > 1 ? ` en ${accountsSelected} cuentas` : ''}</span>
         {data && data.total > 0 && (
           <button type="button" onClick={() => setSelected(new Set([...selected, ...data.allIds]))} className="font-medium text-[var(--brand)] hover:underline">
             Seleccionar las {data.total} del filtro
           </button>
         )}
         {selected.size > 0 && <button type="button" onClick={() => setSelected(new Set())} className="text-gray-500 hover:underline">Quitar selección</button>}
+        {choice.type === 'PRICE_DISCOUNT' && accounts.length > 1 && (
+          <label className="ml-auto flex items-center gap-2 text-gray-700">
+            <input type="checkbox" checked={allAccounts} onChange={(e) => setAllAccounts(e.target.checked)} />
+            Aplicar también en las otras cuentas donde está publicado
+          </label>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
             <tr>
               <th className="w-10 px-3 py-2"><input type="checkbox" checked={allOnPage} onChange={togglePage} aria-label="Seleccionar página" /></th>
               <th className="px-3 py-2">Producto</th>
+              <th className="px-3 py-2">Cuenta</th>
               <th className="px-3 py-2 text-right">Stock</th>
               <th className="px-3 py-2 text-right">Precio actual</th>
-              {isCampaign && <th className="px-3 py-2 text-right">{choice.campaign?.pricing === 'ML' ? 'Precio en la promo' : 'Sugerido por ML'}</th>}
+              {isCampaign && <th className="px-3 py-2 text-right">{TYPE_INFO[choice.type].pricing === 'ML' ? 'Precio en la promo' : 'Sugerido por ML'}</th>}
               <th className="px-3 py-2 text-right" title={MARGIN_NOTE}>{isCampaign ? 'Margen en la promo' : 'Margen actual'}</th>
               <th className="px-3 py-2">Promociones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {loading && !rows.length && <tr><td colSpan={7} className="p-6 text-center text-gray-400">Cargando publicaciones…</td></tr>}
+            {loading && !rows.length && <tr><td colSpan={8} className="p-6 text-center text-gray-400">Cargando publicaciones…</td></tr>}
             {!loading && !rows.length && (
-              <tr><td colSpan={7} className="p-6 text-center text-gray-400">
+              <tr><td colSpan={8} className="p-6 text-center text-gray-400">
                 {isCampaign ? 'No hay publicaciones con estos filtros en la campaña.' : 'No hay publicaciones activas con estos filtros.'}
               </td></tr>
             )}
             {rows.map((r) => (
-              <tr key={r.itemId} className={`cursor-pointer hover:bg-gray-50 ${selected.has(r.itemId) ? 'bg-[var(--brand-light)]' : ''}`} onClick={() => toggle(r.itemId)}>
-                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.has(r.itemId)} onChange={() => toggle(r.itemId)} /></td>
-                <td className="max-w-[340px] px-3 py-2"><ProductCell title={r.title} thumbnail={r.thumbnail} product={r.product} itemId={r.itemId} permalink={r.permalink} /></td>
+              <tr key={r.key} className={`cursor-pointer hover:bg-gray-50 ${selected.has(r.key) ? 'bg-[var(--brand-light)]' : ''}`} onClick={() => toggle(r.key)}>
+                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.has(r.key)} onChange={() => toggle(r.key)} /></td>
+                <td className="max-w-[320px] px-3 py-2"><ProductCell title={r.title} thumbnail={r.thumbnail} product={r.product} itemId={r.itemId} permalink={r.permalink} /></td>
+                <td className="max-w-[140px] px-3 py-2"><AccountDot accounts={accounts} id={r.connection.id} name={r.connection.name} /></td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.stock ?? '—'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{clp(r.originalPrice)}</td>
                 {isCampaign && (
@@ -408,12 +487,12 @@ function StepProducts({ connectionId, choice, selected, setSelected, preselectPr
 
 // ── Paso 3 ────────────────────────────────────────────────────────────────
 
-function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
-  connectionId: string; choice: Choice; itemIds: string[]; onBack: () => void; onStarted: (j: MlPromoJob) => void;
+function StepDiscount({ accounts, choice, keys, allAccounts, onBack, onStarted }: {
+  accounts: Account[]; choice: Choice; keys: string[]; allAccounts: boolean; onBack: () => void; onStarted: (j: MlPromoJob[]) => void;
 }) {
   const info = TYPE_INFO[choice.type];
   const sellerPriced = info.pricing === 'SELLER';
-  const hasSuggestion = !!choice.campaign && sellerPriced;
+  const hasSuggestion = !!choice.group && sellerPriced;
   const [mode, setMode] = useState<MlPromoPriceMode>(hasSuggestion ? 'SUGGESTED' : 'PERCENT');
   const [percent, setPercent] = useState('15');
   const [minMargin, setMinMargin] = useState('');
@@ -429,12 +508,23 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
   const [includeWarn, setIncludeWarn] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // Publicaciones elegidas agrupadas por cuenta, con la campaña de esa cuenta.
+  const targets = useMemo(() => {
+    const byConn = new Map<string, string[]>();
+    for (const k of keys) {
+      const [connectionId, itemId] = k.split('|');
+      byConn.set(connectionId, [...(byConn.get(connectionId) || []), itemId]);
+    }
+    return Array.from(byConn.entries()).map(([connectionId, itemIds]) => ({
+      connectionId, itemIds, promotionId: choice.group?.members.find((m) => m.connection.id === connectionId)?.mlId || null,
+    }));
+  }, [keys, choice.group]);
+
   const params = useMemo(() => ({
-    connectionId, type: choice.type, promotionId: choice.campaign?.mlId, itemIds,
-    mode, percent: Number(percent) || undefined,
+    type: choice.type, targets, allAccounts, mode, percent: Number(percent) || undefined,
     minMarginPct: mode === 'BEST_MARGIN' ? Number(bestMargin) || 0 : minMargin !== '' ? Number(minMargin) : undefined,
     loyaltyExtraPts: loyalty ? Number(loyalty) : undefined, stock: stock ? Number(stock) : undefined, manualPrices: manual,
-  }), [connectionId, choice, itemIds, mode, percent, minMargin, bestMargin, loyalty, stock, manual]);
+  }), [choice.type, targets, allAccounts, mode, percent, minMargin, bestMargin, loyalty, stock, manual]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -447,23 +537,27 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
   }, [params]);
 
   const toApply = (preview?.rows || []).filter((r) => r.status === 'ok' || (includeWarn && r.status === 'warn'));
+  const accountsToApply = new Set(toApply.map((r) => r.connection.id)).size;
 
   async function apply() {
     const finish = new Date(`${startDate}T12:00:00`);
     finish.setDate(finish.getDate() + Number(days) - 1);
-    const what = choice.type === 'PRICE_DISCOUNT'
-      ? `del ${day(startDate)} al ${day(finish.toISOString())}`
-      : choice.campaign?.name ? `en "${choice.campaign.name}"` : '';
+    const what = choice.type === 'PRICE_DISCOUNT' ? `del ${day(startDate)} al ${day(finish.toISOString())}` : choice.group?.name ? `en "${choice.group.name}"` : '';
     const locked = choice.type === 'LIGHTNING' || choice.type === 'DOD';
-    if (!(await confirmDialog(`¿Aplicar ${info.label.toLowerCase()} a ${toApply.length} publicación(es) ${what}?${locked ? ' Una vez activa, Mercado Libre no permite quitarla.' : ''}`))) return;
+    const where = accountsToApply > 1 ? ` en ${accountsToApply} cuentas` : '';
+    if (!(await confirmDialog(`¿Aplicar ${info.label.toLowerCase()} a ${toApply.length} publicación(es)${where} ${what}?${locked ? ' Una vez activa, Mercado Libre no permite quitarla.' : ''}`))) return;
     setBusy(true);
     setError('');
+    const byTarget = new Map<string, { connectionId: string; promotionId: string | null; items: Array<Record<string, unknown>> }>();
+    for (const r of toApply) {
+      const k = `${r.connection.id}|${r.promotionId || ''}`;
+      const t = byTarget.get(k) || { connectionId: r.connection.id, promotionId: r.promotionId, items: [] };
+      t.items.push({ itemId: r.itemId, price: r.price, topPrice: r.topPrice, stock: r.stock, offerId: r.offerId });
+      byTarget.set(k, t);
+    }
     try {
-      const job = await api.marketplace.promotions.apply({
-        connectionId, type: choice.type, promotionId: choice.campaign?.mlId, startDate, days: Number(days),
-        items: toApply.map((r) => ({ itemId: r.itemId, price: r.price, topPrice: r.topPrice, stock: r.stock, offerId: r.offerId })),
-      }, getToken()!);
-      onStarted(job);
+      const res = await api.marketplace.promotions.apply({ type: choice.type, startDate, days: Number(days), targets: Array.from(byTarget.values()) }, getToken()!);
+      onStarted(res.jobs);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -479,6 +573,7 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
       {mode === k && input}
     </label>
   );
+  const meli = Number(choice.group?.members[0]?.benefits?.meli_percent ?? 0);
 
   return (
     <div className="space-y-4">
@@ -486,15 +581,13 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
         <div className="grid gap-3 md:grid-cols-3">
           {modeCard('PERCENT', 'Mismo % a todos', 'Un descuento parejo. Si queda fuera del rango que acepta ML, se ajusta solo.',
             <span className="flex items-center gap-2"><input type="number" min={1} max={80} value={percent} onChange={(e) => setPercent(e.target.value)} className={`${inputCls} w-24`} /><span className="text-sm text-gray-600">% de descuento</span></span>)}
-          {hasSuggestion
-            ? modeCard('SUGGESTED', 'Precio sugerido por ML', 'El precio que Mercado Libre recomienda para cada publicación de la campaña.')
-            : null}
+          {hasSuggestion ? modeCard('SUGGESTED', 'Precio sugerido por ML', 'El precio que Mercado Libre recomienda para cada publicación de la campaña.') : null}
           {modeCard('BEST_MARGIN', 'El mayor descuento cuidando mi margen', 'Calcula para cada producto el precio más bajo que todavía deja el margen que pidas.',
             <span className="flex items-center gap-2"><input type="number" min={0} max={90} value={bestMargin} onChange={(e) => setBestMargin(e.target.value)} className={`${inputCls} w-24`} /><span className="text-sm text-gray-600">% de margen mínimo</span></span>)}
         </div>
       ) : (
         <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-900">
-          En esta promoción <strong>el descuento lo define Mercado Libre</strong>{choice.campaign?.benefits?.meli_percent ? ` y ML pone ${pct(Number(choice.campaign.benefits.meli_percent))}` : ''}. Solo eliges qué productos se suman; abajo ves cuánto ganas en cada uno.
+          En esta promoción <strong>el descuento lo define Mercado Libre</strong>{meli ? ` y ML pone ${pct(meli)}` : ''}. Solo eliges qué productos se suman; abajo ves cuánto ganas en cada uno.
         </div>
       )}
 
@@ -528,11 +621,11 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
             <input type="number" min={1} value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Mínimo de ML" className={`${inputCls} w-32`} />
           </div>
         )}
-        <p className="basis-full text-[11px] text-gray-400">{MARGIN_NOTE}</p>
+        <p className="basis-full text-[11px] text-gray-400">{MARGIN_NOTE}{allAccounts ? ' · Incluye el mismo producto en las demás cuentas donde está publicado.' : ''}</p>
       </div>
 
       {preview && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="ui-stat"><div className="ui-stat-value text-[var(--ok)]">{preview.totals.ok}</div><div className="ui-stat-label">Listas para aplicar</div></div>
           <div className="ui-stat"><div className="ui-stat-value text-[var(--warn)]">{preview.totals.warn}</div><div className="ui-stat-label">Con aviso</div></div>
           <div className="ui-stat"><div className="ui-stat-value text-[var(--danger)]">{preview.totals.error}</div><div className="ui-stat-label">No se aplicarán</div></div>
@@ -541,11 +634,12 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
       )}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
             <tr>
               <th className="w-8 px-3 py-2"></th>
               <th className="px-3 py-2">Producto</th>
+              <th className="px-3 py-2">Cuenta</th>
               <th className="px-3 py-2 text-right">Precio actual</th>
               <th className="px-3 py-2 text-right">Precio promoción</th>
               <th className="px-3 py-2 text-right" title={MARGIN_NOTE}>Margen</th>
@@ -553,17 +647,18 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {loading && !preview && <tr><td colSpan={6} className="p-6 text-center text-gray-400">Calculando precios y márgenes…</td></tr>}
+            {loading && !preview && <tr><td colSpan={7} className="p-6 text-center text-gray-400">Calculando precios y márgenes…</td></tr>}
             {(preview?.rows || []).map((r) => (
-              <tr key={r.itemId} className={r.status === 'error' ? 'bg-red-50/40' : ''}>
+              <tr key={r.key} className={r.status === 'error' ? 'bg-red-50/40' : ''}>
                 <td className="px-3 py-2 text-center text-base">{r.status === 'ok' ? '✅' : r.status === 'warn' ? '⚠️' : '⛔'}</td>
-                <td className="max-w-[300px] px-3 py-2"><ProductCell title={r.title} thumbnail={r.thumbnail} product={r.product} itemId={r.itemId} /></td>
+                <td className="max-w-[280px] px-3 py-2"><ProductCell title={r.title} thumbnail={r.thumbnail} product={r.product} itemId={r.itemId} /></td>
+                <td className="max-w-[140px] px-3 py-2"><AccountDot accounts={accounts} id={r.connection.id} name={r.connection.name} /></td>
                 <td className="px-3 py-2 text-right tabular-nums">{clp(r.originalPrice)}</td>
                 <td className="px-3 py-2 text-right">
                   {sellerPriced ? (
                     <span className="inline-flex flex-col items-end gap-0.5">
-                      <input type="number" value={manual[r.itemId] ?? r.price ?? ''} min={1}
-                        onChange={(e) => { const v = e.target.value; setManual((m) => { const n = { ...m }; if (v) n[r.itemId] = Number(v); else delete n[r.itemId]; return n; }); }}
+                      <input type="number" value={manual[r.key] ?? r.price ?? ''} min={1}
+                        onChange={(e) => { const v = e.target.value; setManual((m) => { const n = { ...m }; if (v) n[r.key] = Number(v); else delete n[r.key]; return n; }); }}
                         className="w-28 rounded-lg border border-gray-300 px-2 py-1 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       <span className="text-[11px] text-green-700">{r.discountPct ? `−${pct(r.discountPct)}` : ''}{r.topPrice ? ` · leales ${clp(r.topPrice)}` : ''}</span>
                     </span>
@@ -591,7 +686,7 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
             </label>
           )}
           <button type="button" onClick={apply} disabled={busy || loading || !toApply.length} className={btnPrimary}>
-            {busy ? 'Enviando…' : `Aplicar a ${toApply.length} publicación(es)`}
+            {busy ? 'Enviando…' : `Aplicar a ${toApply.length} publicación(es)${accountsToApply > 1 ? ` en ${accountsToApply} cuentas` : ''}`}
           </button>
         </div>
       </div>
@@ -601,7 +696,20 @@ function StepDiscount({ connectionId, choice, itemIds, onBack, onStarted }: {
 
 // ── Paso 4 ────────────────────────────────────────────────────────────────
 
-export function StepResult({ job: initial, onClose }: { job: MlPromoJob; onClose: () => void }) {
+// Avance de una o varias aplicaciones (una por cuenta).
+export function JobsResult({ jobs, onClose }: { jobs: MlPromoJob[]; onClose: () => void }) {
+  return (
+    <div className="space-y-4">
+      {jobs.map((j) => <JobProgress key={j.id} job={j} />)}
+      <p className="text-xs text-gray-500">
+        Sigue en segundo plano aunque cierres esta pantalla. Mercado Libre puede tardar unos minutos en mostrar el descuento; mientras dure la promoción, el sistema no envía el precio a esas publicaciones.
+      </p>
+      <button type="button" onClick={onClose} className={btnPrimary}>Volver a promociones</button>
+    </div>
+  );
+}
+
+function JobProgress({ job: initial }: { job: MlPromoJob }) {
   const [job, setJob] = useState(initial);
   useEffect(() => {
     if (job.status !== 'RUNNING') return;
@@ -612,33 +720,25 @@ export function StepResult({ job: initial, onClose }: { job: MlPromoJob; onClose
   }, [job.id, job.status]);
   const progress = job.total ? Math.round((job.done / job.total) * 100) : 0;
   const failed = (job.results || []).filter((r) => !r.ok);
-
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="rounded-xl border border-gray-200 p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-gray-900">{job.title}</p>
-        <p className="text-xs text-gray-500">{job.status === 'RUNNING' ? 'Aplicando en Mercado Libre… puedes cerrar esta pantalla, sigue en segundo plano.' : 'Terminado.'}</p>
+        <span className="flex gap-3 text-xs">
+          <span className="text-gray-500">{job.done} de {job.total}</span>
+          <span className="text-green-700">✅ {job.ok}</span>
+          {job.failed > 0 && <span className="text-red-600">⛔ {job.failed}</span>}
+          {job.status === 'RUNNING' && <span className="ui-badge ui-badge--info">Aplicando…</span>}
+        </span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
+      <div className="h-2 overflow-hidden rounded-full bg-gray-100">
         <div className="h-full rounded-full bg-[var(--brand)] transition-all" style={{ width: `${progress}%` }} />
       </div>
-      <div className="flex flex-wrap gap-4 text-sm">
-        <span>{job.done} de {job.total}</span>
-        <span className="text-green-700">✅ {job.ok} aplicadas</span>
-        {job.failed > 0 && <span className="text-red-600">⛔ {job.failed} rechazadas</span>}
-      </div>
       {failed.length > 0 && (
-        <div className="rounded-xl border border-red-100 bg-red-50/50 p-3">
-          <p className="mb-1 text-xs font-semibold text-red-700">Rechazadas por Mercado Libre</p>
-          <ul className="space-y-1 text-xs text-gray-700">
-            {failed.map((r) => <li key={r.itemId}><strong>{r.title || r.itemId}</strong>: {r.error}</li>)}
-          </ul>
-        </div>
+        <ul className="mt-2 space-y-1 text-xs text-gray-700">
+          {failed.map((r) => <li key={r.itemId}><strong>{r.title || r.itemId}</strong>: <span className="text-red-600">{r.error}</span></li>)}
+        </ul>
       )}
-      {job.status !== 'RUNNING' && job.ok > 0 && (
-        <p className="text-xs text-gray-500">Mercado Libre puede tardar unos minutos en mostrar el descuento. Mientras dure la promoción, el sistema no envía el precio a esas publicaciones para no quitar el descuento.</p>
-      )}
-      <button type="button" onClick={onClose} className={btnPrimary}>Volver a promociones</button>
     </div>
   );
 }

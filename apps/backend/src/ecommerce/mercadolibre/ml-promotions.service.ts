@@ -132,13 +132,22 @@ export class MlPromotionsService implements OnModuleInit {
 
   // ── Sincronización con ML ──────────────────────────────────────────────
 
-  async syncNow(user: any, connectionId: string) {
-    const conn = await this.connectionFor(user, connectionId);
+  // Una cuenta, o todas las de la empresa si no se indica.
+  async syncNow(user: any, connectionId?: string, companyId?: string) {
     if (integrationsDisabled()) throw new BadRequestException('Integraciones desactivadas en este servidor');
-    await this.syncConnection(conn);
-    await this.syncSomeItems(conn, 300);
-    await this.runRules(conn.companyId).catch((e) => this.logger.warn(`Reglas de promociones: ${e.message}`));
-    return this.summary(user, { companyId: conn.companyId, connectionId: conn.id });
+    const conns: Conn[] = connectionId ? [await this.connectionFor(user, connectionId)] : await this.connectionsFor(user, companyId);
+    if (!conns.length) throw new BadRequestException('No hay cuentas de Mercado Libre conectadas');
+    const errors: string[] = [];
+    for (const conn of conns) {
+      try {
+        await this.syncConnection(conn);
+        await this.syncSomeItems(conn, 300);
+      } catch (e: any) {
+        errors.push(`${conn.name}: ${e.message}`);
+      }
+    }
+    await this.runRules(conns[0].companyId).catch((e) => this.logger.warn(`Reglas de promociones: ${e.message}`));
+    return { ...(await this.summary(user, { companyId: conns[0].companyId })), errors };
   }
 
   // Invitaciones y campañas de la cuenta, con las publicaciones de cada una.
@@ -409,23 +418,29 @@ export class MlPromotionsService implements OnModuleInit {
 
   // ── Consultas ──────────────────────────────────────────────────────────
 
-  async summary(user: any, q: { companyId?: string; connectionId?: string }) {
+  // Resumen de las tarjetas del menú. connectionIds (separados por coma) limita a esas cuentas.
+  async summary(user: any, q: { companyId?: string; connectionIds?: string }) {
     const where = this.companyWhere(user, q.companyId);
     const conns = await this.connectionsFor(user, q.companyId);
-    const connFilter = q.connectionId ? { connectionId: q.connectionId } : {};
+    const ids = q.connectionIds ? String(q.connectionIds).split(',').filter(Boolean) : null;
+    const connFilter = ids ? { connectionId: { in: ids } } : {};
     const now = new Date();
-    const [invitations, candidates, active, suggestions, last] = await Promise.all([
-      this.prisma.mlPromotion.count({
-        where: { ...where, ...connFilter, status: { not: 'finished' }, type: { in: Object.keys(TYPE_META).filter((t) => TYPE_META[t as PromoType].origin === 'INVITATION') }, OR: [{ deadlineDate: null }, { deadlineDate: { gt: now } }] },
-      }),
+    const soon = new Date(Date.now() + 3 * 86_400_000);
+    const week = new Date(Date.now() + 7 * 86_400_000);
+    const invitationTypes = Object.keys(TYPE_META).filter((t) => TYPE_META[t as PromoType].origin === 'INVITATION');
+    const [invitations, urgent, candidates, active, endingSoon, suggestions, rules, last] = await Promise.all([
+      this.prisma.mlPromotion.count({ where: { ...where, ...connFilter, status: { not: 'finished' }, type: { in: invitationTypes }, OR: [{ deadlineDate: null }, { deadlineDate: { gt: now } }] } }),
+      this.prisma.mlPromotion.count({ where: { ...where, ...connFilter, status: { not: 'finished' }, type: { in: invitationTypes }, deadlineDate: { gt: now, lt: soon } } }),
       this.prisma.mlPromotionItem.count({ where: { ...where, ...connFilter, status: 'candidate', type: { not: 'PRICE_DISCOUNT' } } }),
       this.prisma.mlPromotionItem.count({ where: { ...where, ...connFilter, status: { in: ACTIVE_STATUSES } } }),
+      this.prisma.mlPromotionItem.count({ where: { ...where, ...connFilter, status: { in: ACTIVE_STATUSES }, finishDate: { gt: now, lt: week } } }),
       this.prisma.mlPromotionSuggestion.count({ where: { ...where, ...connFilter, status: 'PENDING' } }),
+      this.prisma.mlPromotionRule.count({ where: { ...where, active: true } }),
       this.prisma.mlPromotion.findFirst({ where: { ...where, ...connFilter }, orderBy: { syncedAt: { sort: 'desc', nulls: 'last' } }, select: { syncedAt: true } }),
     ]);
     return {
       connections: conns.map((c) => ({ id: c.id, name: c.name })),
-      invitations, candidates, active, suggestions,
+      invitations, urgent, candidates, active, endingSoon, suggestions, rules,
       lastSyncAt: last?.syncedAt ?? null,
     };
   }
@@ -503,27 +518,12 @@ export class MlPromotionsService implements OnModuleInit {
     }));
   }
 
-  /**
-   * Publicaciones para elegir en el asistente. Con promoKey: las de esa campaña (candidatas y
-   * participando). Sin promoKey: todas las publicaciones activas de la cuenta (descuento propio).
-   */
-  async items(user: any, q: {
-    connectionId: string; promoKey?: string; status?: string; search?: string; category?: string; minStock?: string; maxStock?: string;
-    minMargin?: string; noSalesDays?: string; promo?: string; page?: string; pageSize?: string; productIds?: string;
-  }) {
-    const conn = await this.connectionFor(user, q.connectionId);
-    const page = Math.max(1, Number(q.page) || 1);
-    const pageSize = Math.min(200, Math.max(10, Number(q.pageSize) || 50));
-    const search = String(q.search || '').trim().toLowerCase();
-    // Productos elegidos en el catálogo ("Poner en promoción").
-    const onlyProducts = q.productIds ? new Set(String(q.productIds).split(',').filter(Boolean)) : null;
-
+  // Filas de una cuenta para el asistente: las de una campaña (promoKey) o todas sus publicaciones activas.
+  private async itemRowsFor(conn: Conn, promoKey: string | null, status?: string) {
     let base: Array<{ itemId: string; row: any | null }>;
-    let promo: any = null;
-    if (q.promoKey) {
-      promo = await this.prisma.mlPromotion.findUnique({ where: { connectionId_mlId: { connectionId: conn.id, mlId: q.promoKey } } });
+    if (promoKey) {
       const rows = await this.prisma.mlPromotionItem.findMany({
-        where: { connectionId: conn.id, promoKey: q.promoKey, status: q.status ? q.status : { not: 'finished' } },
+        where: { connectionId: conn.id, promoKey, status: status ? status : { not: 'finished' } },
         orderBy: { itemId: 'asc' },
       });
       base = rows.map((r) => ({ itemId: r.itemId, row: r }));
@@ -538,7 +538,6 @@ export class MlPromotionsService implements OnModuleInit {
       const byItem = new Map(cands.map((c) => [c.itemId, c]));
       for (const b of base) b.row = byItem.get(b.itemId) || null;
     }
-
     const ids = base.map((b) => b.itemId);
     const ctx = await this.contexts(conn.id, ids);
     const allPromos = await this.prisma.mlPromotionItem.findMany({
@@ -548,10 +547,7 @@ export class MlPromotionsService implements OnModuleInit {
     const promosByItem = new Map<string, typeof allPromos>();
     for (const p of allPromos) promosByItem.set(p.itemId, [...(promosByItem.get(p.itemId) || []), p]);
 
-    const noSalesDays = Number(q.noSalesDays) || 0;
-    const withSales = await this.productsWithSales(Array.from(new Set(Array.from(ctx.values()).map((c) => c.product?.id).filter(Boolean))) as string[], noSalesDays);
-
-    const rows = base.map(({ itemId, row }) => {
+    return base.map(({ itemId, row }) => {
       const c = ctx.get(itemId)!;
       const original = dec(row?.originalPrice) ?? c.info?.price ?? null;
       const promoPrice = row ? dec(row.price) ?? dec(row.suggestedPrice) : null;
@@ -559,7 +555,10 @@ export class MlPromotionsService implements OnModuleInit {
       const atPromo = promoPrice != null ? estimate({ price: promoPrice, originalPrice: original, meliPct: dec(row?.meliPct), cost: c.product?.cost, feePct: c.info?.feePct, feeFixed: c.info?.feeFixed }) : null;
       const others = promosByItem.get(itemId) || [];
       return {
+        key: `${conn.id}|${itemId}`,
         itemId,
+        connection: { id: conn.id, name: conn.name },
+        promotionId: promoKey,
         title: c.info?.title || c.product?.name || itemId,
         thumbnail: c.info?.thumbnail || null,
         permalink: c.info?.permalink || null,
@@ -580,17 +579,52 @@ export class MlPromotionsService implements OnModuleInit {
         invitations: others.filter((o) => o.status === 'candidate' && o.type !== 'PRICE_DISCOUNT').length,
       };
     });
+  }
 
+  /**
+   * Publicaciones para elegir en el asistente, de varias cuentas a la vez.
+   * - targets "cuenta:campaña,cuenta:campaña": las publicaciones de esa campaña en cada cuenta
+   *   (una misma campaña de ML existe por separado en cada cuenta).
+   * - sin targets: todas las publicaciones activas de las cuentas indicadas (connectionIds) o de
+   *   todas las cuentas de la empresa (descuento propio).
+   * Cada fila trae su cuenta; la clave de selección es "cuenta|publicación".
+   */
+  async items(user: any, q: {
+    companyId?: string; connectionIds?: string; targets?: string; account?: string; status?: string; search?: string; category?: string;
+    minStock?: string; maxStock?: string; minMargin?: string; noSalesDays?: string; promo?: string; page?: string; pageSize?: string; productIds?: string;
+  }) {
+    const page = Math.max(1, Number(q.page) || 1);
+    const pageSize = Math.min(200, Math.max(10, Number(q.pageSize) || 50));
+    const search = String(q.search || '').trim().toLowerCase();
+    // Productos elegidos en el catálogo ("Poner en promoción").
+    const onlyProducts = q.productIds ? new Set(String(q.productIds).split(',').filter(Boolean)) : null;
+    const pairs: Array<{ conn: Conn; promoKey: string | null }> = [];
+    if (q.targets) {
+      for (const t of String(q.targets).split(',').filter(Boolean)) {
+        const [connectionId, ...rest] = t.split(':');
+        pairs.push({ conn: await this.connectionFor(user, connectionId), promoKey: rest.join(':') || null });
+      }
+    } else {
+      const ids = q.connectionIds ? String(q.connectionIds).split(',').filter(Boolean) : null;
+      const conns = ids ? await Promise.all(ids.map((id) => this.connectionFor(user, id))) : await this.connectionsFor(user, q.companyId);
+      for (const conn of conns) pairs.push({ conn, promoKey: null });
+    }
+    const campaignMode = pairs.some((x) => x.promoKey);
+    const rows = (await Promise.all(pairs.map((x) => this.itemRowsFor(x.conn, x.promoKey, q.status)))).flat();
+
+    const noSalesDays = Number(q.noSalesDays) || 0;
+    const withSales = await this.productsWithSales(Array.from(new Set(rows.map((r) => r.product?.id).filter(Boolean))) as string[], noSalesDays);
     const minStock = q.minStock !== undefined && q.minStock !== '' ? Number(q.minStock) : null;
     const maxStock = q.maxStock !== undefined && q.maxStock !== '' ? Number(q.maxStock) : null;
     const minMargin = q.minMargin !== undefined && q.minMargin !== '' ? Number(q.minMargin) : null;
     const filtered = rows.filter((r) => {
+      if (q.account && r.connection.id !== q.account) return false;
       if (search && !`${r.title} ${r.product?.name || ''} ${r.product?.sku || ''} ${r.itemId}`.toLowerCase().includes(search)) return false;
       if (onlyProducts && !(r.product && onlyProducts.has(r.product.id))) return false;
       if (q.category && (r.product?.category || '') !== q.category) return false;
       if (minStock != null && (r.stock ?? 0) < minStock) return false;
       if (maxStock != null && (r.stock ?? 0) > maxStock) return false;
-      const margin = (q.promoKey ? r.promoEstimate : r.currentEstimate)?.marginPct;
+      const margin = (campaignMode ? r.promoEstimate : r.currentEstimate)?.marginPct;
       if (minMargin != null && (margin == null || margin < minMargin)) return false;
       if (noSalesDays && r.product && withSales.has(r.product.id)) return false;
       if (q.promo === 'none' && r.activePromos.length) return false;
@@ -599,15 +633,16 @@ export class MlPromotionsService implements OnModuleInit {
       if (q.promo === 'nocost' && r.product?.cost) return false;
       return true;
     });
+    // El mismo producto queda junto en sus distintas cuentas.
+    filtered.sort((a, b) => (a.product?.name || a.title).localeCompare(b.product?.name || b.title) || a.connection.name.localeCompare(b.connection.name));
     const categories = Array.from(new Set(rows.map((r) => r.product?.category).filter(Boolean))).sort() as string[];
     return {
-      promotion: promo ? { mlId: promo.mlId, type: promo.type, name: promo.name, status: promo.status, startDate: promo.startDate, finishDate: promo.finishDate, deadlineDate: promo.deadlineDate, benefits: promo.benefits } : null,
       total: filtered.length,
       page, pageSize,
       categories,
       rows: filtered.slice((page - 1) * pageSize, page * pageSize),
-      // Ids de todo el resultado filtrado, para "seleccionar todos".
-      allIds: filtered.map((r) => r.itemId),
+      // Claves de todo el resultado filtrado, para "seleccionar todos".
+      allIds: filtered.map((r) => r.key),
     };
   }
 
@@ -695,17 +730,72 @@ export class MlPromotionsService implements OnModuleInit {
 
   // ── Vista previa y aplicación ──────────────────────────────────────────
 
+  /**
+   * Vista previa en varias cuentas. targets: [{ connectionId, promotionId?, itemIds }]. Con
+   * allAccounts (descuento individual) se suma el mismo producto en las demás cuentas donde está
+   * publicado. manualPrices usa la clave "cuenta|publicación".
+   */
   async preview(user: any, dto: {
-    connectionId: string; type: string; promotionId?: string; itemIds: string[]; mode?: PriceMode; percent?: number; minMarginPct?: number;
-    manualPrices?: Record<string, number>; loyaltyExtraPts?: number; stock?: number;
+    type: string; targets: Array<{ connectionId: string; promotionId?: string | null; itemIds: string[] }>; mode?: PriceMode; percent?: number;
+    minMarginPct?: number; manualPrices?: Record<string, number>; loyaltyExtraPts?: number; stock?: number; allAccounts?: boolean;
   }) {
-    const conn = await this.connectionFor(user, dto.connectionId);
     if (!isPromoType(dto.type)) throw new BadRequestException('Tipo de promoción no válido');
     const type = dto.type;
-    const ids = Array.from(new Set((dto.itemIds || []).map(String))).slice(0, 1000);
-    if (!ids.length) throw new BadRequestException('Elige al menos una publicación');
+    let targets = (dto.targets || []).filter((t) => t?.connectionId && t.itemIds?.length);
+    if (!targets.length) throw new BadRequestException('Elige al menos una publicación');
+    if (dto.allAccounts && type === 'PRICE_DISCOUNT') targets = await this.expandToAllAccounts(user, targets);
+    let total = 0;
+    const rows: any[] = [];
+    for (const t of targets) {
+      const conn = await this.connectionFor(user, t.connectionId);
+      const ids = Array.from(new Set(t.itemIds.map(String))).slice(0, 1000 - total);
+      total += ids.length;
+      rows.push(...(await this.previewTarget(conn, type, t.promotionId || null, ids, dto)));
+      if (total >= 1000) break;
+    }
+    const ok = rows.filter((r) => r.status !== 'error');
+    const withMargin = ok.filter((r) => r.estimate?.marginPct != null);
+    return {
+      rows,
+      totals: {
+        ok: rows.filter((r) => r.status === 'ok').length,
+        warn: rows.filter((r) => r.status === 'warn').length,
+        error: rows.filter((r) => r.status === 'error').length,
+        avgDiscount: ok.length ? Math.round(ok.reduce((s, r) => s + (r.discountPct || 0), 0) / ok.length * 10) / 10 : null,
+        avgMargin: withMargin.length ? Math.round(withMargin.reduce((s, r) => s + r.estimate.marginPct, 0) / withMargin.length * 10) / 10 : null,
+      },
+    };
+  }
+
+  // El mismo producto en las demás cuentas de ML de la empresa donde está publicado (activo).
+  private async expandToAllAccounts(user: any, targets: Array<{ connectionId: string; promotionId?: string | null; itemIds: string[] }>) {
+    const first = await this.connectionFor(user, targets[0].connectionId);
+    const listings = await this.prisma.listing.findMany({
+      where: { OR: targets.map((t) => ({ connectionId: t.connectionId, externalId: { in: t.itemIds } })) },
+      select: { productId: true },
+    });
+    const productIds = Array.from(new Set(listings.map((l) => l.productId)));
+    const all = await this.prisma.listing.findMany({
+      where: {
+        productId: { in: productIds }, externalId: { not: null }, status: ListingStatus.ACTIVE,
+        connection: { companyId: first.companyId, marketplace: MarketplaceType.MERCADO_LIBRE, active: true },
+      },
+      select: { connectionId: true, externalId: true },
+    });
+    const byConn = new Map<string, Set<string>>();
+    for (const t of targets) byConn.set(t.connectionId, new Set(t.itemIds));
+    for (const l of all) {
+      if (!byConn.has(l.connectionId)) byConn.set(l.connectionId, new Set());
+      byConn.get(l.connectionId)!.add(l.externalId!);
+    }
+    return Array.from(byConn.entries()).map(([connectionId, ids]) => ({ connectionId, promotionId: null, itemIds: Array.from(ids) }));
+  }
+
+  private async previewTarget(conn: Conn, type: PromoType, promotionId: string | null, ids: string[], dto: {
+    mode?: PriceMode; percent?: number; minMarginPct?: number; manualPrices?: Record<string, number>; loyaltyExtraPts?: number; stock?: number;
+  }) {
     await this.refreshItemInfo(conn, ids).catch(() => {});
-    const key = promoKeyOf(type, dto.promotionId);
+    const key = promoKeyOf(type, promotionId);
     const promoRows = await this.prisma.mlPromotionItem.findMany({ where: { connectionId: conn.id, itemId: { in: ids }, promoKey: key } });
     const byItem = new Map(promoRows.map((r) => [r.itemId, r]));
     const otherActive = await this.prisma.mlPromotionItem.findMany({
@@ -713,15 +803,17 @@ export class MlPromotionsService implements OnModuleInit {
     });
     const ctx = await this.contexts(conn.id, ids);
     const meta = TYPE_META[type];
-    const rows = ids.map((itemId) => {
+    return ids.map((itemId) => {
+      const rowKey = `${conn.id}|${itemId}`;
       const c = ctx.get(itemId)!;
       const row = byItem.get(itemId);
       const original = dec(row?.originalPrice) ?? c.info?.price ?? null;
+      const manual = dto.manualPrices?.[rowKey];
       const p = propose({
         type, originalPrice: original, minPrice: dec(row?.minPrice), maxPrice: dec(row?.maxPrice), suggestedPrice: dec(row?.suggestedPrice),
         mlPrice: dec(row?.price), meliPct: dec(row?.meliPct), cost: c.product?.cost, feePct: c.info?.feePct, feeFixed: c.info?.feeFixed,
         // Un precio escrito a mano en la vista previa manda sobre la regla.
-        mode: dto.manualPrices?.[itemId] != null ? 'MANUAL' : dto.mode || 'PERCENT', percent: dto.percent, minMarginPct: dto.minMarginPct ?? null, manualPrice: dto.manualPrices?.[itemId],
+        mode: manual != null ? 'MANUAL' : dto.mode || 'PERCENT', percent: dto.percent, minMarginPct: dto.minMarginPct ?? null, manualPrice: manual,
       });
       const messages = [...p.messages];
       let status = p.status;
@@ -744,28 +836,27 @@ export class MlPromotionsService implements OnModuleInit {
         if (stock < (row?.stockMin || 1)) { messages.push(`Stock insuficiente: ML pide al menos ${row?.stockMin || 1} unidades`); status = 'error'; }
       }
       return {
-        itemId, title: c.info?.title || c.product?.name || itemId, thumbnail: c.info?.thumbnail || null, product: c.product,
+        key: rowKey, itemId, connection: { id: conn.id, name: conn.name }, promotionId,
+        title: c.info?.title || c.product?.name || itemId, thumbnail: c.info?.thumbnail || null, product: c.product,
         originalPrice: original, price: p.price, topPrice, stock, discountPct: p.discountPct, offerId: row?.offerId || null,
         minPrice: dec(row?.minPrice), maxPrice: dec(row?.maxPrice), meliPct: dec(row?.meliPct),
         estimate: p.estimate, status, messages,
       };
     });
-    const ok = rows.filter((r) => r.status !== 'error');
-    return {
-      rows,
-      totals: {
-        ok: rows.filter((r) => r.status === 'ok').length,
-        warn: rows.filter((r) => r.status === 'warn').length,
-        error: rows.filter((r) => r.status === 'error').length,
-        avgDiscount: ok.length ? Math.round(ok.reduce((s, r) => s + (r.discountPct || 0), 0) / ok.length * 10) / 10 : null,
-        avgMargin: ok.filter((r) => r.estimate?.marginPct != null).length
-          ? Math.round(ok.filter((r) => r.estimate?.marginPct != null).reduce((s, r) => s + r.estimate!.marginPct!, 0) / ok.filter((r) => r.estimate?.marginPct != null).length * 10) / 10
-          : null,
-      },
-    };
   }
 
-  // Aplica en segundo plano: devuelve el trabajo y se consulta su avance con job().
+  // Aplica en varias cuentas: un trabajo en segundo plano por cuenta.
+  async applyMany(user: any, dto: { type: string; startDate?: string; days?: number; targets: Array<{ connectionId: string; promotionId?: string | null; items: ApplyItem[] }> }) {
+    const targets = (dto.targets || []).filter((t) => t?.connectionId && t.items?.length);
+    if (!targets.length) throw new BadRequestException('No hay publicaciones para aplicar');
+    const jobs: any[] = [];
+    for (const t of targets) {
+      jobs.push(await this.apply(user, { connectionId: t.connectionId, type: dto.type, promotionId: t.promotionId || undefined, startDate: dto.startDate, days: dto.days, items: t.items }));
+    }
+    return { jobs };
+  }
+
+  // Aplica en una cuenta en segundo plano: devuelve el trabajo y se consulta su avance con job().
   async apply(user: any, dto: { connectionId: string; type: string; promotionId?: string; startDate?: string; days?: number; items: ApplyItem[] }) {
     const conn = await this.connectionFor(user, dto.connectionId);
     if (integrationsDisabled()) throw new BadRequestException('Integraciones desactivadas en este servidor');
@@ -782,7 +873,7 @@ export class MlPromotionsService implements OnModuleInit {
       finishDate = addDays(startDate, days - 1);
     }
     const promo = dto.promotionId ? await this.prisma.mlPromotion.findUnique({ where: { connectionId_mlId: { connectionId: conn.id, mlId: dto.promotionId } } }) : null;
-    const title = `${TYPE_META[type].label}${promo?.name ? ` · ${promo.name}` : ''}`;
+    const title = `${TYPE_META[type].label}${promo?.name ? ` · ${promo.name}` : ''} · ${conn.name}`;
     return this.startJob(user, conn, 'APPLY', title, type, dto.promotionId || null, items.map((i) => ({ ...i, startDate, finishDate })));
   }
 
