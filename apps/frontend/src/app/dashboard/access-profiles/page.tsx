@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 import { PageHeader, SectionCard, Badge, BrandButton, Toast } from '@/components/ui';
 import { confirmDialog } from '../ConfirmDialog';
 import { SkeletonList } from '@/components/Skeleton';
+import { FilterBar, FilterCount, FilterField, filterSelectCls } from '@/components/FilterBar';
+import { useAdminCompany } from '../AdminCompanyContext';
 
 type Group = { key: string; label: string; items: { key: string; label: string }[] };
 type Profile = {
@@ -35,9 +37,19 @@ export default function AccessProfilesPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  // Filtros: por nombre y (Super Admin) por empresa; parte con la empresa que se está gestionando.
+  const { selectedCompanyId } = useAdminCompany();
+  const [search, setSearch] = useState('');
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const companyValue = companyFilter ?? selectedCompanyId ?? '';
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
 
   const isSuperAdmin = me?.role === 'SUPER_ADMIN';
+  const visibleProfiles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return profiles.filter((p) => (!q || p.name.toLowerCase().includes(q))
+      && (!isSuperAdmin || !companyValue || (companyValue === 'global' ? !p.companyId : p.companyId === companyValue)));
+  }, [profiles, search, companyValue, isSuperAdmin]);
   // Las restricciones (p. ej. "No puede eliminar") no cuentan como permisos concedidos.
   const allKeys = useMemo(() => groups.filter((g) => g.key !== 'restricciones').flatMap((g) => g.items.map((i) => i.key)), [groups]);
 
@@ -144,6 +156,22 @@ export default function AccessProfilesPage() {
         <div className="mb-4 px-4 py-3 rounded-lg text-sm text-[var(--danger)] bg-[var(--danger-bg)]">{error}</div>
       )}
 
+      <FilterBar
+        sticky={false}
+        search={{ label: 'Buscar', value: search, onChange: setSearch, placeholder: 'Nombre del perfil…' }}
+        primary={isSuperAdmin ? (
+          <FilterField label="Empresa">
+            <select value={companyValue} onChange={(e) => setCompanyFilter(e.target.value)} className={filterSelectCls}>
+              <option value="">Todas</option>
+              <option value="global">Globales (plantillas)</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FilterField>
+        ) : undefined}
+        onClear={() => { setSearch(''); setCompanyFilter(''); }}
+        summary={<FilterCount n={visibleProfiles.length} label="perfiles" />}
+      />
+
       <SectionCard>
         {loading ? (
           <SkeletonList count={4} />
@@ -160,7 +188,10 @@ export default function AccessProfilesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-soft)]">
-                {profiles.map((p) => (
+                {visibleProfiles.length === 0 && (
+                  <tr><td colSpan={isSuperAdmin ? 5 : 4} className="px-5 py-8 text-center text-[var(--text-muted)]">Sin perfiles con estos filtros.</td></tr>
+                )}
+                {visibleProfiles.map((p) => (
                   <tr key={p.id} className="hover:bg-[var(--surface-soft)]">
                     <td className="px-5 py-3 font-medium text-[var(--text)]">
                       {p.name} {p.isSystem && <Badge tone="info">sistema</Badge>}
