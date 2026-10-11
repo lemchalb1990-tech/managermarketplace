@@ -203,7 +203,7 @@ export type OrderAuditIssue = {
 // ── Invitaciones de usuarios ──
 export type UserInvitation = {
   id: string; email: string; name: string | null; role: string; accessProfileId: string | null; status: string; expiresAt: string;
-  sentAt: string | null; invitedByName: string | null; createdAt: string; companyId: string; company: { name: string };
+  sentAt: string | null; invitedByName: string | null; createdAt: string; companyId: string; company: { name: string }; profileName?: string | null;
 };
 export type InvitationResult = {
   invitation: { id: string; email: string; name: string | null; role: string; expiresAt: string; sentAt: string | null; invitedByName: string | null };
@@ -470,7 +470,7 @@ export const api = {
     // Invitaciones: se guardan solo como hash; copiar o reenviar genera un enlace nuevo.
     invitations: (token: string, companyId?: string) =>
       apiFetch<UserInvitation[]>(`/users/invitations${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-    invite: (data: { email: string; name?: string; role: string; accessProfileId?: string | null; companyId?: string; sendEmail?: boolean }, token: string) =>
+    invite: (data: { email: string; name?: string; accessProfileId?: string | null; companyId?: string; sendEmail?: boolean }, token: string) =>
       apiFetch<InvitationResult>('/users/invitations', { method: 'POST', body: JSON.stringify(data) }, token),
     resendInvitation: (id: string, token: string) => apiFetch<InvitationResult>(`/users/invitations/${id}/resend`, { method: 'POST' }, token),
     invitationLink: (id: string, token: string) => apiFetch<InvitationResult>(`/users/invitations/${id}/link`, { method: 'POST' }, token),

@@ -8,6 +8,8 @@ import { SettingsService } from '../settings/settings.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { PlatformMailService } from '../email/platform-mail.service';
 import { ROLE_LABEL } from '../users/invitations.service';
+import { roleForPermissions } from '../common/permissions';
+import { ensureDefaultProfiles } from '../access-profiles/default-profiles';
 
 const RESET_TTL_MS = 60 * 60 * 1000; // el enlace de recuperación vence en 1 hora
 const MIN_PASSWORD = 8;
@@ -159,7 +161,9 @@ export class AuthService {
     const password = await bcrypt.hash(randomBytes(24).toString('hex'), 10);
     const company = await this.prisma.$transaction(async (tx) => {
       const c = await tx.company.create({ data: { name: companyName, slug } });
-      await tx.user.create({ data: { name, email: payload.email, password, role: 'COMPANY_ADMIN', companyId: c.id, googleSub: payload.gsub || null } });
+      // La empresa parte con sus perfiles base; quien se registra queda con "Administrador".
+      const profiles = await ensureDefaultProfiles(tx, c.id);
+      await tx.user.create({ data: { name, email: payload.email, password, role: 'COMPANY_ADMIN', companyId: c.id, googleSub: payload.gsub || null, accessProfileId: profiles.COMPANY_ADMIN } });
       return c;
     });
     const trial = await this.prisma.subscriptionPlan.findFirst({ where: { isTrial: true, active: true }, orderBy: { sortOrder: 'asc' } });
@@ -208,8 +212,9 @@ export class AuthService {
   async checkInvitation(token: string) {
     const inv = await this.validInvitation(token);
     const cfg = await this.publicConfig();
+    const profile = inv.accessProfileId ? await this.prisma.accessProfile.findUnique({ where: { id: inv.accessProfileId }, select: { name: true } }) : null;
     return {
-      email: inv.email, name: inv.name, company: inv.company.name, role: inv.role, roleLabel: ROLE_LABEL[inv.role] || inv.role,
+      email: inv.email, name: inv.name, company: inv.company.name, role: inv.role, roleLabel: profile?.name || ROLE_LABEL[inv.role] || inv.role,
       invitedByName: inv.invitedByName, expiresAt: inv.expiresAt, googleClientId: cfg.googleClientId,
       exists: !!(await this.prisma.user.findFirst({ where: { email: { equals: inv.email, mode: 'insensitive' } }, select: { id: true } })),
     };
@@ -222,10 +227,13 @@ export class AuthService {
     }
     // El límite del plan se revisa de nuevo al aceptar (la invitación ya estaba contada).
     await this.subscription.assertCanAdd(inv.companyId, 'users');
+    // El nivel sale del perfil tal como está al aceptar (pudo editarse después de invitar).
+    const profile = inv.accessProfileId ? await this.prisma.accessProfile.findUnique({ where: { id: inv.accessProfileId }, select: { permissions: true } }) : null;
+    const role = profile ? roleForPermissions(profile.permissions).role : inv.role;
     const user = await this.prisma.$transaction(async (tx) => {
       const u = await tx.user.create({
         data: {
-          email: inv.email, name: data.name, password: data.passwordHash, role: inv.role, companyId: inv.companyId,
+          email: inv.email, name: data.name, password: data.passwordHash, role, companyId: inv.companyId,
           accessProfileId: inv.accessProfileId, googleSub: data.googleSub || null,
         },
       });

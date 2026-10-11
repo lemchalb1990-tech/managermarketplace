@@ -246,6 +246,9 @@ model AccessProfile {
   name        String
   permissions String[] @default([])
   isSystem    Boolean  @default(false)
+  // Perfil base con que parte la empresa (COMPANY_ADMIN, VENDEDOR, CATALOG_MANAGER…): permite
+  // reconocerlo aunque se edite o renombre. null = perfil creado por la empresa.
+  baseRole    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

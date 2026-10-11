@@ -16,6 +16,8 @@ type Profile = {
   companyId: string | null;
   company?: { id: string; name: string } | null;
   _count?: { users: number };
+  // Nivel que el sistema calcula del perfil; `uncovered` = páginas que no se pueden combinar con las demás.
+  level?: { role: string; uncovered: string[] };
 };
 
 export default function AccessProfilesPage() {
@@ -170,6 +172,11 @@ export default function AccessProfilesPage() {
                       {p.permissions.includes('*')
                         ? <Badge tone="ok">Todos los permisos</Badge>
                         : <span className="text-[var(--text-2)]">{p.permissions.length} permisos</span>}
+                      {!!p.level?.uncovered.length && (
+                        <span className="mt-1 block text-xs text-amber-700" title="Estas páginas no se pueden combinar con las demás del perfil: usa un perfil aparte para ellas">
+                          ⚠ No se pueden combinar: {p.level.uncovered.map((k) => groups.flatMap((g) => g.items).find((i) => i.key === k)?.label || k).join(', ')}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-[var(--text-2)]">{p._count?.users ?? 0}</td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">

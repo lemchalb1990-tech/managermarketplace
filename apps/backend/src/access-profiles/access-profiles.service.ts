@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Logger,
+  OnModuleInit,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -11,11 +13,40 @@ import {
   CreateAccessProfileDto,
   UpdateAccessProfileDto,
 } from './dto/access-profile.dto';
-import { PERMISSION_GROUPS, isValidPermissionKey, RETIRED_PERMISSION_KEYS } from '../common/permissions';
+import { PERMISSION_GROUPS, isValidPermissionKey, RETIRED_PERMISSION_KEYS, roleForPermissions } from '../common/permissions';
+import { ensureDefaultProfiles, syncProfileUsers } from './default-profiles';
 
 @Injectable()
-export class AccessProfilesService {
+export class AccessProfilesService implements OnModuleInit {
+  private readonly logger = new Logger(AccessProfilesService.name);
+
   constructor(private prisma: PrismaService) {}
+
+  // El perfil de acceso es lo único que se elige al crear un usuario: cada empresa parte con
+  // sus perfiles base, los usuarios sin perfil reciben el equivalente a su rol y el rol de cada
+  // usuario se alinea con su perfil.
+  async onModuleInit() {
+    try {
+      const companies = await this.prisma.company.findMany({ select: { id: true } });
+      for (const c of companies) {
+        const users = await this.prisma.user.findMany({
+          where: { companyId: c.id, accessProfileId: null, role: { not: Role.SUPER_ADMIN } }, select: { id: true, role: true },
+        });
+        // Siempre los 3 base; Despachador / Admin. pedidos solo si hay usuarios con ese rol sin perfil.
+        const byRole = await ensureDefaultProfiles(this.prisma, c.id, Array.from(new Set(users.map((u) => u.role))));
+        for (const u of users) if (byRole[u.role]) await this.prisma.user.update({ where: { id: u.id }, data: { accessProfileId: byRole[u.role] } });
+      }
+      const profiles = await this.prisma.accessProfile.findMany({ where: { users: { some: {} } }, select: { id: true, permissions: true } });
+      for (const p of profiles) await syncProfileUsers(this.prisma, p.id, p.permissions);
+    } catch (e: any) {
+      this.logger.warn(`Perfiles base: ${e.message}`);
+    }
+  }
+
+  // Nivel que el sistema usa para un perfil (para avisar en el editor qué páginas no se pueden combinar).
+  level(permissions: string[]) {
+    return roleForPermissions(permissions);
+  }
 
   catalog() {
     return PERMISSION_GROUPS;
@@ -64,7 +95,7 @@ export class AccessProfilesService {
           _count: { select: { users: true } },
           company: { select: { id: true, name: true } },
         },
-      });
+      }).then((rows) => rows.map((r) => ({ ...r, level: roleForPermissions(r.permissions) })));
     }
     // COMPANY_ADMIN: solo su empresa (los perfiles globales/plantilla no se listan
     // como editables aquí; se copian si se quieren usar).
@@ -72,7 +103,7 @@ export class AccessProfilesService {
       where: { companyId: user.companyId },
       orderBy: { name: 'asc' },
       include: { _count: { select: { users: true } } },
-    });
+    }).then((rows) => rows.map((r) => ({ ...r, level: roleForPermissions(r.permissions) })));
   }
 
   async findOne(id: string, user: any) {
@@ -117,7 +148,21 @@ export class AccessProfilesService {
     if (dto.permissions !== undefined)
       data.permissions = this.sanitizePermissions(dto.permissions);
 
-    return this.prisma.accessProfile.update({ where: { id }, data });
+    // La empresa no puede quedar sin administrador por editar el perfil de sus administradores.
+    if (data.permissions && profile.companyId && roleForPermissions(data.permissions).role !== Role.COMPANY_ADMIN) {
+      const adminsHere = await this.prisma.user.count({ where: { accessProfileId: id, role: Role.COMPANY_ADMIN, active: true } });
+      if (adminsHere) {
+        const others = await this.prisma.user.count({
+          where: { companyId: profile.companyId, role: Role.COMPANY_ADMIN, active: true, accessProfileId: { not: id } },
+        });
+        if (!others) throw new BadRequestException('Con estos permisos la empresa quedaría sin administrador. Mantén "Usuarios" o "Configuración", o asigna otro administrador antes.');
+      }
+    }
+
+    const updated = await this.prisma.accessProfile.update({ where: { id }, data });
+    // Los usuarios con este perfil quedan con el nivel que corresponde a los nuevos permisos.
+    if (data.permissions) await syncProfileUsers(this.prisma, id, updated.permissions);
+    return updated;
   }
 
   async remove(id: string, user: any) {

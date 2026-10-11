@@ -256,3 +256,56 @@ export function cannotDelete(user: { role: Role; accessProfile?: { permissions: 
   if (user.role === Role.SUPER_ADMIN) return false;
   return permissionsForUser(user).includes(NO_DELETE_PERMISSION);
 }
+
+// ── Perfil de acceso → nivel interno (rol) ───────────────────────────────
+// Al crear un usuario solo se elige el perfil de acceso. El servidor todavía valida muchas
+// páginas por rol, así que el rol se calcula del perfil: el de menor nivel que puede usar
+// TODAS las páginas marcadas. Roles que el servidor acepta en cada página (mismas listas que
+// el menú); las páginas que el servidor valida solo por permiso aceptan cualquier rol.
+const ANY: Role[] = [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR, Role.DESPACHADOR, Role.ORDER_MANAGER];
+const CA_CM: Role[] = [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER];
+const CA_CM_V: Role[] = [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR];
+export const PAGE_ROLES: Record<string, Role[]> = {
+  dashboard: CA_CM,
+  orders: CA_CM_V, returns: ANY, sales: CA_CM_V, pos: CA_CM_V,
+  clientes: [Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR, Role.ORDER_MANAGER],
+  ecommerce: CA_CM, billing: CA_CM, dropshipping: CA_CM,
+  'ml.preguntas': CA_CM_V, 'ml.reclamos': CA_CM_V, 'ml.devoluciones': CA_CM_V, 'ml.calificaciones': CA_CM_V,
+  'ml.promociones': ANY, 'ml.conexiones': CA_CM,
+  catalog: CA_CM, warehouses: CA_CM, inventory: ANY, 'inventory.adjust': ANY, transfers: ANY, 'transfers.receive': ANY,
+  purchases: CA_CM, suppliers: CA_CM, rentabilidad: CA_CM,
+  finance: ANY,
+  'warehouse.board': ANY, 'warehouse.picking': ANY, 'warehouse.packing': ANY,
+  despachos: CA_CM, 'mis-rutas': [Role.DESPACHADOR],
+  'drivers.fleet': ANY, 'drivers.metrics': ANY, 'drivers.payments': ANY, 'drivers.zones': ANY,
+  users: [Role.COMPANY_ADMIN], 'access-profiles': [Role.COMPANY_ADMIN], activity: ANY,
+  emails: [Role.COMPANY_ADMIN], settings: [Role.COMPANY_ADMIN],
+};
+// De menor a mayor nivel: se elige el primero que cubre todas las páginas del perfil.
+const ROLE_LEVELS: Role[] = [Role.ORDER_MANAGER, Role.DESPACHADOR, Role.VENDEDOR, Role.CATALOG_MANAGER, Role.COMPANY_ADMIN];
+
+export function roleForPermissions(perms: string[]): { role: Role; uncovered: string[] } {
+  if (perms.includes('*')) return { role: Role.COMPANY_ADMIN, uncovered: [] };
+  const pages = perms.filter((p) => PAGE_ROLES[p]);
+  for (const r of ROLE_LEVELS) {
+    if (pages.every((p) => PAGE_ROLES[p].includes(r))) return { role: r, uncovered: [] };
+  }
+  // Ningún nivel cubre todo (p. ej. "Mis rutas" junto a páginas de administración): el que cubre más.
+  let best: Role = Role.COMPANY_ADMIN;
+  let bestMissing = pages.filter((p) => !PAGE_ROLES[p].includes(best));
+  for (const r of ROLE_LEVELS) {
+    const missing = pages.filter((p) => !PAGE_ROLES[p].includes(r));
+    if (missing.length < bestMissing.length) { best = r; bestMissing = missing; }
+  }
+  return { role: best, uncovered: bestMissing };
+}
+
+// Perfiles con que parte cada empresa (editables): Administrador, Vendedor y Gestor de catálogo.
+// Despachador y Admin. pedidos solo se crean si la empresa ya tenía usuarios con esos roles.
+export const DEFAULT_PROFILES: { name: string; role: Role; base: boolean }[] = [
+  { name: 'Administrador', role: Role.COMPANY_ADMIN, base: true },
+  { name: 'Vendedor', role: Role.VENDEDOR, base: true },
+  { name: 'Gestor de catálogo', role: Role.CATALOG_MANAGER, base: true },
+  { name: 'Despachador', role: Role.DESPACHADOR, base: false },
+  { name: 'Admin. pedidos', role: Role.ORDER_MANAGER, base: false },
+];

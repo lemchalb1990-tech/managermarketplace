@@ -1,5 +1,6 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { ensureDefaultProfiles } from '../access-profiles/default-profiles';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/create-company.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
@@ -20,6 +21,8 @@ export class CompaniesService {
 
     return this.prisma.$transaction(async (tx) => {
       const company = await tx.company.create({ data: companyData });
+      // Perfiles base de la empresa; el administrador inicial queda con "Administrador".
+      const profiles = await ensureDefaultProfiles(tx, company.id);
 
       if (admin) {
         const emailExists = await tx.user.findUnique({ where: { email: admin.email } });
@@ -32,6 +35,7 @@ export class CompaniesService {
             password: hashed,
             role: 'COMPANY_ADMIN',
             companyId: company.id,
+            accessProfileId: profiles.COMPANY_ADMIN,
           },
         });
       }

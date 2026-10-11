@@ -5,16 +5,8 @@ import { getToken } from '@/lib/auth';
 import { api, type InvitationResult, type UserInvitation } from '@/lib/api';
 import { confirmDialog } from '../ConfirmDialog';
 
-const ROLES = [
-  { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
-  { value: 'CATALOG_MANAGER', label: 'Gestor de catálogo' },
-  { value: 'VENDEDOR', label: 'Vendedor (solo POS)' },
-  { value: 'DESPACHADOR', label: 'Despachador (solo rutas)' },
-  { value: 'ORDER_MANAGER', label: 'Admin. Pedidos (aprueba solicitudes)' },
-];
-const roleLabel = (r: string) => ROLES.find((x) => x.value === r)?.label.replace(/ \(.*\)$/, '') || r;
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm';
-const emptyInvite = { email: '', name: '', role: 'CATALOG_MANAGER', accessProfileId: '', companyId: '' };
+const emptyInvite = { email: '', name: '', accessProfileId: '', companyId: '' };
 const day = (d: string) => new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
 // Formulario para invitar (correo o enlace) y lista de invitaciones pendientes.
@@ -49,7 +41,7 @@ export function Invitations({ open, onClose, isSuperAdmin, companies, profiles, 
     setError('');
     try {
       const res = await api.users.invite({
-        email: form.email, name: form.name || undefined, role: form.role, accessProfileId: form.accessProfileId || null,
+        email: form.email, name: form.name || undefined, accessProfileId: form.accessProfileId || null,
         ...(isSuperAdmin ? { companyId: form.companyId } : {}), sendEmail,
       }, getToken()!);
       setResult(res);
@@ -126,29 +118,24 @@ export function Invitations({ open, onClose, isSuperAdmin, companies, profiles, 
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre (opcional)</label>
                 <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil base *</label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className={inputCls}>
-                  {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso (opcional)</label>
-                <select value={form.accessProfileId} onChange={(e) => setForm((f) => ({ ...f, accessProfileId: e.target.value }))} className={inputCls}>
-                  <option value="">— Usar permisos del perfil base —</option>
-                  {profiles.filter((p) => !isSuperAdmin || !form.companyId || !p.company || p.company.id === form.companyId)
-                    .map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` · ${p.company.name}` : ''}</option>)}
-                </select>
-              </div>
               {isSuperAdmin && (
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Empresa *</label>
-                  <select value={form.companyId} onChange={(e) => setForm((f) => ({ ...f, companyId: e.target.value }))} required className={inputCls}>
+                  <select value={form.companyId} onChange={(e) => setForm((f) => ({ ...f, companyId: e.target.value, accessProfileId: '' }))} required className={inputCls}>
                     <option value="">Elige la empresa…</option>
                     {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso *</label>
+                <select value={form.accessProfileId} onChange={(e) => setForm((f) => ({ ...f, accessProfileId: e.target.value }))} required className={inputCls}>
+                  <option value="">Elige un perfil…</option>
+                  {profiles.filter((p) => (isSuperAdmin ? !p.company || p.company.id === form.companyId : true))
+                    .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-0.5">Define dónde entra y qué puede hacer.</p>
+              </div>
               {error && <p className="sm:col-span-2 text-red-600 text-sm">{error}</p>}
               <div className="sm:col-span-2 flex flex-wrap gap-2">
                 <button type="submit" disabled={busy} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -190,7 +177,7 @@ export function Invitations({ open, onClose, isSuperAdmin, companies, profiles, 
                       <span className="block font-medium text-gray-900">{inv.email}</span>
                       {inv.name && <span className="text-xs text-gray-400">{inv.name}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600">{roleLabel(inv.role)}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{inv.profileName || '—'}</td>
                     {isSuperAdmin && <td className="px-4 py-2.5 text-xs text-gray-600">{inv.company.name}</td>}
                     <td className="px-4 py-2.5 text-xs text-gray-600">
                       {inv.invitedByName || '—'}

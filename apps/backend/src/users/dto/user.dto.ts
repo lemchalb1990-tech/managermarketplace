@@ -13,8 +13,10 @@ export class CreateUserDto {
   @MinLength(2)
   name: string;
 
+  // Solo para crear Super Admin. Para usuarios de empresa el nivel sale del perfil de acceso.
+  @IsOptional()
   @IsEnum(Role)
-  role: Role;
+  role?: Role;
 
   @IsOptional()
   @IsString()

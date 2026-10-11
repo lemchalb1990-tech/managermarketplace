@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { roleForPermissions } from '../common/permissions';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -54,11 +55,13 @@ export class UsersService {
     const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (exists) throw new ConflictException('El email ya está registrado');
 
-    if (requestingUser.role === Role.COMPANY_ADMIN) {
-      if (dto.role === Role.SUPER_ADMIN) {
-        throw new ForbiddenException('No tienes permiso para asignar ese rol');
-      }
-      dto.companyId = requestingUser.companyId;
+    if (requestingUser.role !== Role.SUPER_ADMIN) dto.companyId = requestingUser.companyId;
+    // Usuario de empresa: lo único que se elige es el perfil de acceso; el nivel sale de él.
+    const superAdmin = requestingUser.role === Role.SUPER_ADMIN && dto.role === Role.SUPER_ADMIN && !dto.companyId;
+    let role: Role = Role.SUPER_ADMIN;
+    if (!superAdmin) {
+      if (!dto.accessProfileId) throw new BadRequestException('Elige el perfil de acceso del usuario');
+      role = await this.roleForProfile(dto.accessProfileId);
     }
     // Límite de usuarios del plan de la empresa (sin plan, el máximo configurado en la empresa).
     await this.subscription.assertCanAdd(dto.companyId, 'users');
@@ -71,9 +74,9 @@ export class UsersService {
         email: dto.email,
         password: hashed,
         name: dto.name,
-        role: dto.role,
-        companyId: dto.companyId ?? null,
-        accessProfileId: dto.accessProfileId ?? null,
+        role,
+        companyId: superAdmin ? null : dto.companyId ?? null,
+        accessProfileId: superAdmin ? null : dto.accessProfileId ?? null,
       },
       select: USER_SELECT,
     });
@@ -122,16 +125,30 @@ export class UsersService {
     }
 
     const data: any = {};
+    const isCompanyUser = (target as any).role !== Role.SUPER_ADMIN;
     if (dto.name !== undefined) data.name = dto.name;
-    if (dto.role !== undefined) data.role = dto.role;
+    // El nivel de un usuario de empresa no se elige: sale de su perfil de acceso.
+    if (dto.role !== undefined && !isCompanyUser) data.role = dto.role;
     if (dto.active !== undefined) data.active = dto.active;
     if (dto.modules !== undefined) data.modules = dto.modules;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
 
-    if (dto.accessProfileId !== undefined) {
+    if (dto.accessProfileId !== undefined && isCompanyUser) {
       const next = dto.accessProfileId || null;
+      if (!next) throw new BadRequestException('El usuario necesita un perfil de acceso');
       await this.assertAssignableProfile(next, (target as any).companyId ?? null, requestingUser);
       data.accessProfileId = next;
+      data.role = await this.roleForProfile(next);
+    }
+    // La empresa nunca queda sin un administrador activo (ni uno puede quitarse ese acceso a sí mismo).
+    const losesAdmin = (target as any).role === Role.COMPANY_ADMIN
+      && ((data.role && data.role !== Role.COMPANY_ADMIN) || data.active === false);
+    if (losesAdmin) {
+      if (id === requestingUser.id) throw new BadRequestException('No puedes quitarte a ti mismo el acceso de administrador');
+      const others = await this.prisma.user.count({
+        where: { companyId: (target as any).companyId, role: Role.COMPANY_ADMIN, active: true, id: { not: id } },
+      });
+      if (!others) throw new BadRequestException('La empresa debe tener al menos un usuario administrador activo');
     }
 
     const user = await this.prisma.user.update({
@@ -140,5 +157,12 @@ export class UsersService {
       select: USER_SELECT,
     });
     return user;
+  }
+
+  // Nivel interno que corresponde al perfil (el menor que cubre todas sus páginas).
+  private async roleForProfile(profileId: string): Promise<Role> {
+    const profile = await this.prisma.accessProfile.findUnique({ where: { id: profileId }, select: { permissions: true } });
+    if (!profile) throw new NotFoundException('Perfil de acceso no encontrado');
+    return roleForPermissions(profile.permissions).role;
   }
 }

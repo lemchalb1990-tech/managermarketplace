@@ -7,14 +7,6 @@ import { Toast } from '@/components/ui';
 import { SkeletonRows } from '@/components/Skeleton';
 import { Invitations } from './Invitations';
 
-const ALL_ROLES = [
-  { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
-  { value: 'CATALOG_MANAGER', label: 'Gestor de catálogo' },
-  { value: 'VENDEDOR', label: 'Vendedor (solo POS)' },
-  { value: 'DESPACHADOR', label: 'Despachador (solo rutas)' },
-  { value: 'ORDER_MANAGER', label: 'Admin. Pedidos (aprueba solicitudes)' },
-];
-
 const roleLabels: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
   COMPANY_ADMIN: 'Admin empresa',
@@ -50,7 +42,7 @@ const ALL_MODULES = [
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
 ];
 
-const emptyForm = { name: '', email: '', password: '', role: 'CATALOG_MANAGER', companyId: '', accessProfileId: '' };
+const emptyForm = { name: '', email: '', password: '', companyId: '', accessProfileId: '' };
 const emptyEdit = { name: '', role: '', password: '', active: true, modules: null as string[] | null, accessProfileId: '' };
 
 export default function UsersPage() {
@@ -109,7 +101,9 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const token = getToken()!;
-      const payload: any = { name: form.name, email: form.email, password: form.password, role: form.role };
+      const payload: any = { name: form.name, email: form.email, password: form.password };
+      // Super Admin sin empresa = otro Super Admin; si no, el perfil de acceso define todo.
+      if (isSuperAdmin && !form.companyId) payload.role = 'SUPER_ADMIN';
       if (form.companyId) payload.companyId = form.companyId;
       if (form.accessProfileId) payload.accessProfileId = form.accessProfileId;
       await api.users.create(payload, token);
@@ -162,9 +156,8 @@ export default function UsersPage() {
       const token = getToken()!;
       const payload: any = {
         name: editForm.name,
-        role: editForm.role,
         active: editForm.active,
-        accessProfileId: editForm.accessProfileId || null,
+        ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null } : {}),
       };
       // Los módulos (servicios / ecommerce) solo los gestiona el super administrador.
       if (isSuperAdmin) payload.modules = editForm.modules;
@@ -232,6 +225,9 @@ export default function UsersPage() {
   }
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  // Perfiles que se pueden asignar en una empresa (los de esa empresa y las plantillas globales del Super Admin).
+  const profilesFor = (companyId?: string | null) => profiles.filter((p) =>
+    (p.company?.id ?? p.companyId ?? null) === (companyId ?? null) || (isSuperAdmin && !(p.company?.id ?? p.companyId)));
   const userCount = myCompany?._count?.users ?? users.length;
   const maxUsers = myCompany?.maxUsers;
   // Las invitaciones pendientes también ocupan cupo del plan.
@@ -288,29 +284,25 @@ export default function UsersPage() {
               <input type="password" value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
                 required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil base *</label>
-              <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                {ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso (opcional)</label>
-              <select value={form.accessProfileId} onChange={(e) => setForm(f => ({ ...f, accessProfileId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="">— Usar permisos del perfil base —</option>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` · ${p.company.name}` : ''}</option>)}
-              </select>
-            </div>
             {isSuperAdmin && (
-              <div className="col-span-2">
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Empresa</label>
-                <select value={form.companyId} onChange={(e) => setForm(f => ({ ...f, companyId: e.target.value }))}
+                <select value={form.companyId} onChange={(e) => setForm(f => ({ ...f, companyId: e.target.value, accessProfileId: '' }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option value="">Sin empresa</option>
+                  <option value="">Sin empresa (Super Admin)</option>
                   {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+            )}
+            {(!isSuperAdmin || form.companyId) && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso *</label>
+                <select value={form.accessProfileId} onChange={(e) => setForm(f => ({ ...f, accessProfileId: e.target.value }))} required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  <option value="">Elige un perfil…</option>
+                  {profilesFor(form.companyId || currentUser?.companyId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-0.5">El perfil define dónde entra y qué puede hacer. Se crean y editan en Perfiles de acceso.</p>
               </div>
             )}
             {error && <p className="col-span-2 text-red-600 text-sm">{error}</p>}
@@ -347,8 +339,8 @@ export default function UsersPage() {
                 <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                 <td className="px-4 py-3 text-gray-500">{u.email}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleBadge[u.role] || 'bg-gray-100 text-gray-600'}`}>
-                    {roleLabels[u.role] || u.role}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === 'SUPER_ADMIN' ? roleBadge.SUPER_ADMIN : 'bg-blue-50 text-blue-700'}`}>
+                    {u.role === 'SUPER_ADMIN' ? 'Super Admin' : u.accessProfile?.name || roleLabels[u.role] || u.role}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.company?.name || '—'}</td>
@@ -414,25 +406,18 @@ export default function UsersPage() {
                   onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
                   required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil base *</label>
-                <select value={editForm.role}
-                  onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  {ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  {isSuperAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
-                </select>
-              </div>
-              {editForm.role !== 'SUPER_ADMIN' && (
+              {editUser.role === 'SUPER_ADMIN' ? (
+                <p className="rounded-lg bg-purple-50 px-3 py-2 text-xs text-purple-700">Super Admin: acceso total a la plataforma.</p>
+              ) : (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso (opcional)</label>
-                  <select value={editForm.accessProfileId}
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Perfil de acceso *</label>
+                  <select value={editForm.accessProfileId} required
                     onChange={(e) => setEditForm(f => ({ ...f, accessProfileId: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="">— Usar permisos del perfil base —</option>
-                    {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` · ${p.company.name}` : ''}</option>)}
+                    <option value="">Elige un perfil…</option>
+                    {profilesFor(editUser.company?.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
-                  <p className="text-xs text-gray-400 mt-0.5">Si eliges un perfil, sus permisos reemplazan a los del perfil base.</p>
+                  <p className="text-xs text-gray-400 mt-0.5">El perfil define dónde entra y qué puede hacer.</p>
                 </div>
               )}
               <div>
