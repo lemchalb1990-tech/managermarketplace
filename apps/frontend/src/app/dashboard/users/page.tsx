@@ -25,25 +25,8 @@ const roleBadge: Record<string, string> = {
   ORDER_MANAGER: 'bg-indigo-100 text-indigo-700',
 };
 
-const ALL_MODULES = [
-  { key: 'catalog', label: 'Catálogo', description: 'Gestión de productos e imágenes' },
-  { key: 'ecommerce_ml', label: 'Mercado Libre', description: 'Publicaciones en Mercado Libre Chile' },
-  { key: 'ecommerce_shopify', label: 'Shopify', description: 'Sincronización con tienda Shopify' },
-  { key: 'ecommerce_woocommerce', label: 'WooCommerce', description: 'Sincronización con WooCommerce' },
-  { key: 'ecommerce_jumpseller', label: 'JumpSeller', description: 'Sincronización con JumpSeller' },
-  { key: 'ecommerce_falabella', label: 'Falabella', description: 'Publicaciones en Falabella Marketplace' },
-  { key: 'ecommerce_paris', label: 'Paris', description: 'Publicaciones en Paris Marketplace' },
-  { key: 'ecommerce_hites', label: 'Hites', description: 'Publicaciones en Hites Marketplace' },
-  { key: 'ecommerce_ripley', label: 'Ripley', description: 'Publicaciones en Ripley Marketplace' },
-  { key: 'ecommerce_walmart', label: 'Walmart', description: 'Publicaciones en Walmart Chile' },
-  { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
-  { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
-  { key: 'billing', label: 'Facturación electrónica', description: 'Emisión de documentos tributarios electrónicos' },
-  { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
-];
-
 const emptyForm = { name: '', email: '', password: '', companyId: '', accessProfileId: '' };
-const emptyEdit = { name: '', role: '', password: '', active: true, modules: null as string[] | null, accessProfileId: '' };
+const emptyEdit = { name: '', role: '', password: '', active: true, accessProfileId: '' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -125,27 +108,10 @@ export default function UsersPage() {
       role: u.role,
       password: '',
       active: u.active,
-      modules: Array.isArray(u.modules) ? u.modules : null,
       accessProfileId: u.accessProfile?.id || '',
     });
     setEditError('');
     setShowPassword(false);
-  }
-
-  function toggleModule(key: string) {
-    setEditForm((f) => {
-      // null = todos habilitados; al tocar uno, expandimos a array explícito
-      const current = f.modules ?? ALL_MODULES.map((m) => m.key);
-      const hasIt = current.includes(key);
-      const next = hasIt ? current.filter((k) => k !== key) : [...current, key];
-      // Si todos están activos, volver a null (valor por defecto = todo habilitado)
-      return { ...f, modules: next.length === ALL_MODULES.length ? null : next };
-    });
-  }
-
-  function isModuleEnabled(key: string): boolean {
-    if (editForm.modules === null) return true;
-    return editForm.modules.includes(key);
   }
 
   async function handleEdit(e: FormEvent) {
@@ -159,8 +125,6 @@ export default function UsersPage() {
         active: editForm.active,
         ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null } : {}),
       };
-      // Los módulos (servicios / ecommerce) solo los gestiona el super administrador.
-      if (isSuperAdmin) payload.modules = editForm.modules;
       if (editForm.password) payload.password = editForm.password;
       await api.users.update(editUser.id, payload, token);
       setEditUser(null);
@@ -233,8 +197,6 @@ export default function UsersPage() {
   // Las invitaciones pendientes también ocupan cupo del plan.
   const atLimit = maxUsers != null && userCount + pendingInvites >= maxUsers;
 
-  // Solo el super administrador puede activar/desactivar servicios y ecommerce por usuario.
-  const canEditModules = (u: any) => isSuperAdmin && u.role !== 'SUPER_ADMIN';
 
   return (
     <div>
@@ -328,7 +290,6 @@ export default function UsersPage() {
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Email</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Perfil</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Empresa</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Módulos</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium">Acciones</th>
             </tr>
@@ -344,26 +305,6 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.company?.name || '—'}</td>
-                <td className="px-4 py-3">
-                  {u.role === 'SUPER_ADMIN' ? (
-                    <span className="text-xs text-gray-400">Todos</span>
-                  ) : !u.modules || !Array.isArray(u.modules) ? (
-                    <span className="text-xs text-green-600 font-medium">Todos activos</span>
-                  ) : u.modules.length === 0 ? (
-                    <span className="text-xs text-red-500">Sin módulos</span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {(u.modules as string[]).map((m) => {
-                        const mod = ALL_MODULES.find((x) => x.key === m);
-                        return (
-                          <span key={m} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
-                            {mod?.label || m}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {u.active ? 'Activo' : 'Inactivo'}
@@ -383,9 +324,9 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {!usersLoaded && <SkeletonRows cols={7} rows={5} />}
+            {!usersLoaded && <SkeletonRows cols={6} rows={5} />}
             {usersLoaded && users.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Sin usuarios registrados</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sin usuarios registrados</td></tr>
             )}
           </tbody>
         </table>
@@ -437,43 +378,6 @@ export default function UsersPage() {
                   </button>
                 </div>
               </div>
-
-              {/* Módulos — solo para no SUPER_ADMIN */}
-              {canEditModules(editUser) && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-gray-600">Módulos habilitados</label>
-                    <span className="text-xs text-gray-400">
-                      {editForm.modules === null ? 'Todos activos' : `${editForm.modules.length} de ${ALL_MODULES.length}`}
-                    </span>
-                  </div>
-                  <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-                    {ALL_MODULES.map((mod) => {
-                      const enabled = isModuleEnabled(mod.key);
-                      return (
-                        <label
-                          key={mod.key}
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${enabled ? 'bg-white' : 'bg-gray-50'}`}
-                        >
-                          <div
-                            onClick={() => toggleModule(mod.key)}
-                            className={`w-9 h-5 rounded-full transition-colors flex items-center shrink-0 cursor-pointer ${enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
-                          >
-                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform mx-0.5 ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`text-sm font-medium ${enabled ? 'text-gray-800' : 'text-gray-400'}`}>{mod.label}</p>
-                            <p className="text-xs text-gray-400 truncate">{mod.description}</p>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    Todos activos por defecto. Al desactivar uno, el usuario no verá ese módulo en el menú.
-                  </p>
-                </div>
-              )}
 
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="active-toggle" checked={editForm.active}

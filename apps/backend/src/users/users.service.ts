@@ -119,10 +119,8 @@ export class UsersService {
     if (dto.role === Role.SUPER_ADMIN && requestingUser.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('No tienes permiso para asignar ese rol');
     }
-    // Activar/desactivar servicios y ecommerce por usuario es exclusivo del super admin.
-    if (requestingUser.role !== Role.SUPER_ADMIN) {
-      delete dto.modules;
-    }
+    // Los módulos los define la empresa (Empresas → Módulos licenciados), no cada usuario.
+    delete dto.modules;
 
     const data: any = {};
     const isCompanyUser = (target as any).role !== Role.SUPER_ADMIN;
@@ -130,7 +128,6 @@ export class UsersService {
     // El nivel de un usuario de empresa no se elige: sale de su perfil de acceso.
     if (dto.role !== undefined && !isCompanyUser) data.role = dto.role;
     if (dto.active !== undefined) data.active = dto.active;
-    if (dto.modules !== undefined) data.modules = dto.modules;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
 
     if (dto.accessProfileId !== undefined && isCompanyUser) {
