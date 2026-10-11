@@ -61,7 +61,9 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
   const docs = (sale.invoices || []).filter((inv: any) => inv.folio);
   const { date, time } = formatDateTime(sale.createdAt, tz);
   // Código para escanear la orden en bodega: el número de venta (solo si la venta tiene orden).
-  const scanCode = sale.order && sale.saleNumber != null ? String(sale.saleNumber).padStart(4, '0') : null;
+  // Largo par (con cero adelante si hace falta): Code 128 usa su forma compacta y cabe en 58 mm.
+  const scanDigits = sale.saleNumber != null ? String(sale.saleNumber).padStart(4, '0') : '';
+  const scanCode = sale.order && scanDigits ? (scanDigits.length % 2 ? `0${scanDigits}` : scanDigits) : null;
   const header: DocHeaderData = {
     commercialName: sale.company?.name || user?.company?.name || profile?.razonSocial || 'Venta',
     profile,
@@ -113,16 +115,17 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
           </div>
         )}
 
-        {scanCode && (
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Barcode128 value={scanCode} height={44} module={printFormat === 'TICKET_58' ? 1.4 : 1.8} />
-            <p style={{ fontSize: '0.8em', marginTop: 2 }}>{sale.order.fulfillmentType === 'DELIVERY' ? 'Despacho' : 'Retiro'} · escanear en bodega</p>
-          </div>
-        )}
-
         <p style={{ marginTop: 10, textAlign: 'center' }}>¡Gracias por su compra!</p>
         {docs.length === 0 && (
           <p style={{ marginTop: 4, fontSize: '0.85em', textAlign: 'center' }}>Comprobante interno, no válido como boleta.</p>
+        )}
+
+        {/* Al final del ticket: código para escanear la orden en bodega. */}
+        {scanCode && (
+          <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px dashed #000', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Barcode128 value={scanCode} height={printFormat === 'TICKET_58' ? 40 : 44} module={printFormat === 'TICKET_58' ? 1.5 : 1.8} />
+            <p style={{ fontSize: '0.8em', marginTop: 2 }}>{sale.order.fulfillmentType === 'DELIVERY' ? 'Despacho' : 'Retiro'} · escanear en bodega</p>
+          </div>
         )}
       </TicketPage>
     );
@@ -194,17 +197,17 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
         </div>
       )}
 
+      {docs.length === 0 && (
+        <p style={{ marginTop: 24, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
+          Comprobante interno de venta, no constituye boleta ni factura.
+        </p>
+      )}
+
       {scanCode && (
         <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Barcode128 value={scanCode} height={56} module={2} />
           <p style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Orden de {sale.order.fulfillmentType === 'DELIVERY' ? 'despacho' : 'retiro'} · escanear en bodega</p>
         </div>
-      )}
-
-      {docs.length === 0 && (
-        <p style={{ marginTop: 24, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
-          Comprobante interno de venta, no constituye boleta ni factura.
-        </p>
       )}
     </div>
   );
