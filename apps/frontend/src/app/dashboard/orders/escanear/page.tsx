@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../../AdminCompanyContext';
+import { CameraScanner, isTouchDevice } from '@/components/CameraScanner';
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   PENDING:    { label: 'Pendiente',  color: 'bg-amber-100 text-amber-700' },
@@ -36,6 +37,14 @@ export default function EscanearVentaPage() {
   const [showManual, setShowManual] = useState(false);
   const [manualValue, setManualValue] = useState('');
   const [manualError, setManualError] = useState('');
+
+  // Cámara del celular: se abre sola al entrar desde un teléfono o tablet.
+  const [showCamera, setShowCamera] = useState(false);
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => { if (isTouchDevice()) { setTouch(true); setShowCamera(true); } }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const bufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
@@ -91,6 +100,11 @@ export default function EscanearVentaPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showManual, handleSearch]);
 
+  const onCameraCode = useCallback((code: string) => {
+    setShowCamera(false);
+    handleSearch(code);
+  }, [handleSearch]);
+
   function openManual() {
     setManualValue('');
     setManualError('');
@@ -141,11 +155,19 @@ export default function EscanearVentaPage() {
           </p>
         )}
         <p className="text-xs text-gray-400 mt-2 mb-4">
-          Escanea la etiqueta de envío o el código de barras del ticket del Punto de venta con la pistola, o ingresa el número de envío o de venta de manera manual
+          {touch
+            ? 'Escanea con la cámara la etiqueta de envío o el código de barras del ticket del Punto de venta, o ingresa el número de manera manual'
+            : 'Escanea la etiqueta de envío o el código de barras del ticket del Punto de venta con la pistola, o ingresa el número de envío o de venta de manera manual'}
         </p>
-        <button onClick={openManual} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-          ✎ Entrada manual
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          <button onClick={() => setShowCamera(true)}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold ${touch ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+            📷 {error ? 'Escanear otra vez' : 'Escanear con la cámara'}
+          </button>
+          <button onClick={openManual} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            ✎ Entrada manual
+          </button>
+        </div>
 
         {error && (
           <div className="mt-5 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -176,6 +198,8 @@ export default function EscanearVentaPage() {
           })}
         </div>
       )}
+
+      {showCamera && <CameraScanner onDetected={onCameraCode} onClose={() => setShowCamera(false)} />}
 
       {showManual && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
