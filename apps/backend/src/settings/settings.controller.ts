@@ -5,6 +5,7 @@ import { extname, join } from 'path';
 import { StorageService } from '../common/storage/storage.service';
 import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max, IsObject, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -48,8 +49,10 @@ export class SettingsController {
   // pero no editar, porque son valores globales compartidos por todas las empresas.
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  getAll() {
-    return this.service.getAll();
+  async getAll(@CurrentUser() user: any) {
+    const rows = await this.service.getAll();
+    // El acceso con Google y el correo de la plataforma son solo del Super Admin.
+    return user?.role === Role.SUPER_ADMIN ? rows : rows.filter((r) => !['acceso', 'correo'].includes(r.group));
   }
 
   @Patch()

@@ -345,6 +345,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+  // Ingreso con Google, registro de empresas nuevas y recuperación de contraseña (sin token).
+  auth: {
+    config: () => apiFetch<{ googleClientId: string | null; signupEnabled: boolean }>('/auth/config', {}),
+    google: (credential: string) =>
+      apiFetch<{ access_token?: string; user?: any; needsSignup?: boolean; signupToken?: string; email?: string; name?: string }>(
+        '/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
+    googleSignup: (data: { signupToken: string; companyName: string; name?: string; phone?: string; rut?: string }) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/google/signup', { method: 'POST', body: JSON.stringify(data) }),
+    forgotPassword: (email: string) =>
+      apiFetch<{ ok: boolean; message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    checkReset: (token: string) => apiFetch<{ ok: boolean; email: string }>(`/auth/reset-password?token=${encodeURIComponent(token)}`, {}),
+    resetPassword: (token: string, password: string) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  },
+  platformMail: {
+    test: (to: string, token: string) => apiFetch<{ ok: boolean }>('/platform-mail/test', { method: 'POST', body: JSON.stringify({ to }) }, token),
+  },
   me: (token: string) => apiFetch<any>('/auth/me', {}, token),
   public: {
     // Sin token: se usa también en el login y la landing, antes de iniciar sesión.

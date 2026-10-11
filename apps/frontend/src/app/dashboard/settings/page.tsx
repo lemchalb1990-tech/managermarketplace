@@ -29,6 +29,8 @@ const GROUP_LABELS: Record<string, string> = {
   notificaciones: 'Notificaciones',
   publicacion: 'Publicación: largo del nombre',
   landing: 'Página de inicio: contacto',
+  acceso: 'Acceso: ingreso y registro con Google',
+  correo: 'Correo de la plataforma',
   otros: 'Otros',
 };
 
@@ -37,6 +39,8 @@ const GROUP_HINTS: Record<string, string> = {
   mercadolibre: 'Configuración de integración con Mercado Libre. La URL de callback debe coincidir exactamente con la registrada en ML Developer.',
   publicacion: 'Caracteres que admite cada marketplace en el nombre del producto. La ficha del producto muestra el conteo y avisa si se excede; Mercado Libre se toma solo de la categoría.',
   landing: 'WhatsApp, correo y agenda que usan los botones de contacto de la página de inicio (adminmarket.ondatasolution.com).',
+  acceso: 'Botón "Continuar con Google" en el login y registro de empresas nuevas con el plan de prueba. Sin el ID de cliente de Google el botón no aparece.',
+  correo: 'Cuenta que envía la recuperación de contraseña, el aviso de contraseña cambiada, la bienvenida a las empresas nuevas y los avisos al Super Admin. Los correos de cada empresa a sus clientes salen desde su propio correo.',
   notificaciones: 'Sonido que suena en la campanita al llegar cada tipo de evento. Sube archivos MP3/WAV/OGG (máx. 2 MB) y elige cuál usa cada tipo.',
 };
 
@@ -153,7 +157,7 @@ export default function SettingsPage() {
     return acc;
   }, {});
 
-  const groupOrder = ['sistema', 'landing', 'mercadolibre', 'notificaciones', 'otros'];
+  const groupOrder = ['sistema', 'acceso', 'correo', 'landing', 'mercadolibre', 'notificaciones', 'otros'];
   const callbackUri = draft['APP_URL']
     ? `${draft['APP_URL'].replace(/\/+$/, '')}/api/ecommerce/ml/callback`
     : '';
@@ -307,6 +311,16 @@ export default function SettingsPage() {
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
                         </select>
+                      ) : s.key.endsWith('_ENABLED') ? (
+                        <label className="flex items-center gap-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!/^(false|0|no)$/i.test(draft[s.key] ?? '')}
+                            onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.checked ? 'true' : 'false' }))}
+                            className="w-4 h-4 accent-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">Activado</span>
+                        </label>
                       ) : NOTIF_SOUND_KEYS.includes(s.key) ? (
                         <select
                           value={draft[s.key] ?? ''}
@@ -351,6 +365,7 @@ export default function SettingsPage() {
                     )}
                   </div>
                 ))}
+                {group === 'correo' && canEdit && <PlatformMailTest />}
               </div>
             </div>
           ))}
@@ -389,6 +404,37 @@ export default function SettingsPage() {
       </form>
 
       {getUser()?.role === 'COMPANY_ADMIN' && <AccountClosureSection />}
+    </div>
+  );
+}
+
+// Envía un correo de prueba con la configuración guardada del correo de la plataforma.
+function PlatformMailTest() {
+  const [to, setTo] = useState(getUser()?.email || '');
+  const [state, setState] = useState<{ busy: boolean; ok?: string; error?: string }>({ busy: false });
+  async function send() {
+    setState({ busy: true });
+    try {
+      await api.platformMail.test(to.trim(), getToken()!);
+      setState({ busy: false, ok: `Correo de prueba enviado a ${to.trim()}. Revisa también la carpeta de spam.` });
+    } catch (err) {
+      setState({ busy: false, error: (err as Error).message || 'No se pudo enviar' });
+    }
+  }
+  return (
+    <div className="px-5 py-4 bg-gray-50/60">
+      <label className="text-sm font-medium text-gray-700">Probar el correo</label>
+      <p className="text-xs text-gray-400 mb-2">Guarda primero la configuración y luego envía un correo de prueba.</p>
+      <div className="flex gap-2">
+        <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="tu@correo.cl"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="button" onClick={send} disabled={state.busy || !to.trim()}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-50 shrink-0">
+          {state.busy ? 'Enviando…' : 'Enviar prueba'}
+        </button>
+      </div>
+      {state.ok && <p className="text-xs text-green-700 mt-1.5">✓ {state.ok}</p>}
+      {state.error && <p className="text-xs text-red-600 mt-1.5">{state.error}</p>}
     </div>
   );
 }

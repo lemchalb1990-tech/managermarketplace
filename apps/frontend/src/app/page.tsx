@@ -60,6 +60,18 @@ async function getPublicPlans(): Promise<PublicPlan[]> {
   }
 }
 
+// ¿Está abierto el registro de empresas nuevas con Google? (muestra "Prueba gratis").
+async function getSignupEnabled(): Promise<boolean> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/api/auth/config`, { next: { revalidate: 300 } });
+    if (!res.ok) return false;
+    return !!(await res.json() as { signupEnabled?: boolean }).signupEnabled;
+  } catch {
+    return false;
+  }
+}
+
 /* ── Contenido ─────────────────────────────────────────────────────────────── */
 
 
@@ -191,7 +203,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary, contact = f
 }
 
 export default async function Home() {
-  const [logoMap, plans] = await Promise.all([getPlatformLogoMap(), getPublicPlans()]);
+  const [logoMap, plans, signupEnabled] = await Promise.all([getPlatformLogoMap(), getPublicPlans(), getSignupEnabled()]);
   return (
     <div className={`lp ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
@@ -211,7 +223,8 @@ export default async function Home() {
             <a href="#movil" className="lp-nav-link">Versión móvil</a>
             <a href="#precios" className="lp-nav-link">Precios</a>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {signupEnabled && <Link href="/login?registro=1" className="lp-nav-link max-sm:hidden">Prueba gratis</Link>}
             <Link href="/login" className="lp-btn lp-btn--primary">Entrar al panel</Link>
           </div>
         </nav>

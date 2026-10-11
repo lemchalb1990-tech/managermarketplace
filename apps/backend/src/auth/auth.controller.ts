@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -12,6 +13,43 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto.email, dto.password);
+  }
+
+  // Sin token: qué opciones de ingreso mostrar (botón de Google, registro).
+  @Get('config')
+  config() {
+    return this.authService.publicConfig();
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Post('google')
+  google(@Body() body: { credential: string }) {
+    return this.authService.googleLogin(body?.credential);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('google/signup')
+  googleSignup(@Body() body: { signupToken: string; companyName: string; name?: string; phone?: string; rut?: string }) {
+    return this.authService.googleSignup(body || ({} as any));
+  }
+
+  // Recuperación de contraseña: pocos intentos por minuto para evitar abusos.
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('forgot-password')
+  forgot(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body?.email);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get('reset-password')
+  checkReset(@Query('token') token: string) {
+    return this.authService.checkResetToken(token);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('reset-password')
+  reset(@Body() body: { token: string; password: string }) {
+    return this.authService.resetPassword(body?.token, body?.password);
   }
 
   @UseGuards(JwtAuthGuard)
