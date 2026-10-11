@@ -7,7 +7,9 @@ import { DEFAULT_TIMEZONE } from '../common/timezone';
 // WhatsApp de ventas por defecto (Contáctanos de la landing), editable en Configuración.
 const DEFAULT_CONTACT_WHATSAPP = '56982853197';
 
-export const SETTING_DEFINITIONS: { key: string; label: string; group: string; hint: string; sensitive: boolean; default?: string }[] = [
+// fillIfEmpty: si la fila ya existe pero quedó vacía (creada antes de que hubiera valor por defecto),
+// al iniciar se completa con el valor por defecto.
+export const SETTING_DEFINITIONS: { key: string; label: string; group: string; hint: string; sensitive: boolean; default?: string; fillIfEmpty?: boolean }[] = [
   {
     key: 'TITLE_MAX_PARIS',
     label: 'Largo máximo del nombre en Paris',
@@ -194,6 +196,7 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     sensitive: false,
     // ID de cliente de AdminMarket (es público: Google lo expone en el navegador).
     default: '208479117224-ptfp3ehjuhsrpfmisqooa03u5tci1ods.apps.googleusercontent.com',
+    fillIfEmpty: true,
   },
   {
     key: 'AUTH_GOOGLE_ENABLED',
@@ -292,6 +295,9 @@ export class SettingsService implements OnModuleInit {
     // Inicializar settings con valores de env si no existen en BD
     for (const def of SETTING_DEFINITIONS) {
       const exists = await this.prisma.setting.findUnique({ where: { key: def.key } });
+      if (exists && def.fillIfEmpty && !exists.value && def.default) {
+        await this.prisma.setting.update({ where: { key: def.key }, data: { value: def.default } });
+      }
       if (!exists) {
         const envValue = this.config.get<string>(def.key) || (def.key === 'DASHBOARD_TIMEZONE' ? DEFAULT_TIMEZONE : '') || def.default || '';
         await this.prisma.setting.create({
