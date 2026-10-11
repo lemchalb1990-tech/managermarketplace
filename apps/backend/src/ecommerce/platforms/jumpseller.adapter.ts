@@ -18,6 +18,14 @@ const ORDERS_PAGE_SIZE = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const storeInfoCache = new Map<string, { url: string | null; weightUnit: string }>();
+// Productos que ya trajo la vista previa de importación: al confirmar no se vuelven a pedir a
+// JumpSeller uno por uno (con muchos productos eso hacía la importación lentísima).
+const PRODUCT_CACHE_TTL = 30 * 60 * 1000;
+const productCache = new Map<string, { at: number; data: any }>();
+// Coincidencias contra el catálogo: se arman una vez por importación, no en cada lote de 10.
+const MATCHER_TTL = 5 * 60 * 1000;
+const matcherCache = new Map<string, { at: number; match: (row: { sku: string | null; name: string }) => { product: { id: string; name: string }; type: 'sku' | 'name' } | null }>();
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const NAME_MATCH_THRESHOLD = 0.9;
 
 // Un producto de Jumpseller puede tener variantes (talla/color...), cada una con su propio
@@ -119,11 +127,17 @@ export class JumpSellerAdapter implements PlatformAdapter {
     return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  private async request(conn: any, path: string, init: RequestInit = {}): Promise<any> {
+  private async request(conn: any, path: string, init: RequestInit = {}, attempt = 0): Promise<any> {
     const res = await fetch(`${BASE}${path}`, {
       ...init,
       headers: { Accept: 'application/json', ...this.authHeader(conn), ...(init.headers || {}) },
     });
+    // Límite de uso de JumpSeller o caída momentánea: se espera y se reintenta (solo lecturas).
+    if ((res.status === 429 || res.status >= 500) && attempt < 3 && (!init.method || init.method === 'GET')) {
+      const wait = Number(res.headers.get('retry-after')) * 1000 || 1500 * (attempt + 1);
+      await sleep(Math.min(wait, 10_000));
+      return this.request(conn, path, init, attempt + 1);
+    }
     const text = await res.text();
     let data: any = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -375,6 +389,8 @@ export class JumpSellerAdapter implements PlatformAdapter {
   }
 
   async previewImport(conn: any, companyId: string, offset = 0) {
+    // Una importación nueva parte con el catálogo al día (productos creados desde la anterior).
+    if (offset === 0) matcherCache.delete(conn.id);
     const page = Math.floor(offset / IMPORT_PAGE_SIZE) + 1;
     const [list, count, store, match] = await Promise.all([
       this.request(conn, `/products.json?limit=${IMPORT_PAGE_SIZE}&page=${page}`),
@@ -383,6 +399,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
       this.buildMatcher(conn, companyId),
     ]);
     const products: any[] = (Array.isArray(list) ? list : []).map((r: any) => r?.product || r);
+    this.cacheProducts(conn.id, products);
     const rows = products.flatMap((p) => this.expandProduct(p));
     const totalProducts = Number(count?.count ?? 0) || offset + products.length;
     const hasMore = products.length === IMPORT_PAGE_SIZE && offset + products.length < totalProducts;
@@ -422,14 +439,52 @@ export class JumpSellerAdapter implements PlatformAdapter {
     };
   }
 
-  private async nextSku(companyId: string): Promise<string> {
-    let n = (await this.prisma.product.count({ where: { companyId } })) + 1;
-    let sku = `SKU-${String(n).padStart(6, '0')}`;
-    while (await this.prisma.product.findUnique({ where: { sku_companyId: { sku, companyId } } })) {
-      n++;
-      sku = `SKU-${String(n).padStart(6, '0')}`;
+  private cacheProducts(connId: string, products: any[]) {
+    const now = Date.now();
+    if (productCache.size > 20_000) {
+      for (const [k, v] of productCache) if (now - v.at > PRODUCT_CACHE_TTL) productCache.delete(k);
     }
-    return sku;
+    for (const p of products) if (p?.id != null) productCache.set(`${connId}:${p.id}`, { at: now, data: p });
+  }
+
+  // Datos completos de los productos de un lote: los de la vista previa salen de la caché; el
+  // resto se pide a JumpSeller de a 4 en paralelo.
+  private async loadProducts(conn: any, productIds: string[]) {
+    const out = new Map<string, any>();
+    const missing: string[] = [];
+    const now = Date.now();
+    for (const id of new Set(productIds)) {
+      const hit = productCache.get(`${conn.id}:${id}`);
+      if (hit && now - hit.at < PRODUCT_CACHE_TTL) out.set(id, hit.data);
+      else missing.push(id);
+    }
+    for (let i = 0; i < missing.length; i += 4) {
+      await Promise.all(missing.slice(i, i + 4).map(async (id) => {
+        const data = await this.request(conn, `/products/${id}.json`).catch(() => null);
+        const product = data?.product || null;
+        if (product) this.cacheProducts(conn.id, [product]);
+        out.set(id, product);
+      }));
+    }
+    return out;
+  }
+
+  // Siguiente SKU automático (SKU-000123): parte del mayor existente con una sola consulta, en
+  // vez de probar uno por uno (con muchos productos eran cientos de consultas por producto).
+  private async skuAllocator(companyId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ max: number | null }>>`
+      SELECT MAX(CAST(SUBSTRING(sku FROM 5) AS INTEGER)) AS max FROM products
+      WHERE "companyId" = ${companyId} AND sku ~ '^SKU-[0-9]{1,9}$'`;
+    let n = Number(rows[0]?.max || 0);
+    return () => `SKU-${String(++n).padStart(6, '0')}`;
+  }
+
+  private async cachedMatcher(conn: any, companyId: string) {
+    const hit = matcherCache.get(conn.id);
+    if (hit && Date.now() - hit.at < MATCHER_TTL) return hit.match;
+    const match = await this.buildMatcher(conn, companyId);
+    matcherCache.set(conn.id, { at: Date.now(), match });
+    return match;
   }
 
   // Producto Maestro que agrupa las variantes de un producto de Jumpseller (uno por producto,
@@ -467,23 +522,19 @@ export class JumpSellerAdapter implements PlatformAdapter {
     const preexistingListings = await this.prisma.listing.findMany({ where: { connectionId: conn.id }, select: { productId: true, externalId: true } });
     const linkedProductIds = new Set(preexistingListings.map((l) => l.productId));
     const linkedIds = new Set(preexistingListings.map((l) => l.externalId).filter(Boolean));
-    const [store, match] = await Promise.all([this.storeInfo(conn), this.buildMatcher(conn, companyId)]);
+    const [store, match, nextSku] = await Promise.all([this.storeInfo(conn), this.cachedMatcher(conn, companyId), this.skuAllocator(companyId)]);
     const toGrams = (w: number | null) => (w && w > 0
       ? round2(store.weightUnit === 'lb' ? w * 453.592 : store.weightUnit === 'g' ? w : w * 1000)
       : null);
-    // Varias variantes del mismo producto vienen en una sola respuesta: se pide una vez.
-    const productCache = new Map<string, any>();
+    // Todos los productos del lote de una vez (varias variantes comparten producto).
+    const batchProducts = await this.loadProducts(conn, externalIds.filter((id) => !linkedIds.has(id)).map((id) => parseKey(id).productId));
 
     for (const externalId of externalIds) {
       try {
         if (linkedIds.has(externalId)) { skipped++; continue; }
 
         const { productId } = parseKey(externalId);
-        if (!productCache.has(productId)) {
-          const data = await this.request(conn, `/products/${productId}.json`).catch(() => null);
-          productCache.set(productId, data?.product || null);
-        }
-        const raw = productCache.get(productId);
+        const raw = batchProducts.get(productId);
         const r = raw ? this.expandProduct(raw).find((x) => x.externalId === externalId) : null;
         if (!r) { errors.push(`${externalId}: no se encontró en JumpSeller`); continue; }
 
@@ -497,7 +548,7 @@ export class JumpSellerAdapter implements PlatformAdapter {
 
         if (!product) {
           const skuTaken = r.sku ? await this.prisma.product.findUnique({ where: { sku_companyId: { sku: r.sku, companyId } } }) : null;
-          const sku = r.sku && !skuTaken ? r.sku : await this.nextSku(companyId);
+          const sku = r.sku && !skuTaken ? r.sku : nextSku();
           // Límite de productos del plan.
           await this.subscription.assertCanAdd(conn.companyId, 'products');
           product = await this.prisma.product.create({

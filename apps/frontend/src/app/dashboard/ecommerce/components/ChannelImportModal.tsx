@@ -40,6 +40,13 @@ const statusColor: Record<string, string> = {
 const PAGE_SIZE = 20;
 const IMPORT_BATCH_SIZE = 10;
 
+// Tiempo restante estimado según lo que tardaron los lotes ya importados.
+function etaText(p: { done: number; total: number; startedAt: number }) {
+  if (!p.done || p.done >= p.total || !p.startedAt) return 'Calculando tiempo restante…';
+  const secs = Math.round(((Date.now() - p.startedAt) / p.done) * (p.total - p.done) / 1000);
+  return secs < 60 ? `Quedan unos ${Math.max(5, secs)} segundos` : `Quedan unos ${Math.ceil(secs / 60)} minutos`;
+}
+
 // Trae y "unifica" el catálogo que ya existe publicado en el canal con el catálogo interno —
 // mismo patrón que el import de Mercado Libre (ver ecommerce/mercadolibre/components/ImportModal.tsx),
 // adaptado a paginación por offset (estos canales no usan scroll_id). Precio, stock, estado y
@@ -74,7 +81,7 @@ export function ChannelImportModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [unlinked, setUnlinked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0, startedAt: 0 });
   const [result, setResult] = useState<{ imported: number; linked: number; skipped: number; errors: string[] } | null>(null);
   const [page, setPage] = useState(0);
   // Filtro por estado en el canal (solo si el canal lo informa): al cambiarlo, quedan
@@ -194,7 +201,8 @@ export function ChannelImportModal({
     const ids = Array.from(selected);
     setImporting(true);
     setError('');
-    setImportProgress({ done: 0, total: ids.length });
+    const startedAt = Date.now();
+    setImportProgress({ done: 0, total: ids.length, startedAt });
     // Se confirma por lotes para poder mostrar el % de avance real.
     const combined = { imported: 0, linked: 0, skipped: 0, errors: [] as string[] };
     try {
@@ -210,7 +218,7 @@ export function ChannelImportModal({
         } catch (err: any) {
           combined.errors.push(err.message || `Lote de productos: error al importar.`);
         }
-        setImportProgress({ done: Math.min(i + IMPORT_BATCH_SIZE, ids.length), total: ids.length });
+        setImportProgress({ done: Math.min(i + IMPORT_BATCH_SIZE, ids.length), total: ids.length, startedAt });
       }
       setResult(combined);
       onImported();
@@ -244,6 +252,7 @@ export function ChannelImportModal({
                 label={`Importando ${importProgress.done} de ${importProgress.total}...`}
                 percent={importProgress.total > 0 ? (importProgress.done / importProgress.total) * 100 : 0}
                 color="bg-blue-500"
+                detail={etaText(importProgress)}
               />
             </div>
             <p className="text-xs text-gray-400">Esto puede tardar unos segundos, no cierres esta ventana.</p>
