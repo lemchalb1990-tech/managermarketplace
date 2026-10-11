@@ -192,7 +192,8 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     group: 'acceso',
     hint: 'De Google Cloud → APIs y servicios → Credenciales → ID de cliente OAuth (aplicación web). Agrega la URL del frontend en "Orígenes de JavaScript autorizados". Vacío = no se muestra el botón de Google.',
     sensitive: false,
-    default: '',
+    // ID de cliente de AdminMarket (es público: Google lo expone en el navegador).
+    default: '208479117224-ptfp3ehjuhsrpfmisqooa03u5tci1ods.apps.googleusercontent.com',
   },
   {
     key: 'AUTH_GOOGLE_ENABLED',
