@@ -39,7 +39,7 @@ const navGroups: NavGroup[] = [
     label: 'Ventas',
     items: [
       { href: '/dashboard/pos', label: 'Punto de Venta', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
-      { href: '/dashboard/pos/ordenes-trabajo', label: 'Órdenes de trabajo', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
+      { href: '/dashboard/pos/ordenes-trabajo', label: 'Órdenes de trabajo', perm: 'pos.work-orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/clientes', label: 'Registro de Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
       { href: '/dashboard/devoluciones', label: 'Devoluciones', perm: 'returns', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null, permOnly: true },
       { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
@@ -50,10 +50,10 @@ const navGroups: NavGroup[] = [
     key: 'canales',
     label: 'Sincronizaciones',
     items: [
-      { href: '/dashboard/mis-conexiones', label: 'Mis conexiones', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
+      { href: '/dashboard/mis-conexiones', label: 'Mis conexiones', perm: 'ecommerce.connections', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/ecommerce', label: 'E-commerce', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/billing', label: 'Facturación', perm: 'billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
-      { href: '/dashboard/couriers', label: 'Couriers', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'ecommerce' },
+      { href: '/dashboard/couriers', label: 'Couriers', perm: 'couriers', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'ecommerce' },
       { href: '/dashboard/dropshipping', label: 'Dropshipping', perm: 'dropshipping', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dropshipping' },
     ],
   },
@@ -62,7 +62,7 @@ const navGroups: NavGroup[] = [
     label: 'Mercado Libre',
     items: [
       { href: '/dashboard/mercadolibre/preguntas', label: 'Preguntas', perm: 'ml.preguntas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
-      { href: '/dashboard/mercadolibre/mensajes', label: 'Mensajes', perm: 'ml.preguntas', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
+      { href: '/dashboard/mercadolibre/mensajes', label: 'Mensajes', perm: 'ml.mensajes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/reclamos', label: 'Reclamos', perm: 'ml.reclamos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/devoluciones', label: 'Devoluciones', perm: 'ml.devoluciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
       { href: '/dashboard/mercadolibre/calificaciones', label: 'Calificaciones', perm: 'ml.calificaciones', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'ecommerce' },
@@ -93,7 +93,7 @@ const navGroups: NavGroup[] = [
     key: 'operacion',
     label: 'Operación',
     items: [
-      { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders.scan', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
       { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null, permOnly: true },
       { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
       { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
@@ -139,7 +139,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
-      { href: '/dashboard/uso', label: 'Uso', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/uso', label: 'Uso', perm: 'usage', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
     ],
   },
 ];
@@ -441,7 +441,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="truncate">Admin Marketplace</span>
               </span>
               <HeaderCompanyPicker />
-              {can(user, 'ml.preguntas', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'ecommerce') && <MessagesIndicator />}
+              {can(user, 'ml.mensajes', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'ecommerce') && <MessagesIndicator />}
               <NotificationBell />
 
               <div className="relative" ref={profileRef}>
