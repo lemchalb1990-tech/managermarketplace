@@ -317,6 +317,7 @@ model User {
   financeTransfers      FinanceTransfer[]
   passwordResets        PasswordResetToken[]
   invitationsSent       UserInvitation[] @relation("InvitationInvitedBy")
+  companyInvitationsSent CompanyInvitation[] @relation("CompanyInvitationInvitedBy")
 
   @@map("users")
 }
@@ -2670,4 +2671,32 @@ model UserInvitation {
   @@index([companyId, status])
   @@index([email, status])
   @@map("user_invitations")
+}
+
+// Invitación del Super Admin para crear una empresa nueva: la empresa se crea recién cuando el
+// administrador invitado acepta (con Google con ese mismo correo o creando su contraseña), con el
+// plan elegido y sus perfiles base. Solo se guarda el hash del enlace; vence en 7 días.
+model CompanyInvitation {
+  id            String    @id @default(cuid())
+  companyName   String
+  email         String
+  name          String?
+  planId        String?
+  message       String?
+  tokenHash     String    @unique
+  status        String    @default("PENDING") // PENDING | ACCEPTED | CANCELLED
+  expiresAt     DateTime
+  sentAt        DateTime?
+  acceptedAt    DateTime?
+  companyId     String?
+  invitedByName String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  invitedById String?
+  invitedBy   User?   @relation("CompanyInvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([email, status])
+  @@index([status, createdAt])
+  @@map("company_invitations")
 }

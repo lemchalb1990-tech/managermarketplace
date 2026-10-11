@@ -214,6 +214,20 @@ export type InvitationInfo = {
   expiresAt: string; googleClientId: string | null; exists: boolean;
 };
 
+// ── Invitaciones para crear empresas ──
+export type CompanyInvitationRow = {
+  id: string; companyName: string; email: string; name: string | null; planId: string | null; planName: string | null;
+  expiresAt: string; sentAt: string | null; invitedByName: string | null; createdAt: string;
+};
+export type CompanyInvitationResult = {
+  invitation: { id: string; companyName: string; email: string; name: string | null; planName: string | null; expiresAt: string };
+  link: string; emailSent: boolean; emailConfigured: boolean;
+};
+export type CompanyInvitationInfo = {
+  companyName: string; email: string; name: string | null; message: string | null; invitedByName: string | null;
+  planName: string | null; trialDays: number | null; expiresAt: string; googleClientId: string | null; exists: boolean;
+};
+
 export type CourierConnectionInfo = {
   id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
   settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
@@ -377,6 +391,20 @@ export const api = {
       apiFetch<{ access_token: string; user: any }>('/auth/invitation/accept', { method: 'POST', body: JSON.stringify(data) }),
     acceptInvitationGoogle: (token: string, credential: string) =>
       apiFetch<{ access_token: string; user: any }>('/auth/invitation/google', { method: 'POST', body: JSON.stringify({ token, credential }) }),
+    companyInvitation: (token: string) => apiFetch<CompanyInvitationInfo>(`/auth/company-invitation?token=${encodeURIComponent(token)}`, {}),
+    acceptCompanyInvitation: (data: { token: string; name?: string; password: string; companyName?: string; phone?: string; rut?: string }) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/company-invitation/accept', { method: 'POST', body: JSON.stringify(data) }),
+    acceptCompanyInvitationGoogle: (data: { token: string; credential: string; companyName?: string; phone?: string; rut?: string }) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/company-invitation/google', { method: 'POST', body: JSON.stringify(data) }),
+  },
+  // Invitaciones para crear empresas nuevas (Super Admin).
+  companyInvitations: {
+    list: (token: string) => apiFetch<CompanyInvitationRow[]>('/company-invitations', {}, token),
+    create: (data: { companyName: string; email: string; name?: string; planId?: string | null; message?: string; sendEmail?: boolean }, token: string) =>
+      apiFetch<CompanyInvitationResult>('/company-invitations', { method: 'POST', body: JSON.stringify(data) }, token),
+    resend: (id: string, token: string) => apiFetch<CompanyInvitationResult>(`/company-invitations/${id}/resend`, { method: 'POST' }, token),
+    link: (id: string, token: string) => apiFetch<CompanyInvitationResult>(`/company-invitations/${id}/link`, { method: 'POST' }, token),
+    cancel: (id: string, token: string) => apiFetch<{ ok: boolean }>(`/company-invitations/${id}/cancel`, { method: 'POST' }, token),
   },
   platformMail: {
     test: (to: string, token: string) => apiFetch<{ ok: boolean }>('/platform-mail/test', { method: 'POST', body: JSON.stringify({ to }) }, token),

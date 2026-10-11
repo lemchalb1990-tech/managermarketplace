@@ -128,6 +128,11 @@ export class AuthService {
     if (invitation) {
       return this.consumeInvitation(invitation, { name: (invitation.name || g.name || g.email.split('@')[0]).slice(0, 120), passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10), googleSub: g.sub });
     }
+    // Invitación del Super Admin para crear una empresa: se activa con los datos de la invitación.
+    const companyInv = await this.prisma.companyInvitation.findFirst({
+      where: { email: g.email, status: 'PENDING', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' },
+    });
+    if (companyInv) return this.consumeCompanyInvitation(companyInv, { googleSub: g.sub, name: g.name });
     if (!(await this.flag('AUTH_SIGNUP_ENABLED'))) {
       throw new UnauthorizedException(`No hay una cuenta con ${g.email}. Pide a tu administrador que te cree un usuario.`);
     }
@@ -153,32 +158,43 @@ export class AuthService {
     if (await this.prisma.user.findFirst({ where: { email: { equals: payload.email, mode: 'insensitive' } } })) {
       throw new ConflictException('Ya existe una cuenta con ese correo. Entra con Google.');
     }
-    // Slug único a partir del nombre.
-    const base = slugify(companyName);
-    let slug = base;
-    for (let i = 2; await this.prisma.company.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
     // Sin contraseña conocida: entra con Google (o se crea una con "¿Olvidaste tu contraseña?").
     const password = await bcrypt.hash(randomBytes(24).toString('hex'), 10);
-    const company = await this.prisma.$transaction(async (tx) => {
-      const c = await tx.company.create({ data: { name: companyName, slug } });
-      // La empresa parte con sus perfiles base; quien se registra queda con "Administrador".
-      const profiles = await ensureDefaultProfiles(tx, c.id);
-      await tx.user.create({ data: { name, email: payload.email, password, role: 'COMPANY_ADMIN', companyId: c.id, googleSub: payload.gsub || null, accessProfileId: profiles.COMPANY_ADMIN } });
-      return c;
-    });
-    const trial = await this.prisma.subscriptionPlan.findFirst({ where: { isTrial: true, active: true }, orderBy: { sortOrder: 'asc' } });
-    if (trial) await this.subscription.assignPlan(company.id, trial.id).catch((e) => this.logger.warn(`Plan de prueba: ${e.message}`));
-    const user = await this.prisma.user.findFirstOrThrow({ where: { email: payload.email }, include: USER_INCLUDE });
-    void this.signupEmails(user, company.name, phone, rut, trial?.trialDays ?? 15);
+    const { user } = await this.createCompanyWithAdmin({ companyName, email: payload.email, name, passwordHash: password, googleSub: payload.gsub || null, phone, rut });
     return this.session(user);
   }
 
-  private async signupEmails(user: any, companyName: string, phone: string, rut: string, days: number) {
+  // Crea la empresa con sus perfiles base, su administrador y el plan (el indicado o el de
+  // prueba). La usan el registro con Google y las invitaciones de empresa.
+  private async createCompanyWithAdmin(o: {
+    companyName: string; email: string; name: string; passwordHash: string; googleSub?: string | null;
+    planId?: string | null; phone?: string; rut?: string; via?: string;
+  }) {
+    const base = slugify(o.companyName);
+    let slug = base;
+    for (let i = 2; await this.prisma.company.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
+    const company = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.company.create({ data: { name: o.companyName, slug } });
+      // La empresa parte con sus perfiles base; su administrador queda con "Administrador".
+      const profiles = await ensureDefaultProfiles(tx, c.id);
+      await tx.user.create({ data: { name: o.name, email: o.email, password: o.passwordHash, role: 'COMPANY_ADMIN', companyId: c.id, googleSub: o.googleSub || null, accessProfileId: profiles.COMPANY_ADMIN } });
+      return c;
+    });
+    const plan = o.planId
+      ? await this.prisma.subscriptionPlan.findUnique({ where: { id: o.planId } })
+      : await this.prisma.subscriptionPlan.findFirst({ where: { isTrial: true, active: true }, orderBy: { sortOrder: 'asc' } });
+    if (plan) await this.subscription.assignPlan(company.id, plan.id).catch((e) => this.logger.warn(`Plan de la empresa nueva: ${e.message}`));
+    const user = await this.prisma.user.findFirstOrThrow({ where: { email: o.email }, include: USER_INCLUDE });
+    void this.signupEmails(user, company.name, o.phone || '', o.rut || '', plan, o.via || 'se registró con Google');
+    return { company, user };
+  }
+
+  private async signupEmails(user: any, companyName: string, phone: string, rut: string, plan: { name: string; isTrial: boolean; trialDays: number | null } | null, via: string) {
     const url = await this.mail.frontendUrl();
     await this.mail.send(user.email, 'Bienvenido a AdminMarket', this.mail.layout({
       title: `¡Bienvenido, ${user.name.split(' ')[0]}!`,
       paragraphs: [
-        `Creamos la cuenta de <strong>${esc(companyName)}</strong> con ${days} días de prueba gratis.`,
+        `Creamos la cuenta de <strong>${esc(companyName)}</strong>${plan ? (plan.isTrial ? ` con ${plan.trialDays ?? 15} días de prueba gratis` : ` con el plan ${esc(plan.name)}`) : ''}.`,
         'Conecta tus canales de venta, carga tu catálogo y gestiona tus órdenes desde un solo lugar.',
       ],
       button: { label: 'Entrar al panel', url: `${url}/login` },
@@ -188,7 +204,7 @@ export class AuthService {
       await this.mail.send(notify, `Nueva empresa registrada: ${companyName}`, this.mail.layout({
         title: 'Nueva empresa registrada',
         paragraphs: [
-          `<strong>${esc(companyName)}</strong> se registró con Google y quedó con el plan de prueba.`,
+          `<strong>${esc(companyName)}</strong> ${esc(via)}${plan ? ` y quedó con el plan ${esc(plan.name)}` : ''}.`,
           `Administrador: ${esc(user.name)} (${esc(user.email)})${phone ? `<br>Teléfono: ${esc(phone)}` : ''}${rut ? `<br>RUT: ${esc(rut)}` : ''}`,
         ],
         button: { label: 'Ver empresas', url: `${url}/dashboard/companies` },
@@ -261,6 +277,68 @@ export class AuthService {
     }
     const name = (inv.name || g.name || inv.email.split('@')[0]).slice(0, 120);
     return this.consumeInvitation(inv, { name, passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10), googleSub: g.sub });
+  }
+
+  // ── Invitaciones para crear una empresa ────────────────────────────────
+
+  private async validCompanyInvitation(token: string) {
+    const inv = token ? await this.prisma.companyInvitation.findUnique({ where: { tokenHash: sha256(String(token)) } }) : null;
+    if (!inv || inv.status !== 'PENDING') throw new BadRequestException('La invitación no es válida o ya fue usada. Pide una nueva a AdminMarket.');
+    if (inv.expiresAt < new Date()) throw new BadRequestException('La invitación venció. Pide a AdminMarket que te la reenvíe.');
+    return inv;
+  }
+
+  async checkCompanyInvitation(token: string) {
+    const inv = await this.validCompanyInvitation(token);
+    const plan = inv.planId ? await this.prisma.subscriptionPlan.findUnique({ where: { id: inv.planId }, select: { name: true, isTrial: true, trialDays: true } }) : null;
+    const cfg = await this.publicConfig();
+    return {
+      companyName: inv.companyName, email: inv.email, name: inv.name, message: inv.message, invitedByName: inv.invitedByName,
+      planName: plan?.name ?? null, trialDays: plan?.isTrial ? plan.trialDays ?? 15 : null, expiresAt: inv.expiresAt,
+      googleClientId: cfg.googleClientId,
+      exists: !!(await this.prisma.user.findFirst({ where: { email: { equals: inv.email, mode: 'insensitive' } }, select: { id: true } })),
+    };
+  }
+
+  private async consumeCompanyInvitation(
+    inv: Awaited<ReturnType<AuthService['validCompanyInvitation']>>,
+    o: { name?: string; passwordHash?: string; googleSub?: string | null; companyName?: string; phone?: string; rut?: string },
+  ) {
+    if (await this.prisma.user.findFirst({ where: { email: { equals: inv.email, mode: 'insensitive' } } })) {
+      throw new ConflictException('Ya existe una cuenta con ese correo. Ingresa desde la pantalla de inicio de sesión.');
+    }
+    // Se marca primero para que dos aceptaciones simultáneas no creen dos empresas.
+    const claimed = await this.prisma.companyInvitation.updateMany({ where: { id: inv.id, status: 'PENDING' }, data: { status: 'ACCEPTED', acceptedAt: new Date() } });
+    if (!claimed.count) throw new BadRequestException('La invitación ya fue usada.');
+    try {
+      const companyName = (String(o.companyName || '').trim() || inv.companyName).slice(0, 120);
+      const { company, user } = await this.createCompanyWithAdmin({
+        companyName, email: inv.email, name: (String(o.name || '').trim() || inv.name || inv.email.split('@')[0]).slice(0, 120),
+        passwordHash: o.passwordHash || (await bcrypt.hash(randomBytes(24).toString('hex'), 10)), googleSub: o.googleSub || null,
+        planId: inv.planId, phone: o.phone, rut: o.rut, via: 'activó su cuenta con la invitación',
+      });
+      await this.prisma.companyInvitation.update({ where: { id: inv.id }, data: { companyId: company.id } });
+      return this.session(user);
+    } catch (e) {
+      await this.prisma.companyInvitation.update({ where: { id: inv.id }, data: { status: 'PENDING', acceptedAt: null } }).catch(() => {});
+      throw e;
+    }
+  }
+
+  async acceptCompanyInvitation(token: string, dto: { name?: string; password: string; companyName?: string; phone?: string; rut?: string }) {
+    const inv = await this.validCompanyInvitation(token);
+    const pw = String(dto.password || '');
+    if (pw.length < MIN_PASSWORD) throw new BadRequestException(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`);
+    return this.consumeCompanyInvitation(inv, { ...dto, passwordHash: await bcrypt.hash(pw, 10) });
+  }
+
+  async acceptCompanyInvitationGoogle(token: string, credential: string, dto: { companyName?: string; phone?: string; rut?: string }) {
+    const inv = await this.validCompanyInvitation(token);
+    const g = await this.verifyGoogle(credential);
+    if (g.email !== inv.email.toLowerCase()) {
+      throw new UnauthorizedException(`La invitación es para ${inv.email}. Entra con esa cuenta de Google o crea una contraseña.`);
+    }
+    return this.consumeCompanyInvitation(inv, { ...dto, name: inv.name || g.name, googleSub: g.sub });
   }
 
   // ── Recuperación de contraseña ─────────────────────────────────────────

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
+import { CompanyInvitations } from './CompanyInvitations';
 import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -41,6 +42,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [listingsLoadingId, setListingsLoadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -253,11 +255,19 @@ export default function CompaniesPage() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h1 className="ui-page-title">Empresas</h1>
-        <button onClick={() => { setEditing(null); setShowForm(true); }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-          + Nueva empresa
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => { setEditing(null); setShowForm(true); }}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+            Crear empresa
+          </button>
+          <button onClick={() => setShowInvite(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            + Invitar empresa
+          </button>
+        </div>
       </div>
+
+      <CompanyInvitations open={showInvite} onClose={() => setShowInvite(false)} plans={plans} />
 
       {showForm && (
         <Modal title="Nueva empresa" size="lg" busy={loading}

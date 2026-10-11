@@ -71,6 +71,25 @@ export class AuthController {
     return this.authService.acceptInvitationGoogle(body?.token, body?.credential);
   }
 
+  // Invitación para crear una empresa (la envía el Super Admin).
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get('company-invitation')
+  companyInvitation(@Query('token') token: string) {
+    return this.authService.checkCompanyInvitation(token);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('company-invitation/accept')
+  acceptCompanyInvitation(@Body() body: { token: string; name?: string; password: string; companyName?: string; phone?: string; rut?: string }) {
+    return this.authService.acceptCompanyInvitation(body?.token, body || ({} as any));
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('company-invitation/google')
+  acceptCompanyInvitationGoogle(@Body() body: { token: string; credential: string; companyName?: string; phone?: string; rut?: string }) {
+    return this.authService.acceptCompanyInvitationGoogle(body?.token, body?.credential, body || {});
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: any) {
