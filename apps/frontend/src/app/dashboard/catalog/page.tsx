@@ -1441,9 +1441,6 @@ const MARKETPLACE_LABELS: Record<string, string> = {
   HITES: 'Hites', RIPLEY: 'Ripley', WALMART: 'Walmart',
 };
 
-const statusLabel: Record<string, string> = {
-  ACTIVE: 'Activo', PAUSED: 'Pausado', DRAFT: 'Borrador', ERROR: 'Error', CLOSED: 'Cerrado',
-};
 const statusColor: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
   PAUSED: 'bg-yellow-100 text-yellow-700',
@@ -1452,14 +1449,46 @@ const statusColor: Record<string, string> = {
   CLOSED: 'bg-gray-200 text-gray-500',
 };
 
-// Chip de publicación por tienda en la fila del catálogo: solo color + nombre de la tienda
-// (sin la palabra del estado) — verde activo, amarillo pausado, rojo el resto (borrador,
-// error, cerrado). El texto del estado queda disponible como tooltip.
-const listingChipColor: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-700',
-  PAUSED: 'bg-amber-100 text-amber-700',
+// Publicaciones agrupadas por tienda: un chip por tienda con la cantidad en cada estado
+// (verde activas, ámbar pausadas, rojo con error, gris borrador/cerrada), en vez de repetir
+// el nombre de la tienda una vez por publicación.
+const STORE_STATUS_ORDER = ['ACTIVE', 'PAUSED', 'ERROR', 'DRAFT', 'CLOSED'];
+const storeStatusDot: Record<string, string> = {
+  ACTIVE: 'bg-green-500', PAUSED: 'bg-amber-500', ERROR: 'bg-red-500', DRAFT: 'bg-gray-400', CLOSED: 'bg-gray-300',
 };
-const listingChipDefaultColor = 'bg-red-100 text-red-700';
+const storeStatusPlural: Record<string, string> = {
+  ACTIVE: 'activas', PAUSED: 'pausadas', ERROR: 'con error', DRAFT: 'borrador', CLOSED: 'cerradas',
+};
+
+function StoreChips({ listings }: { listings: any[] }) {
+  const stores = new Map<string, { name: string; counts: Record<string, number> }>();
+  for (const l of listings) {
+    const key = l.connectionId || l.connection?.name || 'ML';
+    const st = stores.get(key) || { name: String(l.connection?.name || 'ML'), counts: {} as Record<string, number> };
+    const status = STORE_STATUS_ORDER.includes(l.status) ? l.status : 'ERROR';
+    st.counts[status] = (st.counts[status] || 0) + 1;
+    stores.set(key, st);
+  }
+  return (
+    <>
+      {Array.from(stores.entries()).map(([key, st]) => {
+        const parts = STORE_STATUS_ORDER.filter((x) => st.counts[x]);
+        return (
+          <span key={key}
+            title={parts.map((x) => `${st.counts[x]} ${storeStatusPlural[x]}`).join(' · ')}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 whitespace-nowrap">
+            {st.name}
+            {parts.map((x) => (
+              <span key={x} className="inline-flex items-center gap-0.5 text-[11px] text-gray-500">
+                {st.counts[x]}<span className={`h-1.5 w-1.5 rounded-full ${storeStatusDot[x]}`} />
+              </span>
+            ))}
+          </span>
+        );
+      })}
+    </>
+  );
+}
 
 export default function CatalogPage() {
   const searchParams = useSearchParams();
@@ -3288,13 +3317,7 @@ export default function CatalogPage() {
                     <td className={cellPad}>
                       <div className="flex flex-wrap gap-1">
                         {p.listings?.length > 0
-                          ? p.listings.map((l: any) => (
-                              <span key={l.id}
-                                title={statusLabel[l.status] || l.status}
-                                className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${listingChipColor[l.status] || listingChipDefaultColor}`}>
-                                {l.connection?.name || 'ML'}
-                              </span>
-                            ))
+                          ? <StoreChips listings={p.listings} />
                           : <span className="text-gray-400 text-xs">Sin publicar</span>
                         }
                       </div>
