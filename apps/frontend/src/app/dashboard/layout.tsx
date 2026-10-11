@@ -123,6 +123,7 @@ const navGroups: NavGroup[] = [
       { href: '/dashboard/connections', label: 'Conexiones', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/sincronizadores', label: 'Sincronizadores', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/verificador', label: 'Verificador de órdenes', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
+      { href: '/dashboard/ajustes-sistema', label: 'Ajustes del sistema', perm: 'connections', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/planes', label: 'Planes', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
       { href: '/dashboard/ia', label: 'Inteligencia artificial', perm: 'companies', roles: ['SUPER_ADMIN'], module: null, superOnly: true },
     ],
