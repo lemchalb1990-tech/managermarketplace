@@ -235,6 +235,7 @@ model Company {
   mlPromotionRules    MlPromotionRule[]
   mlPromoSuggestions  MlPromotionSuggestion[]
   orderAuditIssues    OrderAuditIssue[]
+  userInvitations     UserInvitation[]
 }
 
 // Perfil de acceso: rol con nombre + lista de permisos por página.
@@ -312,6 +313,7 @@ model User {
   financeMovements      FinanceMovement[]
   financeTransfers      FinanceTransfer[]
   passwordResets        PasswordResetToken[]
+  invitationsSent       UserInvitation[] @relation("InvitationInvitedBy")
 
   @@map("users")
 }
@@ -2636,4 +2638,33 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+// Invitación para unirse a una empresa. Atada al correo invitado: solo esa persona la usa (con
+// Google con ese mismo correo, o creando su contraseña). Se guarda solo el hash del enlace;
+// reenviar o copiar el enlace genera uno nuevo. Vence en 7 días.
+model UserInvitation {
+  id              String    @id @default(cuid())
+  email           String
+  name            String?
+  role            Role
+  accessProfileId String?
+  tokenHash       String    @unique
+  status          String    @default("PENDING") // PENDING | ACCEPTED | CANCELLED
+  expiresAt       DateTime
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  acceptedUserId  String?
+  invitedByName   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedById String?
+  invitedBy   User?   @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([email, status])
+  @@map("user_invitations")
 }

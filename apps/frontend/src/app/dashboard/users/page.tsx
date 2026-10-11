@@ -5,6 +5,7 @@ import { getToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Toast } from '@/components/ui';
 import { SkeletonRows } from '@/components/Skeleton';
+import { Invitations } from './Invitations';
 
 const ALL_ROLES = [
   { value: 'COMPANY_ADMIN', label: 'Admin de empresa' },
@@ -61,6 +62,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [myCompany, setMyCompany] = useState<any>(null);
 
@@ -231,7 +234,8 @@ export default function UsersPage() {
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const userCount = myCompany?._count?.users ?? users.length;
   const maxUsers = myCompany?.maxUsers;
-  const atLimit = maxUsers != null && userCount >= maxUsers;
+  // Las invitaciones pendientes también ocupan cupo del plan.
+  const atLimit = maxUsers != null && userCount + pendingInvites >= maxUsers;
 
   // Solo el super administrador puede activar/desactivar servicios y ecommerce por usuario.
   const canEditModules = (u: any) => isSuperAdmin && u.role !== 'SUPER_ADMIN';
@@ -244,19 +248,30 @@ export default function UsersPage() {
           {!isSuperAdmin && myCompany && (
             <p className={`text-xs mt-0.5 ${atLimit ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
               {userCount} de {maxUsers} usuarios utilizados
+              {pendingInvites > 0 && ` (+${pendingInvites} invitación(es) pendiente(s))`}
               {atLimit && ' — límite alcanzado'}
             </p>
           )}
         </div>
-        <button onClick={() => setShowForm(!showForm)} disabled={!isSuperAdmin && atLimit}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
-          + Nuevo usuario
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => { setShowForm(!showForm); setShowInvite(false); }} disabled={!isSuperAdmin && atLimit}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+            Crear sin invitación
+          </button>
+          <button onClick={() => { setShowInvite(!showInvite); setShowForm(false); }} disabled={!isSuperAdmin && atLimit}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+            + Invitar usuario
+          </button>
+        </div>
       </div>
+
+      <Invitations open={showInvite} onClose={() => setShowInvite(false)} isSuperAdmin={isSuperAdmin} companies={companies}
+        profiles={profiles} onChanged={load} onPending={setPendingInvites} />
 
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 className="ui-section-title mb-4">Nuevo usuario</h2>
+          <h2 className="ui-section-title mb-1">Crear usuario sin invitación</h2>
+          <p className="text-xs text-gray-500 mb-4">Defines la contraseña y se la entregas a la persona. Si prefieres que la cree ella, usa “Invitar usuario”.</p>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>

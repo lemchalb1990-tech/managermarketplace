@@ -200,6 +200,20 @@ export type OrderAuditIssue = {
   company: { id: string; name: string }; connection: { id: string; name: string } | null;
 };
 
+// ── Invitaciones de usuarios ──
+export type UserInvitation = {
+  id: string; email: string; name: string | null; role: string; accessProfileId: string | null; status: string; expiresAt: string;
+  sentAt: string | null; invitedByName: string | null; createdAt: string; companyId: string; company: { name: string };
+};
+export type InvitationResult = {
+  invitation: { id: string; email: string; name: string | null; role: string; expiresAt: string; sentAt: string | null; invitedByName: string | null };
+  link: string; emailSent: boolean; emailConfigured: boolean;
+};
+export type InvitationInfo = {
+  email: string; name: string | null; company: string; role: string; roleLabel: string; invitedByName: string | null;
+  expiresAt: string; googleClientId: string | null; exists: boolean;
+};
+
 export type CourierConnectionInfo = {
   id: string; provider: 'CHILEXPRESS' | 'STARKEN' | 'BLUEXPRESS'; name: string; active: boolean;
   settings: Record<string, any>; credentialKeys: string[]; updatedAt: string;
@@ -358,6 +372,11 @@ export const api = {
     checkReset: (token: string) => apiFetch<{ ok: boolean; email: string }>(`/auth/reset-password?token=${encodeURIComponent(token)}`, {}),
     resetPassword: (token: string, password: string) =>
       apiFetch<{ access_token: string; user: any }>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+    invitation: (token: string) => apiFetch<InvitationInfo>(`/auth/invitation?token=${encodeURIComponent(token)}`, {}),
+    acceptInvitation: (data: { token: string; name?: string; password: string }) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/invitation/accept', { method: 'POST', body: JSON.stringify(data) }),
+    acceptInvitationGoogle: (token: string, credential: string) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/invitation/google', { method: 'POST', body: JSON.stringify({ token, credential }) }),
   },
   platformMail: {
     test: (to: string, token: string) => apiFetch<{ ok: boolean }>('/platform-mail/test', { method: 'POST', body: JSON.stringify({ to }) }, token),
@@ -448,6 +467,14 @@ export const api = {
       apiFetch<any>('/users', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    // Invitaciones: se guardan solo como hash; copiar o reenviar genera un enlace nuevo.
+    invitations: (token: string, companyId?: string) =>
+      apiFetch<UserInvitation[]>(`/users/invitations${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    invite: (data: { email: string; name?: string; role: string; accessProfileId?: string | null; companyId?: string; sendEmail?: boolean }, token: string) =>
+      apiFetch<InvitationResult>('/users/invitations', { method: 'POST', body: JSON.stringify(data) }, token),
+    resendInvitation: (id: string, token: string) => apiFetch<InvitationResult>(`/users/invitations/${id}/resend`, { method: 'POST' }, token),
+    invitationLink: (id: string, token: string) => apiFetch<InvitationResult>(`/users/invitations/${id}/link`, { method: 'POST' }, token),
+    cancelInvitation: (id: string, token: string) => apiFetch<{ ok: boolean }>(`/users/invitations/${id}/cancel`, { method: 'POST' }, token),
   },
   drivers: {
     fleet: (token: string) => apiFetch<any[]>('/drivers/fleet', {}, token),
@@ -944,7 +971,7 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{
         events: Array<{
-          type: 'sale' | 'question' | 'claim' | 'alert' | 'message' | 'promo'; id: string; title: string;
+          type: 'sale' | 'question' | 'claim' | 'alert' | 'message' | 'promo' | 'team'; id: string; title: string;
           channel: string; connectionName: string | null; productName: string | null; orderRef: string | null;
           createdAt: string; href: string;
         }>;

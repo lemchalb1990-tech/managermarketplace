@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
+import { InvitationsService } from './invitations.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,7 +12,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
 export class UsersController {
-  constructor(private service: UsersService) {}
+  constructor(private service: UsersService, private invitations: InvitationsService) {}
 
   @Post()
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
@@ -21,6 +22,32 @@ export class UsersController {
   @Get()
   findAll(@CurrentUser() user: any) {
     return this.service.findAll(user);
+  }
+
+  // ── Invitaciones (antes de ':id' para que no se confundan con un id de usuario) ──
+  @Get('invitations')
+  listInvitations(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.invitations.list(user, companyId);
+  }
+
+  @Post('invitations')
+  invite(@CurrentUser() user: any, @Body() body: any) {
+    return this.invitations.create(user, body || {});
+  }
+
+  @Post('invitations/:id/resend')
+  resendInvitation(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.invitations.resend(user, id);
+  }
+
+  @Post('invitations/:id/link')
+  invitationLink(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.invitations.link(user, id);
+  }
+
+  @Post('invitations/:id/cancel')
+  cancelInvitation(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.invitations.cancel(user, id);
   }
 
   @Get(':id')

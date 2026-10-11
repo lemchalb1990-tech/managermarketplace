@@ -7,6 +7,7 @@ import { permissionsForUser } from '../common/permissions';
 import { SettingsService } from '../settings/settings.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { PlatformMailService } from '../email/platform-mail.service';
+import { ROLE_LABEL } from '../users/invitations.service';
 
 const RESET_TTL_MS = 60 * 60 * 1000; // el enlace de recuperación vence en 1 hora
 const MIN_PASSWORD = 8;
@@ -117,6 +118,14 @@ export class AuthService {
       if (user.googleSub !== g.sub) await this.prisma.user.update({ where: { id: user.id }, data: { googleSub: g.sub } });
       return this.session(user);
     }
+    // Tiene una invitación pendiente: entra directo a esa empresa (Google confirmó que el correo es suyo).
+    const invitation = await this.prisma.userInvitation.findFirst({
+      where: { email: g.email, status: 'PENDING', expiresAt: { gt: new Date() }, company: { active: true } },
+      orderBy: { createdAt: 'desc' }, include: { company: { select: { id: true, name: true, active: true } } },
+    });
+    if (invitation) {
+      return this.consumeInvitation(invitation, { name: (invitation.name || g.name || g.email.split('@')[0]).slice(0, 120), passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10), googleSub: g.sub });
+    }
     if (!(await this.flag('AUTH_SIGNUP_ENABLED'))) {
       throw new UnauthorizedException(`No hay una cuenta con ${g.email}. Pide a tu administrador que te cree un usuario.`);
     }
@@ -181,6 +190,69 @@ export class AuthService {
         button: { label: 'Ver empresas', url: `${url}/dashboard/companies` },
       }));
     }
+  }
+
+  // ── Invitaciones a una empresa ─────────────────────────────────────────
+
+  private async validInvitation(token: string) {
+    const inv = token ? await this.prisma.userInvitation.findUnique({
+      where: { tokenHash: sha256(String(token)) }, include: { company: { select: { id: true, name: true, active: true } } },
+    }) : null;
+    if (!inv || inv.status !== 'PENDING') throw new BadRequestException('La invitación no es válida o ya fue usada. Pide una nueva al administrador de tu empresa.');
+    if (inv.expiresAt < new Date()) throw new BadRequestException('La invitación venció. Pide al administrador de tu empresa que te la reenvíe.');
+    if (!inv.company.active) throw new BadRequestException('La empresa de esta invitación está desactivada.');
+    return inv;
+  }
+
+  // Datos para la pantalla de aceptar invitación (sin token de sesión).
+  async checkInvitation(token: string) {
+    const inv = await this.validInvitation(token);
+    const cfg = await this.publicConfig();
+    return {
+      email: inv.email, name: inv.name, company: inv.company.name, role: inv.role, roleLabel: ROLE_LABEL[inv.role] || inv.role,
+      invitedByName: inv.invitedByName, expiresAt: inv.expiresAt, googleClientId: cfg.googleClientId,
+      exists: !!(await this.prisma.user.findFirst({ where: { email: { equals: inv.email, mode: 'insensitive' } }, select: { id: true } })),
+    };
+  }
+
+  // Crea el usuario de la invitación y entra. Con Google se exige que sea el mismo correo invitado.
+  private async consumeInvitation(inv: Awaited<ReturnType<AuthService['validInvitation']>>, data: { name: string; passwordHash: string; googleSub?: string | null }) {
+    if (await this.prisma.user.findFirst({ where: { email: { equals: inv.email, mode: 'insensitive' } } })) {
+      throw new ConflictException('Ya existe una cuenta con ese correo. Ingresa desde la pantalla de inicio de sesión.');
+    }
+    // El límite del plan se revisa de nuevo al aceptar (la invitación ya estaba contada).
+    await this.subscription.assertCanAdd(inv.companyId, 'users');
+    const user = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          email: inv.email, name: data.name, password: data.passwordHash, role: inv.role, companyId: inv.companyId,
+          accessProfileId: inv.accessProfileId, googleSub: data.googleSub || null,
+        },
+      });
+      await tx.userInvitation.update({ where: { id: inv.id }, data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedUserId: u.id } });
+      return u;
+    });
+    const full = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: USER_INCLUDE });
+    assertCompanyActive(full);
+    return this.session(full);
+  }
+
+  async acceptInvitation(token: string, dto: { name?: string; password: string }) {
+    const inv = await this.validInvitation(token);
+    const pw = String(dto.password || '');
+    if (pw.length < MIN_PASSWORD) throw new BadRequestException(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`);
+    const name = String(dto.name || inv.name || inv.email.split('@')[0]).trim().slice(0, 120);
+    return this.consumeInvitation(inv, { name, passwordHash: await bcrypt.hash(pw, 10) });
+  }
+
+  async acceptInvitationGoogle(token: string, credential: string) {
+    const inv = await this.validInvitation(token);
+    const g = await this.verifyGoogle(credential);
+    if (g.email !== inv.email.toLowerCase()) {
+      throw new UnauthorizedException(`La invitación es para ${inv.email}. Entra con esa cuenta de Google o crea una contraseña.`);
+    }
+    const name = (inv.name || g.name || inv.email.split('@')[0]).slice(0, 120);
+    return this.consumeInvitation(inv, { name, passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10), googleSub: g.sub });
   }
 
   // ── Recuperación de contraseña ─────────────────────────────────────────

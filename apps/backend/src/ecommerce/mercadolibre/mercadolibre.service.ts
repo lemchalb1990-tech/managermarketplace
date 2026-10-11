@@ -5201,6 +5201,22 @@ export class MercadolibreService {
         createdAt: m.lastMessageAt!,
         href: `/dashboard/mercadolibre/mensajes?c=${m.id}`,
       })),
+      // Invitaciones aceptadas: alguien se unió a la empresa.
+      ...(await this.prisma.userInvitation.findMany({
+        where: { ...where, status: 'ACCEPTED', acceptedAt: { gt: since } },
+        select: { id: true, email: true, name: true, role: true, acceptedAt: true },
+        orderBy: { acceptedAt: 'desc' }, take: 10,
+      })).map((i) => ({
+        type: 'team' as const,
+        id: i.id,
+        title: `${i.name || i.email} aceptó la invitación`,
+        channel: 'Equipo',
+        connectionName: null as string | null,
+        productName: i.email,
+        orderRef: null as string | null,
+        createdAt: i.acceptedAt!,
+        href: '/dashboard/users',
+      })),
       // Promociones: invitaciones nuevas de ML y sugerencias nuevas de las reglas (para aprobar).
       ...(await this.prisma.mlPromotion.findMany({
         where: { ...where, createdAt: { gt: since }, status: { not: 'finished' }, createdByUs: false, type: { in: ['DEAL', 'MARKETPLACE_CAMPAIGN', 'SMART', 'PRICE_MATCHING', 'PRE_NEGOTIATED', 'UNHEALTHY_STOCK', 'DOD', 'LIGHTNING'] } },

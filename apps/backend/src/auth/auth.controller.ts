@@ -52,6 +52,25 @@ export class AuthController {
     return this.authService.resetPassword(body?.token, body?.password);
   }
 
+  // Invitación a una empresa: ver datos, aceptar creando contraseña o con Google (mismo correo).
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get('invitation')
+  invitation(@Query('token') token: string) {
+    return this.authService.checkInvitation(token);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('invitation/accept')
+  acceptInvitation(@Body() body: { token: string; name?: string; password: string }) {
+    return this.authService.acceptInvitation(body?.token, body || ({} as any));
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('invitation/google')
+  acceptInvitationGoogle(@Body() body: { token: string; credential: string }) {
+    return this.authService.acceptInvitationGoogle(body?.token, body?.credential);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: any) {
