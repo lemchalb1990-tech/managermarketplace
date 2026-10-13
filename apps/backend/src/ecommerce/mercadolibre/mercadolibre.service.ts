@@ -4601,6 +4601,8 @@ export class MercadolibreService {
               images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1, select: { url: true } },
             },
           },
+          // Canal (tienda/cuenta de ML) donde se hizo la pregunta.
+          connection: { select: { id: true, name: true, mlNickname: true } },
         },
         orderBy: [{ dateCreated: 'desc' }],
         take: 300,
@@ -4622,6 +4624,10 @@ export class MercadolibreService {
       update: {
         text: q.text,
         status: (q.status || 'UNANSWERED') as MlQuestionStatus,
+        // Corrige preguntas que antes quedaron asociadas a otra tienda (el webhook tomaba la
+        // primera conexión que pudiera leerla, y una pregunta la puede leer cualquier cuenta).
+        connectionId,
+        companyId,
         answerText: q.answer?.text ?? null,
         answeredAt: q.answer?.date_created ? new Date(q.answer.date_created) : null,
         productId: listing?.productId ?? undefined,
@@ -4648,7 +4654,10 @@ export class MercadolibreService {
   // (para poblar el histórico la primera vez o si se perdió alguna notificación); de ahí
   // en más el webhook las mantiene al día en tiempo real. Como es un upsert por
   // externalId, correrlo de nuevo nunca borra ni duplica lo que ya se había guardado.
-  async syncQuestions(connectionId: string, user: any) {
+  // Con full=false (cron) solo trae las sin responder y las más recientes, y vuelve a
+  // consultar una por una las que acá siguen "sin responder": así una pregunta respondida
+  // directamente en Mercado Libre pasa a Respondida aunque se haya perdido el webhook.
+  async syncQuestions(connectionId: string, user: any, full = true) {
     const conn = await this.getConnectionForUser(connectionId, user);
     const token = await this.getValidToken(connectionId);
     const meRes = await fetch(`${ML_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
@@ -4657,7 +4666,7 @@ export class MercadolibreService {
 
     let synced = 0;
 
-    const fetchAndUpsertPages = async (extraParams: Record<string, string>) => {
+    const fetchAndUpsertPages = async (extraParams: Record<string, string>, maxOffset = 20000) => {
       let offset = 0;
       let pageTotal = 0;
       do {
@@ -4691,7 +4700,7 @@ export class MercadolibreService {
         offset += 50;
         // Tope de seguridad para no quedar en un loop infinito si "total" viniera mal —
         // muy por encima de lo que tiene cualquier cuenta real.
-      } while (offset < pageTotal && offset < 20000);
+      } while (offset < pageTotal && offset < maxOffset);
       return pageTotal;
     };
 
@@ -4699,20 +4708,62 @@ export class MercadolibreService {
     // todavía sin responder de algunas cuentas — se piden aparte primero para no
     // perderlas nunca; el upsert es idempotente así que no duplica nada.
     await fetchAndUpsertPages({ status: 'UNANSWERED' });
-    const total = await fetchAndUpsertPages({});
+    const total = await fetchAndUpsertPages({}, full ? 20000 : 200);
 
-    return { synced, total };
+    // Las que siguen "sin responder" acá pero ya no vinieron como UNANSWERED desde ML
+    // (respondidas en ML, cerradas, eliminadas): se leen individualmente.
+    const pending = await this.prisma.mlQuestion.findMany({
+      where: { connectionId, status: MlQuestionStatus.UNANSWERED },
+      select: { externalId: true },
+      take: 500,
+    });
+    let refreshed = 0;
+    for (const { externalId } of pending) {
+      try {
+        const res = await fetch(`${ML_API}/questions/${externalId}?api_version=4`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.status === 404) {
+          await this.prisma.mlQuestion.update({ where: { externalId }, data: { status: MlQuestionStatus.DELETED } });
+          refreshed++;
+          continue;
+        }
+        if (!res.ok) continue;
+        const q = await res.json() as any;
+        if (q.status && q.status !== 'UNANSWERED') {
+          await this.upsertQuestion(q, connectionId, conn.companyId);
+          refreshed++;
+        }
+      } catch (err: any) {
+        this.logger.error(`No se pudo refrescar la pregunta ML ${externalId}: ${err?.message || err}`);
+      }
+    }
+
+    return { synced, total, refreshed };
   }
 
   private async handleQuestionWebhook(body: any) {
     const questionId = String(body.resource || '').split('/').pop();
     if (!questionId) return { received: true };
-    const found = await this.fetchWithAnyMlConnection(`/questions/${questionId}`);
+    const found = await this.fetchWithAnyMlConnection(`/questions/${questionId}?api_version=4`);
     if (!found) {
       this.logger.warn(`ML Webhook questions: ninguna conexión pudo leer la pregunta ${questionId}`);
       return { received: true };
     }
-    await this.upsertQuestion(found.data, found.connection.id, found.connection.companyId);
+    // Cualquier cuenta puede leer una pregunta, así que la conexión que la leyó no dice de
+    // qué tienda es: se asigna a la cuenta vendedora (seller_id de la pregunta o user_id
+    // de la notificación). Si ninguna conexión tiene esa cuenta, se ignora.
+    const sellerId = String(found.data?.seller_id ?? body.user_id ?? '');
+    const owner = sellerId
+      ? (await this.findActiveMlConnections()).find((c) => c.mlUserId === sellerId)
+      : null;
+    if (sellerId && !owner) {
+      const legacy = (await this.findActiveMlConnections()).some((c) => !c.mlUserId);
+      if (!legacy) {
+        this.logger.warn(`ML Webhook questions: la pregunta ${questionId} es del vendedor ${sellerId}, sin conexión activa`);
+        return { received: true };
+      }
+    }
+    const connection = owner || found.connection;
+    await this.upsertQuestion(found.data, connection.id, connection.companyId);
     return { received: true };
   }
 

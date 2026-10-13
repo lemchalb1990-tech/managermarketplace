@@ -104,13 +104,19 @@ export default function MlPreguntasPage() {
                 </span>
               }
               actions={q.status === 'UNANSWERED' ? <Badge tone="warn">Sin responder</Badge> : q.status === 'ANSWERED' ? <Badge tone="ok">Respondida</Badge> : <Badge tone="neutral">{q.status}</Badge>}>
-              <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2">
-                {q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL', { timeZone: tz })}
+              <p className="text-xs text-[var(--text-muted)] -mt-2 mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                {q.connection && (
+                  <Badge tone="neutral">
+                    {q.connection.name}{q.connection.mlNickname && q.connection.mlNickname !== q.connection.name ? ` · ${q.connection.mlNickname}` : ''}
+                  </Badge>
+                )}
+                <span>{q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL', { timeZone: tz })}</span>
               </p>
               <p className="text-sm text-[var(--text)] mb-3">"{q.text}"</p>
               {q.status === 'ANSWERED' ? (
                 <p className="text-sm text-[var(--text-2)] bg-[var(--surface-soft)] rounded-lg px-3 py-2">
-                  <strong className="text-[var(--text)]">Tu respuesta:</strong> {q.answerText}
+                  <strong className="text-[var(--text)]">Respuesta:</strong> {q.answerText}
+                  {q.answeredAt && <span className="block text-xs text-[var(--text-muted)] mt-1">{new Date(q.answeredAt).toLocaleString('es-CL', { timeZone: tz })}</span>}
                 </p>
               ) : (
                 <div className="flex gap-2">

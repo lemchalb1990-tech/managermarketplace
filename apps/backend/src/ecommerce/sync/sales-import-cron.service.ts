@@ -84,8 +84,8 @@ export class SalesImportCronService {
             // Preguntas y reclamos/devoluciones van aparte: si una falla (p.ej. token
             // vencido a mitad de camino) no debe impedir que la otra corra igual.
             try {
-              const result = await this.mercadolibre.syncQuestions(connection.id, SYSTEM_USER);
-              if (result.synced) {
+              const result = await this.mercadolibre.syncQuestions(connection.id, SYSTEM_USER, false);
+              if (result.refreshed) {
                 this.logger.log(`Auto-sync ML preguntas conexión ${connection.id}: ${JSON.stringify(result)}`);
               }
             } catch (err: any) {
