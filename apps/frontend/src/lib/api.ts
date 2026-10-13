@@ -962,6 +962,8 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<{ questions: any[]; unanswered: number }>(`/ecommerce/ml/questions?${q}`, {}, token);
     },
+    refreshQuestions: (token: string, companyId?: string) =>
+      apiFetch<{ refreshed: number }>(`/ecommerce/ml/questions/refresh${companyId ? `?companyId=${companyId}` : ''}`, { method: 'POST' }, token),
     answerQuestion: (externalId: string, text: string, token: string) =>
       apiFetch<any>(`/ecommerce/ml/questions/${externalId}/answer`, { method: 'POST', body: JSON.stringify({ text }) }, token),
     syncQuestions: (connectionId: string, token: string) =>

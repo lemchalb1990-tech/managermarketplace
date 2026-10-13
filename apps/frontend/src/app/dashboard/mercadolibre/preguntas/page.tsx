@@ -24,6 +24,7 @@ export default function MlPreguntasPage() {
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
   const [lightbox, setLightbox] = useState<LightboxImage>(null);
 
@@ -41,6 +42,27 @@ export default function MlPreguntasPage() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab, companyId]);
   useEffect(() => onActivity(['question'], load), [tab, companyId]);
+
+  // Publicación de ML: la guardada en la vinculación o, si no hay, la dirección estándar del ítem.
+  function itemUrl(q: any) {
+    if (q.itemUrl) return q.itemUrl;
+    const m = /^([A-Z]{3})(\d+)$/.exec(q.itemId || '');
+    return m ? `https://articulo.mercadolibre.cl/${m[1]}-${m[2]}-_JM` : null;
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const { refreshed } = await api.marketplace.refreshQuestions(getToken()!, companyId);
+      await load();
+      setFlash({ msg: refreshed ? `${refreshed} pregunta(s) actualizada(s) desde Mercado Libre` : 'Todo al día: las preguntas sin responder siguen sin respuesta en Mercado Libre', ok: true });
+    } catch (err: any) {
+      setFlash({ msg: err.message || 'No se pudo actualizar desde Mercado Libre.', ok: false });
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setFlash(null), 4000);
+    }
+  }
 
   async function answer(externalId: string) {
     const text = (drafts[externalId] || '').trim();
@@ -73,13 +95,17 @@ export default function MlPreguntasPage() {
         </StatRow>
       )}
 
-      <div className="flex gap-2 my-4">
+      <div className="flex flex-wrap items-center gap-2 my-4">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-[var(--brand-light)] text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-soft)]'}`}>
             {t.label}
           </button>
         ))}
+        <button onClick={refresh} disabled={refreshing}
+          className="ml-auto px-3.5 py-1.5 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-soft)] disabled:opacity-60">
+          {refreshing ? 'Actualizando…' : 'Actualizar desde Mercado Libre'}
+        </button>
       </div>
 
       {flash && (
@@ -111,6 +137,12 @@ export default function MlPreguntasPage() {
                   </Badge>
                 )}
                 <span>{q.product?.sku ? `SKU ${q.product.sku} · ` : ''}{new Date(q.dateCreated).toLocaleString('es-CL', { timeZone: tz })}</span>
+                {itemUrl(q) && (
+                  <a href={itemUrl(q)!} target="_blank" rel="noopener noreferrer"
+                    className="font-medium text-[var(--brand-ink)] hover:underline">
+                    · Ir a la publicación ↗
+                  </a>
+                )}
               </p>
               <p className="text-sm text-[var(--text)] mb-3">"{q.text}"</p>
               {q.status === 'ANSWERED' ? (

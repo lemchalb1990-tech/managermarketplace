@@ -4609,7 +4609,16 @@ export class MercadolibreService {
       }),
       this.prisma.mlQuestion.count({ where: { ...this.companyFilter(user, companyId), status: MlQuestionStatus.UNANSWERED } }),
     ]);
-    return { questions: rows, unanswered };
+    // Enlace a la publicación de ML donde se hizo la pregunta.
+    const listings = rows.length
+      ? await this.prisma.listing.findMany({
+          where: { OR: rows.map((r) => ({ connectionId: r.connectionId, externalId: r.itemId })) },
+          select: { connectionId: true, externalId: true, externalUrl: true },
+        })
+      : [];
+    const urlByItem = new Map(listings.filter((l) => l.externalUrl).map((l) => [`${l.connectionId}|${l.externalId}`, l.externalUrl]));
+    const questions = rows.map((r) => ({ ...r, itemUrl: urlByItem.get(`${r.connectionId}|${r.itemId}`) ?? null }));
+    return { questions, unanswered };
   }
 
   private async upsertQuestion(q: any, connectionId: string, companyId: string) {
@@ -4712,32 +4721,65 @@ export class MercadolibreService {
 
     // Las que siguen "sin responder" acá pero ya no vinieron como UNANSWERED desde ML
     // (respondidas en ML, cerradas, eliminadas): se leen individualmente.
+    const refreshed = await this.refreshPendingQuestions({ connectionId });
+
+    return { synced, total, refreshed };
+  }
+
+  // Vuelve a leer en ML, una por una, las preguntas que acá siguen "sin responder" y
+  // actualiza las que ya no lo están (respondidas directo en ML, cerradas, eliminadas).
+  // Primero con el token de su propia tienda; si esa conexión no puede (token vencido,
+  // tienda desactivada), con cualquier otra cuenta activa — una pregunta la lee cualquiera.
+  private async refreshPendingQuestions(where: Record<string, any>) {
     const pending = await this.prisma.mlQuestion.findMany({
-      where: { connectionId, status: MlQuestionStatus.UNANSWERED },
-      select: { externalId: true },
+      where: { ...where, status: MlQuestionStatus.UNANSWERED },
+      select: { externalId: true, connectionId: true, companyId: true },
+      orderBy: { dateCreated: 'desc' },
       take: 500,
     });
+    if (!pending.length) return 0;
+    const fallbacks = await this.findActiveMlConnections();
+    const tokens = new Map<string, string | null>();
+    const tokenFor = async (connectionId: string) => {
+      if (!tokens.has(connectionId)) {
+        tokens.set(connectionId, await this.getValidToken(connectionId).catch(() => null));
+      }
+      return tokens.get(connectionId) ?? null;
+    };
+
     let refreshed = 0;
-    for (const { externalId } of pending) {
+    for (const q of pending) {
       try {
-        const res = await fetch(`${ML_API}/questions/${externalId}?api_version=4`, { headers: { Authorization: `Bearer ${token}` } });
-        if (res.status === 404) {
-          await this.prisma.mlQuestion.update({ where: { externalId }, data: { status: MlQuestionStatus.DELETED } });
-          refreshed++;
-          continue;
+        const candidates = [q.connectionId, ...fallbacks.map((c) => c.id).filter((id) => id !== q.connectionId)];
+        let data: any = null;
+        let notFound = false;
+        for (const connId of candidates) {
+          const token = await tokenFor(connId);
+          if (!token) continue;
+          const res = await fetch(`${ML_API}/questions/${q.externalId}?api_version=4`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.status === 404) { notFound = true; break; }
+          if (!res.ok) continue;
+          data = await res.json();
+          break;
         }
-        if (!res.ok) continue;
-        const q = await res.json() as any;
-        if (q.status && q.status !== 'UNANSWERED') {
-          await this.upsertQuestion(q, connectionId, conn.companyId);
+        if (notFound) {
+          await this.prisma.mlQuestion.update({ where: { externalId: q.externalId }, data: { status: MlQuestionStatus.DELETED } });
+          refreshed++;
+        } else if (data?.status && data.status !== 'UNANSWERED') {
+          await this.upsertQuestion(data, q.connectionId, q.companyId);
           refreshed++;
         }
       } catch (err: any) {
-        this.logger.error(`No se pudo refrescar la pregunta ML ${externalId}: ${err?.message || err}`);
+        this.logger.error(`No se pudo refrescar la pregunta ML ${q.externalId}: ${err?.message || err}`);
       }
     }
+    return refreshed;
+  }
 
-    return { synced, total, refreshed };
+  // Botón "Actualizar desde Mercado Libre" de la página de preguntas.
+  async refreshUnansweredQuestions(user: any, companyId?: string) {
+    const refreshed = await this.refreshPendingQuestions(this.companyFilter(user, companyId));
+    return { refreshed };
   }
 
   private async handleQuestionWebhook(body: any) {
