@@ -5,6 +5,7 @@ import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertEmailConfigDto, UpsertEmailTemplateDto } from './dto/email.dto';
 import { primaryFrontendUrl } from '../common/frontend-url.util';
+import { EmailLogService } from './email-log.service';
 
 const TYPE_LABELS: Record<EmailType, string> = {
   ORDER_CONFIRMED:       'Orden confirmada',
@@ -164,7 +165,7 @@ function renderTemplate(html: string, vars: Record<string, string>): string {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private emailLog: EmailLogService) {}
 
   // ─── Config CRUD ───────────────────────────────────────────────────────────
 
@@ -281,6 +282,21 @@ export class EmailService {
     return cfg ? `"${cfg.fromName}" <${cfg.fromEmail}>` : 'no-reply@example.com';
   }
 
+  // Envía con el SMTP de la empresa y deja el correo en el registro (enviado o fallido con su error).
+  private async deliver(companyId: string, type: string, transporter: nodemailer.Transporter, mail: { from: string; to: string; subject: string; html: string; attachments?: any[] }) {
+    const entry = {
+      channel: 'COMPANY' as const, type, companyId, to: mail.to, from: mail.from, subject: mail.subject, html: mail.html,
+      attachments: (mail.attachments ?? []).map((a) => String(a.filename ?? 'adjunto')),
+    };
+    try {
+      await transporter.sendMail(mail);
+    } catch (err: any) {
+      await this.emailLog.record({ ...entry, error: err?.message || String(err) });
+      throw err;
+    }
+    await this.emailLog.record(entry);
+  }
+
   async sendOrderEmail(order: any): Promise<void> {
     if (!order.customerEmail || !order.companyId) return;
 
@@ -338,7 +354,7 @@ export class EmailService {
     const from = await this.getFromAddress(order.companyId);
 
     try {
-      await transporter.sendMail({ from, to: order.customerEmail, subject, html: bodyHtml });
+      await this.deliver(order.companyId, emailType, transporter, { from, to: order.customerEmail, subject, html: bodyHtml });
       this.logger.log(`Email sent: ${emailType} → ${order.customerEmail}`);
     } catch (err: any) {
       this.logger.error(`Failed to send ${emailType} email: ${err.message}`);
@@ -382,7 +398,7 @@ export class EmailService {
     const from = await this.getFromAddress(sale.companyId);
 
     try {
-      await transporter.sendMail({ from, to: sale.customerEmail, subject, html: bodyHtml });
+      await this.deliver(sale.companyId, EmailType.SALE_RECEIPT, transporter, { from, to: sale.customerEmail, subject, html: bodyHtml });
       this.logger.log(`Sale receipt sent → ${sale.customerEmail}`);
     } catch (err: any) {
       this.logger.error(`Failed to send sale receipt: ${err.message}`);
@@ -404,7 +420,7 @@ export class EmailService {
       companyName,
     );
 
-    await transporter.sendMail({
+    await this.deliver(companyId, 'COMPANY_TEST', transporter, {
       from, to,
       subject: `Prueba de correo — ${companyName}`,
       html: bodyHtml,
@@ -455,7 +471,7 @@ export class EmailService {
       }
     }
 
-    await transporter.sendMail({ from, to, subject: `${title} — ${companyName}`, html: bodyHtml, attachments });
+    await this.deliver(companyId, 'INVOICE', transporter, { from, to, subject: `${title} — ${companyName}`, html: bodyHtml, attachments });
     this.logger.log(`DTE enviado → ${to}`);
   }
 
@@ -484,7 +500,7 @@ export class EmailService {
       companyName,
     );
 
-    await transporter.sendMail({ from, to, subject: `Orden de trabajo ${folio} — ${companyName}`, html: bodyHtml });
+    await this.deliver(companyId, 'WORK_ORDER', transporter, { from, to, subject: `Orden de trabajo ${folio} — ${companyName}`, html: bodyHtml });
     this.logger.log(`Orden de trabajo enviada → ${to}`);
   }
 
@@ -537,7 +553,7 @@ export class EmailService {
       '#0f766e',
     );
 
-    await transporter.sendMail({ from, to, subject: `Pedido de despacho #${shortId} — ${companyName}`, html: bodyHtml });
+    await this.deliver(companyId, 'DROPSHIP_ORDER', transporter, { from, to, subject: `Pedido de despacho #${shortId} — ${companyName}`, html: bodyHtml });
     this.logger.log(`Pedido dropship ${order.id} enviado → ${to}`);
   }
 }

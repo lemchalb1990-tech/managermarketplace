@@ -12,7 +12,6 @@ export const ROLE_LABEL: Record<string, string> = {
   COMPANY_ADMIN: 'Administrador de la empresa', CATALOG_MANAGER: 'Gestor de catálogo', VENDEDOR: 'Vendedor',
   DESPACHADOR: 'Despachador', ORDER_MANAGER: 'Administrador de pedidos',
 };
-const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 /**
  * Invitaciones de los administradores a su empresa. Cada invitación queda atada al correo
@@ -127,14 +126,14 @@ export class InvitationsService {
     let emailSent = false;
     const emailConfigured = await this.mail.isConfigured();
     if (send && emailConfigured) {
-      emailSent = await this.mail.send(inv.email, `${inv.invitedByName || 'Te'} te invitó a ${inv.company.name} en AdminMarket`, this.mail.layout({
-        title: `Te invitaron a ${inv.company.name}`,
-        paragraphs: [
-          `${inv.name ? `Hola ${esc(inv.name.split(' ')[0])}, ` : ''}${esc(inv.invitedByName || 'El administrador')} te invitó a unirte a <strong>${esc(inv.company.name)}</strong> en AdminMarket con el perfil <strong>${esc(profileName || ROLE_LABEL[inv.role] || inv.role)}</strong>.`,
-          `Puedes entrar con tu cuenta de Google (${esc(inv.email)}) o crear una contraseña. La invitación vence en 7 días.`,
-        ],
-        button: { label: 'Aceptar invitación', url: link },
-      }));
+      emailSent = await this.mail.sendTemplate('USER_INVITATION', inv.email, {
+        saludo: inv.name ? `Hola ${inv.name.split(' ')[0]}, ` : '',
+        invitador: inv.invitedByName || 'El administrador',
+        empresa: inv.company.name,
+        perfil: profileName || ROLE_LABEL[inv.role] || inv.role,
+        correo: inv.email,
+        enlace: link,
+      }, { companyId: inv.companyId });
       if (emailSent) await this.prisma.userInvitation.update({ where: { id }, data: { sentAt: new Date() } });
     }
     return {

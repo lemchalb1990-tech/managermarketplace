@@ -205,6 +205,22 @@ export type UserInvitation = {
   id: string; email: string; name: string | null; role: string; accessProfileId: string | null; status: string; expiresAt: string;
   sentAt: string | null; invitedByName: string | null; createdAt: string; companyId: string; company: { name: string }; profileName?: string | null;
 };
+// ── Correos de la plataforma ──
+export type PlatformEmailText = { subject: string; title: string; body: string; buttonLabel: string | null };
+export type PlatformEmailTemplate = {
+  key: string; label: string; trigger: string; hasButton: boolean; vars: Record<string, string>;
+  defaults: PlatformEmailText; current: PlatformEmailText; customized: boolean; updatedAt: string | null; updatedByName: string | null;
+};
+export type PlatformEmailDesign = { brand: string; logoUrl: string; color: string; footer: string };
+export type EmailLogItem = {
+  id: string; createdAt: string; channel: 'PLATFORM' | 'COMPANY'; type: string; typeLabel: string; companyId: string | null; companyName: string | null;
+  toEmail: string; fromEmail: string | null; subject: string; status: 'SENT' | 'FAILED'; error: string | null; attachments: string[]; triggeredByName: string | null;
+};
+export type EmailLogDetail = EmailLogItem & { html: string | null };
+export type EmailLogPage = {
+  items: EmailLogItem[]; total: number; page: number; pageSize: number; failed24h: number; sent24h: number;
+  types: { key: string; label: string }[]; retentionDays: number;
+};
 export type UserDeletePreview = {
   user: { id: string; name: string; email: string; company: string | null };
   admins: { id: string; name: string; email: string }[];
@@ -414,6 +430,28 @@ export const api = {
   },
   platformMail: {
     test: (to: string, token: string) => apiFetch<{ ok: boolean }>('/platform-mail/test', { method: 'POST', body: JSON.stringify({ to }) }, token),
+    // Textos y diseño de los correos de la plataforma (Correos de la plataforma).
+    templates: (token: string) => apiFetch<PlatformEmailTemplate[]>('/platform-mail/templates', {}, token),
+    saveTemplate: (key: string, data: PlatformEmailText, token: string) =>
+      apiFetch<PlatformEmailTemplate>(`/platform-mail/templates/${key}`, { method: 'PUT', body: JSON.stringify(data) }, token),
+    resetTemplate: (key: string, token: string) =>
+      apiFetch<PlatformEmailTemplate>(`/platform-mail/templates/${key}`, { method: 'DELETE' }, token),
+    preview: (key: string, data: Partial<PlatformEmailText> & { design?: Partial<PlatformEmailDesign> }, token: string) =>
+      apiFetch<{ subject: string; html: string }>(`/platform-mail/templates/${key}/preview`, { method: 'POST', body: JSON.stringify(data) }, token),
+    testTemplate: (key: string, data: PlatformEmailText & { to: string }, token: string) =>
+      apiFetch<{ ok: boolean }>(`/platform-mail/templates/${key}/test`, { method: 'POST', body: JSON.stringify(data) }, token),
+    design: (token: string) => apiFetch<PlatformEmailDesign>('/platform-mail/design', {}, token),
+    saveDesign: (data: PlatformEmailDesign, token: string) =>
+      apiFetch<PlatformEmailDesign>('/platform-mail/design', { method: 'PUT', body: JSON.stringify(data) }, token),
+    uploadLogo: (file: File, token: string) => apiUpload<{ url: string }>('/platform-mail/design/logo', file, token),
+  },
+  // Registro de correos enviados (plataforma y empresas), solo Super Admin.
+  emailLogs: {
+    list: (params: Record<string, string>, token: string) => {
+      const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+      return apiFetch<EmailLogPage>(`/email-logs${q ? `?${q}` : ''}`, {}, token);
+    },
+    get: (id: string, token: string) => apiFetch<EmailLogDetail>(`/email-logs/${id}`, {}, token),
   },
   me: (token: string) => apiFetch<any>('/auth/me', {}, token),
   public: {

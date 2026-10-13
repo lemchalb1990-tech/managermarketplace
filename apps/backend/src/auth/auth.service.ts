@@ -14,7 +14,6 @@ import { ensureDefaultProfiles } from '../access-profiles/default-profiles';
 const RESET_TTL_MS = 60 * 60 * 1000; // el enlace de recuperación vence en 1 hora
 const MIN_PASSWORD = 8;
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
-const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const slugify = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'empresa';
 const USER_INCLUDE = { company: { include: { subscriptionPlan: true } }, accessProfile: true } as const;
 
@@ -191,24 +190,24 @@ export class AuthService {
 
   private async signupEmails(user: any, companyName: string, phone: string, rut: string, plan: { name: string; isTrial: boolean; trialDays: number | null } | null, via: string) {
     const url = await this.mail.frontendUrl();
-    await this.mail.send(user.email, 'Bienvenido a AdminMarket', this.mail.layout({
-      title: `¡Bienvenido, ${user.name.split(' ')[0]}!`,
-      paragraphs: [
-        `Creamos la cuenta de <strong>${esc(companyName)}</strong>${plan ? (plan.isTrial ? ` con ${plan.trialDays ?? 15} días de prueba gratis` : ` con el plan ${esc(plan.name)}`) : ''}.`,
-        'Conecta tus canales de venta, carga tu catálogo y gestiona tus órdenes desde un solo lugar.',
-      ],
-      button: { label: 'Entrar al panel', url: `${url}/login` },
-    }));
+    await this.mail.sendTemplate('WELCOME', user.email, {
+      nombre: user.name.split(' ')[0],
+      empresa: companyName,
+      detallePlan: plan ? (plan.isTrial ? ` con ${plan.trialDays ?? 15} días de prueba gratis` : ` con el plan ${plan.name}`) : '',
+      enlace: `${url}/login`,
+    }, { companyId: user.companyId });
     const notify = (await this.settings.get('PLATFORM_NOTIFY_EMAIL')) || (await this.settings.get('CONTACT_EMAIL'));
     if (notify) {
-      await this.mail.send(notify, `Nueva empresa registrada: ${companyName}`, this.mail.layout({
-        title: 'Nueva empresa registrada',
-        paragraphs: [
-          `<strong>${esc(companyName)}</strong> ${esc(via)}${plan ? ` y quedó con el plan ${esc(plan.name)}` : ''}.`,
-          `Administrador: ${esc(user.name)} (${esc(user.email)})${phone ? `<br>Teléfono: ${esc(phone)}` : ''}${rut ? `<br>RUT: ${esc(rut)}` : ''}`,
-        ],
-        button: { label: 'Ver empresas', url: `${url}/dashboard/companies` },
-      }));
+      await this.mail.sendTemplate('NEW_COMPANY_NOTICE', notify, {
+        empresa: companyName,
+        via,
+        detallePlan: plan ? ` y quedó con el plan ${plan.name}` : '',
+        admin: user.name,
+        correoAdmin: user.email,
+        telefono: phone,
+        rut,
+        enlace: `${url}/dashboard/companies`,
+      }, { companyId: user.companyId });
     }
   }
 
@@ -356,14 +355,7 @@ export class AuthService {
     const token = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) } });
     const url = `${await this.mail.frontendUrl()}/restablecer?token=${token}`;
-    await this.mail.send(user.email, 'Crea una nueva contraseña', this.mail.layout({
-      title: 'Recupera tu acceso',
-      paragraphs: [
-        `Hola ${esc(user.name.split(' ')[0])}, recibimos una solicitud para crear una nueva contraseña en AdminMarket.`,
-        'El enlace sirve una sola vez y vence en 1 hora. Si no lo pediste, ignora este correo: tu contraseña actual sigue igual.',
-      ],
-      button: { label: 'Crear nueva contraseña', url },
-    }));
+    await this.mail.sendTemplate('PASSWORD_RESET', user.email, { nombre: user.name.split(' ')[0], enlace: url }, { companyId: user.companyId });
     return generic;
   }
 
@@ -391,13 +383,7 @@ export class AuthService {
       // El enlace usado y los demás pendientes del usuario dejan de servir.
       this.prisma.passwordResetToken.updateMany({ where: { userId: row.userId, usedAt: null }, data: { usedAt: new Date() } }),
     ]);
-    void this.mail.send(row.user.email, 'Tu contraseña fue cambiada', this.mail.layout({
-      title: 'Contraseña actualizada',
-      paragraphs: [
-        `Hola ${esc(row.user.name.split(' ')[0])}, la contraseña de tu cuenta de AdminMarket se cambió correctamente y se cerraron las sesiones abiertas en otros equipos.`,
-        'Si no fuiste tú, contacta a soporte de inmediato.',
-      ],
-    }));
+    void this.mail.sendTemplate('PASSWORD_CHANGED', row.user.email, { nombre: row.user.name.split(' ')[0] }, { companyId: row.user.companyId });
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: row.userId }, include: USER_INCLUDE });
     assertCompanyActive(user);
     return this.session(user);

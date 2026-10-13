@@ -16,6 +16,7 @@ const EXEMPT_PREFIXES = [
   '/dashboard/planes',
   '/dashboard/verificador',
   '/dashboard/ajustes-sistema',
+  '/dashboard/correos-plataforma',
   '/dashboard/mercadolibre/registros-sin-conexion',
   '/dashboard/emails',
   '/dashboard/settings',

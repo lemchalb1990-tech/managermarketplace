@@ -2700,3 +2700,43 @@ model CompanyInvitation {
   @@index([status, createdAt])
   @@map("company_invitations")
 }
+
+// Registro de cada correo enviado (plataforma y empresas). Se conserva 90 días.
+model EmailLog {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  // PLATFORM = correo de AdminMarket; COMPANY = SMTP propio de una empresa.
+  channel         String
+  // Clave del tipo (PASSWORD_RESET, INVOICE, ORDER_CONFIRMED, …).
+  type            String
+  companyId       String?
+  toEmail         String
+  fromEmail       String?
+  subject         String
+  // SENT | FAILED
+  status          String
+  error           String?
+  // Cuerpo tal como se envió; los enlaces de acceso (recuperación, invitaciones) quedan tapados.
+  html            String?  @db.Text
+  attachments     String[] @default([])
+  triggeredById   String?
+  triggeredByName String?
+
+  @@index([createdAt])
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@map("email_logs")
+}
+
+// Textos editables de los correos de la plataforma (sin fila = el texto por defecto del código).
+model PlatformEmailTemplate {
+  key           String   @id
+  subject       String
+  title         String
+  body          String   @db.Text
+  buttonLabel   String?
+  updatedAt     DateTime @updatedAt
+  updatedByName String?
+
+  @@map("platform_email_templates")
+}

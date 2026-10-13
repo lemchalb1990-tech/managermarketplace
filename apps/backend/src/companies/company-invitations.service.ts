@@ -4,7 +4,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PlatformMailService } from '../email/platform-mail.service';
 import { INVITATION_TTL_MS, sha256 } from '../users/invitations.service';
 
-const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 /**
  * Invitaciones del Super Admin para crear empresas nuevas. La empresa se crea recién cuando el
@@ -82,15 +81,14 @@ export class CompanyInvitationsService {
     const emailConfigured = await this.mail.isConfigured();
     let emailSent = false;
     if (send && emailConfigured) {
-      emailSent = await this.mail.send(inv.email, `Tu cuenta de ${inv.companyName} en AdminMarket`, this.mail.layout({
-        title: `Activa ${inv.companyName} en AdminMarket`,
-        paragraphs: [
-          `${inv.name ? `Hola ${esc(inv.name.split(' ')[0])}, ` : ''}te invitamos a administrar <strong>${esc(inv.companyName)}</strong> en AdminMarket${plan ? ` con el plan <strong>${esc(plan.name)}</strong>${plan.isTrial ? ` (${plan.trialDays ?? 15} días de prueba)` : ''}` : ''}.`,
-          ...(inv.message ? [`<em>“${esc(inv.message)}”</em>`] : []),
-          `Entra con tu cuenta de Google (${esc(inv.email)}) o crea una contraseña. El enlace vence en 7 días.`,
-        ],
-        button: { label: 'Activar mi cuenta', url: link },
-      }));
+      emailSent = await this.mail.sendTemplate('COMPANY_INVITATION', inv.email, {
+        saludo: inv.name ? `Hola ${inv.name.split(' ')[0]}, ` : '',
+        empresa: inv.companyName,
+        detallePlan: plan ? ` con el plan ${plan.name}${plan.isTrial ? ` (${plan.trialDays ?? 15} días de prueba)` : ''}` : '',
+        mensaje: inv.message || '',
+        correo: inv.email,
+        enlace: link,
+      });
       if (emailSent) await this.prisma.companyInvitation.update({ where: { id }, data: { sentAt: new Date() } });
     }
     return {
