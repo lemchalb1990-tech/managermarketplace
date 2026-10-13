@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { Toast } from '@/components/ui';
 import { SkeletonRows } from '@/components/Skeleton';
 import { Invitations } from './Invitations';
+import { DeleteUserModal } from './DeleteUserModal';
 
 const roleLabels: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
@@ -57,6 +58,7 @@ export default function UsersPage() {
   const [resetError, setResetError] = useState('');
   const [resetSaved, setResetSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<any>(null);
 
   async function load() {
     const token = getToken();
@@ -320,6 +322,12 @@ export default function UsersPage() {
                       className="text-amber-600 hover:text-amber-800 text-xs font-medium">
                       Restablecer clave
                     </button>
+                    {isSuperAdmin && u.role !== 'SUPER_ADMIN' && u.id !== currentUser?.id && (
+                      <button onClick={() => setDeleteUser(u)}
+                        className="text-red-600 hover:text-red-800 text-xs font-medium">
+                        Eliminar
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -467,6 +475,11 @@ export default function UsersPage() {
             )}
           </div>
         </div>
+      )}
+
+      {deleteUser && (
+        <DeleteUserModal user={deleteUser} onClose={() => setDeleteUser(null)}
+          onDeleted={async (msg) => { setDeleteUser(null); await load(); flash(msg); }} />
       )}
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}

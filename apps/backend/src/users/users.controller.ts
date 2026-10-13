@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { InvitationsService } from './invitations.service';
+import { UserDeletionService } from './user-deletion.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -12,7 +13,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
 export class UsersController {
-  constructor(private service: UsersService, private invitations: InvitationsService) {}
+  constructor(private service: UsersService, private invitations: InvitationsService, private deletion: UserDeletionService) {}
 
   @Post()
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
@@ -58,5 +59,18 @@ export class UsersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: any) {
     return this.service.update(id, dto, user);
+  }
+
+  // Eliminar usuario (solo Super Admin): sus registros pasan a un administrador de la empresa.
+  @Get(':id/delete-preview')
+  @Roles(Role.SUPER_ADMIN)
+  deletePreview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.deletion.preview(id, user);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  remove(@Param('id') id: string, @Body() body: { targetUserId?: string; confirmEmail?: string }, @CurrentUser() user: any) {
+    return this.deletion.remove(id, body || {}, user);
   }
 }

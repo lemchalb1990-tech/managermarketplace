@@ -205,6 +205,12 @@ export type UserInvitation = {
   id: string; email: string; name: string | null; role: string; accessProfileId: string | null; status: string; expiresAt: string;
   sentAt: string | null; invitedByName: string | null; createdAt: string; companyId: string; company: { name: string }; profileName?: string | null;
 };
+export type UserDeletePreview = {
+  user: { id: string; name: string; email: string; company: string | null };
+  admins: { id: string; name: string; email: string }[];
+  records: { table: string; label: string; count: number }[];
+  total: number;
+};
 export type InvitationResult = {
   invitation: { id: string; email: string; name: string | null; role: string; expiresAt: string; sentAt: string | null; invitedByName: string | null };
   link: string; emailSent: boolean; emailConfigured: boolean;
@@ -495,6 +501,11 @@ export const api = {
       apiFetch<any>('/users', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: string, data: any, token: string) =>
       apiFetch<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    // Eliminar (solo Super Admin): sus registros pasan a un administrador de la empresa.
+    deletePreview: (id: string, token: string) =>
+      apiFetch<UserDeletePreview>(`/users/${id}/delete-preview`, {}, token),
+    remove: (id: string, data: { targetUserId?: string; confirmEmail: string }, token: string) =>
+      apiFetch<{ ok: boolean; moved: number; target: { id: string; name: string; email: string } }>(`/users/${id}`, { method: 'DELETE', body: JSON.stringify(data) }, token),
     // Invitaciones: se guardan solo como hash; copiar o reenviar genera un enlace nuevo.
     invitations: (token: string, companyId?: string) =>
       apiFetch<UserInvitation[]>(`/users/invitations${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
