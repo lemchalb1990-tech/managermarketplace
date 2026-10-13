@@ -3190,7 +3190,7 @@ export default function CatalogPage() {
                     onChange={toggleSelectAll} />
                 </th>
               )}
-              <th className="px-4 py-3 w-14"></th>
+              <th className="px-4 py-3 w-14 min-w-[4.5rem]"></th>
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('sku')}>
                 SKU{sortIndicator('sku')}
@@ -3236,7 +3236,9 @@ export default function CatalogPage() {
               const img = primaryImage(p);
               const compact = view === 'compact';
               const cellPad = compact ? 'px-4 py-1' : 'px-4 py-3';
-              const imgSize = compact ? 'w-6 h-6' : 'w-10 h-10';
+              // max-w-none + shrink-0: con poco ancho la tabla encogía la columna y la imagen
+              // (max-width: 100% por defecto) desaparecía; ahora siempre se ve y cede el nombre.
+              const imgSize = compact ? 'w-6 h-6 min-w-6' : 'w-10 h-10 min-w-10';
               return (
                 <tr key={p.id} onClick={() => openModal(p)} className="hover:bg-gray-50 cursor-pointer">
                   {isAdmin && (
@@ -3248,15 +3250,15 @@ export default function CatalogPage() {
                   <td className={compact ? 'px-4 py-1' : 'px-4 py-2'}>
                     {img ? (
                       <img src={imgUrl(img.url)} alt={p.name}
-                        className={`${imgSize} rounded-lg object-cover border border-gray-100`} />
+                        className={`${imgSize} max-w-none shrink-0 rounded-lg object-cover border border-gray-100`} />
                     ) : (
-                      <div className={`${imgSize} rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs`}>
+                      <div className={`${imgSize} shrink-0 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs`}>
                         —
                       </div>
                     )}
                   </td>
                   <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>
-                  <td className={`${cellPad} font-medium text-gray-900`}>
+                  <td className={`${cellPad} font-medium text-gray-900 min-w-[9rem] break-words`}>
                     {p.name}
                     {promoBadge(p.id)}
                     {p.type === 'SERVICIO' && (
