@@ -730,7 +730,7 @@ export class MercadolibreController {
 
   @Post('questions/refresh')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   refreshQuestions(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
     return this.service.refreshUnansweredQuestions(user, companyId);
   }

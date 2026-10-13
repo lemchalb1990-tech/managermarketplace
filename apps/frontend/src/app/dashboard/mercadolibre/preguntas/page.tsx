@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { PageHeader, SectionCard, StatRow, StatTile, Badge, BrandButton } from '@/components/ui';
 import { useMlCompany } from '../MlCompanyContext';
@@ -25,6 +25,9 @@ export default function MlPreguntasPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // "Actualizar desde Mercado Libre" es solo para administradores (empresa y Super Admin).
+  const [canRefresh, setCanRefresh] = useState(false);
+  useEffect(() => { const r = getUser()?.role; setCanRefresh(r === 'SUPER_ADMIN' || r === 'COMPANY_ADMIN'); }, []);
   const [flash, setFlash] = useState<{ msg: string; ok: boolean } | null>(null);
   const [lightbox, setLightbox] = useState<LightboxImage>(null);
 
@@ -102,10 +105,12 @@ export default function MlPreguntasPage() {
             {t.label}
           </button>
         ))}
+        {canRefresh && (
         <button onClick={refresh} disabled={refreshing}
           className="ml-auto px-3.5 py-1.5 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-soft)] disabled:opacity-60">
           {refreshing ? 'Actualizando…' : 'Actualizar desde Mercado Libre'}
         </button>
+        )}
       </div>
 
       {flash && (
