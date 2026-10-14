@@ -5,7 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
-import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
+import PosFilters from './PosFilters';
 
 interface CartItem {
   productId: string;
@@ -540,52 +540,49 @@ export default function PosPage() {
           </div>
         ) : (
         <>
-        {/* Búsqueda a la vista; Categoría, Solo con stock y Vender desde en «Más filtros». */}
-        <FilterBar
-          sticky={false}
-          className="!mb-3"
-          search={{ label: 'Buscar', value: search, onChange: setSearch, placeholder: 'Buscar por nombre o SKU...' }}
-          activeCount={(categoryFilter ? 1 : 0) + (onlyInStock ? 1 : 0) + (posWh.canChoose && saleWarehouseId ? 1 : 0)}
-          onClear={search || categoryFilter || onlyInStock ? () => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); } : undefined}
-          chips={posFilterChips.length ? <>
-            {posFilterChips.map((c) => (
-              <span key={c.key} className={`inline-flex items-center gap-1.5 rounded-full pl-2.5 ${c.onRemove ? 'pr-1' : 'pr-2.5'} py-0.5 text-xs ${c.key === 'wh' ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--brand-light)] text-[var(--brand-ink)]'}`}>
-                {c.label}
-                {c.onRemove && (
-                  <button type="button" onClick={c.onRemove} aria-label={`Quitar ${c.label}`} className="w-[18px] h-[18px] rounded-full bg-black/5 hover:bg-black/10 text-[10px] leading-none">✕</button>
-                )}
-              </span>
-            ))}
-            {(categoryFilter || onlyInStock) && (
-              <button type="button" onClick={() => { setCategoryFilter(''); setOnlyInStock(false); }} className="text-xs text-[var(--brand)] hover:underline px-1">Limpiar filtros</button>
-            )}
-          </> : undefined}
-        >
-          <FilterField label="Categoría">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={filterSelectCls}>
-              <option value="">Todas</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
+        {/* Búsqueda a la vista; Categoría, Vender desde y Solo con stock en el panel «Filtros». */}
+        <div className="mb-3 flex flex-col gap-2">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <label className="text-xs text-gray-500 block mb-1">Buscar</label>
+              <input
+                type="text"
+                placeholder="Buscar por nombre o SKU..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <PosFilters
+              categories={categories}
+              values={{ category: categoryFilter, onlyInStock, warehouseId: saleWarehouseId }}
+              warehouses={posWh.canChoose ? posWh.warehouses : posWh.assigned}
+              canChooseWarehouse={posWh.canChoose}
+              singleStore={posWh.assigned.length === 1 ? posWh.assigned[0].name : null}
+              activeCount={(categoryFilter ? 1 : 0) + (onlyInStock ? 1 : 0) + (posWh.canChoose && saleWarehouseId ? 1 : 0)}
+              onApply={(v) => {
+                setCategoryFilter(v.category);
+                setOnlyInStock(v.onlyInStock);
+                if (v.warehouseId !== saleWarehouseId) changeSaleWarehouse(v.warehouseId);
+              }}
+            />
+          </div>
+          {posFilterChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {posFilterChips.map((c) => (
+                <span key={c.key} className={`inline-flex items-center gap-1.5 rounded-full pl-2.5 ${c.onRemove ? 'pr-1' : 'pr-2.5'} py-0.5 text-xs ${c.key === 'wh' ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--brand-light)] text-[var(--brand-ink)]'}`}>
+                  {c.label}
+                  {c.onRemove && (
+                    <button type="button" onClick={c.onRemove} aria-label={`Quitar ${c.label}`} className="w-[18px] h-[18px] rounded-full bg-black/5 hover:bg-black/10 text-[10px] leading-none">✕</button>
+                  )}
+                </span>
               ))}
-            </select>
-          </FilterField>
-          {(posWh.canChoose ? posWh.warehouses.length > 0 : posWh.assigned.length > 1) ? (
-            <FilterField label="Vender desde">
-              <select value={saleWarehouseId} onChange={(e) => changeSaleWarehouse(e.target.value)} className={filterSelectCls}>
-                {posWh.canChoose && <option value="">Bodega de cada producto</option>}
-                {(posWh.canChoose ? posWh.warehouses : posWh.assigned).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </FilterField>
-          ) : posWh.assigned.length === 1 && (
-            <span className="px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700" title="Asignada en Usuarios">
-              Tienda: <strong>{posWh.assigned[0].name}</strong>
-            </span>
+              {(search || categoryFilter || onlyInStock) && (
+                <button type="button" onClick={() => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); }} className="text-xs text-[var(--brand)] hover:underline px-1">Limpiar filtros</button>
+              )}
+            </div>
           )}
-          <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 bg-white cursor-pointer select-none">
-            <input type="checkbox" checked={onlyInStock} onChange={(e) => setOnlyInStock(e.target.checked)} className="rounded" />
-            Solo con stock
-          </label>
-        </FilterBar>
+        </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h2 className="ui-section-title">
