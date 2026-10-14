@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
-import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields } from './product-field-access';
+import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields, assertCanCreateProduct, assertCanActivateProduct } from './product-field-access';
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -82,6 +82,7 @@ export class CatalogService {
   }
 
   async create(dto: CreateProductDto, user: any) {
+    assertCanCreateProduct(user);
     dropHiddenOnCreate(user, dto as any);
     const companyId = this.resolveCompanyId(user, dto.companyId);
     const exists = await this.prisma.product.findUnique({
@@ -317,6 +318,7 @@ export class CatalogService {
   async update(id: string, dto: UpdateProductDto, user: any) {
     dropNotEditableOnUpdate(user, dto as any);
     const product = await this.findOne(id, user);
+    if (dto.active !== undefined && dto.active !== product.active) assertCanActivateProduct(user);
     if (!product.active && dto.active !== true) {
       throw new BadRequestException('El producto está inactivo. Reactívalo antes de modificarlo.');
     }
@@ -388,6 +390,7 @@ export class CatalogService {
   }
 
   async bulkSetActive(ids: string[], active: boolean, user: any) {
+    assertCanActivateProduct(user);
     const owned = await this.filterOwned(ids, user);
     if (!owned.length) return { updated: 0 };
     await this.prisma.product.updateMany({

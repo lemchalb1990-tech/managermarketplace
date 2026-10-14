@@ -1609,6 +1609,8 @@ export default function CatalogPage() {
   const pfEdit = (f: string) => pfView(f) && (!pfPerms || pfPerms.includes('*') || pfPerms.includes(`product.${f}.edit`));
   // En la ficha: al crear, SKU y precio siempre se ven (son obligatorios) y lo visible se puede
   // completar; al editar, manda "modificar".
+  const canCreateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.create');
+  const canActivateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.activate');
   const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'sku' || f === 'price'));
   const fEdit = (f: string) => (!selected?.id ? fView(f) : pfEdit(f));
   // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
@@ -2876,10 +2878,12 @@ export default function CatalogPage() {
             className="hidden sm:inline-flex sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             Cargar stock/precios/costos
           </button>
+          {canCreateProduct && (
           <button onClick={openCreateModal}
             className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 whitespace-nowrap">
             + Nuevo producto
           </button>
+          )}
         </div>
       </div>
       {/* Filtros fijos arriba al hacer scroll (sticky dentro del <main> que scrollea). */}
@@ -3120,6 +3124,7 @@ export default function CatalogPage() {
       {isAdmin && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
           <span className="text-sm text-blue-800 font-medium">{selectedIds.size} seleccionado(s)</span>
+          {canActivateProduct && (<>
           <button onClick={() => handleBulkSetActive(true)} disabled={bulkLoading}
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
             Activar
@@ -3128,6 +3133,7 @@ export default function CatalogPage() {
             className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50">
             Desactivar
           </button>
+          </>)}
           <button onClick={handleBulkDelete} disabled={bulkLoading}
             className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
             Eliminar

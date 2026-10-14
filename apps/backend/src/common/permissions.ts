@@ -23,7 +23,10 @@ export const PRODUCT_FIELD_PERMISSIONS: { field: string; label: string }[] = [
 ];
 export const PRODUCT_FIELD_VIEW_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.view`);
 export const PRODUCT_FIELD_EDIT_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.edit`);
-const PRODUCT_FIELD_ALL_KEYS = [...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
+// Acciones sobre productos: crear nuevos y activar/desactivar.
+export const PRODUCT_CREATE_PERMISSION = 'product.create';
+export const PRODUCT_ACTIVATE_PERMISSION = 'product.activate';
+const PRODUCT_FIELD_ALL_KEYS = [PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, ...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
 
 export const PERMISSION_GROUPS: {
   key: string;
@@ -88,11 +91,14 @@ export const PERMISSION_GROUPS: {
   },
   {
     key: 'catalogo-campos',
-    label: 'Catálogo: campos del producto',
-    items: PRODUCT_FIELD_PERMISSIONS.flatMap((f) => [
+    label: 'Catálogo: productos y campos',
+    items: [
+      { key: PRODUCT_CREATE_PERMISSION, label: 'Agregar productos nuevos' },
+      { key: PRODUCT_ACTIVATE_PERMISSION, label: 'Activar o desactivar productos' },
+    ].concat(PRODUCT_FIELD_PERMISSIONS.flatMap((f) => [
       { key: `product.${f.field}.view`, label: `${f.label}: ver` },
       { key: `product.${f.field}.edit`, label: `${f.label}: modificar` },
-    ]),
+    ])),
   },
   {
     key: 'finanzas',

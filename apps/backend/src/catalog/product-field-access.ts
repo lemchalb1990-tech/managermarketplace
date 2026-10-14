@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { canProductField, PRODUCT_FIELD_PERMISSIONS } from '../common/permissions';
+import { canProductField, PRODUCT_FIELD_PERMISSIONS, permissionsForUser, hasPermission, PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION } from '../common/permissions';
 
 // Campos del DTO/producto que cubre cada permiso de "Catálogo: campos del producto".
 const FIELD_KEYS: Record<string, string[]> = {
@@ -49,4 +49,16 @@ export function stripHiddenProductFields<T>(user: any, data: T): T {
     return rest;
   };
   return (Array.isArray(data) ? data.map(strip) : strip(data)) as T;
+}
+
+export function assertCanCreateProduct(user: any) {
+  if (!hasPermission(permissionsForUser(user), PRODUCT_CREATE_PERMISSION)) {
+    throw new ForbiddenException('No tienes permiso para agregar productos nuevos');
+  }
+}
+
+export function assertCanActivateProduct(user: any) {
+  if (!hasPermission(permissionsForUser(user), PRODUCT_ACTIVATE_PERMISSION)) {
+    throw new ForbiddenException('No tienes permiso para activar o desactivar productos');
+  }
 }
