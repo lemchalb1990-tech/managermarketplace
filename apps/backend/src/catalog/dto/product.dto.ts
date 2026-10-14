@@ -217,6 +217,44 @@ export class BulkSetActiveDto extends BulkIdsDto {
   active: boolean;
 }
 
+// Filtros del catálogo (los mismos de GET products/search) para editar todos los que coinciden.
+export class CatalogFiltersDto {
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() warehouseId?: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsString() type?: string;
+  @IsOptional() @IsString() active?: string;
+  @IsOptional() @IsString() listingStatus?: string;
+  @IsOptional() @IsString() channel?: string;
+  @IsOptional() @IsString() stockFilter?: string;
+}
+
+// Edición en lote (solo Super Admin): productos marcados (ids) o todos los que coinciden con
+// los filtros (filters); al menos uno de los campos.
+export class BulkUpdateFieldsDto {
+  @IsString()
+  companyId: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ids?: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CatalogFiltersDto)
+  filters?: CatalogFiltersDto;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  criticalStock?: number;
+}
+
 // Campos del producto que se pueden elegir "campo por campo" al unificar duplicados.
 // El valor de cada uno es el id del producto (dentro del grupo que se está unificando)
 // de donde se toma ese campo.

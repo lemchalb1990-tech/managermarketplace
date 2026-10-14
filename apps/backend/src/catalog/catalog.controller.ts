@@ -10,7 +10,7 @@ import { extname, join } from 'path';
 import { Role } from '@prisma/client';
 import { assertCanEditField, assertCanAddImages } from './product-field-access';
 import { CatalogService } from './catalog.service';
-import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto, MergeProductsDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto, MergeProductsDto, BulkUpdateFieldsDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { assertCanMergeProducts } from './product-field-access';
@@ -99,6 +99,13 @@ export class CatalogController {
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   bulkSetActive(@Body() dto: BulkSetActiveDto, @CurrentUser() user: any) {
     return this.service.bulkSetActive(dto.ids, dto.active, user);
+  }
+
+  // Editar en lote (bodega asignada / stock crítico): solo Super Admin, para implementaciones.
+  @Patch('products/bulk/fields')
+  @Roles(Role.SUPER_ADMIN)
+  bulkUpdateFields(@Body() dto: BulkUpdateFieldsDto, @CurrentUser() user: any) {
+    return this.service.bulkUpdateFields(dto, user);
   }
 
   @Post('products/bulk/delete')

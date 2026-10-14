@@ -701,6 +701,9 @@ export const api = {
       apiFetch<any>(`/catalog/products/${id}/images/${imageId}/primary`, { method: 'PATCH' }, token),
     bulkSetActive: (ids: string[], active: boolean, token: string) =>
       apiFetch<{ updated: number }>('/catalog/products/bulk/active', { method: 'PATCH', body: JSON.stringify({ ids, active }) }, token),
+    // Editar en lote (solo Super Admin): productos marcados (ids) o todos los que coinciden con filters.
+    bulkUpdateFields: (data: { companyId: string; ids?: string[]; filters?: CatalogFilters; warehouseId?: string; criticalStock?: number }, token: string) =>
+      apiFetch<{ updated: number }>('/catalog/products/bulk/fields', { method: 'PATCH', body: JSON.stringify(data) }, token),
     bulkDelete: (ids: string[], token: string) =>
       apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string; canForce?: boolean }[] }>(
         '/catalog/products/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) }, token),
@@ -1942,6 +1945,12 @@ export interface PhotoCheckResult {
 
 // ── Planes comerciales ──
 export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS';
+
+// Filtros del listado del catálogo (los mismos de catalog.search) para acciones sobre todos los que coinciden.
+export interface CatalogFilters {
+  search?: string; warehouseId?: string; category?: string; type?: string; active?: string;
+  listingStatus?: string; channel?: string; stockFilter?: string;
+}
 
 export const SUBSCRIPTION_FEATURE_LABEL: Record<SubscriptionFeature, string> = {
   POS: 'Punto de venta',

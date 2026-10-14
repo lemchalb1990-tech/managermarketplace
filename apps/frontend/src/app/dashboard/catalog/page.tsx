@@ -12,6 +12,7 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
+import BulkEditModal from './BulkEditModal';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
 import MlPhotoCheck from './MlPhotoCheck';
@@ -1525,6 +1526,9 @@ export default function CatalogPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Super Admin: «seleccionar todos los que coinciden con los filtros» y el modal de Editar en lote.
+  const [matchAll, setMatchAll] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   // Seleccionar varios productos pegando una lista de SKU / N° de publicación.
   const [codePicker, setCodePicker] = useState<{ text: string; loading: boolean; error: string; result: Awaited<ReturnType<typeof api.catalog.resolveCodes>> | null; picked: Set<string> } | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -1603,6 +1607,8 @@ export default function CatalogPage() {
     );
   };
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  // «Todos los que coinciden» solo vale mientras siga marcada la página completa.
+  const allMatching = isSuperAdmin && matchAll && products.length > 0 && selectedIds.size === products.length;
   // Permisos por campo del producto (Perfiles de acceso → Catálogo: campos del producto).
   // Sin lista de permisos (sesión antigua) no se restringe nada; el servidor valida igual.
   const pfPerms: string[] | null = Array.isArray(currentUser?.permissions) ? currentUser.permissions : null;
@@ -1811,8 +1817,23 @@ export default function CatalogPage() {
       setPage(res.page);
       setPages(res.pages);
       setSelectedIds(new Set());
+      setMatchAll(false);
     } catch {}
     setLoading(false);
+  }
+
+  // Filtros aplicados al listado, para editar en lote todos los que coinciden.
+  function currentCatalogFilters() {
+    return {
+      search: search || undefined,
+      warehouseId: warehouseFilter || undefined,
+      category: categoryFilter || undefined,
+      type: typeFilter || undefined,
+      active: activeFilter || undefined,
+      listingStatus: listingStatusFilter || undefined,
+      channel: channelFilter || undefined,
+      stockFilter: stockFilter || undefined,
+    };
   }
 
   function handleSort(field: string) {
@@ -3162,7 +3183,7 @@ export default function CatalogPage() {
 
       {isAdmin && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
-          <span className="text-sm text-blue-800 font-medium">{selectedIds.size} seleccionado(s)</span>
+          <span className="text-sm text-blue-800 font-medium">{(allMatching ? total : selectedIds.size).toLocaleString('es-CL')} seleccionado(s)</span>
           {canActivateProduct && (<>
           <button onClick={() => handleBulkSetActive(true)} disabled={bulkLoading}
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
@@ -3205,10 +3226,30 @@ export default function CatalogPage() {
               Poner en promoción
             </button>
           )}
-          <button onClick={() => setSelectedIds(new Set())}
+          {isSuperAdmin && selectedCompanyId && (
+            <button onClick={() => setBulkEditOpen(true)} disabled={bulkLoading}
+              title="Cambia la bodega asignada o el stock crítico de todos los productos seleccionados"
+              className="px-3 py-1.5 bg-[var(--navy)] text-white rounded-lg text-xs font-medium hover:bg-[var(--navy-2)] disabled:opacity-50 inline-flex items-center gap-1.5">
+              Editar en lote <span className="text-[10px] font-bold bg-white/20 rounded-full px-1.5">Super Admin</span>
+            </button>
+          )}
+          <button onClick={() => { setSelectedIds(new Set()); setMatchAll(false); }}
             className="ml-auto text-xs text-blue-600 hover:text-blue-800">
             Limpiar selección
           </button>
+        </div>
+      )}
+      {isSuperAdmin && selectedCompanyId && products.length > 0 && selectedIds.size === products.length && total > products.length && (
+        <div className="mb-3 px-4 py-2 text-sm text-[var(--text-2)] bg-[var(--surface-soft)] border border-dashed border-[var(--border)] rounded-xl">
+          {allMatching ? (<>
+            Están seleccionados los <strong>{total.toLocaleString('es-CL')}</strong> productos que coinciden con los filtros.{' '}
+            <button onClick={() => setMatchAll(false)} className="font-semibold text-[var(--brand)] hover:underline">Seleccionar solo esta página</button>
+          </>) : (<>
+            Seleccionaste los {products.length} productos de esta página.{' '}
+            <button onClick={() => setMatchAll(true)} className="font-semibold text-[var(--brand)] hover:underline">
+              Seleccionar los {total.toLocaleString('es-CL')} que coinciden con los filtros
+            </button>
+          </>)}
         </div>
       )}
       {bulkError && (
@@ -4341,6 +4382,21 @@ export default function CatalogPage() {
       )}
       {mergeStatus && (
         <MergeStatusModal status={mergeStatus} onClose={() => setMergeStatus(null)} />
+      )}
+      {bulkEditOpen && selectedCompanyId && (
+        <BulkEditModal
+          companyId={selectedCompanyId}
+          ids={Array.from(selectedIds)}
+          filters={allMatching ? currentCatalogFilters() : null}
+          count={allMatching ? total : selectedIds.size}
+          warehouses={warehouses}
+          onClose={() => setBulkEditOpen(false)}
+          onDone={async (updated) => {
+            setBulkEditOpen(false);
+            await loadProducts(page);
+            await alertDialog(`${updated.toLocaleString('es-CL')} producto(s) actualizados.`);
+          }}
+        />
       )}
       {mergeCandidates && (
         <MergeModal

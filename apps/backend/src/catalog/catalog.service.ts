@@ -10,7 +10,7 @@ import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripH
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto, BulkUpdateFieldsDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { StockLedgerService } from '../purchases/stock-ledger.service';
@@ -121,7 +121,7 @@ export class CatalogService {
     return stripHiddenProductFields(user, products);
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string }, opts: { idsOnly?: boolean } = {}) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
     // Punto de venta con bodega de venta: el stock que se muestra (y "Solo con stock") es el de esa bodega.
     const stockWh = query.stockWarehouseId && companyId
@@ -212,6 +212,12 @@ export class CatalogService {
           ],
         })),
       ];
+    }
+
+    // Edición en lote: todos los productos que coinciden con los filtros, sin paginar.
+    if (opts.idsOnly) {
+      const rows = await this.prisma.product.findMany({ where, select: { id: true } });
+      return { ids: rows.map((r) => r.id), products: [], total: rows.length, page: 1, pages: 1 };
     }
 
     const page = Math.max(1, parseInt(query.page || '1'));
@@ -387,6 +393,34 @@ export class CatalogService {
       select: { id: true, name: true, companyId: true },
     });
     return products.filter((p) => user.role === Role.SUPER_ADMIN || p.companyId === user.companyId);
+  }
+
+  // Edición en lote (solo Super Admin, pensada para implementaciones): bodega asignada y/o
+  // stock crítico de los productos marcados o de todos los que coinciden con los filtros.
+  // Igual que en la ficha, cambiar la bodega no mueve stock ya repartido por bodega.
+  async bulkUpdateFields(dto: BulkUpdateFieldsDto, user: any) {
+    if (user.role !== Role.SUPER_ADMIN) throw new ForbiddenException('Solo el Super Admin puede editar en lote');
+    const companyId = dto.companyId;
+    const data: Prisma.ProductUncheckedUpdateManyInput = {};
+    if (dto.warehouseId) {
+      await this.validateWarehouseId(dto.warehouseId, companyId);
+      data.warehouseId = dto.warehouseId;
+    }
+    if (dto.criticalStock != null) data.criticalStock = dto.criticalStock;
+    if (!Object.keys(data).length) throw new BadRequestException('Elige qué campo modificar');
+
+    let ids: string[];
+    if (dto.filters) {
+      const res: any = await this.findAllPaginated(user, { ...dto.filters, companyId }, { idsOnly: true });
+      ids = res.ids;
+    } else if (dto.ids?.length) {
+      ids = dto.ids;
+    } else {
+      throw new BadRequestException('No hay productos seleccionados');
+    }
+    if (!ids.length) return { updated: 0 };
+    const result = await this.prisma.product.updateMany({ where: { id: { in: ids }, companyId }, data });
+    return { updated: result.count };
   }
 
   async bulkSetActive(ids: string[], active: boolean, user: any) {
