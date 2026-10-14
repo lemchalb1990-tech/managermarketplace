@@ -1355,7 +1355,7 @@ export const api = {
     },
     get: (id: string, token: string) => apiFetch<any>(`/purchases/${id}`, {}, token),
     create: (data: {
-      supplierId: string; warehouseId: string; documentNumber?: string; date?: string; notes?: string; companyId?: string;
+      supplierId?: string; warehouseId: string; documentNumber?: string; date?: string; notes?: string; companyId?: string;
       items: Array<{ productId: string; quantity: number; unitCost: number }>;
     }, token: string) =>
       apiFetch<any>('/purchases', { method: 'POST', body: JSON.stringify(data) }, token),
