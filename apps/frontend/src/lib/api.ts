@@ -1463,6 +1463,13 @@ export const api = {
     remove: (id: string, token: string) => apiFetch<any>(`/notification-sounds/${id}`, { method: 'DELETE' }, token),
   },
   pos: {
+    // Diseño de documentos (permiso «Diseño de documentos»).
+    printLayouts: {
+      get: (token: string, companyId?: string) =>
+        apiFetch<{ printFormat: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts: PrintLayouts | null }>(`/pos/print-layouts${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      update: (printLayouts: PrintLayouts | null, token: string, companyId?: string) =>
+        apiFetch<{ printLayouts: PrintLayouts | null }>(`/pos/print-layouts${companyId ? `?companyId=${companyId}` : ''}`, { method: 'PATCH', body: JSON.stringify({ printLayouts }) }, token),
+    },
     settings: {
       get: (token: string, companyId?: string) =>
         apiFetch<{
@@ -1475,8 +1482,8 @@ export const api = {
           canChooseWarehouse?: boolean;
           warehouses?: { id: string; name: string }[];
         }>(`/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-      update: (data: { workOrderPrintFormat?: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts?: PrintLayouts | null }, token: string, companyId?: string) =>
-        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts: PrintLayouts | null }>(
+      update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }, token: string, companyId?: string) =>
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(
           `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`,
           { method: 'PATCH', body: JSON.stringify(data) },
           token,

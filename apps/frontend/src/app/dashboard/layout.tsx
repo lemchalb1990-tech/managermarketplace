@@ -144,7 +144,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/emails', label: 'Correos', perm: 'emails', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
       { href: '/dashboard/settings', label: 'Configuración', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
-      { href: '/dashboard/diseno-documentos', label: 'Diseño de documentos', perm: 'settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
+      { href: '/dashboard/diseno-documentos', label: 'Diseño de documentos', perm: 'print.design', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null, permOnly: true },
       { href: '/dashboard/uso', label: 'Uso', perm: 'usage', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: null },
     ],
   },

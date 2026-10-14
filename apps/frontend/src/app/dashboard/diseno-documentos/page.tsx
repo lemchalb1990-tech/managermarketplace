@@ -84,19 +84,20 @@ export default function PrintDesignPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const token = getToken();
     if (!token || noCompany) return;
     let alive = true;
     Promise.all([
-      api.pos.settings.get(token, companyId).catch(() => null),
+      api.pos.printLayouts.get(token, companyId).catch((e) => { setLoadError(e?.message || 'No se pudo cargar el diseño.'); return null; }),
       api.billing.profile.get(token, companyId).catch(() => null),
     ]).then(([s, p]) => {
-      if (!alive) return;
-      const saved: PrintLayouts | null = s?.printLayouts ?? null;
+      if (!alive || !s) return;
+      const saved: PrintLayouts | null = s.printLayouts ?? null;
       setLayouts({ SALE: resolveLayout(saved, 'SALE'), WORK_ORDER: resolveLayout(saved, 'WORK_ORDER') });
-      if (s?.printFormat) setFormat(s.printFormat);
+      if (s.printFormat) setFormat(s.printFormat);
       setProfile(p);
       setDirty(false);
     });
@@ -143,7 +144,7 @@ export default function PrintDesignPage() {
     setSaving(true);
     setMsg('');
     try {
-      await api.pos.settings.update({ printLayouts: layouts }, getToken()!, companyId);
+      await api.pos.printLayouts.update(layouts, getToken()!, companyId);
       setDirty(false);
       setMsg('Diseño guardado. Se usa desde la próxima impresión.');
     } catch (err) {
@@ -181,7 +182,7 @@ export default function PrintDesignPage() {
       </div>
 
       {!layouts ? (
-        <div className="ui-card p-6 text-sm text-[var(--text-muted)]">Cargando…</div>
+        <div className={`ui-card p-6 text-sm ${loadError ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>{loadError || 'Cargando…'}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[250px_1fr_290px] gap-4 items-start">
           {/* Bloques */}

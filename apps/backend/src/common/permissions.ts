@@ -33,6 +33,8 @@ export const PRODUCT_IMAGES_ADD_PERMISSION = 'product.images.add';
 // Unificar productos duplicados: al unificar se elige el origen de todos los campos, aunque el
 // perfil no permita modificarlos en la ficha.
 export const PRODUCT_MERGE_PERMISSION = 'product.merge';
+// Editar el diseño de los documentos impresos (comprobante de venta, orden de trabajo) de la empresa.
+export const PRINT_DESIGN_PERMISSION = 'print.design';
 const PRODUCT_FIELD_ALL_KEYS = [PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, PRODUCT_IMAGES_ADD_PERMISSION, ...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
 
 export const PERMISSION_GROUPS: {
@@ -166,6 +168,7 @@ export const PERMISSION_GROUPS: {
     items: [
       { key: 'emails', label: 'Correos' },
       { key: 'settings', label: 'Configuración' },
+      { key: PRINT_DESIGN_PERMISSION, label: 'Diseño de documentos' },
       { key: 'usage', label: 'Uso y plan' },
     ],
   },
@@ -231,6 +234,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'activity',
     'emails',
     'settings',
+    PRINT_DESIGN_PERMISSION,
     'usage',
     ...PRODUCT_FIELD_ALL_KEYS,
     PRODUCT_MERGE_PERMISSION,

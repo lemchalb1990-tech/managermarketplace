@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat, Prisma } from '@prisma/client';
+import { hasPermission, permissionsForUser, PRINT_DESIGN_PERMISSION } from '../common/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
@@ -73,20 +74,44 @@ export class PosService {
     };
   }
 
-  async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat; printLayouts?: unknown }, companyId?: string) {
+  async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat }, companyId?: string) {
     const cId = this.resolveCompanyId(user, companyId);
     if (dto.workOrderPrintFormat && !Object.values(WorkOrderPrintFormat).includes(dto.workOrderPrintFormat)) {
       throw new BadRequestException('Formato de impresión no válido');
     }
-    const layouts = dto.printLayouts === undefined ? undefined : sanitizePrintLayouts(dto.printLayouts);
     return this.prisma.company.update({
       where: { id: cId },
-      data: {
-        ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}),
-        ...(layouts !== undefined ? { printLayouts: layouts ?? Prisma.DbNull } : {}),
-      },
-      select: { workOrderPrintFormat: true, printLayouts: true },
+      data: { ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}) },
+      select: { workOrderPrintFormat: true },
     });
+  }
+
+  // ─── Diseño de documentos (permiso «Diseño de documentos», por empresa) ─────────
+
+  private assertPrintDesign(user: any) {
+    if (!hasPermission(permissionsForUser(user), PRINT_DESIGN_PERMISSION)) {
+      throw new ForbiddenException('No tienes permiso para editar el diseño de documentos');
+    }
+  }
+
+  async getPrintLayouts(user: any, companyId?: string) {
+    this.assertPrintDesign(user);
+    const cId = this.resolveCompanyId(user, companyId);
+    const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true, printLayouts: true } });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    return { printFormat: company.workOrderPrintFormat, printLayouts: company.printLayouts ?? null };
+  }
+
+  async updatePrintLayouts(user: any, printLayouts: unknown, companyId?: string) {
+    this.assertPrintDesign(user);
+    const cId = this.resolveCompanyId(user, companyId);
+    const layouts = sanitizePrintLayouts(printLayouts);
+    const company = await this.prisma.company.update({
+      where: { id: cId },
+      data: { printLayouts: layouts ?? Prisma.DbNull },
+      select: { printLayouts: true },
+    });
+    return { printLayouts: company.printLayouts ?? null };
   }
 
   // Tiendas/bodegas asignadas al usuario en Usuarios (solo las de la empresa y activas).

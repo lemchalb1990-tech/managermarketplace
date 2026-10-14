@@ -22,11 +22,22 @@ export class PosController {
   @Patch('settings')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   updateSettings(
-    @Body() dto: { workOrderPrintFormat?: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts?: unknown },
+    @Body() dto: { workOrderPrintFormat?: 'CARTA' | 'TICKET' | 'TICKET_58' },
     @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
   ) {
     return this.service.updateSettings(user, dto, companyId);
+  }
+
+  // Diseño de documentos: cualquier rol de la empresa con el permiso «Diseño de documentos».
+  @Get('print-layouts')
+  getPrintLayouts(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.getPrintLayouts(user, companyId);
+  }
+
+  @Patch('print-layouts')
+  updatePrintLayouts(@Body() body: { printLayouts?: unknown }, @CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.updatePrintLayouts(user, body?.printLayouts ?? null, companyId);
   }
 
   @Post('sales')
