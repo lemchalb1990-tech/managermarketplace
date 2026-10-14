@@ -534,6 +534,9 @@ export const api = {
     setup: (token: string, companyId?: string) =>
       apiFetch<{ companyCreatedAt: string | null; connections: number; products: number; sales: number; channelSales: number; orders: number }>(
         `/company-account/setup${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    // Pendientes por módulo para el menú lateral (clave = ruta del panel).
+    navCounts: (token: string, companyId?: string) =>
+      apiFetch<Record<string, number>>(`/company-account/nav-counts${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     requestClosure: (data: { companyName: string; password: string; reason?: string }, token: string) =>
       apiFetch<{ scheduledFor: string }>('/company-account/closure', { method: 'POST', body: JSON.stringify(data) }, token),
   },

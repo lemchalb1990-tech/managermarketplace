@@ -13,6 +13,7 @@ import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 import { DialogProvider } from './ConfirmDialog';
 import { UserMenu } from './UserMenu';
+import { SidebarNav } from './SidebarNav';
 import { finishLoginSplash } from '@/lib/loginSplash';
 
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
@@ -291,7 +292,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const roleLabel = roleLabels[user.role as string] ?? user.role;
 
-  const sidebarContent = (
+  const sidebarContent = (rail: boolean | undefined, hotkey: boolean) => (
     <>
       <div className="md:hidden h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
         <span className="flex items-center gap-2 font-bold text-[var(--text)] text-base tracking-tight">
@@ -307,70 +308,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-1 px-2 min-h-0">
-        {visibleGroups.map((g) => {
-          const links = g.items.map((item) => {
-            const active = isActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center pl-[2.1rem] pr-3 py-1.5 rounded-lg text-[17px] transition-colors ${
-                  active
-                    ? 'bg-[var(--brand-light)] text-[var(--brand-ink)] font-semibold'
-                    : 'text-[var(--text-2)] font-medium hover:bg-[var(--brand-light)]'
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          });
-
-          // Grupo sin nombre (Inicio): link directo con icono.
-          if (!g.label) {
-            const item = g.items[0];
-            const active = item && isActive(pathname, item.href);
-            return (
-              <div key={g.key} className="border-b border-[var(--border-soft)]">
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-lg text-[17px] font-semibold transition-colors ${
-                    active ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--brand-light)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  <span className="w-3.5" />
-                  <GroupIcon k="inicio" />
-                  <span className="ml-1.5">{item.label}</span>
-                </Link>
-              </div>
-            );
-          }
-
-          const open = openGroup === g.key;
-          const hasActive = g.key === activeGroupKey;
-          return (
-            <div key={g.key} className="border-b border-[var(--border-soft)] last:border-b-0">
-              <button
-                onClick={() => toggleGroup(g.key)}
-                className={`w-full flex items-center gap-2.5 px-2 py-2 my-0.5 text-left transition-colors ${
-                  open || hasActive ? 'text-[var(--brand-ink)]' : 'text-[var(--text-2)] hover:bg-[var(--brand-light)] hover:text-[var(--text)]'
-                }`}
-              >
-                <GroupIcon k={g.key} />
-                <span className={`flex-1 text-[17px] ${open ? 'font-bold' : 'font-semibold'}`}>
-                  {g.label}
-                </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round"
-                  className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}>
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-              {open && <div className="pb-1.5 space-y-0.5">{links}</div>}
-            </div>
-          );
-        })}
-      </nav>
+      <SidebarNav
+        groups={visibleGroups}
+        userId={String(user.id ?? user.email ?? '')}
+        openGroup={openGroup}
+        activeGroupKey={activeGroupKey}
+        onToggleGroup={toggleGroup}
+        isActive={(href) => isActive(pathname, href)}
+        icon={(k) => <GroupIcon k={k} />}
+        rail={rail}
+        onExpand={rail ? toggleCollapsed : undefined}
+        onToggleRail={rail !== undefined ? toggleCollapsed : undefined}
+        hotkey={hotkey}
+      />
 
     </>
   );
@@ -391,10 +341,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Sidebar desktop: alto fijo (viewport), colapsable */}
           <aside
             className={`hidden md:flex md:shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col overflow-hidden transition-[width] duration-200 ${
-              collapsed ? 'md:w-0 md:border-r-0' : 'md:w-[var(--side-w)]'
+              collapsed ? 'md:w-[var(--side-w-collapsed)]' : 'md:w-[var(--side-w)]'
             }`}
           >
-            {sidebarContent}
+            {sidebarContent(collapsed, true)}
           </aside>
 
           {/* Drawer mobile */}
@@ -406,7 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
-            {sidebarContent}
+            {sidebarContent(undefined, false)}
           </aside>
 
           <div className="flex-1 flex flex-col min-w-0 h-dvh">
@@ -421,7 +371,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onClick={toggleCollapsed}
                 className="hidden md:inline-flex p-1 -ml-1 hover:opacity-80"
-                aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+                aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
               >
                 {MenuIcon}
               </button>
