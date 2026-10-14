@@ -11,6 +11,8 @@ import { Role } from '@prisma/client';
 // Campos del producto con permiso propio de ver y de modificar (product.<campo>.view / .edit).
 // "Modificar" exige también "ver". Ver catalog/product-field-access.ts.
 export const PRODUCT_FIELD_PERMISSIONS: { field: string; label: string }[] = [
+  { field: 'name', label: 'Nombre del producto' },
+  { field: 'type', label: 'Tipo de producto (artículo / servicio)' },
   { field: 'cost', label: 'Costo' },
   { field: 'stock', label: 'Inventario / stock (catálogo e Inventario)' },
   { field: 'sku', label: 'SKU' },

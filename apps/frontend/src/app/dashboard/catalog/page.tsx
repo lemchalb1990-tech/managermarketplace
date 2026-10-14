@@ -1613,7 +1613,7 @@ export default function CatalogPage() {
   const canActivateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.activate');
   // Subir fotos: con "Imágenes: modificar" o con "Agregar fotos nuevas" (eliminar/principal solo con modificar).
   const canAddImages = pfEdit('images') || (pfView('images') && (!pfPerms || pfPerms.includes('product.images.add')));
-  const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'sku' || f === 'price'));
+  const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'name' || f === 'sku' || f === 'price'));
   const fEdit = (f: string) => (!selected?.id ? fView(f) : pfEdit(f));
   // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
   // (antes el Super Admin veía todo, p. ej. "Precio proveedor" en empresas sin Dropshipping).
@@ -3217,7 +3217,7 @@ export default function CatalogPage() {
                   )}
                 </div>
                 {pfView('sku') && <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>}
-                <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>
+                {pfView('name') && <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>}
                 {promoBadge(p.id) && <div className="-ml-2 mb-1">{promoBadge(p.id)}</div>}
                 {p.productMaster && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); setSearch(p.productMaster.name); }}
@@ -3233,9 +3233,9 @@ export default function CatalogPage() {
                   {pfView('price') ? <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span> : <span />}
                   {pfView('stock') && <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>}
                 </div>
-                {(p.type === 'SERVICIO' || !p.active) && (
+                {((pfView('type') && p.type === 'SERVICIO') || !p.active) && (
                   <div className="flex gap-1 mt-1.5">
-                    {p.type === 'SERVICIO' && (
+                    {pfView('type') && p.type === 'SERVICIO' && (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">Servicio</span>
                     )}
                     {!p.active && (
@@ -3335,9 +3335,9 @@ export default function CatalogPage() {
                   )}
                   {pfView('sku') && <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>}
                   <td className={`${cellPad} font-medium text-gray-900 min-w-[9rem] break-words`}>
-                    {p.name}
+                    {pfView('name') ? p.name : <span className="text-gray-400 font-normal">🔒</span>}
                     {promoBadge(p.id)}
-                    {p.type === 'SERVICIO' && (
+                    {pfView('type') && p.type === 'SERVICIO' && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                         Servicio
                       </span>
@@ -3651,7 +3651,7 @@ export default function CatalogPage() {
                   </div>
                 )}
                 <fieldset disabled={!selected.active} className="contents">
-                  <div className="sm:col-span-2">
+                  <PField allowed={fView('name')} editable={fEdit('name')} className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                     <input value={editForm.name}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, name: e.target.value }))}
@@ -3672,7 +3672,7 @@ export default function CatalogPage() {
                         Le sobran {Math.max(...titleOver.map((t) => nameLength - (t.max as number)))} caracteres.
                       </p>
                     )}
-                  </div>
+                  </PField>
                   <PField allowed={fView('sku')} editable={fEdit('sku')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
                     <input value={editForm.sku || ''}
@@ -3698,7 +3698,7 @@ export default function CatalogPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
                     </div>
                   )}
-                  <div>
+                  <PField allowed={fView('type')} editable={fEdit('type')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
                     <select
                       value={editForm.type || 'ARTICULO'}
@@ -3712,7 +3712,7 @@ export default function CatalogPage() {
                       <option value="ARTICULO">Artículo</option>
                       <option value="SERVICIO">Servicio</option>
                     </select>
-                  </div>
+                  </PField>
                   <PField allowed={fView('category')} editable={fEdit('category')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
                     <input value={editForm.category || ''}

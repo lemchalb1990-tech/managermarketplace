@@ -3,6 +3,8 @@ import { canProductField, PRODUCT_FIELD_PERMISSIONS, permissionsForUser, hasPerm
 
 // Campos del DTO/producto que cubre cada permiso de "Catálogo: campos del producto".
 const FIELD_KEYS: Record<string, string[]> = {
+  name: ['name'],
+  type: ['type'],
   cost: ['cost', 'supplierPrice'],
   stock: ['stock'],
   sku: ['sku'],
@@ -16,10 +18,10 @@ const FIELD_KEYS: Record<string, string[]> = {
 const labelOf = (field: string) => PRODUCT_FIELD_PERMISSIONS.find((f) => f.field === field)?.label || field;
 
 // Al crear: los campos que el usuario no puede ver no se aceptan (el formulario no los muestra).
-// SKU y precio son obligatorios al crear, así que se aceptan siempre como valor inicial.
+// Nombre, SKU y precio son obligatorios al crear, así que se aceptan siempre como valor inicial.
 export function dropHiddenOnCreate(user: any, dto: Record<string, any>) {
   for (const [field, keys] of Object.entries(FIELD_KEYS)) {
-    if (field === 'sku' || field === 'price' || canProductField(user, field, 'view')) continue;
+    if (field === 'name' || field === 'sku' || field === 'price' || canProductField(user, field, 'view')) continue;
     for (const k of keys) delete dto[k];
   }
 }
