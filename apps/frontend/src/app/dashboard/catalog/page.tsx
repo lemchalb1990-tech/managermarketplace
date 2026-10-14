@@ -1683,6 +1683,14 @@ export default function CatalogPage() {
   const [autoSaveNotice, setAutoSaveNotice] = useState('');
   const originalFormRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Fotos elegidas en "Nuevo producto": se suben apenas se crea el producto.
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const newImageUrls = useMemo(() => newImages.map((f) => URL.createObjectURL(f)), [newImages]);
+  useEffect(() => () => newImageUrls.forEach((u) => URL.revokeObjectURL(u)), [newImageUrls]);
+  const addNewImages = (files: FileList | File[] | null) => {
+    const imgs = Array.from(files || []).filter((f) => f.type.startsWith('image/'));
+    if (imgs.length) setNewImages((prev) => [...prev, ...imgs]);
+  };
   const [stockMovements, setStockMovements] = useState<any[]>([]);
   const [stockMovLoading, setStockMovLoading] = useState(false);
 
@@ -2018,6 +2026,7 @@ export default function CatalogPage() {
     setCategorySupportsHtml(false);
     setPublishTargets({});
     setPendingPublishTargets([]);
+    setNewImages([]);
   }
 
   async function refreshSelected(id: string) {
@@ -2137,6 +2146,21 @@ export default function CatalogPage() {
           accounts: mlTargets.map((c) => ({ connectionId: c.id, price: Number(mlAccountPrices[c.id]) > 0 ? Number(mlAccountPrices[c.id]) : null })),
         }, token);
       }
+      // Fotos elegidas en el formulario: si alguna falla, el producto queda creado igual.
+      let photosUploaded = 0;
+      const photoErrors: string[] = [];
+      for (const file of newImages) {
+        try {
+          await api.catalog.uploadImage(created.id, file, token);
+          photosUploaded++;
+        } catch (err: any) {
+          photoErrors.push(`${file.name}: ${err.message}`);
+        }
+      }
+      setNewImages([]);
+      const photoNote = photosUploaded ? ` con ${photosUploaded} foto${photosUploaded > 1 ? 's' : ''}` : '';
+      const photoErrNote = photoErrors.length ? ` No se pudo subir: ${photoErrors.join('; ')}.` : '';
+
       await loadProducts(1);
 
       if (targetIds.length) {
@@ -2148,11 +2172,14 @@ export default function CatalogPage() {
         setPendingPublishTargets(targetIds);
         setTab('images');
         setListNoticeIsWarning(true);
-        setListNotice(`Producto "${created.name}" creado. Sube al menos una foto y presiona "Publicar ahora" para completar la publicación en ${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}.`);
+        const plural = `${targetIds.length} marketplace${targetIds.length > 1 ? 's' : ''}`;
+        setListNotice(photosUploaded
+          ? `Producto "${created.name}" creado${photoNote}. Presiona "Publicar ahora" para completar la publicación en ${plural}.${photoErrNote}`
+          : `Producto "${created.name}" creado. Sube al menos una foto y presiona "Publicar ahora" para completar la publicación en ${plural}.${photoErrNote}`);
       } else {
         setSelected(null);
-        setListNoticeIsWarning(false);
-        setListNotice(`Producto "${created.name}" creado.`);
+        setListNoticeIsWarning(photoErrors.length > 0);
+        setListNotice(`Producto "${created.name}" creado${photoNote}.${photoErrNote}`);
       }
     } catch (err: any) {
       setEditError(err.message);
@@ -3446,6 +3473,37 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {!selected.id && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">
+                      Fotos del producto <span className="font-normal text-gray-400">(opcional · la primera queda como principal)</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {newImageUrls.map((url, i) => (
+                        <div key={url} className="relative w-20 h-20 shrink-0">
+                          <img src={url} alt="" className="w-20 h-20 max-w-none object-cover rounded-lg border border-gray-200" />
+                          {i === 0 && (
+                            <span className="absolute bottom-1 left-1 px-1 rounded bg-black/60 text-white text-[10px]">Principal</span>
+                          )}
+                          <button type="button" aria-label="Quitar foto"
+                            onClick={() => setNewImages((prev) => prev.filter((_, j) => j !== i))}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-red-600 text-xs leading-none flex items-center justify-center shadow-sm">
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <label
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => { e.preventDefault(); addNewImages(e.dataTransfer.files); }}
+                        className="w-20 h-20 shrink-0 flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 cursor-pointer text-center">
+                        <span className="text-xl leading-none">+</span>
+                        <span className="text-[10px] leading-tight px-1">Agregar foto</span>
+                        <input type="file" accept="image/*" multiple className="hidden"
+                          onChange={(e) => { addNewImages(e.target.files); e.target.value = ''; }} />
+                      </label>
+                    </div>
+                  </div>
+                )}
                 {!selected.id && activeConnections.length > 0 && (
                   <div className="sm:col-span-2 border border-gray-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Publicar en marketplaces</p>

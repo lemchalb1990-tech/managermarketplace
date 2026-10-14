@@ -63,6 +63,8 @@ enum PaymentMethod {
   CARD
   TRANSFER
   OTHER
+  // Venta pagada con más de un medio: el detalle por medio está en SalePayment.
+  MIXED
 }
 
 enum MovementType {
@@ -966,6 +968,7 @@ model Sale {
   connection   MarketplaceConnection? @relation(fields: [connectionId], references: [id])
 
   items         SaleItem[]
+  payments      SalePayment[]
   invoices      Invoice[]
   order         Order?
   orderRequest  OrderRequest?
@@ -1004,6 +1007,20 @@ model SaleItem {
   dropshipOrderItems DropshipOrderItem[]
 
   @@map("sale_items")
+}
+
+// Medios de pago de una venta del punto de venta (una fila por medio; la suma = total).
+// Una venta con un solo medio tiene una fila; con varios, Sale.paymentMethod = MIXED.
+model SalePayment {
+  id        String        @id @default(cuid())
+  saleId    String
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+  createdAt DateTime      @default(now())
+
+  @@index([saleId])
+  @@map("sale_payments")
 }
 
 // Documento de traspaso entre bodegas (reemplaza al traspaso inmediato de StockTransfer, que

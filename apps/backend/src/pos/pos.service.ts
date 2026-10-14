@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { FulfillmentType, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat } from '@prisma/client';
+import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
@@ -95,6 +95,27 @@ export class PosService {
 
     const total = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
+    // Medios de pago: con varios, se agrupan por medio y la suma debe cuadrar con el total;
+    // con uno solo (o solo paymentMethod), una fila por el total.
+    let payments: { method: PaymentMethod; amount: number }[] = [];
+    if (dto.payments?.length) {
+      const byMethod = new Map<PaymentMethod, number>();
+      for (const p of dto.payments) {
+        if (p.method === PaymentMethod.MIXED) throw new BadRequestException('Medio de pago no válido');
+        if (!(p.amount > 0)) continue;
+        byMethod.set(p.method, (byMethod.get(p.method) || 0) + p.amount);
+      }
+      payments = [...byMethod].map(([method, amount]) => ({ method, amount: Math.round(amount * 100) / 100 }));
+      const paid = payments.reduce((s, p) => s + p.amount, 0);
+      if (!payments.length || Math.abs(paid - total) > 0.5) {
+        throw new BadRequestException(`Los medios de pago suman ${Math.round(paid)} y el total de la venta es ${Math.round(total)}`);
+      }
+      if (payments.length === 1) payments[0].amount = total;
+    } else if (dto.paymentMethod && dto.paymentMethod !== PaymentMethod.MIXED) {
+      payments = [{ method: dto.paymentMethod, amount: total }];
+    }
+    const paymentMethod = payments.length > 1 ? PaymentMethod.MIXED : payments[0]?.method ?? dto.paymentMethod;
+
     // Auto-detect warehouse from products weighted by quantity
     const warehouseCounts: Record<string, number> = {};
     for (const item of dto.items) {
@@ -116,7 +137,8 @@ export class PosService {
           channel: dto.channel,
           externalId: dto.externalId,
           total,
-          paymentMethod: dto.paymentMethod,
+          paymentMethod,
+          ...(payments.length ? { payments: { create: payments } } : {}),
           notes: dto.notes,
           customerName: dto.customerName || client?.name,
           customerEmail: dto.customerEmail || client?.email || undefined,
@@ -197,6 +219,7 @@ export class PosService {
       include: {
         items: { include: { product: { select: { id: true, name: true, sku: true, stock: true } } } },
         user: { select: { id: true, name: true } },
+        payments: { select: { method: true, amount: true } },
       },
     });
 
@@ -291,6 +314,61 @@ export class PosService {
   // Ventas mes a mes en una ventana móvil de `months` meses terminando en el mes actual
   // (ej. months=12 y estamos en 2026-09 -> desde 2025-10) — mismo patrón que getWeeklySales
   // pero agrupando por mes en vez de por día.
+  // Dashboard: ventas del punto de venta en el período, por medio de pago (sumando cada
+  // medio de una venta mixta por separado) y por usuario que la registró.
+  async getPosBreakdown(user: any, companyId?: string, opts: { days?: number; months?: number } = {}) {
+    const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
+    const tz = await this.settings.getTimezone();
+    const todayKey = dateKeyStringInTz(new Date(), tz);
+    let from: Date;
+    if (opts.months) {
+      const [y, m] = todayKey.split('-').map(Number);
+      const idx = y * 12 + (m - 1) - (opts.months - 1);
+      from = startOfDayInTz(tz, `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}-01`);
+    } else {
+      from = startOfDayInTz(tz, shiftDateKey(todayKey, -((opts.days || 1) - 1)));
+    }
+    const where: any = { channel: SaleChannel.POS, createdAt: { gte: from } };
+    if (cid) where.companyId = cid;
+
+    const sales = await this.prisma.sale.findMany({
+      where,
+      select: {
+        total: true, paymentMethod: true, userId: true,
+        user: { select: { name: true } },
+        payments: { select: { method: true, amount: true } },
+      },
+    });
+
+    const byPayment = new Map<string, { total: number; count: number }>();
+    const addPay = (key: string, amount: number) => {
+      const e = byPayment.get(key) || { total: 0, count: 0 };
+      e.total += amount; e.count++;
+      byPayment.set(key, e);
+    };
+    const byUser = new Map<string, { userId: string | null; name: string; total: number; count: number }>();
+    for (const sale of sales) {
+      const total = Number(sale.total);
+      if (sale.payments.length) {
+        for (const p of sale.payments) addPay(p.method, Number(p.amount));
+      } else {
+        addPay(sale.paymentMethod && sale.paymentMethod !== 'MIXED' ? sale.paymentMethod : 'SIN_ESPECIFICAR', total);
+      }
+      const key = sale.userId || 'none';
+      const u = byUser.get(key) || { userId: sale.userId, name: sale.user?.name || 'Sin usuario', total: 0, count: 0 };
+      u.total += total; u.count++;
+      byUser.set(key, u);
+    }
+
+    return {
+      from,
+      totalSales: sales.length,
+      totalRevenue: sales.reduce((s, v) => s + Number(v.total), 0),
+      byPayment: [...byPayment].map(([method, v]) => ({ method, ...v })).sort((a, b) => b.total - a.total),
+      byUser: [...byUser.values()].sort((a, b) => b.total - a.total),
+    };
+  }
+
   async getMonthlySales(user: any, companyId?: string, months = 12, channel?: string) {
     const cid = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     const tz = await this.settings.getTimezone();
@@ -385,6 +463,7 @@ export class PosService {
           },
           user: { select: { id: true, name: true } },
           invoices: { select: { id: true, dteType: true, status: true, folio: true } },
+          payments: { select: { method: true, amount: true } },
           connection: { select: { id: true, name: true, marketplace: true } },
           order: { select: { id: true, status: true } },
         },
@@ -417,6 +496,7 @@ export class PosService {
         user: { select: { id: true, name: true } },
         connection: { select: { id: true, name: true, marketplace: true } },
         company: { select: { id: true, name: true } },
+        payments: { select: { method: true, amount: true } },
         // Orden de la venta: el ticket lleva su código de barras para escanearla en bodega.
         order: { select: { id: true, fulfillmentType: true } },
       },

@@ -34,6 +34,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CARD: 'Tarjeta',
   TRANSFER: 'Transferencia',
   OTHER: 'Otro',
+  MIXED: 'Mixto',
 };
 
 const FULFILLMENT_LABELS: Record<string, string> = {
@@ -392,6 +393,11 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
                       <p className="text-sm text-gray-600">
                         {sale.paymentMethod ? PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod : '—'}
                       </p>
+                      {sale.payments?.length > 1 && (
+                        <p className="text-xs text-gray-400">
+                          {sale.payments.map((p: any) => `${PAYMENT_LABELS[p.method] || p.method} $${Number(p.amount).toLocaleString('es-CL', { maximumFractionDigits: 0 })}`).join(' · ')}
+                        </p>
+                      )}
                       {(sale.fulfillmentType || sale.shippingMethod) && (
                         <p className="text-xs text-gray-400 truncate">
                           {sale.fulfillmentType ? FULFILLMENT_LABELS[sale.fulfillmentType] || sale.fulfillmentType : sale.shippingMethod}

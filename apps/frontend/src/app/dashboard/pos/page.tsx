@@ -61,7 +61,9 @@ export default function PosPage() {
   const [address, setAddress] = useState('');
   const [commune, setCommune] = useState('');
   const [city, setCity] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  // Medios de pago: una fila = pago con un solo medio (por el total). Con "+ Agregar otro medio
+  // de pago" se cobra con varios; un monto vacío toma el saldo que falta.
+  const [payments, setPayments] = useState<{ method: string; amount: string }[]>([{ method: 'CASH', amount: '' }]);
   const [notes, setNotes] = useState('');
 
   // Cliente registrado
@@ -273,8 +275,24 @@ export default function PosPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const multiPay = payments.length > 1;
+  const resolvedPayments = (() => {
+    if (!multiPay) return [{ method: payments[0].method, amount: total }];
+    const empties = payments.filter((p) => p.amount === '').length;
+    const filledSum = payments.reduce((s, p) => s + (p.amount === '' ? 0 : Number(p.amount) || 0), 0);
+    return payments.map((p) => ({
+      method: p.method,
+      amount: p.amount === '' ? (empties === 1 ? Math.max(0, total - filledSum) : 0) : Number(p.amount) || 0,
+    }));
+  })();
+  const paidSum = resolvedPayments.reduce((s, p) => s + p.amount, 0);
+  const payDiff = total - paidSum;
+  const payOk = !multiPay || (Math.abs(payDiff) < 1 && resolvedPayments.every((p) => p.amount > 0));
+  const paymentMethod = multiPay ? 'MIXED' : payments[0].method;
+
   const checkout = useCallback(async () => {
     if (cart.length === 0) return;
+    if (!payOk) { setErrorMsg('Los montos de los medios de pago deben sumar el total de la venta'); return; }
     const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     if (isSuperAdmin && !selectedCompanyId) return;
 
@@ -298,6 +316,7 @@ export default function PosPage() {
       const dto: any = {
         channel: 'POS',
         paymentMethod,
+        payments: resolvedPayments,
         notes: notes || undefined,
         fulfillmentType: servicesOnly ? undefined : fulfillmentType,
         clientId: clientId || undefined,
@@ -353,6 +372,7 @@ export default function PosPage() {
       setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
       setAddress(''); setCommune(''); setCity('');
       setNotes(''); setFulfillmentType('PICKUP');
+      setPayments([{ method: 'CASH', amount: '' }]);
       setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
       setEmitDte(false); setDteType('BOLETA'); setDteFamily('BOLETA');
       setShowCheckout(false);
@@ -362,7 +382,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, servicesOnly, paymentMethod, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+  }, [cart, servicesOnly, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -1015,22 +1035,75 @@ export default function PosPage() {
               {/* Método de pago */}
               <div>
                 <h3 className="ui-subsection-title mb-3">Método de pago</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setPaymentMethod(v)}
-                      className={`py-2 rounded-lg border-2 text-xs font-semibold transition ${
-                        paymentMethod === v
-                          ? 'border-blue-600 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
+                {!multiPay ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setPayments([{ method: v, amount: '' }])}
+                        className={`py-2 rounded-lg border-2 text-xs font-semibold transition ${
+                          payments[0].method === v
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {payments.map((p, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <select
+                          value={p.method}
+                          onChange={(e) => setPayments((ps) => ps.map((x, i) => (i === idx ? { ...x, method: e.target.value } : x)))}
+                          className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {Object.entries(PAYMENT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                          <input
+                            type="number" min="0" step="1" inputMode="numeric"
+                            value={p.amount}
+                            onChange={(e) => setPayments((ps) => ps.map((x, i) => (i === idx ? { ...x, amount: e.target.value } : x)))}
+                            placeholder={p.amount === '' && resolvedPayments[idx].amount > 0 ? `${Math.round(resolvedPayments[idx].amount).toLocaleString('es-CL')} (saldo)` : 'Monto'}
+                            className="w-full border border-gray-300 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPayments((ps) => ps.filter((_, i) => i !== idx))}
+                          aria-label="Quitar medio de pago"
+                          className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 text-lg leading-none"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <p className={`text-xs ${Math.abs(payDiff) < 1 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      Pagado ${Math.round(paidSum).toLocaleString('es-CL')} de ${Math.round(total).toLocaleString('es-CL')}
+                      {payDiff >= 1 && ` · Falta $${Math.round(payDiff).toLocaleString('es-CL')}`}
+                      {payDiff <= -1 && ` · Sobra $${Math.round(-payDiff).toLocaleString('es-CL')}`}
+                      {payments.filter((x) => x.amount === '').length > 1 && ' · Deja vacío solo un monto (toma el saldo)'}
+                    </p>
+                  </div>
+                )}
+                {payments.length < 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setPayments((ps) => {
+                      const used = new Set(ps.map((x) => x.method));
+                      const next = Object.keys(PAYMENT_LABELS).find((k) => !used.has(k)) || 'OTHER';
+                      return [...ps, { method: next, amount: '' }];
+                    })}
+                    className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    + Agregar otro medio de pago
+                  </button>
+                )}
               </div>
 
               {/* Notas */}
@@ -1057,7 +1130,7 @@ export default function PosPage() {
               </div>
               <button
                 onClick={checkout}
-                disabled={loading}
+                disabled={loading || !payOk}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
               >
                 {loading ? 'Procesando...' : 'Confirmar venta'}

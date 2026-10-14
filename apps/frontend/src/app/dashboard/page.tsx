@@ -88,6 +88,10 @@ function KpiCard({
   return href ? <Link href={href} className="block">{content}</Link> : content;
 }
 
+const POS_PAYMENT_LABELS: Record<string, string> = {
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', SIN_ESPECIFICAR: 'Sin especificar',
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { selectedCompanyId, companies } = useAdminCompany();
@@ -221,6 +225,21 @@ export default function DashboardPage() {
 
   useEffect(() => { loadStoreBreakdown(); }, [loadStoreBreakdown]);
   useEffect(() => onActivity(['sale'], loadStoreBreakdown), [loadStoreBreakdown]);
+
+  // Punto de venta (venta directa): pagos por medio y ventas por usuario, mismo período.
+  const showPos = !!user && hasModule(user, 'pos');
+  const [posBreakdown, setPosBreakdown] = useState<Awaited<ReturnType<typeof api.pos.posBreakdown>> | null>(null);
+  const loadPosBreakdown = useCallback(() => {
+    const token = getToken();
+    if (!token || !user || !showPos) return;
+    if (isSuperAdmin && !selectedCompanyId) return;
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    const params = isDailyPeriod ? { companyId, days: periodDays } : { companyId, months: dashboardPeriod === '12m' ? 12 : 6 };
+    api.pos.posBreakdown(token, params).then(setPosBreakdown).catch(() => setPosBreakdown(null));
+  }, [user, showPos, isSuperAdmin, selectedCompanyId, isDailyPeriod, periodDays, dashboardPeriod]);
+  useEffect(() => { loadPosBreakdown(); }, [loadPosBreakdown]);
+  useEffect(() => onActivity(['sale'], loadPosBreakdown), [loadPosBreakdown]);
+  const periodLabel = DASHBOARD_PERIODS.find((p) => p.key === dashboardPeriod)?.label || '';
 
   const [storeChartReady, setStoreChartReady] = useState(false);
   useEffect(() => {
@@ -532,6 +551,92 @@ export default function DashboardPage() {
           )}
         </SectionCard>
       </div>
+
+      {/* Punto de venta — pagos por medio de pago y ventas por usuario (solo venta directa) */}
+      {showPos && posBreakdown && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+          <SectionCard
+            title={<span className="font-bold text-sm text-[var(--text)]">Pagos en punto de venta</span>}
+            style={CARD_SHADOW}
+            compactHeader
+            actions={<span className="text-[11px] text-[var(--text-muted)]">{periodLabel}</span>}
+          >
+            {posBreakdown.byPayment.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)] text-center py-8">Sin ventas en el punto de venta en este período</p>
+            ) : (() => {
+              const sum = posBreakdown.byPayment.reduce((a, b) => a + b.total, 0) || 1;
+              return (
+                <div>
+                  <div className="flex h-2.5 rounded-full overflow-hidden bg-[var(--border)] mb-3">
+                    {posBreakdown.byPayment.map((p, i) => (
+                      <span key={p.method} style={{ width: `${(p.total / sum) * 100}%`, background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                    ))}
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[11px] text-[var(--text-muted)]">
+                        <th className="text-left font-medium pb-2">Medio</th>
+                        <th className="text-right font-medium pb-2 px-2">Pagos</th>
+                        <th className="text-right font-medium pb-2 px-2">%</th>
+                        <th className="text-right font-medium pb-2">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border-soft)]">
+                      {posBreakdown.byPayment.map((p, i) => (
+                        <tr key={p.method}>
+                          <td className="py-2">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                              <span className="text-[var(--text-2)]">{POS_PAYMENT_LABELS[p.method] || p.method}</span>
+                            </span>
+                          </td>
+                          <td className="text-right px-2 text-[var(--text-2)]">{p.count}</td>
+                          <td className="text-right px-2 text-[var(--text-2)]">{Math.round((p.total / sum) * 100)}%</td>
+                          <td className="text-right font-semibold text-[var(--text)]">${Math.round(p.total).toLocaleString('es-CL')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </SectionCard>
+
+          <SectionCard
+            title={<span className="font-bold text-sm text-[var(--text)]">Ventas por usuario · punto de venta</span>}
+            style={CARD_SHADOW}
+            compactHeader
+            actions={<span className="text-[11px] text-[var(--text-muted)]">{periodLabel}</span>}
+          >
+            {posBreakdown.byUser.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)] text-center py-8">Sin ventas en el punto de venta en este período</p>
+            ) : (
+              <div className="overflow-y-auto max-h-[220px]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-[var(--surface)]">
+                    <tr className="text-[11px] text-[var(--text-muted)]">
+                      <th className="text-left font-medium pb-2">Usuario</th>
+                      <th className="text-right font-medium pb-2 px-2">Ventas</th>
+                      <th className="hidden sm:table-cell text-right font-medium pb-2 px-2">Ticket prom</th>
+                      <th className="text-right font-medium pb-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-soft)]">
+                    {posBreakdown.byUser.map((u) => (
+                      <tr key={u.userId || 'none'}>
+                        <td className="py-2 text-[var(--text-2)] truncate max-w-[10rem]">{u.name}</td>
+                        <td className="text-right px-2 font-semibold text-[var(--text)]">{u.count}</td>
+                        <td className="hidden sm:table-cell text-right px-2 text-[var(--text-2)]">${Math.round(u.count ? u.total / u.count : 0).toLocaleString('es-CL')}</td>
+                        <td className="text-right font-semibold text-[var(--text)]">${Math.round(u.total).toLocaleString('es-CL')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      )}
 
       {/* Fila operativa — órdenes urgentes + últimas ventas, en 2 columnas iguales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">

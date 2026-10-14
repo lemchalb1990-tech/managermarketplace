@@ -42,6 +42,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: 'Tarjeta',
   TRANSFER: 'Transferencia',
   OTHER: 'Otro',
+  MIXED: 'Mixto',
 };
 
 const emptyPayForm = { paymentMethod: 'TRANSFER', paymentReference: '', paidAt: '' };

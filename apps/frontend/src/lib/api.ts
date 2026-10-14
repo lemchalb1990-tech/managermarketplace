@@ -1488,6 +1488,17 @@ export const api = {
       if (params.date) q.set('date', params.date);
       return apiFetch<any>(`/pos/sales/summary?${q}`, {}, token);
     },
+    posBreakdown: (token: string, params: { companyId?: string; days?: number; months?: number }) => {
+      const q = new URLSearchParams();
+      if (params.companyId) q.set('companyId', params.companyId);
+      if (params.days) q.set('days', String(params.days));
+      if (params.months) q.set('months', String(params.months));
+      return apiFetch<{
+        totalSales: number; totalRevenue: number;
+        byPayment: { method: string; total: number; count: number }[];
+        byUser: { userId: string | null; name: string; total: number; count: number }[];
+      }>(`/pos/sales/pos-breakdown?${q}`, {}, token);
+    },
     weeklySales: (token: string, params?: { companyId?: string; days?: number; channel?: string }) => {
       const q = new URLSearchParams();
       if (params?.companyId) q.set('companyId', params.companyId);

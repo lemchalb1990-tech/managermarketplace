@@ -28,7 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
   REJECTED: 'bg-red-100 text-red-700',
   CANCELLED: 'bg-gray-100 text-gray-500',
 };
-const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro' };
+const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto' };
 
 const emptyForm = () => ({
   id: undefined as string | undefined,

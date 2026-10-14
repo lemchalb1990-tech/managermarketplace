@@ -15,6 +15,15 @@ export class SaleItemDto {
   unitPrice: number;
 }
 
+export class SalePaymentDto {
+  @IsEnum(PaymentMethod)
+  method: PaymentMethod;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  amount: number;
+}
+
 export class CreateSaleDto {
   @IsEnum(SaleChannel)
   channel: SaleChannel;
@@ -22,6 +31,13 @@ export class CreateSaleDto {
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  // Pago con varios medios (punto de venta): la suma debe ser igual al total.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SalePaymentDto)
+  payments?: SalePaymentDto[];
 
   @IsOptional()
   @IsString()

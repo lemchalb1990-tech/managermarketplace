@@ -74,7 +74,10 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
     date,
     time,
     seller: sale.user?.name,
-    payment: sale.paymentMethod ? (PAYMENT_LABEL[sale.paymentMethod] || sale.paymentMethod) : (sale.paymentMethodName || '—'),
+    // Pago con varios medios: el detalle de cada uno con su monto.
+    payment: sale.payments?.length > 1
+      ? sale.payments.map((p: any) => `${PAYMENT_LABEL[p.method] || p.method} ${fmtCLP(Number(p.amount))}`).join(' · ')
+      : sale.paymentMethod ? (PAYMENT_LABEL[sale.paymentMethod] || sale.paymentMethod) : (sale.paymentMethodName || '—'),
   };
 
   if (printFormat !== 'CARTA') {
