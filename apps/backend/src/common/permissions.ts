@@ -26,7 +26,9 @@ export const PRODUCT_FIELD_EDIT_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `pro
 // Acciones sobre productos: crear nuevos y activar/desactivar.
 export const PRODUCT_CREATE_PERMISSION = 'product.create';
 export const PRODUCT_ACTIVATE_PERMISSION = 'product.activate';
-const PRODUCT_FIELD_ALL_KEYS = [PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, ...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
+// Subir fotos nuevas sin poder eliminar ni cambiar la principal (eso es "Imágenes: modificar").
+export const PRODUCT_IMAGES_ADD_PERMISSION = 'product.images.add';
+const PRODUCT_FIELD_ALL_KEYS = [PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, PRODUCT_IMAGES_ADD_PERMISSION, ...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
 
 export const PERMISSION_GROUPS: {
   key: string;
@@ -95,6 +97,7 @@ export const PERMISSION_GROUPS: {
     items: [
       { key: PRODUCT_CREATE_PERMISSION, label: 'Agregar productos nuevos' },
       { key: PRODUCT_ACTIVATE_PERMISSION, label: 'Activar o desactivar productos' },
+      { key: PRODUCT_IMAGES_ADD_PERMISSION, label: 'Agregar fotos nuevas al producto' },
     ].concat(PRODUCT_FIELD_PERMISSIONS.flatMap((f) => [
       { key: `product.${f.field}.view`, label: `${f.label}: ver` },
       { key: `product.${f.field}.edit`, label: `${f.label}: modificar` },
@@ -301,6 +304,12 @@ export function permissionsForUser(user: {
 
 export function hasPermission(perms: string[], key: string): boolean {
   return perms.includes('*') || perms.includes(key);
+}
+
+// ¿Puede subir fotos nuevas? Con "Imágenes: modificar" o con "Agregar fotos nuevas" (+ ver imágenes).
+export function canAddProductImages(user: { role: Role; accessProfile?: { permissions: string[] } | null }): boolean {
+  if (canProductField(user, 'images', 'edit')) return true;
+  return canProductField(user, 'images', 'view') && permissionsForUser(user).includes(PRODUCT_IMAGES_ADD_PERMISSION);
 }
 
 // ¿Puede ver / modificar un campo del producto? Modificar exige también ver.

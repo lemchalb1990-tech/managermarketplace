@@ -1611,6 +1611,8 @@ export default function CatalogPage() {
   // completar; al editar, manda "modificar".
   const canCreateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.create');
   const canActivateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.activate');
+  // Subir fotos: con "Imágenes: modificar" o con "Agregar fotos nuevas" (eliminar/principal solo con modificar).
+  const canAddImages = pfEdit('images') || (pfView('images') && (!pfPerms || pfPerms.includes('product.images.add')));
   const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'sku' || f === 'price'));
   const fEdit = (f: string) => (!selected?.id ? fView(f) : pfEdit(f));
   // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
@@ -3521,7 +3523,7 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {fEdit('images') && (!selected.id || !(selected.images?.length) || quickPhotoFor === selected.id) && (
+                {canAddImages && (!selected.id || !(selected.images?.length) || quickPhotoFor === selected.id) && (
                   <div className="sm:col-span-2">
                     <p className="text-xs font-semibold text-gray-700 mb-2">
                       Fotos del producto <span className="font-normal text-gray-400">
@@ -4060,8 +4062,8 @@ export default function CatalogPage() {
                   ) : (
                     <p className="text-center text-gray-400 text-sm py-6 mb-4">Sin imágenes cargadas</p>
                   )}
-                  {!pfEdit('images') ? (
-                    <p className="border-t border-gray-100 pt-4 text-xs text-gray-400">🔒 Sin permiso para modificar las imágenes</p>
+                  {!canAddImages ? (
+                    <p className="border-t border-gray-100 pt-4 text-xs text-gray-400">🔒 Sin permiso para agregar fotos</p>
                   ) : (
                   <div className="border-t border-gray-100 pt-4">
                     <label className="block text-xs font-medium text-gray-600 mb-2">

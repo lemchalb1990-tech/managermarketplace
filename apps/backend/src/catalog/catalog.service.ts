@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
-import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields, assertCanCreateProduct, assertCanActivateProduct } from './product-field-access';
+import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields, assertCanCreateProduct, assertCanActivateProduct, assertCanAddImages } from './product-field-access';
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -876,7 +876,7 @@ export class CatalogService {
   }
 
   async addImage(productId: string, filename: string, url: string, user: any) {
-    assertCanEditField(user, 'images');
+    assertCanAddImages(user);
     await this.findOne(productId, user);
     const count = await this.prisma.productImage.count({ where: { productId } });
     return this.prisma.productImage.create({
