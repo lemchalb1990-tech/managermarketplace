@@ -271,6 +271,28 @@ export default function AccessProfilesPage() {
                             onChange={() => toggleGroup(g)} className="rounded" />
                           <span className={`text-sm font-semibold ${g.key === 'restricciones' ? 'text-red-700' : 'text-[var(--text)]'}`}>{g.label}</span>
                         </label>
+                        {g.key === 'catalogo-campos' ? (
+                          // Catálogo: tres columnas — Ver, Modificar y Agregar (crear / activar).
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3 pl-6">
+                            {[
+                              { title: 'Ver', items: g.items.filter((it) => it.key.endsWith('.view')) },
+                              { title: 'Modificar', items: g.items.filter((it) => it.key.endsWith('.edit')) },
+                              { title: 'Agregar', items: g.items.filter((it) => !it.key.endsWith('.view') && !it.key.endsWith('.edit')) },
+                            ].map((col) => (
+                              <div key={col.title}>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">{col.title}</p>
+                                <div className="space-y-1">
+                                  {col.items.map((it) => (
+                                    <label key={it.key} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
+                                      <input type="checkbox" checked={hasKey(it.key)} onChange={() => toggleKey(it.key)} className="rounded" />
+                                      {it.label.replace(/: (ver|modificar)$/, '')}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 pl-6">
                           {g.items.map((it) => (
                             <label key={it.key} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
@@ -279,6 +301,7 @@ export default function AccessProfilesPage() {
                             </label>
                           ))}
                         </div>
+                        )}
                       </div>
                     );
                   })}
