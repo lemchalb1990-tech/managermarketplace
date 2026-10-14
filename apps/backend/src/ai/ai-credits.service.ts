@@ -112,12 +112,16 @@ export class AiCreditsService {
     });
   }
 
-  /** Uso de una empresa: plan, créditos, conteos por tarea y últimos usos (página "Uso"). */
-  async companyUsage(companyId: string) {
+  /** Uso de una empresa: plan, créditos, conteos por tarea y últimos usos paginados de 25 (página "Uso"). */
+  async companyUsage(companyId: string, recentPage = 1) {
+    const RECENT_PAGE_SIZE = 25;
+    const recentTotal = await this.prisma.aiUsage.count({ where: { companyId } });
+    const recentPages = Math.max(1, Math.ceil(recentTotal / RECENT_PAGE_SIZE));
+    const page = Math.min(Math.max(1, Math.trunc(recentPage) || 1), recentPages);
     const [status, stats, recent] = await Promise.all([
       this.status(companyId),
       this.usageStats(companyId),
-      this.prisma.aiUsage.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      this.prisma.aiUsage.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' }, skip: (page - 1) * RECENT_PAGE_SIZE, take: RECENT_PAGE_SIZE }),
     ]);
     const userIds = [...new Set(recent.map((r) => r.userId).filter(Boolean))] as string[];
     const productIds = [...new Set(recent.map((r) => r.productId).filter(Boolean))] as string[];
@@ -130,6 +134,9 @@ export class AiCreditsService {
     return {
       ...status,
       stats,
+      recentTotal,
+      recentPage: page,
+      recentPages,
       recent: recent.map((r) => ({
         id: r.id,
         kind: r.kind,

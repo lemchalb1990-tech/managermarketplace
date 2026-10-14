@@ -488,8 +488,13 @@ export const api = {
     },
     updateCosts: (costs: Partial<Record<AiTask, number>>, token: string) =>
       apiFetch<Record<AiTask, number>>('/ai/costs', { method: 'PATCH', body: JSON.stringify(costs) }, token),
-    usage: (token: string, companyId?: string) =>
-      apiFetch<AiUsageReport>(`/ai/usage${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    usage: (token: string, companyId?: string, recentPage?: number) => {
+      const q = new URLSearchParams();
+      if (companyId) q.set('companyId', companyId);
+      if (recentPage && recentPage > 1) q.set('recentPage', String(recentPage));
+      const qs = q.toString();
+      return apiFetch<AiUsageReport>(`/ai/usage${qs ? `?${qs}` : ''}`, {}, token);
+    },
     credits: (token: string, companyId?: string) =>
       apiFetch<AiCreditsStatus>(`/ai/credits${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     plans: {
@@ -1882,6 +1887,10 @@ export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
 
 export interface AiUsageReport extends AiCreditsStatus {
   stats: Record<string, { today: number; month: number; total: number }>;
+  // Últimos usos paginados de 25.
+  recentTotal: number;
+  recentPage: number;
+  recentPages: number;
   recent: {
     id: string;
     kind: string;

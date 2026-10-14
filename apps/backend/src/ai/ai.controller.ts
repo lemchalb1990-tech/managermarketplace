@@ -59,10 +59,10 @@ export class AiController {
   // Página "Uso" (Ajustes del sistema): plan, créditos y lo usado por la empresa.
   @Get('usage')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
-  usage(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+  usage(@CurrentUser() user: any, @Query('companyId') companyId?: string, @Query('recentPage') recentPage?: string) {
     const cId = user.role === Role.SUPER_ADMIN ? companyId : user.companyId;
     if (!cId) throw new ForbiddenException('Selecciona una empresa');
-    return this.credits.companyUsage(cId);
+    return this.credits.companyUsage(cId, Number(recentPage) || 1);
   }
 
   // ── Proveedores de IA y costo de cada tarea: solo Super Admin ──

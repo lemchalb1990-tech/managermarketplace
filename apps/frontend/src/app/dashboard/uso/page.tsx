@@ -137,6 +137,7 @@ export default function UsagePage() {
   const [data, setData] = useState<AiUsageReport | null>(null);
   const [sub, setSub] = useState<SubscriptionUsage | null>(null);
   const [error, setError] = useState('');
+  const [recentLoading, setRecentLoading] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -148,6 +149,17 @@ export default function UsagePage() {
       .then(([ai, subscription]) => { setData(ai); setSub(subscription); })
       .catch((e) => setError(e.message || 'No se pudo cargar el uso.'));
   }, [isSuperAdmin, selectedCompanyId, companyId]);
+
+  // Cambia de página en «Últimos usos» sin recargar el resto de la vista.
+  function loadRecent(page: number) {
+    const token = getToken();
+    if (!token) return;
+    setRecentLoading(true);
+    api.ai.usage(token, companyId, page)
+      .then((ai) => setData((d) => d && { ...d, recent: ai.recent, recentTotal: ai.recentTotal, recentPage: ai.recentPage, recentPages: ai.recentPages }))
+      .catch(() => {})
+      .finally(() => setRecentLoading(false));
+  }
 
   const plan = data?.plan;
   const usesAi = !!plan?.features.some((f) => f !== 'ML_DIAGNOSTIC');
@@ -253,12 +265,15 @@ export default function UsagePage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Últimos usos">
+          <SectionCard
+            title="Últimos usos"
+            actions={data.recentTotal > 0 ? <span className="text-xs text-[var(--text-muted)]">{data.recentTotal.toLocaleString('es-CL')} en total</span> : undefined}
+          >
             {data.recent.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">Todavía no hay usos registrados.</p>
             ) : (
               <div className="overflow-x-auto -mx-3 sm:-mx-5">
-                <table className="w-full text-sm">
+                <table className={`w-full text-sm transition-opacity ${recentLoading ? 'opacity-50' : ''}`}>
                   <thead>
                     <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border-soft)]">
                       <th className="px-3 sm:px-5 py-2 font-medium">Fecha</th>
@@ -284,6 +299,19 @@ export default function UsagePage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {data.recentPages > 1 && (
+              <div className="-mx-3 sm:-mx-5 -mb-3 sm:-mb-5 mt-3 px-3 sm:px-5 py-3 border-t border-[var(--border-soft)] flex items-center justify-between">
+                <button onClick={() => loadRecent(data.recentPage - 1)} disabled={data.recentPage <= 1 || recentLoading}
+                  className="text-sm text-[var(--brand)] disabled:text-gray-300 hover:underline">
+                  ← Anterior
+                </button>
+                <span className="text-sm text-[var(--text-muted)]">Página {data.recentPage} de {data.recentPages}</span>
+                <button onClick={() => loadRecent(data.recentPage + 1)} disabled={data.recentPage >= data.recentPages || recentLoading}
+                  className="text-sm text-[var(--brand)] disabled:text-gray-300 hover:underline">
+                  Siguiente →
+                </button>
               </div>
             )}
           </SectionCard>
