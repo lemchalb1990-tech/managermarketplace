@@ -17,3 +17,17 @@ export function can(user: any, key: string, fallbackRoles?: string[]): boolean {
   if (fallbackRoles) return fallbackRoles.includes(user.role);
   return false;
 }
+
+/**
+ * Permiso de un campo del producto (product.<campo>.view / .edit; modificar exige ver).
+ * Una sesión guardada antes de existir estos permisos no trae ninguna key "product.":
+ * ahí no se restringe (el servidor valida igual con los permisos al día).
+ */
+export function canProductField(user: any, field: string, action: 'view' | 'edit'): boolean {
+  if (!user) return false;
+  if (user.role === 'SUPER_ADMIN') return true;
+  const perms: string[] | undefined = Array.isArray(user.permissions) ? user.permissions : undefined;
+  if (!perms || perms.includes('*') || !perms.some((p) => p.startsWith('product.'))) return true;
+  const view = perms.includes(`product.${field}.view`);
+  return action === 'view' ? view : view && perms.includes(`product.${field}.edit`);
+}

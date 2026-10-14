@@ -1,0 +1,52 @@
+import { ForbiddenException } from '@nestjs/common';
+import { canProductField, PRODUCT_FIELD_PERMISSIONS } from '../common/permissions';
+
+// Campos del DTO/producto que cubre cada permiso de "Catálogo: campos del producto".
+const FIELD_KEYS: Record<string, string[]> = {
+  cost: ['cost', 'supplierPrice'],
+  stock: ['stock'],
+  sku: ['sku'],
+  criticalStock: ['criticalStock'],
+  warehouse: ['warehouseId'],
+  description: ['description'],
+  price: ['price', 'mlPrice', 'wholesalePrice'],
+  category: ['category'],
+};
+
+const labelOf = (field: string) => PRODUCT_FIELD_PERMISSIONS.find((f) => f.field === field)?.label || field;
+
+// Al crear: los campos que el usuario no puede ver no se aceptan (el formulario no los muestra).
+// SKU y precio son obligatorios al crear, así que se aceptan siempre como valor inicial.
+export function dropHiddenOnCreate(user: any, dto: Record<string, any>) {
+  for (const [field, keys] of Object.entries(FIELD_KEYS)) {
+    if (field === 'sku' || field === 'price' || canProductField(user, field, 'view')) continue;
+    for (const k of keys) delete dto[k];
+  }
+}
+
+// Al editar: los campos sin permiso de modificar se descartan (el formulario los muestra
+// bloqueados y los reenvía tal cual; si un dato quedó desactualizado, p. ej. el stock que
+// cambió por una venta, no debe tomarse como un cambio del usuario).
+export function dropNotEditableOnUpdate(user: any, dto: Record<string, any>) {
+  for (const [field, keys] of Object.entries(FIELD_KEYS)) {
+    if (canProductField(user, field, 'edit')) continue;
+    for (const k of keys) delete dto[k];
+  }
+}
+
+export function assertCanEditField(user: any, field: string) {
+  if (!canProductField(user, field, 'edit')) {
+    throw new ForbiddenException(`No tienes permiso para modificar: ${labelOf(field)}`);
+  }
+}
+
+// Sin "Costo: ver", el costo no sale del servidor.
+export function stripHiddenProductFields<T>(user: any, data: T): T {
+  if (canProductField(user, 'cost', 'view')) return data;
+  const strip = (p: any) => {
+    if (!p || typeof p !== 'object') return p;
+    const { cost: _c, supplierPrice: _s, ...rest } = p;
+    return rest;
+  };
+  return (Array.isArray(data) ? data.map(strip) : strip(data)) as T;
+}

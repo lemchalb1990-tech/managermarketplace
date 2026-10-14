@@ -8,6 +8,23 @@ import { Role } from '@prisma/client';
  * Los grupos se usan tanto para validar keys entrantes como para dibujar el
  * árbol de checkboxes en el editor de perfiles del frontend.
  */
+// Campos del producto con permiso propio de ver y de modificar (product.<campo>.view / .edit).
+// "Modificar" exige también "ver". Ver catalog/product-field-access.ts.
+export const PRODUCT_FIELD_PERMISSIONS: { field: string; label: string }[] = [
+  { field: 'cost', label: 'Costo' },
+  { field: 'stock', label: 'Inventario / stock (catálogo e Inventario)' },
+  { field: 'sku', label: 'SKU' },
+  { field: 'criticalStock', label: 'Stock crítico' },
+  { field: 'warehouse', label: 'Bodega' },
+  { field: 'description', label: 'Descripción corta' },
+  { field: 'price', label: 'Precio de venta (tienda, Mercado Libre y canales)' },
+  { field: 'category', label: 'Categoría' },
+  { field: 'images', label: 'Imágenes' },
+];
+export const PRODUCT_FIELD_VIEW_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.view`);
+export const PRODUCT_FIELD_EDIT_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.edit`);
+const PRODUCT_FIELD_ALL_KEYS = [...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
+
 export const PERMISSION_GROUPS: {
   key: string;
   label: string;
@@ -68,6 +85,14 @@ export const PERMISSION_GROUPS: {
       { key: 'dropshipping', label: 'Dropshipping' },
       { key: 'rentabilidad', label: 'Rentabilidad' },
     ],
+  },
+  {
+    key: 'catalogo-campos',
+    label: 'Catálogo: campos del producto',
+    items: PRODUCT_FIELD_PERMISSIONS.flatMap((f) => [
+      { key: `product.${f.field}.view`, label: `${f.label}: ver` },
+      { key: `product.${f.field}.edit`, label: `${f.label}: modificar` },
+    ]),
   },
   {
     key: 'finanzas',
@@ -192,6 +217,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'emails',
     'settings',
     'usage',
+    ...PRODUCT_FIELD_ALL_KEYS,
   ],
   [Role.CATALOG_MANAGER]: [
     'dashboard',
@@ -229,6 +255,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'drivers.fleet',
     'drivers.metrics',
     'drivers.zones',
+    ...PRODUCT_FIELD_ALL_KEYS,
   ],
   [Role.VENDEDOR]: [
     'orders',
@@ -245,6 +272,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'ml.calificaciones',
     'warehouse.picking',
     'warehouse.packing',
+    ...PRODUCT_FIELD_VIEW_KEYS,
   ],
   [Role.DESPACHADOR]: ['mis-rutas', 'warehouse.picking', 'warehouse.packing'],
   [Role.ORDER_MANAGER]: [
@@ -267,6 +295,18 @@ export function permissionsForUser(user: {
 
 export function hasPermission(perms: string[], key: string): boolean {
   return perms.includes('*') || perms.includes(key);
+}
+
+// ¿Puede ver / modificar un campo del producto? Modificar exige también ver.
+export function canProductField(
+  user: { role: Role; accessProfile?: { permissions: string[] } | null },
+  field: string,
+  action: 'view' | 'edit',
+): boolean {
+  const perms = permissionsForUser(user);
+  if (perms.includes('*')) return true;
+  const view = perms.includes(`product.${field}.view`);
+  return action === 'view' ? view : view && perms.includes(`product.${field}.edit`);
 }
 
 // Restricción "No puede eliminar registros" (Super Admin nunca la tiene).

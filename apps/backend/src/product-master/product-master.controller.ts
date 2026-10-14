@@ -1,3 +1,4 @@
+import { assertCanEditField } from '../catalog/product-field-access';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ProductMasterService } from './product-master.service';
@@ -79,6 +80,7 @@ export class ProductMasterController {
 
   @Post('products/:productId/channel-price')
   setChannelPrice(@Param('productId') productId: string, @Body() dto: SetChannelPriceDto, @CurrentUser() user: any) {
+    assertCanEditField(user, 'price');
     return this.service.setChannelPrice(productId, dto, user);
   }
 
@@ -88,6 +90,7 @@ export class ProductMasterController {
     @Param('connectionId') connectionId: string,
     @CurrentUser() user: any,
   ) {
+    assertCanEditField(user, 'price');
     return this.service.removeChannelPrice(productId, connectionId, user);
   }
 

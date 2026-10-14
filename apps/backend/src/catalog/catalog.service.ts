@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
+import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields } from './product-field-access';
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -81,6 +82,7 @@ export class CatalogService {
   }
 
   async create(dto: CreateProductDto, user: any) {
+    dropHiddenOnCreate(user, dto as any);
     const companyId = this.resolveCompanyId(user, dto.companyId);
     const exists = await this.prisma.product.findUnique({
       where: { sku_companyId: { sku: dto.sku, companyId } },
@@ -100,13 +102,13 @@ export class CatalogService {
       if (created.type === ProductType.ARTICULO && !created.dropship) {
         await this.ledger.seedIfEmpty(tx, created, await this.ledger.resolveWarehouseId(tx, created));
       }
-      return created;
+      return stripHiddenProductFields(user, created);
     });
   }
 
   async findAll(user: any, companyIdParam?: string) {
     const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : this.getCompanyId(user);
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: companyId ? { companyId } : {},
       include: {
         images: { orderBy: { order: 'asc' } },
@@ -115,6 +117,7 @@ export class CatalogService {
       },
       orderBy: { name: 'asc' },
     });
+    return stripHiddenProductFields(user, products);
   }
 
   async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string }) {
@@ -245,11 +248,11 @@ export class CatalogService {
     if (stockWh && companyId) {
       const inWh = await warehouseStockFor(this.prisma, companyId, stockWh.id, products);
       return {
-        products: products.map((p) => ({ ...p, warehouseStock: inWh.get(p.id) ?? 0 })),
+        products: stripHiddenProductFields(user, products.map((p) => ({ ...p, warehouseStock: inWh.get(p.id) ?? 0 }))),
         total, page, pages: Math.ceil(total / take),
       };
     }
-    return { products, total, page, pages: Math.ceil(total / take) };
+    return { products: stripHiddenProductFields(user, products), total, page, pages: Math.ceil(total / take) };
   }
 
   async listCategories(user: any, companyIdParam?: string): Promise<string[]> {
@@ -308,10 +311,11 @@ export class CatalogService {
         product.mlCategoryPath = path;
       }
     }
-    return product;
+    return stripHiddenProductFields(user, product);
   }
 
   async update(id: string, dto: UpdateProductDto, user: any) {
+    dropNotEditableOnUpdate(user, dto as any);
     const product = await this.findOne(id, user);
     if (!product.active && dto.active !== true) {
       throw new BadRequestException('El producto está inactivo. Reactívalo antes de modificarlo.');
@@ -348,7 +352,7 @@ export class CatalogService {
       }
       if (stockDelta !== 0) return tx.product.update({ where: { id }, data: { stock: Math.max(0, product.stock + stockDelta) }, include: { images: true } });
       return saved;
-    });
+    }).then((r) => stripHiddenProductFields(user, r));
 
     // Si se editó el precio del proveedor y el producto está vinculado a un proveedor
     // dropship, se mantiene sincronizado el costo que usa el módulo de dropshipping.
@@ -363,6 +367,7 @@ export class CatalogService {
   }
 
   async adjustStock(id: string, dto: AdjustStockDto, user: any) {
+    assertCanEditField(user, 'stock');
     const product = await this.findOne(id, user);
     const newStock = product.stock + dto.quantity;
     if (newStock < 0) throw new BadRequestException('El stock no puede ser negativo');
@@ -371,7 +376,7 @@ export class CatalogService {
       productId: id, warehouseId: dto.warehouseId, delta: dto.quantity, type: MovementType.ADJUSTMENT,
       reason: dto.reason || 'Ajuste manual', userId: user.id, reference: { type: 'ADJUSTMENT' },
     }));
-    return this.prisma.product.findUnique({ where: { id } });
+    return stripHiddenProductFields(user, await this.prisma.product.findUnique({ where: { id } }));
   }
 
   private async filterOwned(ids: string[], user: any) {
@@ -868,6 +873,7 @@ export class CatalogService {
   }
 
   async addImage(productId: string, filename: string, url: string, user: any) {
+    assertCanEditField(user, 'images');
     await this.findOne(productId, user);
     const count = await this.prisma.productImage.count({ where: { productId } });
     return this.prisma.productImage.create({
@@ -876,11 +882,13 @@ export class CatalogService {
   }
 
   async removeImage(productId: string, imageId: string, user: any) {
+    assertCanEditField(user, 'images');
     await this.findOne(productId, user);
     return this.prisma.productImage.delete({ where: { id: imageId, productId } });
   }
 
   async setPrimaryImage(productId: string, imageId: string, user: any) {
+    assertCanEditField(user, 'images');
     await this.findOne(productId, user);
     await this.prisma.productImage.updateMany({
       where: { productId },

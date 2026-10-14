@@ -1,3 +1,4 @@
+import { assertCanEditField } from '../catalog/product-field-access';
 import { Controller, Get, Post, Patch, Body, Param, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -51,6 +52,7 @@ export class InventoryController {
   @Post('adjust')
   @RequirePermissions('inventory.adjust')
   adjust(@CurrentUser() user: any, @Body() dto: InventoryAdjustDto) {
+    assertCanEditField(user, 'stock');
     return this.reports.adjust(user, dto);
   }
 
@@ -63,6 +65,7 @@ export class InventoryController {
   @Post('reconcile')
   @RequirePermissions('inventory.adjust')
   reconcile(@CurrentUser() user: any, @Body() dto: ReconcileDto) {
+    assertCanEditField(user, 'stock');
     return this.reports.reconcile(user, dto);
   }
 

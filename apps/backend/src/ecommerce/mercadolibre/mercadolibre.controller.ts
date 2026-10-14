@@ -1,3 +1,4 @@
+import { assertCanEditField } from '../../catalog/product-field-access';
 import {
   Controller, Get, Post, Put, Patch, Delete, Query, Body, Param, UseGuards, Res, Logger, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
@@ -410,6 +411,7 @@ export class MercadolibreController {
     @Body() body: { basePrice?: number | null; accounts: { connectionId: string; price: number | null; title?: string | null }[]; publications?: { listingId: string; price: number | null; title?: string | null }[] },
     @CurrentUser() user: any,
   ) {
+    assertCanEditField(user, 'price');
     return this.service.setMlAccountPrices(productId, {
       basePrice: body?.basePrice, accounts: Array.isArray(body?.accounts) ? body.accounts : [],
       publications: Array.isArray(body?.publications) ? body.publications : [],

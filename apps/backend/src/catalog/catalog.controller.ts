@@ -8,6 +8,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Role } from '@prisma/client';
+import { assertCanEditField } from './product-field-access';
 import { CatalogService } from './catalog.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto, MergeProductsDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -145,6 +146,10 @@ export class CatalogController {
     if (!file.originalname.match(/\.xlsx$/i)) {
       throw new BadRequestException('Sube un archivo Excel (.xlsx)');
     }
+    // La planilla cambia precio, costo y stock: exige poder modificar los tres.
+    assertCanEditField(user, 'price');
+    assertCanEditField(user, 'stock');
+    assertCanEditField(user, 'cost');
     return this.service.bulkImportStockPrice(file.buffer, user, companyId);
   }
 
@@ -182,6 +187,7 @@ export class CatalogController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,
   ) {
+    assertCanEditField(user, 'images');
     if (!file) throw new BadRequestException('No se recibió ningún archivo');
     if (file.size > 5 * 1024 * 1024) throw new BadRequestException('El archivo supera el límite de 5 MB');
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {

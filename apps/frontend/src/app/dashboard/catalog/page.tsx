@@ -1490,6 +1490,18 @@ function StoreChips({ listings }: { listings: any[] }) {
   );
 }
 
+// Campo de la ficha con permiso: oculto sin "ver"; bloqueado (con aviso) sin "modificar".
+function PField({ allowed, editable, className = '', children }: { allowed: boolean; editable: boolean; className?: string; children: React.ReactNode }) {
+  if (!allowed) return null;
+  return (
+    <fieldset disabled={!editable} title={editable ? undefined : 'Sin permiso para modificar'}
+      className={`min-w-0 ${className} ${editable ? '' : '[&_input]:bg-gray-50 [&_select]:bg-gray-50 [&_textarea]:bg-gray-50 [&_input]:text-gray-500 [&_textarea]:text-gray-500'}`}>
+      {children}
+      {!editable && <p className="text-[11px] text-gray-400 mt-0.5">🔒 Sin permiso para modificar</p>}
+    </fieldset>
+  );
+}
+
 export default function CatalogPage() {
   const searchParams = useSearchParams();
   const { selectedCompanyId, companies: adminCompanies } = useAdminCompany();
@@ -1590,6 +1602,15 @@ export default function CatalogPage() {
     );
   };
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  // Permisos por campo del producto (Perfiles de acceso → Catálogo: campos del producto).
+  // Sin lista de permisos (sesión antigua) no se restringe nada; el servidor valida igual.
+  const pfPerms: string[] | null = Array.isArray(currentUser?.permissions) ? currentUser.permissions : null;
+  const pfView = (f: string) => !pfPerms || pfPerms.includes('*') || pfPerms.includes(`product.${f}.view`);
+  const pfEdit = (f: string) => pfView(f) && (!pfPerms || pfPerms.includes('*') || pfPerms.includes(`product.${f}.edit`));
+  // En la ficha: al crear, SKU y precio siempre se ven (son obligatorios) y lo visible se puede
+  // completar; al editar, manda "modificar".
+  const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'sku' || f === 'price'));
+  const fEdit = (f: string) => (!selected?.id ? fView(f) : pfEdit(f));
   // Módulos de la empresa activa: para el Super Admin, los de la empresa que está gestionando
   // (antes el Super Admin veía todo, p. ej. "Precio proveedor" en empresas sin Dropshipping).
   const activeCompany = isSuperAdmin ? (adminCompanies || []).find((c: any) => c.id === selectedCompanyId) : null;
@@ -3181,13 +3202,13 @@ export default function CatalogPage() {
                     className="absolute top-2 left-2 z-10" />
                 )}
                 <div className="w-full aspect-square rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden mb-2">
-                  {img ? (
+                  {img && pfView('images') ? (
                     <img src={imgUrl(img.url)} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-gray-300 text-xs">Sin imagen</span>
                   )}
                 </div>
-                <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>
+                {pfView('sku') && <p className="text-xs font-mono text-gray-400 truncate">{p.sku}</p>}
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug mb-1" title={p.name}>{p.name}</p>
                 {promoBadge(p.id) && <div className="-ml-2 mb-1">{promoBadge(p.id)}</div>}
                 {p.productMaster && (
@@ -3201,8 +3222,8 @@ export default function CatalogPage() {
                   </button>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span>
-                  <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>
+                  {pfView('price') ? <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span> : <span />}
+                  {pfView('stock') && <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>}
                 </div>
                 {(p.type === 'SERVICIO' || !p.active) && (
                   <div className="flex gap-1 mt-1.5">
@@ -3235,42 +3256,42 @@ export default function CatalogPage() {
                     onChange={toggleSelectAll} />
                 </th>
               )}
-              <th className="px-4 py-3 w-14 min-w-[4.5rem]"></th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+              {pfView('images') && <th className="px-4 py-3 w-14 min-w-[4.5rem]"></th>}
+              {pfView('sku') && <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('sku')}>
                 SKU{sortIndicator('sku')}
-              </th>
+              </th>}
               <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('name')}>
                 Producto{sortIndicator('name')}
               </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+              {pfView('cost') && <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('cost')}>
                 Costo{sortIndicator('cost')}
-              </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+              </th>}
+              {pfView('price') && <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('price')}>
                 Tienda{sortIndicator('price')}
-              </th>
-              {activeConnections.length > 0 && (
+              </th>}
+              {pfView('price') && activeConnections.length > 0 && (
                 <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                   onClick={() => handleSort('mlPrice')}>
                   Precio ML{sortIndicator('mlPrice')}
                 </th>
               )}
-              {webPriceConnections.map((c) => (
+              {pfView('price') && webPriceConnections.map((c) => (
                 <th key={c.id} className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">
                   {webPriceLabel(c).replace('Precio venta ', 'Precio ')}
                 </th>
               ))}
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+              {pfView('stock') && <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('stock')}>
                 Stock{sortIndicator('stock')}
-              </th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
+              </th>}
+              {pfView('warehouse') && <th className="text-left px-4 py-3 text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900"
                 onClick={() => handleSort('warehouse')}>
                 Bodega{sortIndicator('warehouse')}
-              </th>
+              </th>}
               {activeConnections.length > 0 && (
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Publicaciones</th>
               )}
@@ -3292,6 +3313,7 @@ export default function CatalogPage() {
                         onChange={() => toggleSelect(p.id)} />
                     </td>
                   )}
+{pfView('images') && (
                   <td className={compact ? 'px-4 py-1' : 'px-4 py-2'}>
                     {img ? (
                       <img src={imgUrl(img.url)} alt={p.name}
@@ -3302,7 +3324,8 @@ export default function CatalogPage() {
                       </div>
                     )}
                   </td>
-                  <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>
+                  )}
+                  {pfView('sku') && <td className={`${cellPad} font-mono text-gray-400 text-xs`}>{p.sku}</td>}
                   <td className={`${cellPad} font-medium text-gray-900 min-w-[9rem] break-words`}>
                     {p.name}
                     {promoBadge(p.id)}
@@ -3327,11 +3350,11 @@ export default function CatalogPage() {
                   </button>
                 )}
                   </td>
-                  <td className={`${cellPad} text-gray-500`}>
+                  {pfView('cost') && <td className={`${cellPad} text-gray-500`}>
                     {p.cost != null ? fmtCLP(Number(p.cost)) : '—'}
-                  </td>
-                  <td className={`${cellPad} text-gray-700`}>{fmtCLP(Number(p.price))}</td>
-                  {activeConnections.length > 0 && (
+                  </td>}
+                  {pfView('price') && <td className={`${cellPad} text-gray-700`}>{fmtCLP(Number(p.price))}</td>}
+                  {pfView('price') && activeConnections.length > 0 && (
                     <td className={`${cellPad} text-gray-700`}>
                       {p.mlPrice != null ? fmtCLP(Number(p.mlPrice)) : <span className="text-gray-300">—</span>}
                       {(() => {
@@ -3342,7 +3365,7 @@ export default function CatalogPage() {
                       })()}
                     </td>
                   )}
-                  {webPriceConnections.map((c) => {
+                  {pfView('price') && webPriceConnections.map((c) => {
                     const cp = p.channelPrices?.find((x: any) => x.connectionId === c.id);
                     return (
                       <td key={c.id} className={`${cellPad} text-gray-700`}>
@@ -3350,16 +3373,16 @@ export default function CatalogPage() {
                       </td>
                     );
                   })}
-                  <td className={cellPad}>
+                  {pfView('stock') && <td className={cellPad}>
                     <span className={p.stock === 0 ? 'text-red-500 font-semibold' : 'text-gray-800 font-semibold'}>
                       {p.stock}
                     </span>
-                  </td>
-                  <td className={cellPad}>
+                  </td>}
+                  {pfView('warehouse') && <td className={cellPad}>
                     {p.warehouse
                       ? <span className="text-xs text-gray-600 font-medium">{p.warehouse.name}</span>
                       : <span className="text-gray-300 text-xs">—</span>}
-                  </td>
+                  </td>}
                   {activeConnections.length > 0 && (
                     <td className={cellPad}>
                       <div className="flex flex-wrap gap-1">
@@ -3436,6 +3459,7 @@ export default function CatalogPage() {
               {(selected.id
                 ? (['edit', 'images', 'connections', 'stock'] as Tab[])
                     .filter((t) => t !== 'connections' || connectionGroups.length > 0)
+                    .filter((t) => t !== 'images' || pfView('images'))
                 : (['edit'] as Tab[])
               ).map((t) => (
                 <button key={t} onClick={() => changeTab(t)}
@@ -3491,7 +3515,7 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(!selected.id || !(selected.images?.length) || quickPhotoFor === selected.id) && (
+                {fEdit('images') && (!selected.id || !(selected.images?.length) || quickPhotoFor === selected.id) && (
                   <div className="sm:col-span-2">
                     <p className="text-xs font-semibold text-gray-700 mb-2">
                       Fotos del producto <span className="font-normal text-gray-400">
@@ -3641,12 +3665,12 @@ export default function CatalogPage() {
                       </p>
                     )}
                   </div>
-                  <div>
+                  <PField allowed={fView('sku')} editable={fEdit('sku')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">SKU *</label>
                     <input value={editForm.sku || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, sku: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
-                  </div>
+                  </PField>
                   {/* Solo con Walmart activo: es el único canal que exige código de barras. */}
                   {walmartConnections.length > 0 && (
                     <div>
@@ -3681,27 +3705,27 @@ export default function CatalogPage() {
                       <option value="SERVICIO">Servicio</option>
                     </select>
                   </div>
-                  <div>
+                  <PField allowed={fView('category')} editable={fEdit('category')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
                     <input value={editForm.category || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
                       list="category-suggestions"
                       placeholder="Ej: Electrónica"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
+                  </PField>
                   <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Precios</p>
                   </div>
-                  <div>
+                  <PField allowed={fView('price')} editable={fEdit('price')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       {hasPosModule ? 'Precio Venta - Tienda Física *' : 'Precio *'}
                     </label>
                     <input type="number" step="0.01" min="0" value={editForm.price}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
                       id={fieldDomId('price')} required className={`w-full px-3 py-2 border ${fieldBorder(mlBad('price'))} rounded-lg text-sm`} />
-                  </div>
+                  </PField>
                   {hasMlModule && (selected.id || mlChecked) && (
-                    <div>
+                    <PField allowed={fView('price')} editable={fEdit('price')}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Precio base ML <span className="font-normal text-gray-400">(todas las cuentas{connections.length > 1 ? '; precio propio por cuenta en la pestaña Mercado Libre' : ''})</span>
                       </label>
@@ -3709,18 +3733,18 @@ export default function CatalogPage() {
                         onChange={(e) => setEditForm((f: any) => ({ ...f, mlPrice: e.target.value }))}
                         placeholder="Igual al de venta directa si se deja vacío"
                         id={fieldDomId('mlPrice')} className={`w-full px-3 py-2 border ${fieldBorder(mlBad('mlPrice'))} rounded-lg text-sm`} />
-                    </div>
+                    </PField>
                   )}
                   {webPriceConnections.map((c) => (
-                    <div key={c.id}>
+                    <PField key={c.id} allowed={fView('price')} editable={fEdit('price')}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">{webPriceLabel(c)}</label>
                       <input type="number" step="0.01" min="0" value={editForm.channelPrices?.[c.id] || ''}
                         onChange={(e) => setEditForm((f: any) => ({ ...f, channelPrices: { ...(f.channelPrices || {}), [c.id]: e.target.value } }))}
                         placeholder="Igual al de venta directa si se deja vacío"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    </div>
+                    </PField>
                   ))}
-                  <div>
+                  <PField allowed={fView('cost')} editable={fEdit('cost')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Costo
                       {costLockedByLots && <span className="ml-1 text-gray-400 font-normal">(calculado por lotes)</span>}
@@ -3734,9 +3758,9 @@ export default function CatalogPage() {
                         Este producto ya tiene compras registradas — el costo se recalcula automáticamente. Ver <a href="/dashboard/purchases" className="underline hover:text-gray-600">Compras</a>.
                       </p>
                     )}
-                  </div>
+                  </PField>
                   {hasDropshippingModule && (
-                    <div>
+                    <PField allowed={fView('cost')} editable={fEdit('cost')}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Precio proveedor <span className="text-gray-400 font-normal">(dropshipping)</span>
                       </label>
@@ -3746,12 +3770,12 @@ export default function CatalogPage() {
                       <p className="text-xs text-gray-400 mt-1">
                         Lo que cobra el proveedor que despacha. Distinto del precio de venta. Ver <a href="/dashboard/dropshipping" className="underline hover:text-gray-600">Dropshipping</a>.
                       </p>
-                    </div>
+                    </PField>
                   )}
                   <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Inventario</p>
                   </div>
-                  <div>
+                  <PField allowed={fView('stock')} editable={fEdit('stock')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Stock
                       {editForm.type === 'SERVICIO' && <span className="ml-1 text-gray-400 font-normal">(no aplica a servicios)</span>}
@@ -3766,8 +3790,8 @@ export default function CatalogPage() {
                         <a href={`/dashboard/inventario?tab=historial&productId=${selected.id}`} className="text-blue-600 hover:underline">Ver historial y stock por bodega</a>
                       </p>
                     )}
-                  </div>
-                  <div>
+                  </PField>
+                  <PField allowed={fView('criticalStock')} editable={fEdit('criticalStock')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Stock crítico
                       {editForm.type === 'SERVICIO' && <span className="ml-1 text-gray-400 font-normal">(no aplica a servicios)</span>}
@@ -3778,8 +3802,8 @@ export default function CatalogPage() {
                       placeholder="0"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
                     <p className="text-xs text-gray-400 mt-1">Al llegar a este stock, las ventas de marketplaces pausan la publicación.</p>
-                  </div>
-                  <div>
+                  </PField>
+                  <PField allowed={fView('warehouse')} editable={fEdit('warehouse')}>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bodega</label>
                     <select
                       value={editForm.warehouseId || ''}
@@ -3792,7 +3816,7 @@ export default function CatalogPage() {
                         <option key={w.id} value={w.id}>{w.name}</option>
                       ))}
                     </select>
-                  </div>
+                  </PField>
                   {hasMlModule && (selected.id || mlChecked) && (
                     <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Mercado Libre</p>
@@ -3846,12 +3870,12 @@ export default function CatalogPage() {
                       </p>
                     </div>
                   )}
-                  <div className="sm:col-span-2">
+                  <PField allowed={fView('description')} editable={fEdit('description')} className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Descripción corta</label>
                     <textarea value={editForm.description}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
                       rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
+                  </PField>
                   {hasMlModule && (selected.id || mlChecked) && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -4012,7 +4036,7 @@ export default function CatalogPage() {
                               Principal
                             </span>
                           )}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          {pfEdit('images') && <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             {!img.isPrimary && (
                               <button onClick={() => handleSetPrimary(img.id)} disabled={imageActionLoading[img.id]}
                                 className="text-xs bg-white text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 font-medium disabled:opacity-50">
@@ -4023,13 +4047,16 @@ export default function CatalogPage() {
                               className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 font-medium disabled:opacity-50">
                               {imageActionLoading[img.id] ? '...' : 'Eliminar'}
                             </button>
-                          </div>
+                          </div>}
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="text-center text-gray-400 text-sm py-6 mb-4">Sin imágenes cargadas</p>
                   )}
+                  {!pfEdit('images') ? (
+                    <p className="border-t border-gray-100 pt-4 text-xs text-gray-400">🔒 Sin permiso para modificar las imágenes</p>
+                  ) : (
                   <div className="border-t border-gray-100 pt-4">
                     <label className="block text-xs font-medium text-gray-600 mb-2">
                       Subir imágenes (JPG, PNG, WebP · máx. 5 MB c/u · puedes elegir varias a la vez)
@@ -4045,6 +4072,7 @@ export default function CatalogPage() {
                     </label>
                     {uploadLoading && <p className="text-xs text-gray-400 mt-2">Subiendo imágenes...</p>}
                   </div>
+                  )}
                 </div>
               )}
 

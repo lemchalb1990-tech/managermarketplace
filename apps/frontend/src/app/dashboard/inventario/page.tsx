@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { can } from '@/lib/permissions';
+import { can, canProductField } from '@/lib/permissions';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { AvailabilityTab } from './AvailabilityTab';
 import { MovementsTab } from './MovementsTab';
@@ -56,7 +56,7 @@ export default function InventoryPage() {
   }, [params, router]);
 
   const perms = {
-    adjust: can(user, 'inventory.adjust', ADMIN_ROLES),
+    adjust: can(user, 'inventory.adjust', ADMIN_ROLES) && canProductField(user, 'stock', 'edit'),
     transfer: can(user, 'transfers', ADMIN_ROLES),
     receive: can(user, 'transfers.receive', ADMIN_ROLES) || can(user, 'transfers', ADMIN_ROLES),
   };
