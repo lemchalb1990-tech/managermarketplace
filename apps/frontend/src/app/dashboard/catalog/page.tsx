@@ -1687,9 +1687,27 @@ export default function CatalogPage() {
   const [newImages, setNewImages] = useState<File[]>([]);
   const newImageUrls = useMemo(() => newImages.map((f) => URL.createObjectURL(f)), [newImages]);
   useEffect(() => () => newImageUrls.forEach((u) => URL.revokeObjectURL(u)), [newImageUrls]);
-  const addNewImages = (files: FileList | File[] | null) => {
+  // Producto existente sin fotos: el mismo recuadro aparece en "Información" y las fotos se
+  // suben al tiro (sigue visible mientras el producto esté abierto).
+  const [quickPhotoFor, setQuickPhotoFor] = useState<string | null>(null);
+  const [quickPhotoBusy, setQuickPhotoBusy] = useState(false);
+  const addNewImages = async (files: FileList | File[] | null) => {
     const imgs = Array.from(files || []).filter((f) => f.type.startsWith('image/'));
-    if (imgs.length) setNewImages((prev) => [...prev, ...imgs]);
+    if (!imgs.length) return;
+    if (!selected?.id) { setNewImages((prev) => [...prev, ...imgs]); return; }
+    const productId = selected.id;
+    setQuickPhotoFor(productId);
+    setQuickPhotoBusy(true);
+    const errors: string[] = [];
+    try {
+      for (const file of imgs) {
+        try { await api.catalog.uploadImage(productId, file, getToken()!); } catch (err: any) { errors.push(`${file.name}: ${err.message}`); }
+      }
+      await refreshSelected(productId);
+      if (errors.length) await alertDialog(`Algunas fotos no se pudieron subir:\n${errors.join('\n')}`);
+    } finally {
+      setQuickPhotoBusy(false);
+    }
   };
   const [stockMovements, setStockMovements] = useState<any[]>([]);
   const [stockMovLoading, setStockMovLoading] = useState(false);
@@ -3473,13 +3491,26 @@ export default function CatalogPage() {
 
               {tab === 'edit' && (
                 <form onSubmit={handleEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!selected.id && (
+                {(!selected.id || !(selected.images?.length) || quickPhotoFor === selected.id) && (
                   <div className="sm:col-span-2">
                     <p className="text-xs font-semibold text-gray-700 mb-2">
-                      Fotos del producto <span className="font-normal text-gray-400">(opcional · la primera queda como principal)</span>
+                      Fotos del producto <span className="font-normal text-gray-400">
+                        {selected.id ? '(se suben al tiro · ordénalas o elimínalas en la pestaña Imágenes)' : '(opcional · la primera queda como principal)'}
+                      </span>
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {newImageUrls.map((url, i) => (
+                      {selected.id && (selected.images || []).map((img: any, i: number) => (
+                        <div key={img.id} className="relative w-20 h-20 shrink-0">
+                          <img src={imgUrl(img.url)} alt="" className="w-20 h-20 max-w-none object-cover rounded-lg border border-gray-200" />
+                          {i === 0 && (
+                            <span className="absolute bottom-1 left-1 px-1 rounded bg-black/60 text-white text-[10px]">Principal</span>
+                          )}
+                        </div>
+                      ))}
+                      {selected.id && quickPhotoBusy && (
+                        <div className="w-20 h-20 shrink-0 flex items-center justify-center rounded-lg bg-gray-100 text-[10px] text-gray-500">Subiendo…</div>
+                      )}
+                      {!selected.id && newImageUrls.map((url, i) => (
                         <div key={url} className="relative w-20 h-20 shrink-0">
                           <img src={url} alt="" className="w-20 h-20 max-w-none object-cover rounded-lg border border-gray-200" />
                           {i === 0 && (
