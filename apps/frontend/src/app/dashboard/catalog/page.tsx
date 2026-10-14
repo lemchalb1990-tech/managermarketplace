@@ -24,6 +24,7 @@ import {
 import ChannelPublicationsCard, { GenericChannelActions, PublicationsController, PublicationsSaver } from './ChannelPublicationsCard';
 import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
 import { SetupSteps, EmptyFiltered, useCompanySetup, type SetupStep } from '@/components/EmptyState';
+import { FilterBar, FilterField, FilterCount } from '@/components/FilterBar';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1575,8 +1576,6 @@ export default function CatalogPage() {
   }, []);
   const view = isMobile ? 'grid' : viewMode;
   const advancedFilterCount = [warehouseFilter, categoryFilter, typeFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
-  // Filtros avanzados plegados bajo "Más filtros" (se abren solos si llega alguno aplicado).
-  const [showMoreFilters, setShowMoreFilters] = useState(() => searchParams.get('stock') === 'critical');
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -2946,47 +2945,15 @@ export default function CatalogPage() {
           )}
         </div>
       </div>
-      {/* Filtros fijos arriba al hacer scroll (sticky dentro del <main> que scrollea). */}
-      <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2 mb-2 bg-[var(--page-bg)]">
-      <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-2 sm:gap-3 shadow-sm">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-gray-500 block mb-1">Buscar por nombre o SKU</label>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') loadProducts(1); }}
-            placeholder="Nombre o SKU del producto..."
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowMoreFilters((v) => !v)}
-          className={`ui-btn-secondary inline-flex items-center gap-1.5 ${showMoreFilters ? '!border-[var(--brand)]' : ''}`}
-        >
-          {showMoreFilters ? 'Menos filtros' : 'Más filtros'}
-          {advancedFilterCount > 0 && (
-            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[10px] font-semibold text-white inline-flex items-center justify-center">{advancedFilterCount}</span>
-          )}
-        </button>
-        <button
-          onClick={() => loadProducts(1)}
-          className="ui-btn-secondary"
-        >
-          Filtrar
-        </button>
-        <button
-          onClick={clearCatalogFilters}
-          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
-        >
-          Limpiar
-        </button>
-        <span className="ml-auto text-sm text-[var(--text-2)] self-center"><b className="font-semibold text-[var(--text)]">{total.toLocaleString('es-CL')}</b> producto(s)</span>
-      </div>
-      {showMoreFilters && (
-        <div className="mt-2 bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-2 sm:gap-3 shadow-sm">
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Bodega</label>
+      {/* Filtros fijos arriba al hacer scroll; el resto en el panel «Más filtros». */}
+      <FilterBar
+        search={{ label: 'Buscar por nombre o SKU', value: search, onChange: setSearch, onSubmit: () => loadProducts(1), placeholder: 'Nombre o SKU del producto...' }}
+        activeCount={advancedFilterCount}
+        onApply={() => loadProducts(1)}
+        onClear={clearCatalogFilters}
+        summary={<FilterCount n={total} label="producto(s)" />}
+      >
+        <FilterField label="Bodega">
           <select
             value={warehouseFilter}
             onChange={(e) => setWarehouseFilter(e.target.value)}
@@ -2997,9 +2964,8 @@ export default function CatalogPage() {
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Categoría</label>
+        </FilterField>
+        <FilterField label="Categoría">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -3010,9 +2976,8 @@ export default function CatalogPage() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Tipo</label>
+        </FilterField>
+        <FilterField label="Tipo">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
@@ -3022,9 +2987,8 @@ export default function CatalogPage() {
             <option value="ARTICULO">Artículos</option>
             <option value="SERVICIO">Servicios</option>
           </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Estado</label>
+        </FilterField>
+        <FilterField label="Estado">
           <select
             value={activeFilter}
             onChange={(e) => setActiveFilter(e.target.value)}
@@ -3035,10 +2999,9 @@ export default function CatalogPage() {
             <option value="true">Activos</option>
             <option value="false">Inactivos</option>
           </select>
-        </div>
+        </FilterField>
         {activeChannels.length > 0 && (
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Canal</label>
+          <FilterField label="Canal">
             <select
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value)}
@@ -3049,11 +3012,10 @@ export default function CatalogPage() {
                 <option key={ch} value={ch}>{MARKETPLACE_LABELS[ch] || ch}</option>
               ))}
             </select>
-          </div>
+          </FilterField>
         )}
         {activeConnections.length > 0 && (
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Publicación</label>
+          <FilterField label="Publicación">
             <select
               value={listingStatusFilter}
               onChange={(e) => setListingStatusFilter(e.target.value)}
@@ -3065,10 +3027,9 @@ export default function CatalogPage() {
               <option value="ERROR_CLOSED">Con error o cerrada</option>
               <option value="NONE">Sin publicar</option>
             </select>
-          </div>
+          </FilterField>
         )}
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Stock</label>
+        <FilterField label="Stock">
           <select
             value={stockFilter}
             onChange={(e) => setStockFilter(e.target.value)}
@@ -3078,10 +3039,8 @@ export default function CatalogPage() {
             <option value="critical">Stock crítico</option>
             <option value="out">Sin stock</option>
           </select>
-        </div>
-        </div>
-      )}
-      </div>
+        </FilterField>
+      </FilterBar>
       {stockFilter === 'critical' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
           <span>⚠️ Mostrando solo productos activos con stock igual o menor a su umbral de stock crítico.</span>
