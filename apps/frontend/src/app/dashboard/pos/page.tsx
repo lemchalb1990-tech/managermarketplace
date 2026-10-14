@@ -861,7 +861,7 @@ export default function PosPage() {
           <button
             onClick={openCheckout}
             disabled={cart.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-base transition flex items-center justify-center gap-2"
+            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-base transition flex items-center justify-center gap-2"
           >
             {cart.length > 0 ? `Cobrar ${clp(total)}` : 'Cobrar'}
             <kbd className="hidden lg:inline rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">F2</kbd>
