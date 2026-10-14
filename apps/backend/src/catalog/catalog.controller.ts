@@ -13,6 +13,7 @@ import { CatalogService } from './catalog.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, BulkIdsDto, BulkSetActiveDto, MergeProductsDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { assertCanMergeProducts } from './product-field-access';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -121,16 +122,17 @@ export class CatalogController {
   }
 
   // Unificar productos duplicados: paso 1, detalle + validación para armar el selector.
+  // Con el permiso «Unificar productos duplicados» (Perfiles de acceso).
   @Post('products/bulk/merge-preview')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   getMergeCandidates(@Body() dto: BulkIdsDto, @CurrentUser() user: any) {
+    assertCanMergeProducts(user);
     return this.service.getMergeCandidates(dto.ids, user);
   }
 
   // Unificar productos duplicados: paso 2, ejecuta la fusión.
   @Post('products/bulk/merge')
-  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN)
   mergeProducts(@Body() dto: MergeProductsDto, @CurrentUser() user: any) {
+    assertCanMergeProducts(user);
     return this.service.mergeProducts(dto, user);
   }
 

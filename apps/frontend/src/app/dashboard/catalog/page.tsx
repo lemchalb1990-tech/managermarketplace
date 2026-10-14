@@ -1612,6 +1612,10 @@ export default function CatalogPage() {
   // completar; al editar, manda "modificar".
   const canCreateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.create');
   const canActivateProduct = !pfPerms || pfPerms.includes('*') || pfPerms.includes('product.activate');
+  // Unificar: con el permiso del perfil (sesión antigua sin permisos: solo administradores).
+  const canMergeProducts = pfPerms
+    ? pfPerms.includes('*') || pfPerms.includes('product.merge')
+    : currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
   // Subir fotos: con "Imágenes: modificar" o con "Agregar fotos nuevas" (eliminar/principal solo con modificar).
   const canAddImages = pfEdit('images') || (pfView('images') && (!pfPerms || pfPerms.includes('product.images.add')));
   const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'name' || f === 'sku' || f === 'price'));
@@ -3187,7 +3191,7 @@ export default function CatalogPage() {
               {pullLoading || bulkLoading ? 'Sincronizando...' : 'Resincronizar con Mercado Libre'}
             </button>
           )}
-          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && selectedIds.size >= 2 && (
+          {canMergeProducts && selectedIds.size >= 2 && (
             <button onClick={openMergeModal} disabled={bulkLoading || mergeLoading}
               title="Fusiona productos duplicados (p.ej. importados de distintas cuentas de marketplace) en un solo SKU"
               className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">

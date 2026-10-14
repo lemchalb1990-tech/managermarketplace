@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { canProductField, PRODUCT_FIELD_PERMISSIONS, permissionsForUser, hasPermission, PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, canAddProductImages } from '../common/permissions';
+import { canProductField, PRODUCT_FIELD_PERMISSIONS, permissionsForUser, hasPermission, PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, PRODUCT_MERGE_PERMISSION, canAddProductImages } from '../common/permissions';
 
 // Campos del DTO/producto que cubre cada permiso de "Catálogo: campos del producto".
 const FIELD_KEYS: Record<string, string[]> = {
@@ -70,3 +70,10 @@ export function assertCanAddImages(user: any) {
     throw new ForbiddenException('No tienes permiso para agregar fotos al producto');
   }
 }
+
+export function assertCanMergeProducts(user: any) {
+  if (!hasPermission(permissionsForUser(user), PRODUCT_MERGE_PERMISSION)) {
+    throw new ForbiddenException('No tienes permiso para unificar productos');
+  }
+}
+
