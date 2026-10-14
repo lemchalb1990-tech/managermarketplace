@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { imgUrl } from '@/lib/api';
 import { Barcode128 } from '@/components/Barcode128';
-import { SIZE_FACTOR, type PrintBlock, type PrintDoc } from '@/lib/printDesign';
+import { SIZE_FACTOR, DEFAULT_MARGINS, type PrintBlock, type PrintDoc, type TicketMargins } from '@/lib/printDesign';
 import { type PrintFormat, type DocHeaderData, PrintButton, fmtCLP, logoStyle } from './printLayout';
 
 // Documento impreso armado con el diseño por bloques de la empresa. Lo usan las páginas de
@@ -140,11 +140,13 @@ function buildContent(doc: PrintDoc, d: PrintDocData, format: PrintFormat, blk: 
 const SEP_STYLE: Record<string, string> = { dash: '1px dashed #000', solid: '1px solid #000', double: '3px double #000' };
 const ALIGN_ITEMS: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
 
-export function DesignedDocument({ doc, format, blocks, data, preview = false, selected, onSelect }: {
+export function DesignedDocument({ doc, format, blocks, data, margins, preview = false, selected, onSelect }: {
   doc: PrintDoc;
   format: PrintFormat;
   blocks: PrintBlock[];
   data: PrintDocData;
+  // Bordes del ticket (mm); sin dato, los predeterminados del formato.
+  margins?: TicketMargins;
   // Vista previa del editor: sin botón Imprimir ni reglas de página; bloques clicables.
   preview?: boolean;
   selected?: string | null;
@@ -197,16 +199,17 @@ export function DesignedDocument({ doc, format, blocks, data, preview = false, s
 
   if (!carta) {
     const paper = format === 'TICKET_58' ? 58 : 80;
-    const contentMm = format === 'TICKET_58' ? 48 : 72;
-    return (
-      <div style={{ fontFamily: 'monospace', color: '#000', background: '#fff', width: `${contentMm}mm`, margin: '0 auto', padding: '2mm 0', fontSize: format === 'TICKET_58' ? 10 : 12, lineHeight: 1.3, wordBreak: 'break-word' }}>
+    const m = margins ?? DEFAULT_MARGINS[format];
+    const contentMm = Math.max(20, paper - 2 * m.side);
+    const body = (
+      <div style={{ fontFamily: 'monospace', color: '#000', background: preview ? 'transparent' : '#fff', width: `${contentMm}mm`, margin: '0 auto', padding: preview ? 0 : `${m.vertical}mm 0`, fontSize: format === 'TICKET_58' ? 10 : 12, lineHeight: 1.3, wordBreak: 'break-word' }}>
         {!preview && (
           <>
             <style>{`
               @media print {
                 .no-print { display: none !important; }
                 html, body { margin: 0; padding: 0; }
-                @page { size: ${paper}mm auto; margin: 0 ${(paper - contentMm) / 2}mm; }
+                @page { size: ${paper}mm auto; margin: 0 ${m.side}mm; }
               }
             `}</style>
             <PrintButton />
@@ -214,6 +217,13 @@ export function DesignedDocument({ doc, format, blocks, data, preview = false, s
         )}
         <style>{'.designed-doc p { margin: 0; }'}</style>
         <div className="designed-doc">{blocks.map(render)}</div>
+      </div>
+    );
+    if (!preview) return body;
+    // Vista previa: el papel completo con sus bordes marcados en línea punteada.
+    return (
+      <div style={{ width: `${paper}mm`, padding: `${m.vertical}mm ${m.side}mm`, background: '#fff', backgroundImage: `linear-gradient(to right, transparent ${m.side}mm, #cbd5e1 ${m.side}mm, #cbd5e1 calc(${m.side}mm + 1px), transparent calc(${m.side}mm + 1px), transparent calc(100% - ${m.side}mm - 1px), #cbd5e1 calc(100% - ${m.side}mm - 1px), #cbd5e1 calc(100% - ${m.side}mm), transparent calc(100% - ${m.side}mm))` }}>
+        {body}
       </div>
     );
   }

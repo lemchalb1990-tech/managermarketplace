@@ -7,7 +7,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonDetail } from '@/components/Skeleton';
 import { type PrintFormat, type DocHeaderData, PAYMENT_LABEL, formatDateTime } from '../../printLayout';
 import { DesignedDocument } from '../../DesignedDocument';
-import { resolveLayout, type PrintLayouts } from '@/lib/printDesign';
+import { resolveLayout, resolveMargins, type PrintLayouts } from '@/lib/printDesign';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Presupuesto pendiente', CONVERTED: 'Cobrada', REJECTED: 'Rechazada', CANCELLED: 'Anulada',
@@ -74,6 +74,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
       doc="WORK_ORDER"
       format={printFormat}
       blocks={resolveLayout(layouts, 'WORK_ORDER')}
+      margins={printFormat === 'CARTA' ? undefined : resolveMargins(layouts)[printFormat]}
       data={{
         header,
         subtitle: `Presupuesto / Orden de trabajo · ${status}`,

@@ -8,8 +8,8 @@ import { useAdminCompany } from '../AdminCompanyContext';
 import { DesignedDocument, type PrintDocData } from '@/app/imprimir/DesignedDocument';
 import { PRINT_FORMAT_LABEL, type PrintFormat } from '@/app/imprimir/printLayout';
 import {
-  PRINT_DOC_LABEL, blockLabel, defaultLayout, resolveLayout,
-  type PrintBlock, type PrintDoc, type PrintLayouts, type BlockAlign, type BlockSize, type BlockSep, type BlockZone,
+  PRINT_DOC_LABEL, PAPER_MM, DEFAULT_MARGINS, blockLabel, defaultLayout, resolveLayout, resolveMargins,
+  type PrintBlock, type PrintDoc, type PrintLayouts, type BlockAlign, type BlockSize, type BlockSep, type BlockZone, type TicketFormat, type TicketMargins,
 } from '@/lib/printDesign';
 
 const DOCS: PrintDoc[] = ['SALE', 'WORK_ORDER'];
@@ -85,6 +85,8 @@ export default function PrintDesignPage() {
   const [msg, setMsg] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  // Bordes del papel por ancho de ticket (de la empresa, comunes a todos los documentos).
+  const [margins, setMargins] = useState<Record<TicketFormat, TicketMargins>>(DEFAULT_MARGINS);
 
   useEffect(() => {
     const token = getToken();
@@ -97,6 +99,7 @@ export default function PrintDesignPage() {
       if (!alive || !s) return;
       const saved: PrintLayouts | null = s.printLayouts ?? null;
       setLayouts({ SALE: resolveLayout(saved, 'SALE'), WORK_ORDER: resolveLayout(saved, 'WORK_ORDER') });
+      setMargins(resolveMargins(saved));
       if (s.printFormat) setFormat(s.printFormat);
       setProfile(p);
       setDirty(false);
@@ -135,6 +138,11 @@ export default function PrintDesignPage() {
     setDragId(null);
     setBlocks(next);
   }
+  function setMargin(f: TicketFormat, key: keyof TicketMargins, value: number) {
+    setMargins((m) => ({ ...m, [f]: { ...m[f], [key]: value } }));
+    setDirty(true);
+    setMsg('');
+  }
   function chooseDoc(d: PrintDoc) {
     setDoc(d);
     setSelected('total');
@@ -144,7 +152,7 @@ export default function PrintDesignPage() {
     setSaving(true);
     setMsg('');
     try {
-      await api.pos.printLayouts.update(layouts, getToken()!, companyId);
+      await api.pos.printLayouts.update({ ...layouts, margins }, getToken()!, companyId);
       setDirty(false);
       setMsg('Diseño guardado. Se usa desde la próxima impresión.');
     } catch (err) {
@@ -221,9 +229,27 @@ export default function PrintDesignPage() {
             <div className="w-full overflow-x-auto flex justify-center py-2">
               <div className={`shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35)] bg-white ${format === 'CARTA' ? 'w-full max-w-[720px]' : ''}`}>
                 <DesignedDocument doc={doc} format={format} blocks={blocks} data={sampleData(doc, commercialName, profile)}
-                  preview selected={block?.id} onSelect={setSelected} />
+                  margins={format === 'CARTA' ? undefined : margins[format]} preview selected={block?.id} onSelect={setSelected} />
               </div>
             </div>
+            {format !== 'CARTA' && (
+              <div className="ui-card w-full max-w-[420px] p-3 flex flex-col gap-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-semibold">Bordes del papel · {PRINT_FORMAT_LABEL[format]}</span>
+                  <button type="button" onClick={() => { setMargin(format, 'side', DEFAULT_MARGINS[format].side); setMargin(format, 'vertical', DEFAULT_MARGINS[format].vertical); }}
+                    className="text-[11px] text-[var(--brand)] hover:underline">Predeterminado</button>
+                </div>
+                <label className="text-xs text-[var(--text-2)]">
+                  Lateral (cada lado): <b>{margins[format].side} mm</b> · ancho impreso {PAPER_MM[format] - 2 * margins[format].side} mm
+                  <input type="range" min={0} max={12} step={0.5} value={margins[format].side} onChange={(e) => setMargin(format, 'side', Number(e.target.value))} className="w-full" aria-label="Borde lateral" />
+                </label>
+                <label className="text-xs text-[var(--text-2)]">
+                  Arriba y abajo: <b>{margins[format].vertical} mm</b>
+                  <input type="range" min={0} max={20} step={0.5} value={margins[format].vertical} onChange={(e) => setMargin(format, 'vertical', Number(e.target.value))} className="w-full" aria-label="Borde superior e inferior" />
+                </label>
+                <p className="text-[11px] text-[var(--text-muted)]">Las líneas grises marcan el borde. Vale para todos los documentos de la empresa en este ancho de papel.</p>
+              </div>
+            )}
             <p className="text-[11px] text-[var(--text-muted)] text-center">Toca un dato del documento para editarlo. Datos de venta de ejemplo; el membrete es el de tu empresa.</p>
           </div>
 

@@ -21,7 +21,26 @@ export interface PrintBlock {
   text?: string;
 }
 
-export type PrintLayouts = Partial<Record<PrintDoc, PrintBlock[]>>;
+// Bordes del ticket (mm): lateral = espacio a cada lado; vertical = arriba y abajo.
+export type TicketFormat = 'TICKET' | 'TICKET_58';
+export interface TicketMargins { side: number; vertical: number }
+export type PrintMargins = Partial<Record<TicketFormat, TicketMargins>>;
+
+export type PrintLayouts = Partial<Record<PrintDoc, PrintBlock[]>> & { margins?: PrintMargins };
+
+// Predeterminado: área imprimible típica (72 mm en papel de 80 y 48 mm en papel de 58).
+export const DEFAULT_MARGINS: Record<TicketFormat, TicketMargins> = {
+  TICKET: { side: 4, vertical: 2 },
+  TICKET_58: { side: 5, vertical: 2 },
+};
+export const PAPER_MM: Record<TicketFormat, number> = { TICKET: 80, TICKET_58: 58 };
+
+export function resolveMargins(saved: PrintLayouts | null | undefined): Record<TicketFormat, TicketMargins> {
+  return {
+    TICKET: { ...DEFAULT_MARGINS.TICKET, ...(saved?.margins?.TICKET ?? {}) },
+    TICKET_58: { ...DEFAULT_MARGINS.TICKET_58, ...(saved?.margins?.TICKET_58 ?? {}) },
+  };
+}
 
 export const PRINT_DOC_LABEL: Record<PrintDoc, string> = {
   SALE: 'Comprobante de venta',

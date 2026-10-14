@@ -7,7 +7,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonDetail } from '@/components/Skeleton';
 import { type PrintFormat, type DocHeaderData, PAYMENT_LABEL, fmtCLP, formatDateTime } from '../../printLayout';
 import { DesignedDocument } from '../../DesignedDocument';
-import { resolveLayout, type PrintLayouts } from '@/lib/printDesign';
+import { resolveLayout, resolveMargins, type PrintLayouts } from '@/lib/printDesign';
 
 const DTE_LABEL: Record<string, string> = { BOLETA: 'Boleta', FACTURA: 'Factura', FACTURA_EXENTA: 'Factura exenta' };
 
@@ -85,6 +85,7 @@ export default function PrintSalePage({ params }: { params: Promise<{ id: string
       doc="SALE"
       format={printFormat}
       blocks={resolveLayout(layouts, 'SALE')}
+      margins={printFormat === 'CARTA' ? undefined : resolveMargins(layouts)[printFormat]}
       data={{
         header,
         subtitle: 'Comprobante de venta',

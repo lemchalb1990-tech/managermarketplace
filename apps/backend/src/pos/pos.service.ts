@@ -855,5 +855,16 @@ function sanitizePrintLayouts(input: unknown): Prisma.InputJsonValue | null {
       };
     });
   }
+  // Bordes del papel en ticket (mm): lateral (cada lado) y superior/inferior.
+  const margins = (input as Record<string, any>).margins;
+  if (margins && typeof margins === 'object') {
+    const mm = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.round((Number(v) || 0) * 2) / 2));
+    const m: Record<string, { side: number; vertical: number }> = {};
+    for (const f of ['TICKET', 'TICKET_58']) {
+      const v = margins[f];
+      if (v && typeof v === 'object') m[f] = { side: mm(v.side, 12), vertical: mm(v.vertical, 20) };
+    }
+    (out as Record<string, unknown>).margins = m;
+  }
   return out as Prisma.InputJsonValue;
 }
