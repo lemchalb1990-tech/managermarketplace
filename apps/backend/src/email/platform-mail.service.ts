@@ -8,6 +8,8 @@ import { currentRequestUser } from '../common/request-context';
 import { EmailLogService } from './email-log.service';
 import { COMMON_VARS, PLATFORM_TEMPLATES, PlatformTemplateDef, platformTemplate } from './platform-templates';
 
+export type MailAttachment = { filename: string; content: Buffer };
+
 const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const VAR_RE = /\{\{\s*(\w+)\s*\}\}/g;
 const DEFAULT_BRAND = 'AdminMarket';
@@ -139,7 +141,7 @@ export class PlatformMailService {
   }
 
   // Envía una plantilla de la plataforma. Devuelve false (y lo registra) si no se pudo.
-  async sendTemplate(key: string, to: string, vars: Record<string, string>, opts: { companyId?: string | null; throwOnError?: boolean } = {}) {
+  async sendTemplate(key: string, to: string, vars: Record<string, string>, opts: { companyId?: string | null; throwOnError?: boolean; attachments?: MailAttachment[] } = {}) {
     const def = platformTemplate(key)!;
     const { subject, html } = await this.render(key, vars);
     return this.send(to, subject, html, { ...opts, type: key, redact: def.sensitiveLink && vars.enlace ? [vars.enlace, esc(vars.enlace)] : [] });
@@ -212,8 +214,8 @@ export class PlatformMailService {
   // ── Envío ─────────────────────────────────────────────────────────────────
 
   // Envía el correo y lo registra. Sin correo configurado no falla: queda registrado como fallido y devuelve false.
-  async send(to: string, subject: string, html: string, opts: { type?: string; companyId?: string | null; redact?: string[]; throwOnError?: boolean } = {}) {
-    const entry = { channel: 'PLATFORM' as const, type: opts.type || 'OTHER', companyId: opts.companyId ?? null, to, subject, html, redact: opts.redact };
+  async send(to: string, subject: string, html: string, opts: { type?: string; companyId?: string | null; redact?: string[]; throwOnError?: boolean; attachments?: MailAttachment[] } = {}) {
+    const entry = { channel: 'PLATFORM' as const, type: opts.type || 'OTHER', companyId: opts.companyId ?? null, to, subject, html, redact: opts.redact, attachments: (opts.attachments ?? []).map((a) => a.filename) };
     if (!(await this.isConfigured())) {
       this.logger.warn(`Correo de la plataforma sin configurar: no se envió "${subject}" a ${to}`);
       await this.log.record({ ...entry, error: 'Correo de la plataforma sin configurar (Ajustes del sistema → Correo de la plataforma)' });
@@ -229,7 +231,7 @@ export class PlatformMailService {
       assertIntegrationsEnabled();
       const portN = Number(port) || 465;
       const transport = nodemailer.createTransport({ host, port: portN, secure: portN === 465, auth: { user, pass } });
-      await transport.sendMail({ from: `"${fromName || DEFAULT_BRAND}" <${from}>`, to, subject, html });
+      await transport.sendMail({ from: `"${fromName || DEFAULT_BRAND}" <${from}>`, to, subject, html, attachments: opts.attachments });
       await this.log.record({ ...entry, from });
       return true;
     } catch (e: any) {

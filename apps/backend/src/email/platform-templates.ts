@@ -25,6 +25,20 @@ export const COMMON_VARS: Record<string, string> = { marca: 'Nombre de la plataf
 
 export const PLATFORM_TEMPLATES: PlatformTemplateDef[] = [
   {
+    key: 'SALES_REPORT',
+    label: 'Reporte de ventas programado',
+    trigger: 'Cada semana, según lo programado en Ventas → Reportes (con el Excel adjunto)',
+    subject: '{{reporte}} — {{empresa}}',
+    title: '{{reporte}}',
+    body: 'Te enviamos el reporte **{{reporte}}** de **{{empresa}}**, del {{desde}} al {{hasta}}. Va adjunto en Excel.\n\nVentas en el período: **{{cantidad}}** · Total: **{{total}}**\n\nLo recibes porque está programado en Ventas → Reportes.',
+    buttonLabel: 'Ver reportes',
+    vars: {
+      reporte: 'Nombre del reporte', empresa: 'Nombre de la empresa', desde: 'Inicio del período', hasta: 'Fin del período',
+      cantidad: 'Número de ventas del período', total: 'Total vendido del período', enlace: 'Enlace a Reportes',
+    },
+    sample: { reporte: 'Ventas por producto', empresa: 'Tienda Ejemplo', desde: '06-10-2026', hasta: '12-10-2026', cantidad: '318', total: '$12.480.990', enlace: 'https://adminmarket.ondatasolution.com/dashboard/reportes' },
+  },
+  {
     key: 'PASSWORD_RESET',
     label: 'Recuperación de contraseña',
     trigger: 'Al usar "¿Olvidaste tu contraseña?"',

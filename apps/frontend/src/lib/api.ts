@@ -1083,6 +1083,14 @@ export const api = {
       apiFetch<SalesReport>(`/reports/sales?${reportQuery(params)}`, {}, token),
     salesExcel: (params: SalesReportParams, token: string) =>
       apiDownload(`/reports/sales/excel?${reportQuery(params)}`, token, `reporte-${params.type}-${params.from ?? ''}-al-${params.to ?? ''}.xlsx`),
+    schedules: {
+      list: (token: string, companyId?: string) =>
+        apiFetch<ReportSchedule[]>(`/reports/sales/schedules${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      create: (data: { type: SalesReportType; email: string; weekday: number; hour: number }, token: string, companyId?: string) =>
+        apiFetch<ReportSchedule>(`/reports/sales/schedules${companyId ? `?companyId=${companyId}` : ''}`, { method: 'POST', body: JSON.stringify(data) }, token),
+      remove: (id: string, token: string, companyId?: string) =>
+        apiFetch<{ deleted: boolean }>(`/reports/sales/schedules/${id}${companyId ? `?companyId=${companyId}` : ''}`, { method: 'DELETE' }, token),
+    },
   },
   activity: {
     list: (token: string, f: ActivityFilters & { page?: number }) =>
@@ -2020,6 +2028,7 @@ export interface SubscriptionUsage {
 }
 
 export type SalesReportType = 'producto' | 'categoria' | 'canal' | 'vendedor' | 'pago' | 'comuna' | 'mes' | 'libro';
+export interface ReportSchedule { id: string; type: SalesReportType; email: string; weekday: number; hour: number; showCost: boolean; createdByName: string | null; lastSentAt: string | null }
 export interface SalesReportParams { type: SalesReportType; from?: string; to?: string; companyId?: string }
 export interface SalesReport {
   type: SalesReportType;

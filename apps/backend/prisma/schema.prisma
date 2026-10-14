@@ -229,6 +229,7 @@ model Company {
   financeRecurrings       FinanceRecurring[]
 
   cashClosures CashClosure[]
+  reportSchedules ReportSchedule[]
 
   @@map("companies")
   courierConnections CourierConnection[]
@@ -2814,4 +2815,26 @@ model PlatformEmailTemplate {
   updatedByName String?
 
   @@map("platform_email_templates")
+}
+
+// Reporte de ventas que se envía solo por correo cada semana (Ventas → Reportes).
+model ReportSchedule {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // producto | categoria | canal | vendedor | pago | comuna | mes | libro
+  type          String
+  email         String
+  // 1 = lunes … 7 = domingo; hora 0–23 (zona horaria de la plataforma)
+  weekday       Int
+  hour          Int
+  // Si quien lo programó podía ver costos: el correo lleva costo, ganancia y margen.
+  showCost      Boolean   @default(false)
+  createdByName String?
+  lastSentAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([weekday, hour])
+  @@map("report_schedules")
 }

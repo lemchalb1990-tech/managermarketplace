@@ -7,6 +7,7 @@ import { PageHeader, SectionCard } from '@/components/ui';
 import { SkeletonTable } from '@/components/Skeleton';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { ReportTable } from './ReportTable';
+import { ReportSchedules } from './ReportSchedules';
 
 // Reportes de ventas listos: ocho informes que se abren con un toque y se descargan en Excel o PDF.
 const REPORTS: { type: SalesReportType; icon: string; title: string; hint: string }[] = [
@@ -155,6 +156,8 @@ export default function SalesReportsPage() {
               </>
             )}
           </SectionCard>
+
+          <ReportSchedules type={type} titles={Object.fromEntries(REPORTS.map((r) => [r.type, r.title])) as Record<SalesReportType, string>} companyId={isSuperAdmin ? companyId : undefined} />
         </>
       )}
     </div>
