@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
-import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
-import { useAdminCompany } from '../../AdminCompanyContext';
+import { useAdminCompany } from '../AdminCompanyContext';
 import { DesignedDocument, type PrintDocData } from '@/app/imprimir/DesignedDocument';
 import { PRINT_FORMAT_LABEL, type PrintFormat } from '@/app/imprimir/printLayout';
 import {
@@ -74,6 +73,8 @@ function Seg<T extends string>({ value, options, onChange, label }: { value: T; 
 export default function PrintDesignPage() {
   const { isSuperAdmin, selectedCompanyId, companyId, companies } = useAdminCompany();
   const noCompany = isSuperAdmin && !selectedCompanyId;
+  // El diseño es de cada empresa: el Super Admin edita el de la empresa que está gestionando.
+  const companyLabel = isSuperAdmin ? companies.find((c) => c.id === selectedCompanyId)?.name : null;
   const [doc, setDoc] = useState<PrintDoc>('SALE');
   const [layouts, setLayouts] = useState<Record<PrintDoc, PrintBlock[]> | null>(null);
   const [format, setFormat] = useState<PrintFormat>('TICKET');
@@ -154,8 +155,8 @@ export default function PrintDesignPage() {
   if (noCompany) {
     return (
       <div className="max-w-6xl">
-        <PageHeader title="Diseño de documentos" crumbs={[{ label: 'Configuración', href: '/dashboard/settings' }, { label: 'Diseño de documentos' }]} />
-        <p className="text-sm text-[var(--text-muted)]">Selecciona una empresa para editar el diseño de sus documentos.</p>
+        <PageHeader title="Diseño de documentos" crumbs={[{ label: 'Ajustes del sistema' }, { label: 'Diseño de documentos' }, ...(companyLabel ? [{ label: companyLabel }] : [])]} />
+        <p className="text-sm text-[var(--text-muted)]">Selecciona una empresa (arriba, «Gestionando empresa») para editar el diseño de sus documentos. Cada empresa tiene el suyo.</p>
       </div>
     );
   }
@@ -164,8 +165,7 @@ export default function PrintDesignPage() {
     <div className="max-w-7xl">
       <PageHeader
         title="Diseño de documentos"
-        crumbs={[{ label: 'Configuración', href: '/dashboard/settings' }, { label: 'Diseño de documentos' }]}
-        actions={<Link href="/dashboard/settings" className="text-xs text-[var(--brand)] hover:underline">Volver a Configuración</Link>}
+        crumbs={[{ label: 'Ajustes del sistema' }, { label: 'Diseño de documentos' }, ...(companyLabel ? [{ label: companyLabel }] : [])]}
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -177,7 +177,7 @@ export default function PrintDesignPage() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-[var(--text-muted)]">Cada documento se diseña por separado. El mismo diseño se usa en ticket 80 mm, 58 mm y hoja carta.</p>
+        <p className="text-xs text-[var(--text-muted)]">Diseño propio de esta empresa. Cada documento se diseña por separado y se usa en ticket 80 mm, 58 mm y hoja carta.</p>
       </div>
 
       {!layouts ? (
