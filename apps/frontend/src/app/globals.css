@@ -798,3 +798,62 @@ body {
   .ls-curtain { clip-path: none; transition: opacity 0.3s ease; }
   .ls-ring, .ls-mark, .ls-ch, .ls-msg { animation: none; }
 }
+
+/* Botones "Elevado": al pasar el mouse suben 1px con sombra en capas; al presionar bajan como
+   una tecla. Fuera de capas a propósito: le gana a las utilidades de Tailwind (que van en
+   @layer), así cubre también los botones armados con clases sueltas (bg-blue-600, etc.).
+   Solo con mouse (hover: hover) para que en el celular no quede "pegado" el estado. */
+:is(.ui-dashboard, .lp) :is(button, a):is(
+  .ui-btn-brand, .lp-btn--primary,
+  [class*="bg-blue-6"], [class*="bg-blue-7"], [class*="bg-green-6"], [class*="bg-red-6"], [class*="bg-amber-5"],
+  [class*="bg-[var(--brand)]"], [class*="bg-[var(--navy)]"]
+)[class*="text-white"],
+:is(.ui-dashboard, .lp) :is(.ui-btn-brand, .lp-btn--primary) {
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+:is(.ui-dashboard, .lp) :is(button, a):is(.ui-btn-secondary, .lp-btn--light, .lp-btn--soft, [class*="border-gray-3"][class*="rounded"]) {
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+@media (hover: hover) {
+  /* Rellenos (principal, marca, éxito, peligro): sombra del color del botón. */
+  :is(.ui-dashboard, .lp) :is(button, a):is(
+    .ui-btn-brand, .lp-btn--primary,
+    [class*="bg-blue-6"], [class*="bg-blue-7"], [class*="bg-green-6"], [class*="bg-red-6"], [class*="bg-amber-5"],
+    [class*="bg-[var(--brand)]"], [class*="bg-[var(--navy)]"]
+  ):not(:disabled, [aria-disabled="true"]):hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 4px 10px -2px rgb(0 117 222 / 0.4), 0 2px 4px rgb(2 9 58 / 0.12);
+  }
+  :is(.ui-dashboard, .lp) :is(button, a):is(.ui-btn-brand, .lp-btn--primary, [class*="bg-[var(--navy)]"]):not(:disabled):hover {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 4px 12px -2px rgb(2 9 58 / 0.45);
+  }
+  :is(.ui-dashboard, .lp) :is(button, a):is([class*="bg-green-6"]):not(:disabled):hover {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 4px 10px -2px rgb(22 163 74 / 0.4);
+  }
+  :is(.ui-dashboard, .lp) :is(button, a):is([class*="bg-red-6"]):not(:disabled):hover {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 4px 10px -2px rgb(220 38 38 / 0.4);
+  }
+  :is(.ui-dashboard, .lp) :is(button, a):is([class*="bg-amber-5"]):not(:disabled):hover {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 4px 10px -2px rgb(217 119 6 / 0.4);
+  }
+  /* Con borde (secundarios): toman el color de la marca y se levantan. */
+  :is(.ui-dashboard, .lp) :is(button, a):is(.ui-btn-secondary, .lp-btn--light, .lp-btn--soft, [class*="border-gray-3"][class*="rounded"]):not(:disabled, [aria-disabled="true"]):hover {
+    transform: translateY(-1px);
+    border-color: var(--brand);
+    color: var(--brand);
+    box-shadow: 0 4px 10px -3px rgb(0 117 222 / 0.3);
+  }
+}
+/* Presionado: baja de golpe y la sombra pasa a ser interior. */
+:is(.ui-dashboard, .lp) :is(button, a):is(
+  .ui-btn-brand, .ui-btn-secondary, .lp-btn--primary, .lp-btn--light, .lp-btn--soft,
+  [class*="bg-blue-6"], [class*="bg-blue-7"], [class*="bg-green-6"], [class*="bg-red-6"], [class*="bg-amber-5"],
+  [class*="bg-[var(--brand)]"], [class*="bg-[var(--navy)]"], [class*="border-gray-3"][class*="rounded"]
+):not(:disabled, [aria-disabled="true"]):active {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 3px rgb(2 9 58 / 0.18);
+  transition-duration: 0.06s;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.ui-dashboard, .lp) :is(button, a):hover { transform: none !important; }
+}
