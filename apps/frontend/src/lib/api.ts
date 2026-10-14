@@ -530,6 +530,10 @@ export const api = {
   },
   companyAccount: {
     closureStatus: (token: string) => apiFetch<any>('/company-account/closure', {}, token),
+    // Estado de puesta en marcha (pantallas vacías con "Primeros pasos").
+    setup: (token: string, companyId?: string) =>
+      apiFetch<{ companyCreatedAt: string | null; connections: number; products: number; sales: number; channelSales: number; orders: number }>(
+        `/company-account/setup${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     requestClosure: (data: { companyName: string; password: string; reason?: string }, token: string) =>
       apiFetch<{ scheduledFor: string }>('/company-account/closure', { method: 'POST', body: JSON.stringify(data) }, token),
   },

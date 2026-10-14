@@ -12,6 +12,8 @@ import { onActivity } from '@/lib/activityBus';
 import ImageViewer from './[id]/ImageViewer';
 import { SkeletonTable } from '@/components/Skeleton';
 import { FilterBar, FilterField, FilterCount, filterSelectCls } from '@/components/FilterBar';
+import { SetupSteps, EmptyFiltered, useCompanySetup, salesSetupSteps } from '@/components/EmptyState';
+import { hasModule } from '@/lib/modules';
 
 // Marketplaces que se pueden filtrar (enum del backend → slug del logo y nombre visible).
 const MARKETPLACE_FILTERS: { key: string; slug: string; label: string }[] = [
@@ -129,6 +131,10 @@ export default function OrdersPage() {
   const [viewer, setViewer] = useState<Viewer>(null);
 
   const isAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'].includes(currentUser?.role);
+  // Pantalla vacía: con filtros muestra cada filtro para quitarlo; sin filtros, los primeros pasos.
+  const hasFilters = !!(search || statusFilter || channelFilter);
+  const setup = useCompanySetup(!loading && orders.length === 0 && !hasFilters);
+  function clearFilters() { setSearch(''); if (channelFilter) changeChannel(''); if (statusFilter) changeTab(''); }
   // CompanyGate ya obliga a Super Admin a elegir empresa (y remonta esta página al
   // cambiarla); acá solo hace falta propagar esa empresa a cada llamada — sin esto,
   // Super Admin veía órdenes de TODAS las empresas mezcladas.
@@ -308,7 +314,7 @@ export default function OrdersPage() {
       <FilterBar
         search={{ label: 'Buscar orden', value: search, onChange: setSearch, placeholder: 'N° de orden o pack, seguimiento o cliente...' }}
         activeCount={[channelFilter, statusFilter].filter(Boolean).length}
-        onClear={() => { setSearch(''); if (channelFilter) changeChannel(''); if (statusFilter) changeTab(''); }}
+        onClear={clearFilters}
         summary={<FilterCount n={total} label="orden(es)" />}
       >
         <FilterField label="Estado">
@@ -356,9 +362,23 @@ export default function OrdersPage() {
       {loading ? (
         <div className="bg-white rounded-xl border border-gray-200"><SkeletonTable rows={8} cols={6} /></div>
       ) : orders.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 px-4 py-12 text-center text-gray-400">
-          <p className="text-sm mb-1">Sin órdenes</p>
-          <p className="text-xs">Las órdenes se crean solas con cada venta de los marketplaces o del punto de venta.</p>
+        <div className="bg-white rounded-xl border border-gray-200">
+          {hasFilters ? (
+            <EmptyFiltered title="Ninguna orden coincide con estos filtros" onClearAll={clearFilters} filters={[
+              ...(search ? [{ label: `«${search}»`, onRemove: () => setSearch('') }] : []),
+              ...(statusFilter ? [{ label: `Estado: ${STATUS_TABS.find((t) => t.key === statusFilter)?.label ?? statusFilter}`, onRemove: () => changeTab('') }] : []),
+              ...(channelFilter ? [{ label: `Marketplace: ${MARKETPLACE_FILTERS.find((m) => m.key === channelFilter)?.label ?? channelFilter}`, onRemove: () => changeChannel('') }] : []),
+            ]} />
+          ) : (
+            <SetupSteps title="Deja lista tu bandeja de órdenes" loading={!setup}
+              description="Las órdenes se crean solas con cada venta de tus canales o del punto de venta. Completa estos pasos para empezar."
+              steps={salesSetupSteps(setup, {
+                canConnect: ['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(currentUser?.role),
+                canPos: hasModule(currentUser, 'pos'),
+                firstSaleTitle: 'Recibir tu primera orden',
+                firstSaleHint: 'Llega sola cuando vendas en un canal conectado o en el punto de venta.',
+              })} />
+          )}
         </div>
       ) : (
         <>

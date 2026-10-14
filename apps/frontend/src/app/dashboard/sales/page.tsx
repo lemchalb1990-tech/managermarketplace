@@ -11,6 +11,8 @@ import { useDashboardTimezone, dateKeyInTz } from '@/lib/dashboardTimezone';
 import { onActivity } from '@/lib/activityBus';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
+import { SetupSteps, EmptyFiltered, useCompanySetup, salesSetupSteps } from '@/components/EmptyState';
+import { hasModule } from '@/lib/modules';
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -107,6 +109,10 @@ export default function SalesPage() {
 
   const { selectedCompanyId } = useAdminCompany();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // Pantalla vacía: con filtros muestra cada filtro para quitarlo; sin filtros, los primeros pasos.
+  const hasFilters = !!(channel || from || to || search);
+  const setup = useCompanySetup(!loading && sales.length === 0 && !hasFilters);
+  function clearFilters() { setChannel(''); setFrom(''); setTo(''); setSearch(''); }
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -321,7 +327,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         search={{ label: 'Buscar orden, producto o comprador', value: search, onChange: setSearch, onSubmit: () => loadSales(1), placeholder: 'N° de orden o pack, producto, SKU o comprador...' }}
         activeCount={[channel, from, to].filter(Boolean).length}
         onApply={() => loadSales(1)}
-        onClear={() => { setChannel(''); setFrom(''); setTo(''); setSearch(''); }}
+        onClear={clearFilters}
         summary={<FilterCount n={total} label="venta(s)" />}
       >
         <FilterField label="Canal">
@@ -381,7 +387,23 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         {loading ? (
           <SkeletonTable rows={8} cols={6} />
         ) : sales.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-10">Sin ventas para los filtros seleccionados.</p>
+          hasFilters ? (
+            <EmptyFiltered title="Ninguna venta coincide con estos filtros" onClearAll={clearFilters} filters={[
+              ...(search ? [{ label: `«${search}»`, onRemove: () => setSearch('') }] : []),
+              ...(channel ? [{ label: `Canal: ${CHANNEL_LABELS[channel] ?? channel}`, onRemove: () => setChannel('') }] : []),
+              ...(from ? [{ label: `Desde ${from.split('-').reverse().join('-')}`, onRemove: () => setFrom('') }] : []),
+              ...(to ? [{ label: `Hasta ${to.split('-').reverse().join('-')}`, onRemove: () => setTo('') }] : []),
+            ]} />
+          ) : (
+            <SetupSteps title="Empieza a registrar tus ventas" loading={!setup}
+              description="Aquí verás cada venta de tus canales y del punto de venta, con su desglose y ganancia."
+              steps={salesSetupSteps(setup, {
+                canConnect: ['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(user?.role),
+                canPos: hasModule(user, 'pos'),
+                firstSaleTitle: 'Registrar tu primera venta',
+                firstSaleHint: 'Llega sola desde un canal conectado, o vende en el punto de venta.',
+              })} />
+          )
         ) : (
           <div className="divide-y divide-gray-50">
             {sales.map((sale) => (

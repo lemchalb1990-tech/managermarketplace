@@ -22,6 +22,7 @@ import {
 } from './publishCheck';
 import ChannelPublicationsCard, { GenericChannelActions, PublicationsController, PublicationsSaver } from './ChannelPublicationsCard';
 import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
+import { SetupSteps, EmptyFiltered, useCompanySetup, type SetupStep } from '@/components/EmptyState';
 
 function MlDescriptionEditor({ value, productId, onChange, images }: {
   value: string; productId: string; onChange: (html: string) => void; images: any[];
@@ -1638,6 +1639,38 @@ export default function CatalogPage() {
     .sort((a, b) => (MARKETPLACE_LABELS[a] || a).localeCompare(MARKETPLACE_LABELS[b] || b));
   const webPriceConnections = genericConnections.filter((c) => c.active && WEB_PRICE_PLATFORMS[c.marketplace]);
 
+  // Pantalla vacía: con filtros muestra cada filtro para quitarlo; sin filtros, los primeros pasos.
+  const catalogFilters = [
+    ...(search ? [{ label: `«${search}»`, onRemove: () => setSearch('') }] : []),
+    ...(warehouseFilter ? [{ label: `Bodega: ${warehouses.find((w) => w.id === warehouseFilter)?.name ?? warehouseFilter}`, onRemove: () => setWarehouseFilter('') }] : []),
+    ...(categoryFilter ? [{ label: `Categoría: ${categoryFilter}`, onRemove: () => setCategoryFilter('') }] : []),
+    ...(typeFilter ? [{ label: typeFilter === 'SERVICIO' ? 'Servicios' : 'Artículos', onRemove: () => setTypeFilter('') }] : []),
+    ...(activeFilter ? [{ label: activeFilter === 'true' ? 'Activos' : 'Inactivos', onRemove: () => setActiveFilter('') }] : []),
+    ...(channelFilter ? [{ label: `Canal: ${MARKETPLACE_LABELS[channelFilter] || channelFilter}`, onRemove: () => setChannelFilter('') }] : []),
+    ...(listingStatusFilter ? [{ label: `Publicación: ${({ ACTIVE: 'Activa', PAUSED: 'Pausada', ERROR_CLOSED: 'Con error o cerrada', NONE: 'Sin publicar' } as Record<string, string>)[listingStatusFilter] ?? listingStatusFilter}`, onRemove: () => setListingStatusFilter('') }] : []),
+    ...(stockFilter ? [{ label: 'Stock crítico', onRemove: () => setStockFilter('') }] : []),
+  ];
+  const catalogSetup = useCompanySetup(!loading && products.length === 0 && catalogFilters.length === 0);
+  function clearCatalogFilters() { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
+  const catalogSetupSteps: SetupStep[] = [
+    { title: 'Crear tu empresa', done: true },
+    {
+      title: 'Conectar un canal de venta', optional: true, done: (catalogSetup?.connections ?? 0) > 0,
+      hint: 'Así puedes importar las publicaciones que ya tienes en Mercado Libre, Falabella, Paris, Ripley o Walmart.',
+      action: isAdmin ? { label: 'Conectar', href: '/dashboard/ecommerce' } : undefined,
+    },
+    {
+      title: 'Agregar tu primer producto', done: (catalogSetup?.products ?? 0) > 0,
+      hint: 'Créalo aquí con su SKU, precio y fotos, o impórtalo desde la conexión de tu canal.',
+      action: canCreateProduct ? { label: '+ Nuevo producto', onClick: openCreateModal } : undefined,
+    },
+  ];
+  const catalogEmpty = catalogFilters.length > 0
+    ? <EmptyFiltered title="Ningún producto coincide con estos filtros" filters={catalogFilters} onClearAll={clearCatalogFilters} />
+    : <SetupSteps title="Arma tu catálogo" loading={!catalogSetup}
+        description="Tu catálogo es la base de todo: desde aquí se sincronizan stock y precios con cada canal."
+        steps={catalogSetupSteps} />;
+
   // Pestaña "Conexiones": publicaciones agrupadas por marketplace (Mercado Libre primero).
   const connectionGroups: { marketplace: string; connections: any[] }[] = [
     ...(hasMlModule && connections.filter((c) => c.active).length ? [{ marketplace: 'MERCADO_LIBRE', connections: connections.filter((c) => c.active) }] : []),
@@ -2918,7 +2951,7 @@ export default function CatalogPage() {
           Filtrar
         </button>
         <button
-          onClick={() => { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }}
+          onClick={clearCatalogFilters}
           className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
         >
           Limpiar
@@ -3247,7 +3280,7 @@ export default function CatalogPage() {
             );
           })}
           {!loading && products.length === 0 && (
-            <div className="col-span-full py-10 text-center text-gray-400 text-sm">Sin productos que coincidan con los filtros.</div>
+            <div className="col-span-full bg-white rounded-xl border border-gray-200">{catalogEmpty}</div>
           )}
           {loading && (
             <SkeletonCards count={8} className="col-span-full grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3" height={220} />
@@ -3405,7 +3438,7 @@ export default function CatalogPage() {
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} className="px-4 py-8 text-center text-gray-400">Sin productos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length}>{catalogEmpty}</td></tr>
             )}
             {loading && (
               <SkeletonRows cols={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} />
