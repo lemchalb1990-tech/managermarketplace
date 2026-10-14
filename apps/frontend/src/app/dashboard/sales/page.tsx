@@ -37,6 +37,30 @@ const PAYMENT_LABELS: Record<string, string> = {
   MIXED: 'Mixto',
 };
 
+// Totales por método de pago (una venta mixta suma a cada medio lo suyo; los marketplaces,
+// que no tienen medio de pago propio, no entran).
+function PaymentTotals({ title, rows }: { title: string; rows: { method: string; total: number; count: number }[] }) {
+  const sum = rows.reduce((a, r) => a + r.total, 0);
+  return (
+    <div className="mt-4 first:mt-0">
+      <p className="text-xs font-semibold text-gray-600 mb-2">{title}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        {rows.map((r) => (
+          <div key={r.method} className="bg-gray-50 rounded-xl px-3 py-2">
+            <p className="text-xs text-gray-500">{PAYMENT_LABELS[r.method] || r.method}</p>
+            <p className="text-base font-bold text-gray-800">${Math.round(r.total).toLocaleString('es-CL')}</p>
+            <p className="text-[11px] text-gray-400">{r.count} pago{r.count === 1 ? '' : 's'}</p>
+          </div>
+        ))}
+        <div className="bg-blue-50 rounded-xl px-3 py-2">
+          <p className="text-xs text-gray-500">Total</p>
+          <p className="text-base font-bold text-blue-600">${Math.round(sum).toLocaleString('es-CL')}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const FULFILLMENT_LABELS: Record<string, string> = {
   PICKUP: 'Retiro en tienda',
   DELIVERY: 'Entrega a domicilio',
@@ -62,6 +86,8 @@ export default function SalesPage() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<any>(null);
+  // Totales por medio de pago de las ventas que cumplen los filtros del historial.
+  const [paymentTotals, setPaymentTotals] = useState<{ method: string; total: number; count: number }[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
   const [channel, setChannel] = useState(() => searchParams.get('channel') || '');
@@ -199,6 +225,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         channel: channel || undefined, from: from || undefined, to: to || undefined, search: search || undefined, page: p,
       }, token);
       setSales(res.sales);
+      setPaymentTotals((res as any).byPayment || []);
       setTotal(res.total);
       setPage(res.page);
       setPages(res.pages);
@@ -284,6 +311,9 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         ) : (
           <p className="text-gray-400 text-sm">Sin datos para este día.</p>
         )}
+        {!summaryLoading && summary?.byPayment?.length > 0 && (
+          <PaymentTotals title="Totales del día por método de pago" rows={summary.byPayment} />
+        )}
       </div>
 
       {/* Filtros */}
@@ -307,6 +337,12 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={filterSelectCls} />
         </FilterField>
       </FilterBar>
+
+      {paymentTotals.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
+          <PaymentTotals title="Totales por método de pago · ventas filtradas" rows={paymentTotals} />
+        </div>
+      )}
 
       {/* Tabla de ventas */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">

@@ -474,7 +474,23 @@ export class PosService {
       this.prisma.sale.count({ where }),
     ]);
 
-    return { sales, total, page, pages: Math.ceil(total / take) };
+    // Totales por medio de pago de TODAS las ventas que cumplen los filtros (no solo la página).
+    const byPayment = await this.paymentTotals(where);
+    return { sales, total, page, pages: Math.ceil(total / take), byPayment };
+  }
+
+  // Suma por medio de pago desde el detalle de pagos: una venta mixta suma a cada medio lo suyo.
+  // Las ventas sin medio de pago (marketplaces) no entran.
+  private async paymentTotals(saleWhere: any) {
+    const rows = await this.prisma.salePayment.groupBy({
+      by: ['method'],
+      where: { sale: saleWhere },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    return rows
+      .map((r) => ({ method: r.method as string, total: Number(r._sum.amount || 0), count: r._count._all }))
+      .sort((a, b) => b.total - a.total);
   }
 
   async getSale(saleId: string, user: any) {
@@ -660,13 +676,7 @@ export class PosService {
       return acc;
     }, {});
 
-    const byPayment = sales.reduce((acc: any, s) => {
-      const key = s.paymentMethod || 'SIN_ESPECIFICAR';
-      if (!acc[key]) acc[key] = { count: 0, total: 0 };
-      acc[key].count++;
-      acc[key].total += Number(s.total);
-      return acc;
-    }, {});
+    const byPayment = await this.paymentTotals(where);
 
     return {
       date: dayKey,
