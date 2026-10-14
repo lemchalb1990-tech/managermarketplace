@@ -323,9 +323,8 @@ model User {
   invitationsSent       UserInvitation[] @relation("InvitationInvitedBy")
   companyInvitationsSent CompanyInvitation[] @relation("CompanyInvitationInvitedBy")
 
-  // Bodega desde la que vende en el punto de venta (null = la bodega de cada producto).
-  posWarehouseId        String?
-  posWarehouse          Warehouse?       @relation("UserPosWarehouse", fields: [posWarehouseId], references: [id], onDelete: SetNull)
+  // Tiendas/bodegas desde las que vende en el punto de venta (sin ninguna = la bodega de cada producto).
+  posWarehouses         UserPosWarehouse[]
   cashClosures          CashClosure[]    @relation("CashClosureCashier")
   cashClosuresClosed    CashClosure[]    @relation("CashClosureClosedBy")
 
@@ -402,7 +401,7 @@ model Warehouse {
   transferDocsTo   TransferDocument[] @relation("TransferDocTo")
   workOrderItems WorkOrderItem[]
 
-  posUsers       User[]          @relation("UserPosWarehouse")
+  posUsers       UserPosWarehouse[]
 
   @@map("warehouses")
 }
@@ -1063,6 +1062,19 @@ model CashClosure {
   @@unique([companyId, number])
   @@index([companyId, cashierId, periodTo])
   @@map("cash_closures")
+}
+
+// Tiendas/bodegas asignadas a un usuario para vender en el punto de venta: solo vende y
+// descuenta stock desde una de ellas.
+model UserPosWarehouse {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, warehouseId])
+  @@index([warehouseId])
+  @@map("user_pos_warehouses")
 }
 
 // Documento de traspaso entre bodegas (reemplaza al traspaso inmediato de StockTransfer, que

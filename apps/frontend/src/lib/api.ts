@@ -1452,6 +1452,7 @@ export const api = {
           workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
           printFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
           saleWarehouse?: { id: string; name: string } | null;
+          assignedWarehouses?: { id: string; name: string }[];
           canChooseWarehouse?: boolean;
           warehouses?: { id: string; name: string }[];
         }>(`/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),

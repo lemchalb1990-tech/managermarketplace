@@ -17,7 +17,7 @@ const USER_SELECT = {
   active: true, modules: true, createdAt: true,
   company: { select: { id: true, name: true } },
   accessProfile: { select: { id: true, name: true, companyId: true } },
-  posWarehouse: { select: { id: true, name: true } },
+  posWarehouses: { select: { warehouse: { select: { id: true, name: true } } } },
 } as const;
 
 @Injectable()
@@ -52,12 +52,13 @@ export class UsersService {
     }
   }
 
-  // La bodega de venta del punto de venta debe ser de la empresa del usuario.
-  private async resolvePosWarehouse(posWarehouseId: string | null | undefined, companyId: string | null) {
-    if (!posWarehouseId) return null;
-    const wh = await this.prisma.warehouse.findUnique({ where: { id: posWarehouseId }, select: { companyId: true } });
-    if (!wh || !companyId || wh.companyId !== companyId) throw new BadRequestException('La bodega no pertenece a la empresa del usuario');
-    return posWarehouseId;
+  // Las tiendas/bodegas de venta del punto de venta deben ser de la empresa del usuario.
+  private async resolvePosWarehouses(ids: string[] | undefined, companyId: string | null): Promise<string[]> {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (!unique.length) return [];
+    const count = await this.prisma.warehouse.count({ where: { id: { in: unique }, companyId: companyId ?? '__none__' } });
+    if (!companyId || count !== unique.length) throw new BadRequestException('Alguna bodega no pertenece a la empresa del usuario');
+    return unique;
   }
 
   async create(dto: CreateUserDto, requestingUser: any) {
@@ -86,10 +87,14 @@ export class UsersService {
         role,
         companyId: superAdmin ? null : dto.companyId ?? null,
         accessProfileId: superAdmin ? null : dto.accessProfileId ?? null,
-        posWarehouseId: superAdmin ? null : await this.resolvePosWarehouse(dto.posWarehouseId, dto.companyId ?? null),
       },
       select: USER_SELECT,
     });
+    const posIds = superAdmin ? [] : await this.resolvePosWarehouses(dto.posWarehouseIds, dto.companyId ?? null);
+    if (posIds.length) {
+      await this.prisma.userPosWarehouse.createMany({ data: posIds.map((warehouseId) => ({ userId: user.id, warehouseId })) });
+      return this.prisma.user.findUnique({ where: { id: user.id }, select: USER_SELECT });
+    }
     return user;
   }
 
@@ -139,8 +144,13 @@ export class UsersService {
     if (dto.role !== undefined && !isCompanyUser) data.role = dto.role;
     if (dto.active !== undefined) data.active = dto.active;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
-    if (dto.posWarehouseId !== undefined && isCompanyUser) {
-      data.posWarehouseId = await this.resolvePosWarehouse(dto.posWarehouseId || null, (target as any).companyId ?? null);
+    // Reemplaza la lista de tiendas/bodegas de venta.
+    if (dto.posWarehouseIds !== undefined && isCompanyUser) {
+      const ids = await this.resolvePosWarehouses(dto.posWarehouseIds, (target as any).companyId ?? null);
+      await this.prisma.$transaction([
+        this.prisma.userPosWarehouse.deleteMany({ where: { userId: id } }),
+        ...(ids.length ? [this.prisma.userPosWarehouse.createMany({ data: ids.map((warehouseId) => ({ userId: id, warehouseId })) })] : []),
+      ]);
     }
 
     if (dto.accessProfileId !== undefined && isCompanyUser) {

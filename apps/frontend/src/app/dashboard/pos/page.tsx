@@ -67,7 +67,9 @@ export default function PosPage() {
   const [notes, setNotes] = useState('');
   // Bodega de venta: el vendedor vende desde la asignada en Usuarios (fija); un administrador
   // puede elegirla ('' = la bodega de cada producto). El stock mostrado es el de esa bodega.
-  const [posWh, setPosWh] = useState<{ canChoose: boolean; warehouses: { id: string; name: string }[]; current: { id: string; name: string } | null }>({ canChoose: false, warehouses: [], current: null });
+  // canChoose (administrador): cualquier bodega o la de cada producto. assigned: tiendas del vendedor
+  // (con varias elige entre ellas; con una queda fija; sin ninguna vende como antes).
+  const [posWh, setPosWh] = useState<{ canChoose: boolean; warehouses: { id: string; name: string }[]; assigned: { id: string; name: string }[] }>({ canChoose: false, warehouses: [], assigned: [] });
   const [saleWarehouseId, setSaleWarehouseId] = useState('');
 
   // Cliente registrado
@@ -194,9 +196,15 @@ export default function PosPage() {
     const cid = isSuperAdmin ? selectedCompanyId : undefined;
     if (isSuperAdmin && !selectedCompanyId) return;
     api.pos.settings.get(token, cid || undefined).then((st) => {
-      const current = st.saleWarehouse ?? null;
-      setPosWh({ canChoose: !!st.canChooseWarehouse, warehouses: st.warehouses || [], current });
-      setSaleWarehouseId(current?.id || '');
+      const assigned = st.assignedWarehouses || [];
+      const canChoose = !!st.canChooseWarehouse;
+      setPosWh({ canChoose, warehouses: st.warehouses || [], assigned });
+      // Recuerda la última tienda elegida (si sigue disponible para este usuario).
+      let saved = '';
+      try { saved = localStorage.getItem(`pos_sale_wh_${getUser()?.id || ''}`) || ''; } catch {}
+      const options = canChoose ? (st.warehouses || []) : assigned;
+      const keep = saved && options.some((w) => w.id === saved) ? saved : '';
+      setSaleWarehouseId(keep || st.saleWarehouse?.id || '');
       setCart([]);
     }).catch(() => {});
   }, [token, isSuperAdmin, selectedCompanyId]);
@@ -339,7 +347,7 @@ export default function PosPage() {
         channel: 'POS',
         paymentMethod,
         payments: resolvedPayments,
-        ...(posWh.canChoose ? { warehouseId: saleWarehouseId } : {}),
+        ...(posWh.canChoose || posWh.assigned.length > 0 ? { warehouseId: saleWarehouseId } : {}),
         notes: notes || undefined,
         fulfillmentType: servicesOnly ? undefined : fulfillmentType,
         clientId: clientId || undefined,
@@ -406,7 +414,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, posWh.canChoose, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+  }, [cart, posWh.canChoose, posWh.assigned.length, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -548,21 +556,25 @@ export default function PosPage() {
             />
             Solo con stock
           </label>
-          {posWh.canChoose && posWh.warehouses.length > 0 ? (
+          {(posWh.canChoose ? posWh.warehouses.length > 0 : posWh.assigned.length > 1) ? (
             <div>
               <label className="text-xs text-gray-500 block mb-1">Vender desde</label>
               <select
                 value={saleWarehouseId}
-                onChange={(e) => { setSaleWarehouseId(e.target.value); setCart([]); }}
+                onChange={(e) => {
+                  setSaleWarehouseId(e.target.value);
+                  setCart([]);
+                  try { localStorage.setItem(`pos_sale_wh_${user?.id || ''}`, e.target.value); } catch {}
+                }}
                 className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
               >
-                <option value="">Bodega de cada producto</option>
-                {posWh.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                {posWh.canChoose && <option value="">Bodega de cada producto</option>}
+                {(posWh.canChoose ? posWh.warehouses : posWh.assigned).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
-          ) : posWh.current && (
+          ) : posWh.assigned.length === 1 && (
             <span className="px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700" title="Asignada en Usuarios">
-              Bodega: <strong>{posWh.current.name}</strong>
+              Tienda: <strong>{posWh.assigned[0].name}</strong>
             </span>
           )}
           {(search || categoryFilter || onlyInStock) && (

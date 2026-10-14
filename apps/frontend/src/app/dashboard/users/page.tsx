@@ -27,7 +27,7 @@ const roleBadge: Record<string, string> = {
 };
 
 const emptyForm = { name: '', email: '', password: '', companyId: '', accessProfileId: '' };
-const emptyEdit = { name: '', role: '', password: '', active: true, accessProfileId: '', posWarehouseId: '' };
+const emptyEdit = { name: '', role: '', password: '', active: true, accessProfileId: '', posWarehouseIds: [] as string[] };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -113,12 +113,12 @@ export default function UsersPage() {
       password: '',
       active: u.active,
       accessProfileId: u.accessProfile?.id || '',
-      posWarehouseId: u.posWarehouse?.id || '',
+      posWarehouseIds: (u.posWarehouses || []).map((pw: any) => pw.warehouse.id),
     });
     setEditWarehouses([]);
     if (u.role !== 'SUPER_ADMIN' && u.company?.id) {
       api.warehouses.list(getToken()!, isSuperAdmin ? u.company.id : undefined)
-        .then((ws) => setEditWarehouses(ws.filter((w: any) => w.active !== false || w.id === u.posWarehouse?.id)))
+        .then((ws) => setEditWarehouses(ws.filter((w: any) => w.active !== false || (u.posWarehouses || []).some((pw: any) => pw.warehouse.id === w.id))))
         .catch(() => setEditWarehouses([]));
     }
     setEditError('');
@@ -134,7 +134,7 @@ export default function UsersPage() {
       const payload: any = {
         name: editForm.name,
         active: editForm.active,
-        ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null, posWarehouseId: editForm.posWarehouseId || null } : {}),
+        ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null, posWarehouseIds: editForm.posWarehouseIds } : {}),
       };
       if (editForm.password) payload.password = editForm.password;
       await api.users.update(editUser.id, payload, token);
@@ -380,14 +380,22 @@ export default function UsersPage() {
               )}
               {editUser.role !== 'SUPER_ADMIN' && editWarehouses.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Bodega de venta (punto de venta)</label>
-                  <select value={editForm.posWarehouseId}
-                    onChange={(e) => setEditForm(f => ({ ...f, posWarehouseId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="">Sin asignar (bodega de cada producto)</option>
-                    {editWarehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-0.5">Vende y descuenta stock solo desde esta bodega; si no hay stock ahí, la venta se bloquea.</p>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tiendas / bodegas de venta (punto de venta)</label>
+                  <div className="border border-gray-300 rounded-lg px-3 py-2 space-y-1 max-h-40 overflow-y-auto">
+                    {editWarehouses.map((w) => (
+                      <label key={w.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" checked={editForm.posWarehouseIds.includes(w.id)}
+                          onChange={(e) => setEditForm(f => ({
+                            ...f,
+                            posWarehouseIds: e.target.checked ? [...f.posWarehouseIds, w.id] : f.posWarehouseIds.filter((x) => x !== w.id),
+                          }))} />
+                        {w.name}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Vende y descuenta stock solo desde estas tiendas (con varias, elige en el punto de venta); si no hay stock en la elegida, la venta se bloquea. Sin ninguna marcada, vende desde la bodega de cada producto.
+                  </p>
                 </div>
               )}
               <div>

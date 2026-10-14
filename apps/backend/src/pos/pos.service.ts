@@ -51,20 +51,22 @@ export class PosService {
     const cId = this.resolveCompanyId(user, companyId);
     const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true } });
     if (!company) throw new NotFoundException('Empresa no encontrada');
-    // Bodega de venta del usuario y, para administradores, las bodegas para elegir.
+    // Tiendas/bodegas asignadas al usuario y, para administradores, todas las de la empresa.
     const isManager = POS_MANAGER_ROLES.includes(user.role);
-    const [saleWarehouse, warehouses] = await Promise.all([
-      this.resolveSaleWarehouse(user, cId),
+    const [assignedWarehouses, warehouses] = await Promise.all([
+      this.assignedWarehouses(user.id, cId),
       isManager
         ? this.prisma.warehouse.findMany({ where: { companyId: cId, active: true }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
         : Promise.resolve([]),
     ]);
+    const saleWarehouse = assignedWarehouses[0] ?? null;
     // El formato de ticket es de la empresa (lo define su administrador en Ajustes del sistema →
     // Configuración) y aplica a todos sus usuarios. printFormat = el que se usa al imprimir.
     return {
       workOrderPrintFormat: company.workOrderPrintFormat,
       printFormat: company.workOrderPrintFormat,
       saleWarehouse,
+      assignedWarehouses,
       canChooseWarehouse: isManager,
       warehouses,
     };
@@ -82,23 +84,37 @@ export class PosService {
     });
   }
 
-  // Bodega desde la que vende el usuario en el punto de venta: el vendedor, la asignada en
-  // Usuarios; un administrador, la que elija en el punto de venta (o la suya asignada).
+  // Tiendas/bodegas asignadas al usuario en Usuarios (solo las de la empresa y activas).
+  private async assignedWarehouses(userId: string, companyId: string): Promise<{ id: string; name: string }[]> {
+    const rows = await this.prisma.userPosWarehouse.findMany({
+      where: { userId, warehouse: { companyId, active: true } },
+      select: { warehouse: { select: { id: true, name: true, createdAt: true } } },
+    });
+    return rows.map((r) => r.warehouse)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map(({ id, name }) => ({ id, name }));
+  }
+
+  // Bodega desde la que se vende en el punto de venta:
+  // - Administrador: la que elija (cualquiera de la empresa, o '' = la bodega de cada producto).
+  // - Vendedor con tiendas asignadas: una de ELLAS (la elegida; con una sola, esa). Nunca otra.
+  // - Vendedor sin tiendas asignadas: la bodega de cada producto (como antes).
   async resolveSaleWarehouse(user: any, companyId: string, requested?: string): Promise<{ id: string; name: string } | null> {
-    let id: string | null = null;
     if (POS_MANAGER_ROLES.includes(user.role) && requested !== undefined) {
-      id = requested || null;
-    } else {
-      const u = await this.prisma.user.findUnique({ where: { id: user.id }, select: { posWarehouseId: true } });
-      id = u?.posWarehouseId ?? null;
+      if (!requested) return null;
+      const wh = await this.prisma.warehouse.findUnique({ where: { id: requested }, select: { id: true, name: true, companyId: true } });
+      if (!wh || wh.companyId !== companyId) throw new BadRequestException('Bodega inválida para esta empresa');
+      return { id: wh.id, name: wh.name };
     }
-    if (!id) return null;
-    const wh = await this.prisma.warehouse.findUnique({ where: { id }, select: { id: true, name: true, companyId: true } });
-    if (!wh || wh.companyId !== companyId) {
-      if (POS_MANAGER_ROLES.includes(user.role)) throw new BadRequestException('Bodega inválida para esta empresa');
-      return null;
+    const assigned = await this.assignedWarehouses(user.id, companyId);
+    if (!assigned.length) return null;
+    if (requested) {
+      const match = assigned.find((w) => w.id === requested);
+      if (!match) throw new BadRequestException('Solo puedes vender desde las tiendas que tienes asignadas');
+      return match;
     }
-    return { id: wh.id, name: wh.name };
+    if (assigned.length > 1) throw new BadRequestException('Elige desde qué tienda vendes');
+    return assigned[0];
   }
 
   async createSale(dto: CreateSaleDto, user: any, opts: { useSellerWarehouse?: boolean } = { useSellerWarehouse: true }) {
