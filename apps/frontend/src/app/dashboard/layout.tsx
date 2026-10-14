@@ -12,6 +12,7 @@ import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 import { DialogProvider } from './ConfirmDialog';
+import { finishLoginSplash } from '@/lib/loginSplash';
 
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
 // anyPerm: el ítem se ve con cualquiera de esos permisos (además de `perm`).
@@ -243,6 +244,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const token = getToken();
     const u = getUser();
     if (!token || !u) {
+      finishLoginSplash();
       router.push('/login');
       return;
     }
@@ -255,7 +257,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         saveSession(token, fresh);
         setUser(fresh);
       })
-      .catch(() => {});
+      .catch(() => {})
+      // Ya cargó la sesión: el telón del inicio de sesión (si viene del login) se retira.
+      .finally(finishLoginSplash);
   }, [router]);
 
   useEffect(() => {

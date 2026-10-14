@@ -703,3 +703,98 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ui-pop, .ui-slide-in { animation: none; }
 }
+
+/* Telón de carga al iniciar sesión (components/LoginSplash.tsx). Se abre como un círculo
+   desde el botón "Ingresar", muestra los canales en órbita y se retira con un fundido. */
+.ls-curtain {
+  --ls-r: clamp(78px, 24vw, 124px);
+  --ls-ch: clamp(38px, 10.5vw, 50px);
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 4vh, 32px);
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(160deg, #02093a 0%, #0b1d5c 100%);
+  color: #fff;
+  clip-path: circle(0% at var(--ls-origin, 50% 50%));
+  transition: clip-path 0.75s cubic-bezier(0.7, 0, 0.2, 1), opacity 0.45s ease, transform 0.45s ease;
+}
+.ls-curtain.is-open { clip-path: circle(150% at var(--ls-origin, 50% 50%)); }
+.ls-curtain.is-leaving { opacity: 0; transform: scale(1.03); }
+.ls-orbit {
+  position: relative;
+  width: calc(var(--ls-r) * 2 + var(--ls-ch));
+  height: calc(var(--ls-r) * 2 + var(--ls-ch));
+  flex-shrink: 0;
+}
+.ls-ring {
+  position: absolute;
+  inset: calc(var(--ls-ch) / 2);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  animation: ls-spin 14s linear infinite;
+}
+.ls-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(54px, 15vw, 68px);
+  height: clamp(54px, 15vw, 68px);
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #fff;
+  color: #02093a;
+  font-weight: 800;
+  font-size: clamp(24px, 6.5vw, 30px);
+  animation: ls-pulse 1.8s ease-in-out infinite;
+}
+.ls-slot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--ls-ch);
+  height: var(--ls-ch);
+  margin: calc(var(--ls-ch) / -2);
+  transform: rotate(var(--ls-a)) translateX(var(--ls-r)) rotate(calc(var(--ls-a) * -1));
+}
+.ls-ch {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #62aef0;
+  overflow: hidden;
+  animation: ls-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.ls-msg {
+  margin: 0;
+  min-height: 1.5em;
+  text-align: center;
+  font-size: clamp(15px, 4.2vw, 18px);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  animation: ls-fade 0.35s ease both;
+}
+.ls-bar {
+  width: min(240px, 62vw);
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.ls-bar > i { display: block; height: 100%; background: #62aef0; border-radius: 4px; transition: width 0.4s ease; }
+@keyframes ls-spin { to { transform: rotate(360deg); } }
+@keyframes ls-pulse { 50% { box-shadow: 0 0 0 16px rgba(98, 174, 240, 0.16); } }
+@keyframes ls-pop { from { opacity: 0; transform: scale(0.35); } }
+@keyframes ls-fade { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .ls-curtain { clip-path: none; transition: opacity 0.3s ease; }
+  .ls-ring, .ls-mark, .ls-ch, .ls-msg { animation: none; }
+}

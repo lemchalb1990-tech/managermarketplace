@@ -1,7 +1,7 @@
 'use client';
 
 import { connectorStatus } from '@/lib/connectors';
-import { useCallback, useEffect, useState, FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -9,6 +9,7 @@ import { saveSession } from '@/lib/auth';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { startLoginSplash, loadLoginSplashChannels } from '@/lib/loginSplash';
 
 type Mode = 'login' | 'register' | 'signup' | 'forgot';
 
@@ -31,6 +32,16 @@ export default function LoginPage() {
   const [authCfg, setAuthCfg] = useState<{ googleClientId: string | null; signupEnabled: boolean }>({ googleClientId: null, signupEnabled: false });
   const [signup, setSignup] = useState({ signupToken: '', email: '', name: '', companyName: '', phone: '', rut: '' });
   const [notice, setNotice] = useState('');
+  const submitRef = useRef<HTMLButtonElement>(null);
+
+  // Ingreso correcto: guarda la sesión, abre el telón de carga (desde el botón si lo hay)
+  // y navega; el panel lo cierra cuando terminó de cargar.
+  const enterPanel = useCallback((token: string, user: { name?: string; role?: string }, from?: HTMLElement | null) => {
+    saveSession(token, user);
+    startLoginSplash(user?.name || '', from);
+    loadLoginSplashChannels(token, user);
+    router.push('/dashboard');
+  }, [router]);
   useEffect(() => {
     api.auth.config().then(setAuthCfg).catch(() => {});
     // Desde la landing: "Prueba gratis" llega con ?registro=1.
@@ -48,14 +59,13 @@ export default function LoginPage() {
         setMode('signup');
         return;
       }
-      saveSession(res.access_token!, res.user);
-      router.push('/dashboard');
+      enterPanel(res.access_token!, res.user);
     } catch (err) {
       setError((err as Error).message || 'No se pudo ingresar con Google');
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [enterPanel]);
 
   async function handleSignup(e: FormEvent) {
     e.preventDefault();
@@ -63,8 +73,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { access_token, user } = await api.auth.googleSignup(signup);
-      saveSession(access_token, user);
-      router.push('/dashboard');
+      enterPanel(access_token, user);
     } catch (err) {
       const message = (err as Error).message || '';
       setError(message || 'No se pudo crear la cuenta');
@@ -100,8 +109,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { access_token, user } = await api.login(email, password);
-      saveSession(access_token, user);
-      router.push('/dashboard');
+      enterPanel(access_token, user, submitRef.current);
     } catch (err: any) {
       setError(err.message || 'Credenciales inválidas');
     } finally {
@@ -260,7 +268,7 @@ export default function LoginPage() {
                         <p className="rounded-lg bg-[#fdecea] px-3.5 py-2.5 text-sm text-[#e32d14]">{error}</p>
                       )}
 
-                      <button type="submit" disabled={loading}
+                      <button ref={submitRef} type="submit" disabled={loading}
                         className="lp-btn lp-btn--primary mt-1 w-full !py-3 disabled:opacity-50">
                         {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
                         {loading ? 'Ingresando…' : 'Ingresar'}

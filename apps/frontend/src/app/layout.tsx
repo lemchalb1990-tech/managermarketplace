@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { LoginSplashHost } from "@/components/LoginSplash";
 
 // Una sola familia para toda la app (landing, login y panel): Inter, muy legible en
 // tablas y números. La variable conserva su nombre histórico (--font-hanken).
@@ -31,7 +32,10 @@ export default function RootLayout({
       lang="es"
       className={`${hanken.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <LoginSplashHost />
+      </body>
     </html>
   );
 }
