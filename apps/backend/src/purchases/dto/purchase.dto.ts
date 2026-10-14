@@ -17,8 +17,10 @@ export class PurchaseItemDto {
 }
 
 export class CreatePurchaseDto {
+  // Opcional: la compra puede registrarse sin proveedor.
+  @IsOptional()
   @IsString()
-  supplierId: string;
+  supplierId?: string;
 
   @IsString()
   warehouseId: string;

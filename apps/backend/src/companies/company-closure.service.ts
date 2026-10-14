@@ -290,7 +290,7 @@ export class CompanyClosureService {
       orders.map((o) => ({ ...o, channel: o.sale?.channel, externalId: o.sale?.externalId })));
     sheet('Documentos tributarios', [['issuedAt', 'Emisión'], ['dteType', 'Tipo'], ['folio', 'Folio'], ['status', 'Estado'], ['rut', 'RUT'], ['razonSocial', 'Razón social'], ['netAmount', 'Neto'], ['tax', 'IVA'], ['totalAmount', 'Total'], ['file', 'Archivo en el respaldo']],
       invoices.map((i) => ({ ...i, file: i.pdfUrl || i.xmlUrl ? `documentos/${this.docName(i)}.*` : '' })));
-    sheet('Compras', [['date', 'Fecha'], ['documentNumber', 'N° documento'], ['supplier', 'Proveedor'], ['total', 'Total'], ['notes', 'Notas']], purchases.map((p) => ({ ...p, supplier: p.supplier.name })));
+    sheet('Compras', [['date', 'Fecha'], ['documentNumber', 'N° documento'], ['supplier', 'Proveedor'], ['total', 'Total'], ['notes', 'Notas']], purchases.map((p) => ({ ...p, supplier: p.supplier?.name ?? '' })));
     sheet('Detalle compras', [['date', 'Fecha'], ['documentNumber', 'N° documento'], ['sku', 'SKU'], ['product', 'Producto'], ['quantity', 'Cantidad'], ['unitCost', 'Costo unitario']],
       purchases.flatMap((p) => p.items.map((i) => ({ ...i, date: p.date, documentNumber: p.documentNumber, sku: i.product.sku, product: i.product.name }))));
     sheet('Plan de cuentas', [['code', 'Código'], ['name', 'Nombre'], ['type', 'Tipo'], ['archived', 'Archivada']], accounts);

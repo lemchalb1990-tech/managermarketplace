@@ -88,7 +88,7 @@ export default function PurchasesPage() {
       const validItems = items.filter((it) => it.productId && Number(it.quantity) > 0);
       if (!validItems.length) throw new Error('Agrega al menos un producto con cantidad válida.');
       await api.purchases.create({
-        supplierId: purchaseForm.supplierId,
+        supplierId: purchaseForm.supplierId || undefined,
         warehouseId: purchaseForm.warehouseId,
         documentNumber: purchaseForm.documentNumber || undefined,
         notes: purchaseForm.notes || undefined,
@@ -151,11 +151,11 @@ export default function PurchasesPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor *</label>
-                    <select value={purchaseForm.supplierId} required
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor <span className="text-gray-400 font-normal">(opcional)</span></label>
+                    <select value={purchaseForm.supplierId}
                       onChange={(e) => setPurchaseForm((f) => ({ ...f, supplierId: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                      <option value="">— Selecciona un proveedor —</option>
+                      <option value="">— Sin proveedor —</option>
                       {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
@@ -243,7 +243,7 @@ export default function PurchasesPage() {
                   {purchases.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{new Date(p.date).toLocaleDateString('es-CL', { timeZone: tz })}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.supplier?.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.supplier?.name || <span className="text-gray-400 font-normal">Sin proveedor</span>}</td>
                       <td className="px-4 py-3 text-gray-600">{p.warehouse?.name}</td>
                       <td className="px-4 py-3 text-gray-500">{p.documentNumber || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{p._count?.items ?? 0}</td>

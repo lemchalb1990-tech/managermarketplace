@@ -1189,8 +1189,9 @@ model Purchase {
 
   companyId   String
   company     Company   @relation(fields: [companyId], references: [id])
-  supplierId  String
-  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  // Opcional: una compra puede registrarse sin proveedor.
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   userId      String?

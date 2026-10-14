@@ -71,11 +71,11 @@ export class PurchasesService {
     if (!active) throw new ForbiddenException('El módulo de Compras no está activo para esta empresa');
 
     const [supplier, warehouse, products] = await Promise.all([
-      this.prisma.supplier.findUnique({ where: { id: dto.supplierId } }),
+      dto.supplierId ? this.prisma.supplier.findUnique({ where: { id: dto.supplierId } }) : Promise.resolve(null),
       this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } }),
       this.prisma.product.findMany({ where: { id: { in: dto.items.map((i) => i.productId) }, companyId } }),
     ]);
-    if (!supplier || supplier.companyId !== companyId) throw new BadRequestException('Proveedor inválido');
+    if (dto.supplierId && (!supplier || supplier.companyId !== companyId)) throw new BadRequestException('Proveedor inválido');
     if (!warehouse || warehouse.companyId !== companyId) throw new BadRequestException('Bodega inválida');
     if (products.length !== dto.items.length) throw new BadRequestException('Uno o más productos no pertenecen a esta empresa');
 
@@ -85,7 +85,7 @@ export class PurchasesService {
       const created = await tx.purchase.create({
         data: {
           companyId,
-          supplierId: dto.supplierId,
+          supplierId: dto.supplierId || null,
           warehouseId: dto.warehouseId,
           documentNumber: dto.documentNumber,
           notes: dto.notes,
