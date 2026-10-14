@@ -1488,6 +1488,25 @@ export const api = {
       if (params.date) q.set('date', params.date);
       return apiFetch<any>(`/pos/sales/summary?${q}`, {}, token);
     },
+    cashClosures: {
+      preview: (token: string, params: { companyId?: string; cashierId?: string }) => {
+        const q = new URLSearchParams();
+        if (params.companyId) q.set('companyId', params.companyId);
+        if (params.cashierId) q.set('cashierId', params.cashierId);
+        return apiFetch<any>(`/pos/cash-closures/preview?${q}`, {}, token);
+      },
+      cashiers: (token: string, companyId?: string) =>
+        apiFetch<{ id: string; name: string }[]>(`/pos/cash-closures/cashiers${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      list: (token: string, params: { companyId?: string; page?: number }) => {
+        const q = new URLSearchParams();
+        if (params.companyId) q.set('companyId', params.companyId);
+        if (params.page) q.set('page', String(params.page));
+        return apiFetch<{ closures: any[]; total: number; page: number; pages: number }>(`/pos/cash-closures?${q}`, {}, token);
+      },
+      get: (id: string, token: string) => apiFetch<any>(`/pos/cash-closures/${id}`, {}, token),
+      close: (data: { companyId?: string; cashierId?: string; openingCash?: number; countedCash: number; notes?: string }, token: string) =>
+        apiFetch<any>('/pos/cash-closures', { method: 'POST', body: JSON.stringify(data) }, token),
+    },
     posBreakdown: (token: string, params: { companyId?: string; days?: number; months?: number }) => {
       const q = new URLSearchParams();
       if (params.companyId) q.set('companyId', params.companyId);

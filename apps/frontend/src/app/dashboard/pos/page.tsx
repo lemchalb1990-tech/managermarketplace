@@ -275,6 +275,10 @@ export default function PosPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const contactVisible = !servicesOnly && fulfillmentType === 'DELIVERY';
+  const contactName = contactVisible ? customerName : '';
+  const contactPhone = contactVisible ? customerPhone : '';
+  const contactEmail = contactVisible ? customerEmail : '';
   const multiPay = payments.length > 1;
   const resolvedPayments = (() => {
     if (!multiPay) return [{ method: payments[0].method, amount: total }];
@@ -320,9 +324,10 @@ export default function PosPage() {
         notes: notes || undefined,
         fulfillmentType: servicesOnly ? undefined : fulfillmentType,
         clientId: clientId || undefined,
-        customerName: (selectedClient?.name || customerName) || undefined,
-        customerPhone: (selectedClient?.phone || customerPhone) || undefined,
-        customerEmail: (selectedClient?.email || customerEmail) || undefined,
+        // Sin cliente, los datos de contacto solo se usan (y se muestran) con despacho.
+        customerName: (selectedClient?.name || contactName) || undefined,
+        customerPhone: (selectedClient?.phone || contactPhone) || undefined,
+        customerEmail: (selectedClient?.email || contactEmail) || undefined,
         address: !servicesOnly && fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
         commune: !servicesOnly && fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
         city: !servicesOnly && fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
@@ -340,11 +345,11 @@ export default function PosPage() {
             connectionId: dteConnId,
             dteType,
             rut: selectedClient?.rut || '66666666-6',
-            razonSocial: selectedClient?.name || customerName || 'Consumidor final',
+            razonSocial: selectedClient?.name || contactName || 'Consumidor final',
             giro: selectedClient?.giro || undefined,
             address: selectedClient?.address || undefined,
             commune: selectedClient?.commune || undefined,
-            email: selectedClient?.email || customerEmail || undefined,
+            email: selectedClient?.email || contactEmail || undefined,
             items: cart.map((c) => ({ name: c.name, quantity: c.quantity, unitPrice: c.price })),
             saleId: sale.id,
             clientId: clientId || undefined,
@@ -357,7 +362,7 @@ export default function PosPage() {
           setLastInvoice({
             ...inv,
             docLabel,
-            defaultEmail: selectedClient?.email || customerEmail || '',
+            defaultEmail: selectedClient?.email || contactEmail || '',
           });
         } catch (e: any) {
           dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
@@ -382,7 +387,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, servicesOnly, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+  }, [cart, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -866,7 +871,8 @@ export default function PosPage() {
                         {selectedClient.email ? ` · ${selectedClient.email}` : ''}
                         {selectedClient.phone ? ` · ${selectedClient.phone}` : ''}
                       </p>
-                    ) : (
+                    ) : contactVisible && (
+                      // Sin cliente: los datos de contacto solo se piden si la venta va con despacho.
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre (opcional)"
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
