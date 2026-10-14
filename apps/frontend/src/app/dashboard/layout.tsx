@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, getUser, clearSession, saveSession } from '@/lib/auth';
@@ -12,6 +12,7 @@ import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
 import { DialogProvider } from './ConfirmDialog';
+import { UserMenu } from './UserMenu';
 import { finishLoginSplash } from '@/lib/loginSplash';
 
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
@@ -205,28 +206,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try { return localStorage.getItem(OPEN_KEY) || null; } catch { return null; }
   });
   const [collapsed, setCollapsed] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1'); } catch { /* ignore */ }
   }, []);
-
-  // Cierra el menú de perfil al hacer clic fuera de él o al navegar a otra página.
-  useEffect(() => {
-    if (!profileOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [profileOpen]);
-
-  useEffect(() => {
-    setProfileOpen(false);
-  }, [pathname]);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -450,39 +433,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {can(user, 'ml.mensajes', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'ecommerce') && <MessagesIndicator />}
               <NotificationBell />
 
-              <div className="relative" ref={profileRef}>
-                <button
-                  onClick={() => setProfileOpen((o) => !o)}
-                  className="flex items-center gap-2 px-2 py-1 rounded-[10px] hover:bg-white/10 transition-colors"
-                  aria-label="Perfil de usuario"
-                >
-                  <span className="w-[34px] h-[34px] rounded-full bg-white/25 text-white text-xs font-bold grid place-items-center shrink-0">
-                    {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
-                  </span>
-                  <span className="text-sm font-medium hidden sm:inline max-w-[140px] truncate">{user.name}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    className={`shrink-0 transition-transform ${profileOpen ? 'rotate-180' : ''}`}>
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-
-                {profileOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-[220px] bg-white rounded-[10px] border border-gray-200 shadow-lg z-50 text-left overflow-hidden">
-                    <div className="px-4 py-3.5">
-                      <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</p>
-                      <p className="text-[11px] font-semibold mt-1 text-[var(--brand)]">{roleLabel}</p>
-                    </div>
-                    <div className="border-t border-gray-100" />
-                    <button
-                      onClick={logout}
-                      className="w-full text-left px-4 py-2.5 text-[13px] font-medium text-red-600 hover:bg-gray-50"
-                    >
-                      Cerrar sesión
-                    </button>
-                  </div>
-                )}
-              </div>
+              <UserMenu user={user} roleLabel={roleLabel} onLogout={logout} />
             </header>
             {/* Columna: el contenido ocupa el alto libre y el pie queda siempre abajo, aunque la página tenga pocos datos. */}
             <main className="flex-1 flex flex-col overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-4 sm:pb-6 lg:px-8 lg:pt-5 lg:pb-8 min-w-0">

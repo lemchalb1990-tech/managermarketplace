@@ -81,3 +81,12 @@ export function ExecutiveButton({ label = "Contactar con un ejecutivo", classNam
   const ext = href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {};
   return <a href={href} {...ext} className={`lp-btn ${className}`}>{label}</a>;
 }
+
+/** Ayuda y soporte desde el panel: WhatsApp o correo con el mensaje listo. */
+export function supportHref(c: Contact | null, company?: string): string | null {
+  if (!c) return null;
+  const who = company ? ` (empresa ${company})` : "";
+  if (c.whatsapp) return wa(c.whatsapp, `Hola, necesito ayuda con Admin Marketplace${who}.`);
+  if (c.email) return mail(c.email, `Ayuda con Admin Marketplace${who}`);
+  return null;
+}
