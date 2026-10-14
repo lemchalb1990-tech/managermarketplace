@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat } from '@prisma/client';
+import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { EmailService } from '../email/email.service';
@@ -49,7 +49,7 @@ export class PosService {
 
   async getSettings(user: any, companyId?: string) {
     const cId = this.resolveCompanyId(user, companyId);
-    const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true } });
+    const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true, printLayouts: true } });
     if (!company) throw new NotFoundException('Empresa no encontrada');
     // Tiendas/bodegas asignadas al usuario y, para administradores, todas las de la empresa.
     const isManager = POS_MANAGER_ROLES.includes(user.role);
@@ -65,6 +65,7 @@ export class PosService {
     return {
       workOrderPrintFormat: company.workOrderPrintFormat,
       printFormat: company.workOrderPrintFormat,
+      printLayouts: company.printLayouts ?? null,
       saleWarehouse,
       assignedWarehouses,
       canChooseWarehouse: isManager,
@@ -72,15 +73,19 @@ export class PosService {
     };
   }
 
-  async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat }, companyId?: string) {
+  async updateSettings(user: any, dto: { workOrderPrintFormat?: WorkOrderPrintFormat; printLayouts?: unknown }, companyId?: string) {
     const cId = this.resolveCompanyId(user, companyId);
     if (dto.workOrderPrintFormat && !Object.values(WorkOrderPrintFormat).includes(dto.workOrderPrintFormat)) {
       throw new BadRequestException('Formato de impresión no válido');
     }
+    const layouts = dto.printLayouts === undefined ? undefined : sanitizePrintLayouts(dto.printLayouts);
     return this.prisma.company.update({
       where: { id: cId },
-      data: { ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}) },
-      select: { workOrderPrintFormat: true },
+      data: {
+        ...(dto.workOrderPrintFormat ? { workOrderPrintFormat: dto.workOrderPrintFormat } : {}),
+        ...(layouts !== undefined ? { printLayouts: layouts ?? Prisma.DbNull } : {}),
+      },
+      select: { workOrderPrintFormat: true, printLayouts: true },
     });
   }
 
@@ -794,4 +799,36 @@ export class PosService {
 
     return this.prisma.product.findUnique({ where: { id: dto.productId } });
   }
+}
+
+// Diseño de documentos (editor por bloques): se guarda solo lo conocido, con valores acotados.
+// null = volver al diseño predeterminado de todos los documentos.
+const PRINT_DOCS = ['SALE', 'WORK_ORDER'];
+const PRINT_ALIGN = ['left', 'center', 'right'];
+const PRINT_SIZE = ['S', 'M', 'L', 'XL'];
+const PRINT_SEP = ['dash', 'solid', 'double'];
+const PRINT_ZONE = ['izq', 'der', 'cuerpo', 'pie'];
+function sanitizePrintLayouts(input: unknown): Prisma.InputJsonValue | null {
+  if (input === null) return null;
+  if (typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Diseño de documentos no válido');
+  const out: Record<string, unknown[]> = {};
+  for (const doc of PRINT_DOCS) {
+    const list = (input as Record<string, unknown>)[doc];
+    if (!Array.isArray(list)) continue;
+    out[doc] = list.slice(0, 40).filter((b) => b && typeof b === 'object' && typeof (b as any).id === 'string').map((raw: any) => {
+      const pick = <T>(v: unknown, ok: T[], d: T) => (ok.includes(v as T) ? (v as T) : d);
+      return {
+        id: String(raw.id).slice(0, 30),
+        on: raw.on !== false,
+        align: pick(raw.align, PRINT_ALIGN, 'left'),
+        size: pick(raw.size, PRINT_SIZE, 'M'),
+        bold: !!raw.bold,
+        space: Math.max(0, Math.min(40, Math.round(Number(raw.space) || 0))),
+        zone: pick(raw.zone, PRINT_ZONE, 'cuerpo'),
+        ...(raw.sep !== undefined ? { sep: pick(raw.sep, PRINT_SEP, 'dash') } : {}),
+        ...(typeof raw.text === 'string' ? { text: raw.text.slice(0, 300) } : {}),
+      };
+    });
+  }
+  return out as Prisma.InputJsonValue;
 }

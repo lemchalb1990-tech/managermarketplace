@@ -172,6 +172,9 @@ model Company {
   // Formato de impresión de las órdenes de trabajo del POS — lo elige cada empresa
   // según si imprime en hoja carta o en una impresora térmica de ticket.
   workOrderPrintFormat    WorkOrderPrintFormat @default(CARTA)
+  // Diseño de los documentos impresos (editor por bloques), uno por documento:
+  // { SALE: [...bloques], WORK_ORDER: [...bloques] }. null = diseño predeterminado.
+  printLayouts            Json?
   // Plan comercial (Emprende, Crece, Escala, Corporativo, Demo): límites de canales,
   // productos, usuarios y bodegas, y funciones incluidas. null = sin plan (sin límites).
   subscriptionPlanId      String?

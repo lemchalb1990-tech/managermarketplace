@@ -1,3 +1,5 @@
+import type { PrintLayouts } from './printDesign';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export class ApiError extends Error {
@@ -1466,13 +1468,15 @@ export const api = {
         apiFetch<{
           workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
           printFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
+          // Diseño de documentos por bloques (null = predeterminado).
+          printLayouts?: PrintLayouts | null;
           saleWarehouse?: { id: string; name: string } | null;
           assignedWarehouses?: { id: string; name: string }[];
           canChooseWarehouse?: boolean;
           warehouses?: { id: string; name: string }[];
         }>(`/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-      update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }, token: string, companyId?: string) =>
-        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(
+      update: (data: { workOrderPrintFormat?: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts?: PrintLayouts | null }, token: string, companyId?: string) =>
+        apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58'; printLayouts: PrintLayouts | null }>(
           `/pos/settings${companyId ? `?companyId=${companyId}` : ''}`,
           { method: 'PATCH', body: JSON.stringify(data) },
           token,

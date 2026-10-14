@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getToken } from '@/lib/auth';
 import { api, imgUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -100,6 +101,17 @@ export default function CompanySection() {
               className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 shrink-0">
               Cambiar
             </button>
+          </div>
+
+          <div className="px-5 py-4 flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-800">Diseño de documentos</p>
+              <p className="text-xs text-gray-500">Orden, tamaño y ubicación de los datos del comprobante de venta y de la orden de trabajo.</p>
+            </div>
+            <Link href="/dashboard/settings/diseno-documentos"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 shrink-0">
+              Editar
+            </Link>
           </div>
 
           {notice && <p className="px-5 py-2 text-xs text-green-600">{notice}</p>}

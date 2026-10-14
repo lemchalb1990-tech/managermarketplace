@@ -5,10 +5,9 @@ import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { SkeletonDetail } from '@/components/Skeleton';
-import {
-  type PrintFormat, type DocHeaderData, PAYMENT_LABEL, fmtCLP, formatDateTime,
-  PrintButton, TicketPage, TicketHeader, LetterHeader,
-} from '../../printLayout';
+import { type PrintFormat, type DocHeaderData, PAYMENT_LABEL, formatDateTime } from '../../printLayout';
+import { DesignedDocument } from '../../DesignedDocument';
+import { resolveLayout, type PrintLayouts } from '@/lib/printDesign';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Presupuesto pendiente', CONVERTED: 'Cobrada', REJECTED: 'Rechazada', CANCELLED: 'Anulada',
@@ -20,6 +19,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
   const [workOrder, setWorkOrder] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [printFormat, setPrintFormat] = useState<PrintFormat>('CARTA');
+  const [layouts, setLayouts] = useState<PrintLayouts | null>(null);
   const [error, setError] = useState('');
   const user = getUser();
 
@@ -36,7 +36,7 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
           api.pos.settings.get(token, wo.companyId).catch(() => null),
         ]);
         setProfile(p);
-        if (s) setPrintFormat(s.printFormat);
+        if (s) { setPrintFormat(s.printFormat); setLayouts(s.printLayouts ?? null); }
         setWorkOrder(wo);
         setTimeout(() => window.print(), 400);
       })
@@ -67,120 +67,26 @@ export default function PrintWorkOrderPage({ params }: { params: Promise<{ id: s
     payment: salePayment ? (PAYMENT_LABEL[salePayment] || salePayment) : 'Por definir',
   };
 
-  if (printFormat !== 'CARTA') {
-    return (
-      <TicketPage format={printFormat}>
-        <TicketHeader h={header} format={printFormat} />
-
-        <p>Estado: {STATUS_LABEL[workOrder.status] || workOrder.status}</p>
-        {clientName && <p>Cliente: {clientName}</p>}
-        {clientPhone && <p>Teléfono: {clientPhone}</p>}
-        <div className="ticket-sep" />
-
-        {workOrder.items.map((item: any) => (
-          <div key={item.id} style={{ marginBottom: 4 }}>
-            <p>{item.productName}{item.productSku ? ` (${item.productSku})` : ''}</p>
-            <div className="ticket-row">
-              <span>{item.quantity} x {fmtCLP(Number(item.unitPrice))}</span>
-              <span>{fmtCLP(item.quantity * Number(item.unitPrice))}</span>
-            </div>
-          </div>
-        ))}
-
-        <div className="ticket-sep" />
-        <div className="ticket-row" style={{ fontWeight: 'bold', fontSize: '1.15em' }}>
-          <span>Total</span>
-          <span>{fmtCLP(total)}</span>
-        </div>
-
-        {workOrder.notes && (
-          <div style={{ marginTop: 6 }}>
-            <p style={{ fontWeight: 'bold' }}>Notas</p>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{workOrder.notes}</p>
-          </div>
-        )}
-
-        <p style={{ marginTop: 10, fontSize: '0.85em', textAlign: 'center' }}>
-          Presupuesto/orden de trabajo, no constituye boleta ni factura.
-        </p>
-      </TicketPage>
-    );
-  }
-
+  const status = STATUS_LABEL[workOrder.status] || workOrder.status;
+  // Diseño por bloques de la empresa (Ajustes → Diseño de documentos), en el formato elegido.
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', color: '#0f172a', maxWidth: 720, margin: '0 auto', padding: 32 }}>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; }
-        }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { padding: 8px 10px; text-align: left; }
-        thead th { border-bottom: 2px solid #0f172a; font-size: 12px; text-transform: uppercase; color: #475569; }
-        tbody tr { border-bottom: 1px solid #e2e8f0; }
-      `}</style>
-
-      <PrintButton align="right" />
-
-      <LetterHeader h={header} subtitle={`Presupuesto / Orden de trabajo · ${STATUS_LABEL[workOrder.status] || workOrder.status}`} />
-
-      {(clientName || clientPhone || clientEmail) && (
-        <div style={{ marginBottom: 16, fontSize: 13 }}>
-          <p style={{ fontWeight: 'bold', margin: '0 0 4px' }}>Cliente</p>
-          {clientName && <p style={{ margin: '2px 0' }}>{clientName}</p>}
-          {clientPhone && <p style={{ margin: '2px 0', color: '#475569' }}>{clientPhone}</p>}
-          {clientEmail && <p style={{ margin: '2px 0', color: '#475569' }}>{clientEmail}</p>}
-        </div>
-      )}
-
-      <table>
-        <thead>
-          <tr>
-            <th>Descripción</th>
-            <th style={{ textAlign: 'right' }}>Cant.</th>
-            <th style={{ textAlign: 'right' }}>Precio unit.</th>
-            <th style={{ textAlign: 'right' }}>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {workOrder.items.map((item: any) => (
-            <tr key={item.id}>
-              <td>{item.productName}{item.productSku ? ` (${item.productSku})` : ''}</td>
-              <td style={{ textAlign: 'right' }}>{item.quantity}</td>
-              <td style={{ textAlign: 'right' }}>{fmtCLP(Number(item.unitPrice))}</td>
-              <td style={{ textAlign: 'right' }}>{fmtCLP(item.quantity * Number(item.unitPrice))}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-        <div style={{ minWidth: 200, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 'bold', borderTop: '2px solid #0f172a', paddingTop: 8 }}>
-          <span>Total</span>
-          <span>{fmtCLP(total)}</span>
-        </div>
-      </div>
-
-      {workOrder.notes && (
-        <div style={{ marginTop: 20, fontSize: 13 }}>
-          <p style={{ fontWeight: 'bold', margin: '0 0 4px' }}>Notas</p>
-          <p style={{ margin: 0, color: '#475569', whiteSpace: 'pre-wrap' }}>{workOrder.notes}</p>
-        </div>
-      )}
-
-      <div style={{ marginTop: 48, display: 'flex', justifyContent: 'space-between', gap: 40 }}>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ borderTop: '1px solid #0f172a', paddingTop: 6, fontSize: 12, color: '#475569' }}>Firma cliente</div>
-        </div>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ borderTop: '1px solid #0f172a', paddingTop: 6, fontSize: 12, color: '#475569' }}>Firma responsable</div>
-        </div>
-      </div>
-
-      <p style={{ marginTop: 24, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
-        Este documento es un presupuesto/orden de trabajo, no constituye una boleta ni factura.
-        El precio y disponibilidad quedan sujetos a confirmación al momento de aceptar el trabajo.
-      </p>
-    </div>
+    <DesignedDocument
+      doc="WORK_ORDER"
+      format={printFormat}
+      blocks={resolveLayout(layouts, 'WORK_ORDER')}
+      data={{
+        header,
+        subtitle: `Presupuesto / Orden de trabajo · ${status}`,
+        status,
+        client: clientName || clientPhone || clientEmail ? { name: clientName, phone: clientPhone, email: clientEmail } : null,
+        items: workOrder.items.map((i: any) => ({ id: i.id, name: i.productName, sku: i.productSku, quantity: i.quantity, unitPrice: Number(i.unitPrice) })),
+        total,
+        notes: workOrder.notes,
+        legend: {
+          ticket: 'Presupuesto/orden de trabajo, no constituye boleta ni factura.',
+          carta: 'Este documento es un presupuesto/orden de trabajo, no constituye una boleta ni factura. El precio y disponibilidad quedan sujetos a confirmación al momento de aceptar el trabajo.',
+        },
+      }}
+    />
   );
 }
