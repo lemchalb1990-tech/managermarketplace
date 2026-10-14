@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LoginSplashHost } from "@/components/LoginSplash";
+import { InstallAppHost } from "@/components/InstallApp";
 
 // Una sola familia para toda la app (landing, login y panel): Inter, muy legible en
 // tablas y números. La variable conserva su nombre histórico (--font-hanken).
@@ -20,6 +21,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Admin Marketplace",
   description: "Gestión de inventario y marketplace",
+  // Instalada en iPhone: nombre bajo el ícono y barra de estado oscura sobre la barra azul marino.
+  appleWebApp: { capable: true, title: "Marketplace", statusBarStyle: "black" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#02093a",
 };
 
 export default function RootLayout({
@@ -35,6 +42,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <LoginSplashHost />
+        <InstallAppHost />
       </body>
     </html>
   );

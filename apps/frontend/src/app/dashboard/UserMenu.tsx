@@ -7,6 +7,7 @@ import { api, type SubscriptionUsage } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { useContact, supportHref } from '@/components/landing/contact';
 import { useAdminCompany } from './AdminCompanyContext';
+import { useInstallApp, installAvailable, openInstallSheet } from '@/lib/installApp';
 
 // Menú de usuario de la barra superior ("Cuenta y empresa"): cabecera azul marino con la
 // cuenta, la empresa, su plan, los días de prueba y el uso de productos; accesos grandes
@@ -18,6 +19,7 @@ const ICONS: Record<string, ReactNode> = {
   plan: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   lock: <path d="M6 11h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2ZM8 11V7a4 4 0 0 1 8 0v4" />,
   help: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01" />,
+  phone: <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM11 18h2" />,
   out: <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />,
 };
 
@@ -42,6 +44,7 @@ export function UserMenu({ user, roleLabel, onLogout }: { user: MenuUser; roleLa
   const pathname = usePathname();
   const { isSuperAdmin, selectedCompanyId, companies } = useAdminCompany();
   const contact = useContact();
+  const installApp = useInstallApp();
   // Ruta en la que se abrió: al navegar a otra página el menú queda cerrado solo.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
@@ -106,6 +109,9 @@ export function UserMenu({ user, roleLabel, onLogout }: { user: MenuUser; roleLa
       { key: 'plan', icon: 'plan', title: 'Plan y uso', hint: plan?.isTrial ? 'Elige tu plan' : 'Límites y consumo', href: '/dashboard/uso' },
     ] : []),
     { key: 'lock', icon: 'lock', title: 'Contraseña', hint: 'Te enviamos un enlace', onClick: sendPasswordLink },
+    ...(installAvailable(installApp) ? [
+      { key: 'app', icon: 'phone', title: 'Instalar app', hint: 'Ícono en tu teléfono', onClick: () => { setOpen(false); openInstallSheet(); } },
+    ] : []),
   ];
   const help = supportHref(contact, companyName);
   const tileCls = 'flex flex-col items-start gap-1.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]';
