@@ -1077,6 +1077,13 @@ export const api = {
     },
   },
   // Historial de actividad de la empresa (solo lectura).
+  // Reportes de ventas listos (permiso «Reportes de ventas»).
+  reports: {
+    sales: (params: SalesReportParams, token: string) =>
+      apiFetch<SalesReport>(`/reports/sales?${reportQuery(params)}`, {}, token),
+    salesExcel: (params: SalesReportParams, token: string) =>
+      apiDownload(`/reports/sales/excel?${reportQuery(params)}`, token, `reporte-${params.type}-${params.from ?? ''}-al-${params.to ?? ''}.xlsx`),
+  },
   activity: {
     list: (token: string, f: ActivityFilters & { page?: number }) =>
       apiFetch<{ items: ActivityItem[]; total: number; page: number; pages: number }>(`/activity?${activityQuery(f)}`, {}, token),
@@ -2010,4 +2017,24 @@ export interface SubscriptionUsage {
   trialEndsAt: string | null;
   trialExpired: boolean;
   usage: Record<SubscriptionResource, { used: number; limit: number | null }>;
+}
+
+export type SalesReportType = 'producto' | 'categoria' | 'canal' | 'vendedor' | 'pago' | 'comuna' | 'mes' | 'libro';
+export interface SalesReportParams { type: SalesReportType; from?: string; to?: string; companyId?: string }
+export interface SalesReport {
+  type: SalesReportType;
+  title: string;
+  from: string;
+  to: string;
+  columns: { key: string; label: string; kind: 'text' | 'money' | 'int' | 'pct' }[];
+  rows: Record<string, string | number>[];
+  totals: Record<string, string | number>;
+  truncated: boolean;
+}
+function reportQuery(p: SalesReportParams) {
+  const q = new URLSearchParams({ type: p.type });
+  if (p.from) q.set('from', p.from);
+  if (p.to) q.set('to', p.to);
+  if (p.companyId) q.set('companyId', p.companyId);
+  return q.toString();
 }

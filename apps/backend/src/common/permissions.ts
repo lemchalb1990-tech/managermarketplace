@@ -35,6 +35,8 @@ export const PRODUCT_IMAGES_ADD_PERMISSION = 'product.images.add';
 export const PRODUCT_MERGE_PERMISSION = 'product.merge';
 // Editar el diseño de los documentos impresos (comprobante de venta, orden de trabajo) de la empresa.
 export const PRINT_DESIGN_PERMISSION = 'print.design';
+// Ver y descargar los reportes de ventas (Reportes listos).
+export const SALES_REPORTS_PERMISSION = 'sales.reports';
 const PRODUCT_FIELD_ALL_KEYS = [PRODUCT_CREATE_PERMISSION, PRODUCT_ACTIVATE_PERMISSION, PRODUCT_IMAGES_ADD_PERMISSION, ...PRODUCT_FIELD_VIEW_KEYS, ...PRODUCT_FIELD_EDIT_KEYS];
 
 export const PERMISSION_GROUPS: {
@@ -54,6 +56,7 @@ export const PERMISSION_GROUPS: {
       { key: 'orders', label: 'Órdenes' },
       { key: 'returns', label: 'Devoluciones' },
       { key: 'sales', label: 'Ventas' },
+      { key: SALES_REPORTS_PERMISSION, label: 'Reportes de ventas' },
       { key: 'pos', label: 'Punto de venta' },
       { key: 'pos.work-orders', label: 'Órdenes de trabajo' },
       { key: 'clientes', label: 'Clientes' },
@@ -196,6 +199,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     'orders.scan',
     'returns',
     'sales',
+    SALES_REPORTS_PERMISSION,
     'pos',
     'pos.work-orders',
     'clientes',
