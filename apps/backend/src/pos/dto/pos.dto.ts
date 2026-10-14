@@ -55,6 +55,12 @@ export class CreateSaleDto {
   @IsEnum(FulfillmentType)
   fulfillmentType?: FulfillmentType;
 
+  // Bodega desde la que se vende (solo administradores; '' = la bodega de cada producto).
+  // El vendedor siempre vende desde su bodega asignada.
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
   @IsOptional()
   @IsString()
   clientId?: string;

@@ -65,6 +65,10 @@ export default function PosPage() {
   // de pago" se cobra con varios; un monto vacío toma el saldo que falta.
   const [payments, setPayments] = useState<{ method: string; amount: string }[]>([{ method: 'CASH', amount: '' }]);
   const [notes, setNotes] = useState('');
+  // Bodega de venta: el vendedor vende desde la asignada en Usuarios (fija); un administrador
+  // puede elegirla ('' = la bodega de cada producto). El stock mostrado es el de esa bodega.
+  const [posWh, setPosWh] = useState<{ canChoose: boolean; warehouses: { id: string; name: string }[]; current: { id: string; name: string } | null }>({ canChoose: false, warehouses: [], current: null });
+  const [saleWarehouseId, setSaleWarehouseId] = useState('');
 
   // Cliente registrado
   const [clients, setClients] = useState<any[]>([]);
@@ -165,8 +169,10 @@ export default function PosPage() {
         inStock: onlyInStock || undefined,
         companyId: isSuperAdmin ? selectedCompanyId : undefined,
         pageSize: PAGE_SIZE,
+        stockWarehouseId: saleWarehouseId || undefined,
       }, token);
-      setProducts(res.products);
+      // Con bodega de venta, el stock del producto es el de esa bodega.
+      setProducts(saleWarehouseId ? res.products.map((p: any) => ({ ...p, stock: p.warehouseStock ?? 0 })) : res.products);
       setTotalProducts(res.total);
       setPage(res.page);
       setPages(res.pages);
@@ -175,13 +181,25 @@ export default function PosPage() {
     } finally {
       setProductsLoading(false);
     }
-  }, [token, search, categoryFilter, onlyInStock, isSuperAdmin, selectedCompanyId]);
+  }, [token, search, categoryFilter, onlyInStock, isSuperAdmin, selectedCompanyId, saleWarehouseId]);
 
   useEffect(() => {
     const t = setTimeout(() => loadProducts(1), 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, search, categoryFilter, onlyInStock, selectedCompanyId]);
+  }, [token, search, categoryFilter, onlyInStock, selectedCompanyId, saleWarehouseId]);
+
+  useEffect(() => {
+    if (!token) return;
+    const cid = isSuperAdmin ? selectedCompanyId : undefined;
+    if (isSuperAdmin && !selectedCompanyId) return;
+    api.pos.settings.get(token, cid || undefined).then((st) => {
+      const current = st.saleWarehouse ?? null;
+      setPosWh({ canChoose: !!st.canChooseWarehouse, warehouses: st.warehouses || [], current });
+      setSaleWarehouseId(current?.id || '');
+      setCart([]);
+    }).catch(() => {});
+  }, [token, isSuperAdmin, selectedCompanyId]);
 
   useEffect(() => {
     if (!token) return;
@@ -321,6 +339,7 @@ export default function PosPage() {
         channel: 'POS',
         paymentMethod,
         payments: resolvedPayments,
+        ...(posWh.canChoose ? { warehouseId: saleWarehouseId } : {}),
         notes: notes || undefined,
         fulfillmentType: servicesOnly ? undefined : fulfillmentType,
         clientId: clientId || undefined,
@@ -387,7 +406,7 @@ export default function PosPage() {
     } finally {
       setLoading(false);
     }
-  }, [cart, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+  }, [cart, posWh.canChoose, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -529,6 +548,23 @@ export default function PosPage() {
             />
             Solo con stock
           </label>
+          {posWh.canChoose && posWh.warehouses.length > 0 ? (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Vender desde</label>
+              <select
+                value={saleWarehouseId}
+                onChange={(e) => { setSaleWarehouseId(e.target.value); setCart([]); }}
+                className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
+              >
+                <option value="">Bodega de cada producto</option>
+                {posWh.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+          ) : posWh.current && (
+            <span className="px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700" title="Asignada en Usuarios">
+              Bodega: <strong>{posWh.current.name}</strong>
+            </span>
+          )}
           {(search || categoryFilter || onlyInStock) && (
             <button
               onClick={() => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); }}

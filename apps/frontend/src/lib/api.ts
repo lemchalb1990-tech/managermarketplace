@@ -660,7 +660,7 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<string[]>(`/catalog/products/categories?${q}`, {}, token);
     },
-    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: boolean; stockFilter?: string; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }, token: string) => {
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: boolean; stockFilter?: string; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; stockWarehouseId?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
@@ -673,6 +673,7 @@ export const api = {
       if (params.companyId) q.set('companyId', params.companyId);
       if (params.inStock) q.set('inStock', 'true');
       if (params.stockFilter) q.set('stockFilter', params.stockFilter);
+      if (params.stockWarehouseId) q.set('stockWarehouseId', params.stockWarehouseId);
       if (params.pageSize) q.set('pageSize', String(params.pageSize));
       if (params.sortBy) q.set('sortBy', params.sortBy);
       if (params.sortDir) q.set('sortDir', params.sortDir);
@@ -1450,6 +1451,9 @@ export const api = {
         apiFetch<{
           workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
           printFormat: 'CARTA' | 'TICKET' | 'TICKET_58';
+          saleWarehouse?: { id: string; name: string } | null;
+          canChooseWarehouse?: boolean;
+          warehouses?: { id: string; name: string }[];
         }>(`/pos/settings${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
       update: (data: { workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }, token: string, companyId?: string) =>
         apiFetch<{ workOrderPrintFormat: 'CARTA' | 'TICKET' | 'TICKET_58' }>(

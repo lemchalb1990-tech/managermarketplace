@@ -309,7 +309,7 @@ export class WorkOrdersService {
       // "if (dto.fulfillmentType)") — una orden de trabajo siempre es retiro en
       // mostrador, no hay dirección de entrega que capturar.
       fulfillmentType: FulfillmentType.PICKUP,
-    }, user);
+    }, user, { useSellerWarehouse: false });
 
     // La reserva se libera recién ahora que la venta ya se concretó — createSale ya
     // descontó la existencia real, así que "reserved" pasa a consumido, no a disponible.

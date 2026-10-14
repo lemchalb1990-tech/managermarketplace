@@ -3501,6 +3501,13 @@ export default function CatalogPage() {
                         <input type="file" accept="image/*" multiple className="hidden"
                           onChange={(e) => { addNewImages(e.target.files); e.target.value = ''; }} />
                       </label>
+                      {/* Celular: abre la cámara directo para fotografiar el producto. */}
+                      <label className="sm:hidden w-20 h-20 shrink-0 flex flex-col items-center justify-center gap-0.5 rounded-lg bg-blue-600 text-white cursor-pointer text-center">
+                        <span className="text-xl leading-none">📷</span>
+                        <span className="text-[10px] leading-tight px-1 font-semibold">Tomar foto</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden"
+                          onChange={(e) => { addNewImages(e.target.files); e.target.value = ''; }} />
+                      </label>
                     </div>
                   </div>
                 )}
@@ -3999,6 +4006,12 @@ export default function CatalogPage() {
                     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple
                       onChange={handleUpload} disabled={uploadLoading}
                       className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50" />
+                    {/* Celular: abre la cámara directo para fotografiar el producto. */}
+                    <label className={`sm:hidden mt-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold ${uploadLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                      📷 Tomar foto
+                      <input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploadLoading}
+                        onChange={(e) => { handleUpload(e); e.target.value = ''; }} />
+                    </label>
                     {uploadLoading && <p className="text-xs text-gray-400 mt-2">Subiendo imágenes...</p>}
                   </div>
                 </div>

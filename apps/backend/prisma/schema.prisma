@@ -323,6 +323,9 @@ model User {
   invitationsSent       UserInvitation[] @relation("InvitationInvitedBy")
   companyInvitationsSent CompanyInvitation[] @relation("CompanyInvitationInvitedBy")
 
+  // Bodega desde la que vende en el punto de venta (null = la bodega de cada producto).
+  posWarehouseId        String?
+  posWarehouse          Warehouse?       @relation("UserPosWarehouse", fields: [posWarehouseId], references: [id], onDelete: SetNull)
   cashClosures          CashClosure[]    @relation("CashClosureCashier")
   cashClosuresClosed    CashClosure[]    @relation("CashClosureClosedBy")
 
@@ -398,6 +401,8 @@ model Warehouse {
   transferDocsFrom TransferDocument[] @relation("TransferDocFrom")
   transferDocsTo   TransferDocument[] @relation("TransferDocTo")
   workOrderItems WorkOrderItem[]
+
+  posUsers       User[]          @relation("UserPosWarehouse")
 
   @@map("warehouses")
 }

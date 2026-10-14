@@ -27,7 +27,7 @@ const roleBadge: Record<string, string> = {
 };
 
 const emptyForm = { name: '', email: '', password: '', companyId: '', accessProfileId: '' };
-const emptyEdit = { name: '', role: '', password: '', active: true, accessProfileId: '' };
+const emptyEdit = { name: '', role: '', password: '', active: true, accessProfileId: '', posWarehouseId: '' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -59,6 +59,8 @@ export default function UsersPage() {
   const [resetSaved, setResetSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleteUser, setDeleteUser] = useState<any>(null);
+  // Bodegas de la empresa del usuario en edición (para "Bodega de venta" del punto de venta).
+  const [editWarehouses, setEditWarehouses] = useState<{ id: string; name: string; active?: boolean }[]>([]);
 
   async function load() {
     const token = getToken();
@@ -111,7 +113,14 @@ export default function UsersPage() {
       password: '',
       active: u.active,
       accessProfileId: u.accessProfile?.id || '',
+      posWarehouseId: u.posWarehouse?.id || '',
     });
+    setEditWarehouses([]);
+    if (u.role !== 'SUPER_ADMIN' && u.company?.id) {
+      api.warehouses.list(getToken()!, isSuperAdmin ? u.company.id : undefined)
+        .then((ws) => setEditWarehouses(ws.filter((w: any) => w.active !== false || w.id === u.posWarehouse?.id)))
+        .catch(() => setEditWarehouses([]));
+    }
     setEditError('');
     setShowPassword(false);
   }
@@ -125,7 +134,7 @@ export default function UsersPage() {
       const payload: any = {
         name: editForm.name,
         active: editForm.active,
-        ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null } : {}),
+        ...(editUser.role !== 'SUPER_ADMIN' ? { accessProfileId: editForm.accessProfileId || null, posWarehouseId: editForm.posWarehouseId || null } : {}),
       };
       if (editForm.password) payload.password = editForm.password;
       await api.users.update(editUser.id, payload, token);
@@ -367,6 +376,18 @@ export default function UsersPage() {
                     {profilesFor(editUser.company?.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   <p className="text-xs text-gray-400 mt-0.5">El perfil define dónde entra y qué puede hacer.</p>
+                </div>
+              )}
+              {editUser.role !== 'SUPER_ADMIN' && editWarehouses.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Bodega de venta (punto de venta)</label>
+                  <select value={editForm.posWarehouseId}
+                    onChange={(e) => setEditForm(f => ({ ...f, posWarehouseId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="">Sin asignar (bodega de cada producto)</option>
+                    {editWarehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-0.5">Vende y descuenta stock solo desde esta bodega; si no hay stock ahí, la venta se bloquea.</p>
                 </div>
               )}
               <div>

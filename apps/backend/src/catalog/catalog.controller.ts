@@ -57,8 +57,9 @@ export class CatalogController {
     @Query('pageSize') pageSize?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
+    @Query('stockWarehouseId') stockWarehouseId?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir, stockWarehouseId });
   }
 
   // Dashboard: total de productos con stock crítico y los más urgentes (sin descargar el catálogo).

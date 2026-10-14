@@ -25,6 +25,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   accessProfileId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  posWarehouseId?: string | null;
 }
 
 export class UpdateUserDto {
@@ -52,4 +56,9 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   accessProfileId?: string | null;
+
+  // Bodega desde la que vende en el punto de venta (null = la bodega de cada producto).
+  @IsOptional()
+  @IsString()
+  posWarehouseId?: string | null;
 }

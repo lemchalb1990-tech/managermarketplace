@@ -8,6 +8,9 @@ import { StockLedgerService } from '../purchases/stock-ledger.service';
 import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
+import { warehouseStockFor } from '../common/warehouse-stock.util';
+
+const POS_MANAGER_ROLES: Role[] = [Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER];
 
 function isValidSaleChannel(v?: string): v is SaleChannel {
   return !!v && Object.values(SaleChannel).includes(v as SaleChannel);
@@ -48,11 +51,22 @@ export class PosService {
     const cId = this.resolveCompanyId(user, companyId);
     const company = await this.prisma.company.findUnique({ where: { id: cId }, select: { workOrderPrintFormat: true } });
     if (!company) throw new NotFoundException('Empresa no encontrada');
+    // Bodega de venta del usuario y, para administradores, las bodegas para elegir.
+    const isManager = POS_MANAGER_ROLES.includes(user.role);
+    const [saleWarehouse, warehouses] = await Promise.all([
+      this.resolveSaleWarehouse(user, cId),
+      isManager
+        ? this.prisma.warehouse.findMany({ where: { companyId: cId, active: true }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
+        : Promise.resolve([]),
+    ]);
     // El formato de ticket es de la empresa (lo define su administrador en Ajustes del sistema →
     // Configuración) y aplica a todos sus usuarios. printFormat = el que se usa al imprimir.
     return {
       workOrderPrintFormat: company.workOrderPrintFormat,
       printFormat: company.workOrderPrintFormat,
+      saleWarehouse,
+      canChooseWarehouse: isManager,
+      warehouses,
     };
   }
 
@@ -68,8 +82,32 @@ export class PosService {
     });
   }
 
-  async createSale(dto: CreateSaleDto, user: any) {
+  // Bodega desde la que vende el usuario en el punto de venta: el vendedor, la asignada en
+  // Usuarios; un administrador, la que elija en el punto de venta (o la suya asignada).
+  async resolveSaleWarehouse(user: any, companyId: string, requested?: string): Promise<{ id: string; name: string } | null> {
+    let id: string | null = null;
+    if (POS_MANAGER_ROLES.includes(user.role) && requested !== undefined) {
+      id = requested || null;
+    } else {
+      const u = await this.prisma.user.findUnique({ where: { id: user.id }, select: { posWarehouseId: true } });
+      id = u?.posWarehouseId ?? null;
+    }
+    if (!id) return null;
+    const wh = await this.prisma.warehouse.findUnique({ where: { id }, select: { id: true, name: true, companyId: true } });
+    if (!wh || wh.companyId !== companyId) {
+      if (POS_MANAGER_ROLES.includes(user.role)) throw new BadRequestException('Bodega inválida para esta empresa');
+      return null;
+    }
+    return { id: wh.id, name: wh.name };
+  }
+
+  async createSale(dto: CreateSaleDto, user: any, opts: { useSellerWarehouse?: boolean } = { useSellerWarehouse: true }) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
+    // Venta directa: se vende (y descuenta) desde la bodega del vendedor. Las órdenes de
+    // trabajo convertidas mantienen la bodega de cada producto (ahí reservaron el stock).
+    const saleWarehouse = dto.channel === SaleChannel.POS && opts.useSellerWarehouse !== false
+      ? await this.resolveSaleWarehouse(user, companyId, dto.warehouseId)
+      : null;
 
     let client: { id: string; name: string; email: string | null; phone: string | null } | null = null;
     if (dto.clientId) {
@@ -90,6 +128,22 @@ export class PosService {
       if (!product.active) throw new BadRequestException(`El producto "${product.name}" está inactivo`);
       if (product.type !== ProductType.SERVICIO && !product.dropship && product.stock < item.quantity) {
         throw new BadRequestException(`Stock insuficiente para "${product.name}": disponible ${product.stock}, solicitado ${item.quantity}`);
+      }
+    }
+
+    // Con bodega de venta, el stock tiene que estar en ESA bodega: si no alcanza, se bloquea
+    // la venta aunque haya stock en otra.
+    if (saleWarehouse) {
+      const physical = products.filter((p) => p.type !== ProductType.SERVICIO && !p.dropship);
+      const inWarehouse = await warehouseStockFor(this.prisma, companyId, saleWarehouse.id, physical);
+      const qtyByProduct = new Map<string, number>();
+      for (const i of dto.items) qtyByProduct.set(i.productId, (qtyByProduct.get(i.productId) || 0) + i.quantity);
+      for (const p of physical) {
+        const available = inWarehouse.get(p.id) ?? 0;
+        const wanted = qtyByProduct.get(p.id) || 0;
+        if (available < wanted) {
+          throw new BadRequestException(`Sin stock suficiente en la bodega "${saleWarehouse.name}" para "${p.name}": disponible ${available}, solicitado ${wanted}`);
+        }
       }
     }
 
@@ -169,7 +223,7 @@ export class PosService {
         const totalCost = await this.costing.consumeForSale(tx, {
           companyId,
           productId: item.productId,
-          warehouseId: product.warehouseId,
+          warehouseId: saleWarehouse?.id ?? product.warehouseId,
           quantity: item.quantity,
           saleItemId: item.id,
           reason: `Venta ${dto.channel === SaleChannel.POS ? 'POS' : dto.channel}`,
@@ -194,7 +248,7 @@ export class PosService {
             city: dto.city,
             companyId,
             saleId: created.id,
-            warehouseId: autoWarehouseId || undefined,
+            warehouseId: saleWarehouse?.id || autoWarehouseId || undefined,
             createdById: user.id,
             itemChecks: {
               create: physicalItems.map(i => {

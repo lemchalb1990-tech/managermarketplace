@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { warehouseStockFor } from '../common/warehouse-stock.util';
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -116,8 +117,12 @@ export class CatalogService {
     });
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string }) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string }) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
+    // Punto de venta con bodega de venta: el stock que se muestra (y "Solo con stock") es el de esa bodega.
+    const stockWh = query.stockWarehouseId && companyId
+      ? await this.prisma.warehouse.findFirst({ where: { id: query.stockWarehouseId, companyId }, select: { id: true } })
+      : null;
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
@@ -154,6 +159,19 @@ export class CatalogService {
       andConditions.push({ listings: { none: channelWhere } });
     } else if (query.channel) {
       andConditions.push({ listings: { some: channelWhere } });
+    }
+    if (stockWh && query.inStock === 'true') {
+      // Con stock en la bodega: por su fila de stock o, si el producto aún no tiene stock por
+      // bodega, todo su stock cuenta en su bodega (o la por defecto de la empresa).
+      const defaultWh = await this.prisma.warehouse.findFirst({ where: { companyId, active: true }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+      andConditions.push({
+        OR: [
+          { type: 'SERVICIO' },
+          { productStocks: { some: { warehouseId: stockWh.id, quantity: { gt: 0 } } } },
+          { productStocks: { none: {} }, warehouseId: stockWh.id, stock: { gt: 0 } },
+          ...(defaultWh?.id === stockWh.id ? [{ productStocks: { none: {} }, warehouseId: null, stock: { gt: 0 } }] : []),
+        ],
+      });
     }
     if (andConditions.length) where.AND = andConditions;
 
@@ -224,6 +242,13 @@ export class CatalogService {
       this.prisma.product.count({ where }),
     ]);
 
+    if (stockWh && companyId) {
+      const inWh = await warehouseStockFor(this.prisma, companyId, stockWh.id, products);
+      return {
+        products: products.map((p) => ({ ...p, warehouseStock: inWh.get(p.id) ?? 0 })),
+        total, page, pages: Math.ceil(total / take),
+      };
+    }
     return { products, total, page, pages: Math.ceil(total / take) };
   }
 
