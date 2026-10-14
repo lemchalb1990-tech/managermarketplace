@@ -27,6 +27,7 @@ export function FilterBar({
   onApply,
   onClear,
   summary,
+  chips,
   // Fija arriba al hacer scroll, igual que el Catálogo.
   sticky = true,
   className = '',
@@ -44,6 +45,8 @@ export function FilterBar({
   onClear?: () => void;
   // Texto a la derecha, p. ej. "128 órdenes".
   summary?: ReactNode;
+  // Filtros activos como chips, visibles con «Más filtros» cerrado.
+  chips?: ReactNode;
   sticky?: boolean;
   className?: string;
 }) {
@@ -82,6 +85,7 @@ export function FilterBar({
         )}
         {summary != null && <span className="ml-auto text-sm text-[var(--text-2)] self-center">{summary}</span>}
       </div>
+      {hasAdvanced && !open && chips && <div className="mt-2 flex flex-wrap items-center gap-1.5">{chips}</div>}
       {hasAdvanced && open && (
         <div className="mt-2 bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-2 sm:gap-3 shadow-sm">
           {children}

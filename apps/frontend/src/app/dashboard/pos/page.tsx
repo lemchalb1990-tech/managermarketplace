@@ -5,6 +5,7 @@ import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
+import { FilterBar, FilterField, filterSelectCls } from '@/components/FilterBar';
 
 interface CartItem {
   productId: string;
@@ -506,6 +507,22 @@ export default function PosPage() {
     }
   }
 
+  // Cambiar la bodega de venta vacía el carrito (el stock es otro) y se recuerda por usuario.
+  function changeSaleWarehouse(id: string) {
+    setSaleWarehouseId(id);
+    setCart([]);
+    try { localStorage.setItem(`pos_sale_wh_${user?.id || ''}`, id); } catch {}
+  }
+
+  // Filtros activos como chips bajo la búsqueda (con «Más filtros» cerrado).
+  const saleWhName = (posWh.canChoose ? posWh.warehouses : posWh.assigned).find((w) => w.id === saleWarehouseId)?.name
+    ?? (posWh.assigned.length === 1 ? posWh.assigned[0].name : null);
+  const posFilterChips: { key: string; label: string; onRemove?: () => void }[] = [
+    ...(saleWhName ? [{ key: 'wh', label: `Vender desde: ${saleWhName}`, onRemove: posWh.canChoose ? () => changeSaleWarehouse('') : undefined }] : []),
+    ...(categoryFilter ? [{ key: 'cat', label: categoryFilter, onRemove: () => setCategoryFilter('') }] : []),
+    ...(onlyInStock ? [{ key: 'stock', label: 'Solo con stock', onRemove: () => setOnlyInStock(false) }] : []),
+  ];
+
   // Alto fijo para que carrito y catálogo calcen en una pantalla (el selector de empresa del
   // Super Admin está en la barra superior, no ocupa espacio dentro de la página).
   const posHeightClass = 'h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-6.5rem)] lg:h-[calc(100dvh-7.5rem)]';
@@ -523,69 +540,52 @@ export default function PosPage() {
           </div>
         ) : (
         <>
-        <div className="flex flex-wrap items-end gap-3 mb-4">
-          <div className="flex-1 min-w-[220px]">
-            <label className="text-xs text-gray-500 block mb-1">Buscar</label>
-            <input
-              type="text"
-              placeholder="Buscar por nombre o SKU..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Categoría</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
-            >
+        {/* Búsqueda a la vista; Categoría, Solo con stock y Vender desde en «Más filtros». */}
+        <FilterBar
+          sticky={false}
+          className="!mb-3"
+          search={{ label: 'Buscar', value: search, onChange: setSearch, placeholder: 'Buscar por nombre o SKU...' }}
+          activeCount={(categoryFilter ? 1 : 0) + (onlyInStock ? 1 : 0) + (posWh.canChoose && saleWarehouseId ? 1 : 0)}
+          onClear={search || categoryFilter || onlyInStock ? () => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); } : undefined}
+          chips={posFilterChips.length ? <>
+            {posFilterChips.map((c) => (
+              <span key={c.key} className={`inline-flex items-center gap-1.5 rounded-full pl-2.5 ${c.onRemove ? 'pr-1' : 'pr-2.5'} py-0.5 text-xs ${c.key === 'wh' ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--brand-light)] text-[var(--brand-ink)]'}`}>
+                {c.label}
+                {c.onRemove && (
+                  <button type="button" onClick={c.onRemove} aria-label={`Quitar ${c.label}`} className="w-[18px] h-[18px] rounded-full bg-black/5 hover:bg-black/10 text-[10px] leading-none">✕</button>
+                )}
+              </span>
+            ))}
+            {(categoryFilter || onlyInStock) && (
+              <button type="button" onClick={() => { setCategoryFilter(''); setOnlyInStock(false); }} className="text-xs text-[var(--brand)] hover:underline px-1">Limpiar filtros</button>
+            )}
+          </> : undefined}
+        >
+          <FilterField label="Categoría">
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={filterSelectCls}>
               <option value="">Todas</option>
               {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-          </div>
-          <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 bg-white cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={onlyInStock}
-              onChange={(e) => setOnlyInStock(e.target.checked)}
-              className="rounded"
-            />
-            Solo con stock
-          </label>
+          </FilterField>
           {(posWh.canChoose ? posWh.warehouses.length > 0 : posWh.assigned.length > 1) ? (
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Vender desde</label>
-              <select
-                value={saleWarehouseId}
-                onChange={(e) => {
-                  setSaleWarehouseId(e.target.value);
-                  setCart([]);
-                  try { localStorage.setItem(`pos_sale_wh_${user?.id || ''}`, e.target.value); } catch {}
-                }}
-                className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
-              >
+            <FilterField label="Vender desde">
+              <select value={saleWarehouseId} onChange={(e) => changeSaleWarehouse(e.target.value)} className={filterSelectCls}>
                 {posWh.canChoose && <option value="">Bodega de cada producto</option>}
                 {(posWh.canChoose ? posWh.warehouses : posWh.assigned).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
-            </div>
+            </FilterField>
           ) : posWh.assigned.length === 1 && (
             <span className="px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700" title="Asignada en Usuarios">
               Tienda: <strong>{posWh.assigned[0].name}</strong>
             </span>
           )}
-          {(search || categoryFilter || onlyInStock) && (
-            <button
-              onClick={() => { setSearch(''); setCategoryFilter(''); setOnlyInStock(false); }}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
-            >
-              Limpiar
-            </button>
-          )}
-        </div>
+          <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 bg-white cursor-pointer select-none">
+            <input type="checkbox" checked={onlyInStock} onChange={(e) => setOnlyInStock(e.target.checked)} className="rounded" />
+            Solo con stock
+          </label>
+        </FilterBar>
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h2 className="ui-section-title">
