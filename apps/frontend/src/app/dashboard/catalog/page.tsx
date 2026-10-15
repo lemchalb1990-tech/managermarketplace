@@ -1552,7 +1552,6 @@ export default function CatalogPage() {
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] } | null>(null);
   const [search, setSearch] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
@@ -1577,7 +1576,7 @@ export default function CatalogPage() {
     return () => mq.removeEventListener('change', update);
   }, []);
   const view = isMobile ? 'grid' : viewMode;
-  const advancedFilterCount = [warehouseFilter, categoryFilter, typeFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
+  const advancedFilterCount = [categoryFilter, typeFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1657,7 +1656,6 @@ export default function CatalogPage() {
   // Pantalla vacía: con filtros muestra cada filtro para quitarlo; sin filtros, los primeros pasos.
   const catalogFilters = [
     ...(search ? [{ label: `«${search}»`, onRemove: () => setSearch('') }] : []),
-    ...(warehouseFilter ? [{ label: `Bodega: ${warehouses.find((w) => w.id === warehouseFilter)?.name ?? warehouseFilter}`, onRemove: () => setWarehouseFilter('') }] : []),
     ...(categoryFilter ? [{ label: `Categoría: ${categoryFilter}`, onRemove: () => setCategoryFilter('') }] : []),
     ...(typeFilter ? [{ label: typeFilter === 'SERVICIO' ? 'Servicios' : 'Artículos', onRemove: () => setTypeFilter('') }] : []),
     ...(activeFilter ? [{ label: activeFilter === 'true' ? 'Activos' : 'Inactivos', onRemove: () => setActiveFilter('') }] : []),
@@ -1666,7 +1664,7 @@ export default function CatalogPage() {
     ...(stockFilter ? [{ label: ({ in: 'Con stock', critical: 'Stock crítico', out: 'Sin stock' } as Record<string, string>)[stockFilter] ?? 'Stock', onRemove: () => setStockFilter('') }] : []),
   ];
   const catalogSetup = useCompanySetup(!loading && products.length === 0 && catalogFilters.length === 0);
-  function clearCatalogFilters() { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
+  function clearCatalogFilters() { setSearch(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
   const catalogSetupSteps: SetupStep[] = [
     { title: 'Crear tu empresa', done: true },
     {
@@ -1804,7 +1802,6 @@ export default function CatalogPage() {
       const res = await api.catalog.search({
         page: p,
         search: search || undefined,
-        warehouseId: warehouseFilter || undefined,
         category: categoryFilter || undefined,
         type: typeFilter || undefined,
         active: activeFilter || undefined,
@@ -1829,7 +1826,6 @@ export default function CatalogPage() {
   function currentCatalogFilters() {
     return {
       search: search || undefined,
-      warehouseId: warehouseFilter || undefined,
       category: categoryFilter || undefined,
       type: typeFilter || undefined,
       active: activeFilter || undefined,
@@ -2963,18 +2959,6 @@ export default function CatalogPage() {
         onClear={clearCatalogFilters}
         summary={<FilterCount n={total} label="producto(s)" />}
       >
-        <FilterField label="Bodega">
-          <select
-            value={warehouseFilter}
-            onChange={(e) => setWarehouseFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
-          >
-            <option value="">Todas</option>
-            {warehouses.map((w: any) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
-        </FilterField>
         <FilterField label="Categoría">
           <select
             value={categoryFilter}
