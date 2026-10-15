@@ -22,6 +22,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'ecommerce_ripley', label: 'Ripley', description: 'Marketplace Ripley' },
   { key: 'ecommerce_walmart', label: 'Walmart', description: 'Marketplace Walmart Chile' },
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
+  { key: 'orders', label: 'Órdenes', description: 'Preparación, picking, packing y entrega. Sin él, las ventas del punto de venta quedan entregadas al cobrar y Órdenes solo la ven los administradores' },
   { key: 'variable_price', label: 'Precio variable', description: 'Productos cuyo precio real se ingresa al cobrar en el punto de venta (por línea o por combo)' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },
   { key: 'billing', label: 'Facturación electrónica', description: 'Documentos tributarios electrónicos' },

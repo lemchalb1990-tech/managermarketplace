@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat, Prisma } from '@prisma/client';
+import { FulfillmentType, PaymentMethod, ProductType, Role, SaleChannel, MovementType, WorkOrderPrintFormat, Prisma, OrderStatus, OrderEventSource } from '@prisma/client';
 import { hasPermission, permissionsForUser, PRINT_DESIGN_PERMISSION } from '../common/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
@@ -12,6 +12,9 @@ import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
 import { matchesModule } from '../common/modules.util';
 import { assertSalePrices, VARIABLE_PRICE_MODULE } from './sale-prices.util';
+
+// Módulo por empresa: proceso de órdenes (preparación, despacho y entrega).
+const ORDERS_MODULE = 'orders';
 
 const POS_MANAGER_ROLES: Role[] = [Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER];
 
@@ -199,10 +202,14 @@ export class PosService {
       }
     }
 
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
     if (opts.enforcePrices) {
-      const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
       assertSalePrices(dto.items, products, matchesModule(company?.modules, VARIABLE_PRICE_MODULE));
     }
+    // Sin el módulo de órdenes, la empresa no prepara ni despacha desde el panel: la orden
+    // de una venta del punto de venta nace entregada al cobrar (el stock ya se descontó
+    // con la venta, como siempre).
+    const deliverOnCharge = dto.channel === SaleChannel.POS && !matchesModule(company?.modules, ORDERS_MODULE);
 
     const total = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
@@ -308,6 +315,20 @@ export class PosService {
             saleId: created.id,
             warehouseId: saleWarehouse?.id || autoWarehouseId || undefined,
             createdById: user.id,
+            ...(deliverOnCharge ? {
+              status: OrderStatus.DELIVERED,
+              deliveredAt: new Date(),
+              statusEvents: {
+                create: {
+                  status: OrderStatus.DELIVERED,
+                  source: OrderEventSource.SYSTEM,
+                  title: 'Entregada al cobrar',
+                  detail: 'La empresa no usa el módulo de órdenes',
+                  actorName: user.name ?? user.email ?? null,
+                  occurredAt: new Date(),
+                },
+              },
+            } : {}),
             itemChecks: {
               create: physicalItems.map(i => {
                 const p = products.find(pr => pr.id === i.productId)!;

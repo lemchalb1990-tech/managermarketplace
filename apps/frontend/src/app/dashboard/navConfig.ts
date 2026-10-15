@@ -4,12 +4,14 @@ import { can } from '@/lib/permissions';
 // superOnly: visible solo para Super Admin aunque el perfil de acceso traiga '*' o la key.
 // anyPerm: el ítem se ve con cualquiera de esos permisos (además de `perm`).
 // planFeature: función del plan comercial que debe incluir la empresa (si no, se oculta).
+// adminWithoutModule: sin el módulo, igual lo ve el administrador de la empresa (p. ej. Órdenes
+// como historial cuando la empresa no usa el proceso de órdenes).
 // Visibilidad = mismo criterio que el servidor: la mayoría de las páginas las valida por ROL
 // (el ítem exige el permiso Y uno de `roles`); las que el servidor valida solo por PERMISO
 // (permOnly) se muestran con el permiso aunque el rol no esté en la lista. Así un perfil
 // amplio (p. ej. "Acceso total") en un rol menor no ve opciones que luego dirían
 // "No tienes permisos para esta acción".
-export type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean; planFeature?: PlanFeature; permOnly?: boolean };
+export type NavItem = { href: string; label: string; perm: string; anyPerm?: string[]; roles: string[]; module: string | null; superOnly?: boolean; planFeature?: PlanFeature; permOnly?: boolean; adminWithoutModule?: boolean };
 export type NavGroup = { key: string; label: string; items: NavItem[] };
 
 // Estructura por secciones (estilo consola de operación). Cada ítem conserva su
@@ -31,7 +33,7 @@ export const navGroups: NavGroup[] = [
       { href: '/dashboard/pos/cierre-caja', label: 'Cierre de caja', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/clientes', label: 'Registro de Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
       { href: '/dashboard/devoluciones', label: 'Devoluciones', perm: 'returns', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null, permOnly: true },
-      { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
+      { href: '/dashboard/orders', label: 'Órdenes', perm: 'orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'orders', adminWithoutModule: true },
       { href: '/dashboard/sales', label: 'Reporte de Ventas', perm: 'sales', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'sales' },
       { href: '/dashboard/reportes', label: 'Reportes Detalles de Ventas', perm: 'sales.reports', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'detailed_reports', permOnly: true },
     ],
@@ -83,10 +85,10 @@ export const navGroups: NavGroup[] = [
     key: 'operacion',
     label: 'Operación',
     items: [
-      { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders.scan', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null },
-      { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: null, permOnly: true },
-      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
-      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: null, planFeature: 'PICKING', permOnly: true },
+      { href: '/dashboard/orders/escanear', label: 'Escanear', perm: 'orders.scan', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'orders' },
+      { href: '/dashboard/bodega', label: 'Tablero de bodega', perm: 'warehouse.board', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'orders', permOnly: true },
+      { href: '/dashboard/bodega/picking', label: 'Picking', perm: 'warehouse.picking', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: 'orders', planFeature: 'PICKING', permOnly: true },
+      { href: '/dashboard/bodega/packing', label: 'Packing', perm: 'warehouse.packing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'DESPACHADOR'], module: 'orders', planFeature: 'PICKING', permOnly: true },
     ],
   },
   {
@@ -143,7 +145,8 @@ export function navItemVisible(user: any, n: NavItem): boolean {
   return (!n.superOnly || user.role === 'SUPER_ADMIN')
     && (n.permOnly || user.role === 'SUPER_ADMIN' || n.roles.includes(user.role))
     && (can(user, n.perm, n.roles) || (n.anyPerm ?? []).some((p) => can(user, p, n.roles)))
-    && hasModule(user, n.module) && planAllows(user, n.planFeature);
+    && (hasModule(user, n.module) || (!!n.adminWithoutModule && user.role === 'COMPANY_ADMIN'))
+    && planAllows(user, n.planFeature);
 }
 
 export function visibleNavGroups(user: any): NavGroup[] {
