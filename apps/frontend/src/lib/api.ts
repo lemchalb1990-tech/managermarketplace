@@ -2029,7 +2029,7 @@ export interface SubscriptionUsage {
 
 export type SalesReportType = 'producto' | 'categoria' | 'canal' | 'vendedor' | 'pago' | 'comuna' | 'mes' | 'libro';
 export interface ReportSchedule { id: string; type: SalesReportType; email: string; weekday: number; hour: number; showCost: boolean; createdByName: string | null; lastSentAt: string | null }
-export interface SalesReportParams { type: SalesReportType; from?: string; to?: string; companyId?: string }
+export interface SalesReportParams { type: SalesReportType; from?: string; to?: string; companyId?: string; page?: number }
 export interface SalesReport {
   type: SalesReportType;
   title: string;
@@ -2039,11 +2039,15 @@ export interface SalesReport {
   rows: Record<string, string | number>[];
   totals: Record<string, string | number>;
   truncated: boolean;
+  rowCount?: number;
+  page?: number;
+  pages?: number;
 }
 function reportQuery(p: SalesReportParams) {
   const q = new URLSearchParams({ type: p.type });
   if (p.from) q.set('from', p.from);
   if (p.to) q.set('to', p.to);
   if (p.companyId) q.set('companyId', p.companyId);
+  if (p.page) q.set('page', String(p.page));
   return q.toString();
 }

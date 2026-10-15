@@ -43,7 +43,14 @@ export interface SalesReport {
   rows: Record<string, string | number>[];
   totals: Record<string, string | number>;
   truncated: boolean;
+  // Solo en la vista paginada: filas totales del reporte y la página devuelta.
+  rowCount?: number;
+  page?: number;
+  pages?: number;
 }
+
+const PAGE_SIZE = 25;
+const CACHE_MS = 60_000;
 
 const CHANNEL_LABEL: Record<string, string> = {
   POS: 'Punto de venta', MERCADO_LIBRE: 'Mercado Libre', SHOPIFY: 'Shopify', WOOCOMMERCE: 'WooCommerce',
@@ -232,10 +239,30 @@ export class SalesReportsService {
     return { type: t, title: REPORT_TITLE[t], from, to, columns, rows, totals, truncated };
   }
 
-  async forUser(user: any, q: { type?: string; from?: string; to?: string; companyId?: string }) {
+  // Reportes recién armados (por empresa, tipo, período y si muestra costo) para que cambiar de
+  // página no vuelva a recorrer todas las ventas del período.
+  private cache = new Map<string, { at: number; report: SalesReport }>();
+
+  async forUser(user: any, q: { type?: string; from?: string; to?: string; companyId?: string; page?: string | number }) {
     this.assertAccess(user);
     const companyId = await this.licensedCompanyId(user, q.companyId);
-    return this.build(companyId, q.type || 'producto', q.from, q.to, { showCost: canProductField(user, 'cost', 'view') });
+    const showCost = canProductField(user, 'cost', 'view');
+    const type = q.type || 'producto';
+    if (q.page === undefined || q.page === '') return this.build(companyId, type, q.from, q.to, { showCost });
+
+    const key = [companyId, type, q.from ?? '', q.to ?? '', showCost ? 1 : 0].join('|');
+    const now = Date.now();
+    for (const [k, v] of this.cache) if (now - v.at > CACHE_MS) this.cache.delete(k);
+    let report = this.cache.get(key)?.report;
+    // La página 1 siempre se recalcula (abrir o cambiar el reporte trae datos al día).
+    if (!report || Number(q.page) <= 1) {
+      report = await this.build(companyId, type, q.from, q.to, { showCost });
+      this.cache.set(key, { at: now, report });
+    }
+    const rowCount = report.rows.length;
+    const pages = Math.max(1, Math.ceil(rowCount / PAGE_SIZE));
+    const page = Math.min(pages, Math.max(1, Math.trunc(Number(q.page)) || 1));
+    return { ...report, rows: report.rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), rowCount, page, pages };
   }
 
   async excel(report: SalesReport, companyName: string): Promise<Buffer> {

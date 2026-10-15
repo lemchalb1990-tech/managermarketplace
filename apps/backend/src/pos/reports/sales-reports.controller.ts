@@ -13,7 +13,7 @@ export class SalesReportsController {
   constructor(private service: SalesReportsService, private schedules: SalesReportSchedulesService, private prisma: PrismaService) {}
 
   @Get()
-  report(@CurrentUser() user: any, @Query() q: { type?: string; from?: string; to?: string; companyId?: string }) {
+  report(@CurrentUser() user: any, @Query() q: { type?: string; from?: string; to?: string; companyId?: string; page?: string }) {
     return this.service.forUser(user, q);
   }
 

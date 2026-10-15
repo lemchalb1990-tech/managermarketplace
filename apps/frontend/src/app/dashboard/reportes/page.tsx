@@ -50,9 +50,15 @@ export default function SalesReportsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [page, setPage] = useState(1);
 
   const range = preset === 'custom' ? custom : rangeOf(preset)!;
   const params = { type, from: range.from, to: range.to, companyId: isSuperAdmin ? companyId : undefined };
+
+  // Al cambiar de reporte o de período se vuelve a la primera página.
+  const pageKey = `${type}|${range.from}|${range.to}|${companyId}`;
+  const [lastKey, setLastKey] = useState(pageKey);
+  if (lastKey !== pageKey) { setLastKey(pageKey); setPage(1); }
 
   useEffect(() => {
     const token = getToken();
@@ -61,13 +67,13 @@ export default function SalesReportsPage() {
     const t = setTimeout(() => {
       setLoading(true);
       setError('');
-      api.reports.sales({ type, from: range.from, to: range.to, companyId: isSuperAdmin ? companyId : undefined }, token)
+      api.reports.sales({ type, from: range.from, to: range.to, companyId: isSuperAdmin ? companyId : undefined, page }, token)
         .then((r) => { if (alive) setReport(r); })
         .catch((e) => { if (alive) { setReport(null); setError(e.message || 'No se pudo generar el reporte.'); } })
         .finally(() => { if (alive) setLoading(false); });
     }, 150);
     return () => { alive = false; clearTimeout(t); };
-  }, [type, range.from, range.to, companyId, isSuperAdmin, noCompany]);
+  }, [type, range.from, range.to, companyId, isSuperAdmin, noCompany, page]);
 
   async function downloadExcel() {
     setDownloading(true);
@@ -138,13 +144,27 @@ export default function SalesReportsPage() {
               <p className="text-sm text-[var(--danger)]">{error}</p>
             ) : !report || loading ? (
               <SkeletonTable rows={6} cols={5} />
-            ) : report.rows.length === 0 ? (
+            ) : (report.rowCount ?? report.rows.length) === 0 ? (
               <p className="text-sm text-[var(--text-muted)] text-center py-8">No hay ventas en este período.</p>
             ) : (
               <>
                 <div className="overflow-x-auto -mx-3 sm:-mx-5">
                   <ReportTable report={report} />
                 </div>
+                {(report.pages ?? 1) > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-[var(--text-muted)]">
+                    <span>
+                      {((report.page! - 1) * 25 + 1).toLocaleString('es-CL')}–{Math.min(report.page! * 25, report.rowCount!).toLocaleString('es-CL')} de {report.rowCount!.toLocaleString('es-CL')} filas · el total suma todas
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => setPage(1)} disabled={report.page === 1} className="ui-btn-secondary !py-1 !px-2 text-xs disabled:opacity-40" aria-label="Primera página">«</button>
+                      <button type="button" onClick={() => setPage(report.page! - 1)} disabled={report.page === 1} className="ui-btn-secondary !py-1 !px-2.5 text-xs disabled:opacity-40">Anterior</button>
+                      <span className="px-1 text-[var(--text-2)]">Página {report.page} de {report.pages}</span>
+                      <button type="button" onClick={() => setPage(report.page! + 1)} disabled={report.page === report.pages} className="ui-btn-secondary !py-1 !px-2.5 text-xs disabled:opacity-40">Siguiente</button>
+                      <button type="button" onClick={() => setPage(report.pages!)} disabled={report.page === report.pages} className="ui-btn-secondary !py-1 !px-2 text-xs disabled:opacity-40" aria-label="Última página">»</button>
+                    </div>
+                  </div>
+                )}
                 {report.truncated && <p className="text-xs text-[var(--warn)] mt-3">El período tiene demasiadas ventas: se consideraron las 50.000 más recientes. Acota las fechas para un resultado completo.</p>}
                 {type !== 'libro' && type !== 'pago' && (
                   <p className="text-[11px] text-[var(--text-muted)] mt-3">
