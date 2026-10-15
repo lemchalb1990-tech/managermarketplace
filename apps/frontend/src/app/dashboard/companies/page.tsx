@@ -29,6 +29,7 @@ const ALL_COMPANY_MODULES = [
   { key: 'purchases', label: 'Compras', description: 'Compras a proveedores con costeo por lotes (FIFO)' },
   { key: 'dropshipping', label: 'Dropshipping', description: 'Productos que despacha un proveedor externo al cliente final' },
   { key: 'dispatch', label: 'Despacho', description: 'Rutas de despacho y seguimiento de entregas' },
+  { key: 'detailed_reports', label: 'Reporte detallado', description: 'Reportes Detalles de Ventas: 8 informes, Excel/PDF y envío por correo' },
 ];
 
 

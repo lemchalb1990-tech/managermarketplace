@@ -5,6 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../../common/timezone';
 import { canProductField, hasPermission, permissionsForUser, SALES_REPORTS_PERMISSION } from '../../common/permissions';
+import { matchesModule } from '../../common/modules.util';
+
+// Módulo licenciado «Reporte detallado» (Empresas → Módulos licenciados).
+export const DETAILED_REPORTS_MODULE = 'detailed_reports';
 
 // Reportes de ventas listos («Reportes listos»): ocho informes armados sobre las ventas de un
 // período, para ver en pantalla, descargar en Excel o recibir por correo.
@@ -73,6 +77,20 @@ export class SalesReportsService {
     }
     if (!user.companyId) throw new ForbiddenException('Sin empresa asignada');
     return user.companyId;
+  }
+
+  // Empresa del usuario con el módulo «Reporte detallado» licenciado (el Super Admin siempre pasa).
+  async licensedCompanyId(user: any, companyId?: string): Promise<string> {
+    const cId = this.resolveCompanyId(user, companyId);
+    if (user.role !== Role.SUPER_ADMIN && !(await this.isLicensed(cId))) {
+      throw new ForbiddenException('Tu empresa no tiene contratado el módulo «Reporte detallado»');
+    }
+    return cId;
+  }
+
+  async isLicensed(companyId: string): Promise<boolean> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
+    return matchesModule(company?.modules, DETAILED_REPORTS_MODULE);
   }
 
   async build(companyId: string, type: string, fromKey?: string, toKey?: string, opts: { showCost: boolean } = { showCost: true }): Promise<SalesReport> {
@@ -216,7 +234,7 @@ export class SalesReportsService {
 
   async forUser(user: any, q: { type?: string; from?: string; to?: string; companyId?: string }) {
     this.assertAccess(user);
-    const companyId = this.resolveCompanyId(user, q.companyId);
+    const companyId = await this.licensedCompanyId(user, q.companyId);
     return this.build(companyId, q.type || 'producto', q.from, q.to, { showCost: canProductField(user, 'cost', 'view') });
   }
 

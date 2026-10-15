@@ -5,7 +5,8 @@ import { SettingsService } from '../../settings/settings.service';
 import { PlatformMailService } from '../../email/platform-mail.service';
 import { dateKeyStringInTz, shiftDateKey } from '../../common/timezone';
 import { canProductField } from '../../common/permissions';
-import { REPORT_TITLE, REPORT_TYPES, SalesReportsService } from './sales-reports.service';
+import { matchesModule } from '../../common/modules.util';
+import { DETAILED_REPORTS_MODULE, REPORT_TITLE, REPORT_TYPES, SalesReportsService } from './sales-reports.service';
 
 // Reportes de ventas programados: cada semana, el día y la hora elegidos, se envía por correo el
 // reporte de los últimos 7 días (hasta el día anterior) con el Excel adjunto.
@@ -22,13 +23,13 @@ export class SalesReportSchedulesService {
 
   async list(user: any, companyId?: string) {
     this.reports.assertAccess(user);
-    const cId = this.reports.resolveCompanyId(user, companyId);
+    const cId = await this.reports.licensedCompanyId(user, companyId);
     return this.prisma.reportSchedule.findMany({ where: { companyId: cId }, orderBy: { createdAt: 'asc' } });
   }
 
   async create(user: any, dto: { type?: string; email?: string; weekday?: number; hour?: number }, companyId?: string) {
     this.reports.assertAccess(user);
-    const cId = this.reports.resolveCompanyId(user, companyId);
+    const cId = await this.reports.licensedCompanyId(user, companyId);
     const email = String(dto.email ?? '').trim().toLowerCase();
     if (!REPORT_TYPES.includes(dto.type as never)) throw new BadRequestException('Reporte no válido');
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new BadRequestException('Indica un correo válido');
@@ -48,7 +49,7 @@ export class SalesReportSchedulesService {
 
   async remove(user: any, id: string, companyId?: string) {
     this.reports.assertAccess(user);
-    const cId = this.reports.resolveCompanyId(user, companyId);
+    const cId = await this.reports.licensedCompanyId(user, companyId);
     const row = await this.prisma.reportSchedule.findUnique({ where: { id } });
     if (!row || row.companyId !== cId) throw new NotFoundException('Envío programado no encontrado');
     await this.prisma.reportSchedule.delete({ where: { id } });
@@ -65,7 +66,7 @@ export class SalesReportSchedulesService {
     const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now));
     const due = await this.prisma.reportSchedule.findMany({
       where: { weekday, hour, OR: [{ lastSentAt: null }, { lastSentAt: { lt: new Date(now.getTime() - 2 * 3600_000) } }] },
-      include: { company: { select: { name: true, active: true } } },
+      include: { company: { select: { name: true, active: true, modules: true } } },
     });
     if (!due.length) return;
     const to = shiftDateKey(todayKey, -1);
@@ -73,6 +74,7 @@ export class SalesReportSchedulesService {
     const base = await this.mail.frontendUrl();
     for (const s of due) {
       if (s.company && s.company.active === false) continue;
+      if (!matchesModule(s.company?.modules, DETAILED_REPORTS_MODULE)) continue;
       try {
         const report = await this.reports.build(s.companyId, s.type, from, to, { showCost: s.showCost });
         const excel = await this.reports.excel(report, s.company?.name ?? '');
