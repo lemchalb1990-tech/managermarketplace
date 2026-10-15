@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent } from 'react';
 import { CompanyInvitations } from './CompanyInvitations';
+import CompanyAddons, { addonsFromCompany, addonsPayload, type AddonsState } from './CompanyAddons';
 import { getToken, getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -36,7 +37,7 @@ const ALL_COMPANY_MODULES = [
 
 
 const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string; aiPlanId: string; origAiPlanId: string } | null;
+type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string; aiPlanId: string; origAiPlanId: string; addons: AddonsState } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -227,6 +228,7 @@ export default function CompaniesPage() {
         modules: editing.modules,
         autoSyncSales: editing.autoSyncSales,
         autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
+        ...addonsPayload(editing.addons, !!editing.planId),
       }, token);
       if (editing.planId !== editing.origPlanId || (editing.planId && editing.billing !== editing.origBilling)) {
         await api.subscription.assign(editing.id, editing.planId || null, editing.planId ? editing.billing : null, token);
@@ -401,6 +403,11 @@ export default function CompaniesPage() {
               <p className="text-[11px] text-gray-400">
                 El plan limita canales, productos, usuarios y bodegas, y oculta del menú lo que no incluye (con plan, el máximo de usuarios lo define el plan). El plan de IA define el diagnóstico, la revisión, la corrección y las fotos generadas, con sus créditos. Se editan en Administrador de plataforma → Planes e Inteligencia artificial.
               </p>
+              <CompanyAddons
+                plan={plans.find((p) => p.id === editing.planId)}
+                billing={editing.billing}
+                value={editing.addons}
+                onChange={(addons) => setEditing((s) => s && ({ ...s, addons }))} />
             </div>
 
             <div className="rounded-lg border border-gray-200 p-3">
@@ -536,7 +543,7 @@ export default function CompaniesPage() {
                       Revertir baja
                     </button>
                   )}
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY', aiPlanId: c.aiPlanId ?? '', origAiPlanId: c.aiPlanId ?? '' }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY', aiPlanId: c.aiPlanId ?? '', origAiPlanId: c.aiPlanId ?? '', addons: addonsFromCompany(c) }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

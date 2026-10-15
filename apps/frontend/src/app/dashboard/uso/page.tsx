@@ -105,6 +105,9 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
                     <div className={`h-full rounded-full ${p >= 90 ? 'bg-[var(--danger)]' : p >= 70 ? 'bg-[var(--warn)]' : 'bg-[var(--ok)]'}`} style={{ width: `${p}%` }} />
                   </div>
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">{full ? 'Límite alcanzado' : `Quedan ${(u.limit - u.used).toLocaleString('es-CL')}`}</p>
+                  {!!u.extra && u.planLimit != null && (
+                    <p className="text-[11px] text-[var(--brand-ink)] mt-0.5">{u.planLimit.toLocaleString('es-CL')} del plan + {u.extra.toLocaleString('es-CL')} adicionales</p>
+                  )}
                 </>
               ) : (
                 <p className="text-[11px] font-semibold text-[var(--ok)] mt-1">Ilimitado</p>
@@ -116,10 +119,11 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
       {plan && (
         <div className="flex flex-wrap gap-1.5 mt-4">
           {ALL_SUB_FEATURES.map((f) => {
-            const on = plan.features.includes(f);
+            const extra = !plan.features.includes(f) && !!sub.extraFeatures?.includes(f);
+            const on = plan.features.includes(f) || extra;
             return (
               <span key={f} className={`text-[11px] px-2 py-0.5 rounded-full ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400 line-through'}`}>
-                {on ? '✓ ' : ''}{SUBSCRIPTION_FEATURE_LABEL[f]}
+                {on ? '✓ ' : ''}{SUBSCRIPTION_FEATURE_LABEL[f]}{extra ? ' (adicional)' : ''}
               </span>
             );
           })}

@@ -5,6 +5,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { permissionsForUser } from '../common/permissions';
+import { companyPlanFeatures } from '../subscription/subscription.service';
 
 @Controller('auth')
 export class AuthController {
@@ -98,7 +99,7 @@ export class AuthController {
     const { mlClientSecret: _s, subscriptionPlan, ...company } = user.company ?? {};
     return {
       ...user,
-      company: user.company ? { ...company, planName: subscriptionPlan?.name ?? null, planFeatures: subscriptionPlan?.features ?? null } : null,
+      company: user.company ? { ...company, planName: subscriptionPlan?.name ?? null, planFeatures: companyPlanFeatures(user.company) } : null,
       permissions: permissionsForUser(user),
     };
   }

@@ -1,3 +1,4 @@
+import { companyPlanFeatures } from '../../subscription/subscription.service';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ListingStatus, MarketplaceType, Prisma, Role, SyncQueueField } from '@prisma/client';
@@ -395,12 +396,12 @@ export class MlPromotionsService implements OnModuleInit {
     try {
       const conns = await this.prisma.marketplaceConnection.findMany({
         where: { marketplace: MarketplaceType.MERCADO_LIBRE, active: true, syncEnabled: true, mlUserId: { not: null }, company: { active: true } },
-        select: { id: true, name: true, companyId: true, mlUserId: true, company: { select: { subscriptionPlan: { select: { features: true } } } } },
+        select: { id: true, name: true, companyId: true, mlUserId: true, company: { select: { extraFeatures: true, subscriptionPlan: { select: { features: true } } } } },
       });
       const companies = new Set<string>();
       for (const c of conns) {
         // Solo empresas cuyo plan incluye promociones (sin plan = todo incluido).
-        const features = c.company.subscriptionPlan?.features;
+        const features = companyPlanFeatures(c.company);
         if (features && !features.includes('ML_PROMOTIONS')) continue;
         try {
           await this.syncConnection(c);

@@ -2132,7 +2132,12 @@ export interface SubscriptionUsage {
   billing: 'MONTHLY' | 'ANNUAL' | null;
   trialEndsAt: string | null;
   trialExpired: boolean;
-  usage: Record<SubscriptionResource, { used: number; limit: number | null }>;
+  // limit = plan + adicionales de la empresa (planLimit y extra, por separado).
+  usage: Record<SubscriptionResource, { used: number; limit: number | null; planLimit?: number | null; extra?: number }>;
+  // Funciones del plan más las adicionales (null = sin plan).
+  features?: SubscriptionFeature[] | null;
+  extraFeatures?: SubscriptionFeature[];
+  addonsMonthlyPrice?: number | null;
 }
 
 export type SalesReportType = 'producto' | 'categoria' | 'canal' | 'vendedor' | 'pago' | 'comuna' | 'mes' | 'libro';

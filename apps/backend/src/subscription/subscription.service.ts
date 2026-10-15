@@ -4,12 +4,36 @@ import { PrismaService } from '../prisma/prisma.service';
 export const PLAN_FEATURES = ['POS', 'PURCHASES', 'PICKING', 'MULTICOMPANY', 'ML_PROMOTIONS'] as const;
 export type PlanResource = 'channels' | 'products' | 'users' | 'warehouses';
 
-const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'maxUsers' | 'maxWarehouses'; label: string }> = {
-  channels: { field: 'maxChannels', label: 'canales o cuentas conectadas' },
-  products: { field: 'maxProducts', label: 'productos' },
-  users: { field: 'maxUsers', label: 'usuarios' },
-  warehouses: { field: 'maxWarehouses', label: 'bodegas' },
+const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'maxUsers' | 'maxWarehouses'; extra: 'extraChannels' | 'extraProducts' | 'extraUsers' | 'extraWarehouses'; label: string }> = {
+  channels: { field: 'maxChannels', extra: 'extraChannels', label: 'canales o cuentas conectadas' },
+  products: { field: 'maxProducts', extra: 'extraProducts', label: 'productos' },
+  users: { field: 'maxUsers', extra: 'extraUsers', label: 'usuarios' },
+  warehouses: { field: 'maxWarehouses', extra: 'extraWarehouses', label: 'bodegas' },
 };
+
+type LimitCompany = {
+  maxUsers: number; extraChannels: number; extraProducts: number; extraUsers: number; extraWarehouses: number;
+  subscriptionPlan: { maxChannels: number | null; maxProducts: number | null; maxUsers: number | null; maxWarehouses: number | null } | null;
+};
+const LIMIT_SELECT = { maxUsers: true, extraChannels: true, extraProducts: true, extraUsers: true, extraWarehouses: true } as const;
+
+// Límite de un recurso: el del plan más los adicionales de la empresa. Sin plan, solo los
+// usuarios se limitan (máximo de la empresa, configuración previa); un plan sin límite en
+// ese recurso sigue sin límite (los adicionales no aplican).
+function limitFor(company: LimitCompany, resource: PlanResource): { limit: number | null; planLimit: number | null; extra: number } {
+  const plan = company.subscriptionPlan;
+  if (!plan) return { limit: resource === 'users' ? company.maxUsers : null, planLimit: null, extra: 0 };
+  const planLimit = plan[RESOURCE[resource].field];
+  const extra = company[RESOURCE[resource].extra] ?? 0;
+  return { limit: planLimit == null ? null : planLimit + extra, planLimit, extra: planLimit == null ? 0 : extra };
+}
+
+/** Funciones del plan más las adicionales de la empresa. null = sin plan (todo incluido). */
+export function companyPlanFeatures(company: { extraFeatures?: string[] | null; subscriptionPlan?: { features: string[] } | null } | null | undefined): string[] | null {
+  const plan = company?.subscriptionPlan;
+  if (!plan) return null;
+  return Array.from(new Set([...(plan.features ?? []), ...(company?.extraFeatures ?? [])]));
+}
 
 export interface PlanInput {
   name?: string;
@@ -53,18 +77,21 @@ export class SubscriptionService {
   async usage(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { maxUsers: true, subscriptionBilling: true, trialEndsAt: true, subscriptionPlan: true },
+      select: { ...LIMIT_SELECT, extraFeatures: true, addonsMonthlyPrice: true, subscriptionBilling: true, trialEndsAt: true, subscriptionPlan: true },
     });
     if (!company) throw new NotFoundException('Empresa no encontrada');
     const plan = company.subscriptionPlan;
     const used = await this.counts(companyId);
     const usage = Object.fromEntries((Object.keys(RESOURCE) as PlanResource[]).map((r) => {
-      // Sin plan, los usuarios siguen con el máximo de la empresa (configuración previa).
-      const limit = plan ? plan[RESOURCE[r].field] : r === 'users' ? company.maxUsers : null;
-      return [r, { used: used[r], limit }];
-    })) as Record<PlanResource, { used: number; limit: number | null }>;
+      return [r, { used: used[r], ...limitFor(company, r) }];
+    })) as Record<PlanResource, { used: number; limit: number | null; planLimit: number | null; extra: number }>;
     const trialExpired = !!(plan?.isTrial && company.trialEndsAt && company.trialEndsAt < new Date());
-    return { plan, billing: company.subscriptionBilling, trialEndsAt: company.trialEndsAt, trialExpired, usage };
+    return {
+      plan, billing: company.subscriptionBilling, trialEndsAt: company.trialEndsAt, trialExpired, usage,
+      features: companyPlanFeatures(company),
+      extraFeatures: plan ? company.extraFeatures : [],
+      addonsMonthlyPrice: company.addonsMonthlyPrice,
+    };
   }
 
   /** Rechaza si agregar `adding` del recurso supera el límite del plan de la empresa. */
@@ -72,18 +99,18 @@ export class SubscriptionService {
     if (!companyId) return;
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { maxUsers: true, subscriptionPlan: { select: { name: true, maxChannels: true, maxProducts: true, maxUsers: true, maxWarehouses: true } } },
+      select: { ...LIMIT_SELECT, subscriptionPlan: { select: { name: true, maxChannels: true, maxProducts: true, maxUsers: true, maxWarehouses: true } } },
     });
     if (!company) return;
     const plan = company.subscriptionPlan;
-    const limit = plan ? plan[RESOURCE[resource].field] : resource === 'users' ? company.maxUsers : null;
+    const { limit, extra } = limitFor(company, resource);
     if (limit == null) return;
     const used = (await this.counts(companyId))[resource];
     if (used + adding > limit) {
       const left = Math.max(0, limit - used);
       throw new ForbiddenException(
         plan
-          ? `Tu plan ${plan.name} permite hasta ${limit.toLocaleString('es-CL')} ${RESOURCE[resource].label} y ya tienes ${used.toLocaleString('es-CL')}${adding > 1 ? ` (puedes agregar ${left.toLocaleString('es-CL')} más)` : ''}. Mejora tu plan para agregar más.`
+          ? `Tu plan ${plan.name}${extra > 0 ? ' con sus adicionales' : ''} permite hasta ${limit.toLocaleString('es-CL')} ${RESOURCE[resource].label} y ya tienes ${used.toLocaleString('es-CL')}${adding > 1 ? ` (puedes agregar ${left.toLocaleString('es-CL')} más)` : ''}. Mejora tu plan para agregar más.`
           : `Límite de ${RESOURCE[resource].label} alcanzado (${limit}). Contacta al administrador del sistema.`,
       );
     }

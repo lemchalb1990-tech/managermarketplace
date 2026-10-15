@@ -5,7 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { permissionsForUser } from '../common/permissions';
 import { SettingsService } from '../settings/settings.service';
-import { SubscriptionService } from '../subscription/subscription.service';
+import { SubscriptionService, companyPlanFeatures } from '../subscription/subscription.service';
 import { PlatformMailService } from '../email/platform-mail.service';
 import { ROLE_LABEL } from '../users/invitations.service';
 import { roleForPermissions } from '../common/permissions';
@@ -21,7 +21,7 @@ function sanitizeCompany(company: any) {
   if (!company) return company;
   const { mlClientSecret: _, subscriptionPlan, ...rest } = company;
   // Funciones del plan comercial (el menú oculta lo que el plan no incluye). null = sin plan.
-  return { ...rest, planName: subscriptionPlan?.name ?? null, planFeatures: subscriptionPlan?.features ?? null };
+  return { ...rest, planName: subscriptionPlan?.name ?? null, planFeatures: companyPlanFeatures(company) };
 }
 
 export function shapeUser(user: any) {

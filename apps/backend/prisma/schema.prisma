@@ -183,6 +183,16 @@ model Company {
   subscriptionBilling     String?
   // Fin de la prueba gratis (planes de prueba).
   trialEndsAt             DateTime?
+  // Adicionales sobre el plan (Super Admin al editar la empresa): se suman a los límites del
+  // plan (si el plan no limita ese recurso, no aplican) y activan funciones que el plan no trae.
+  extraChannels           Int      @default(0)
+  extraProducts           Int      @default(0)
+  extraUsers              Int      @default(0)
+  extraWarehouses         Int      @default(0)
+  extraFeatures           String[] @default([])
+  // Precio mensual acordado por los adicionales (CLP, sin IVA) y nota interna.
+  addonsMonthlyPrice      Int?
+  addonsNote              String?
   // Plan de IA (créditos diarios/mensuales para revisar y corregir fotos). null = sin IA.
   aiPlanId                String?
   aiPlan                  AiPlan?  @relation(fields: [aiPlanId], references: [id], onDelete: SetNull)

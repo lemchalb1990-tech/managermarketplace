@@ -1,4 +1,5 @@
-import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, IsBoolean, IsArray, IsEnum, Min, Max } from 'class-validator';
+import { IsString, MinLength, Matches, IsOptional, IsEmail, ValidateNested, IsInt, IsBoolean, IsArray, IsEnum, Min, Max, IsIn, ValidateIf, MaxLength } from 'class-validator';
+import { PLAN_FEATURES } from '../../subscription/subscription.service';
 import { Type } from 'class-transformer';
 import { MarketplaceType } from '@prisma/client';
 
@@ -69,4 +70,13 @@ export class UpdateCompanyDto {
   @Min(1)
   @Max(1440)
   autoSyncIntervalMinutes?: number;
+
+  // Adicionales sobre el plan comercial.
+  @IsOptional() @IsInt() @Min(0) @Max(1000) extraChannels?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(10000000) extraProducts?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(10000) extraUsers?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1000) extraWarehouses?: number;
+  @IsOptional() @IsArray() @IsIn(PLAN_FEATURES as unknown as string[], { each: true }) extraFeatures?: string[];
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) addonsMonthlyPrice?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(300) addonsNote?: string | null;
 }
