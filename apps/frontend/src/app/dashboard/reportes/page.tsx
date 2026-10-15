@@ -83,7 +83,7 @@ export default function SalesReportsPage() {
 
   return (
     <div className="max-w-6xl space-y-4">
-      <PageHeader title="Reportes de ventas" crumbs={[{ label: 'Ventas' }, { label: 'Reportes' }]} />
+      <PageHeader title="Reportes Detalles de Ventas" crumbs={[{ label: 'Ventas' }, { label: 'Reportes Detalles de Ventas' }]} />
 
       {noCompany ? (
         <p className="text-sm text-[var(--text-muted)]">Selecciona una empresa (arriba, «Gestionando empresa») para ver sus reportes.</p>
