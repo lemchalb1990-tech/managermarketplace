@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
-import { api, imgUrl, type MlConversationFull, type MlConversationRow, type MlMessageRule, type MlRuleCondition } from '@/lib/api';
+import { api, imgUrl, type MlConversationFull, type MlConversationRow, type MlMessageRule, type MlRuleCondition, type MlRuleImage } from '@/lib/api';
 import { useMlCompany } from '../MlCompanyContext';
 import { onActivity } from '@/lib/activityBus';
 import { MlChat } from '@/components/MlChat';
@@ -12,6 +12,7 @@ import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '
 import { confirmDialog } from '../../ConfirmDialog';
 
 type Tab = 'inbox' | 'rules';
+const MAX_RULE_IMAGES = 5;
 
 const ago = (d: string | null) => {
   if (!d) return '';
@@ -384,6 +385,13 @@ function Rules({ companyId }: { companyId?: string }) {
               </button>
             </div>
             <p className="mt-2 rounded-lg bg-[var(--page-bg)] px-3 py-2 text-xs text-gray-700">{r.text}</p>
+            {!!r.images?.length && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {r.images.map((img) => (
+                  <img key={img.url} src={imgUrl(img.url)} alt={img.name} className="h-10 w-10 rounded-md border border-gray-200 object-cover" />
+                ))}
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
               <span>
                 {describe(r, conns, productNames)}
@@ -541,6 +549,8 @@ function RuleForm({ rule, conns, companyId, productNames, onProductName, onClose
     active: rule?.active ?? true,
   });
   const [conds, setConds] = useState<MlRuleCondition[]>(() => ruleConditions(rule));
+  const [images, setImages] = useState<MlRuleImage[]>(() => (Array.isArray(rule?.images) ? rule!.images! : []));
+  const [uploading, setUploading] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -551,13 +561,34 @@ function RuleForm({ rule, conns, companyId, productNames, onProductName, onClose
 
   const setCond = (i: number, c: MlRuleCondition) => setConds((cs) => cs.map((x, j) => (j === i ? c : x)));
 
+  // Imágenes del mensaje: se suben al sistema y se envían junto al texto a cada comprador.
+  async function addImages(list: FileList | null) {
+    const files = Array.from(list || []).filter((f) => f.type.startsWith('image/'));
+    const room = MAX_RULE_IMAGES - images.length;
+    if (!files.length) return;
+    if (room <= 0) { setError(`Puedes agregar hasta ${MAX_RULE_IMAGES} imágenes`); return; }
+    setError('');
+    setUploading((n) => n + Math.min(room, files.length));
+    for (const file of files.slice(0, room)) {
+      try {
+        if (file.size > 10 * 1024 * 1024) throw new Error(`"${file.name}" pesa más de 10 MB`);
+        const img = await api.marketplace.messages.uploadRuleImage(file, getToken()!, companyId);
+        setImages((prev) => [...prev, img].slice(0, MAX_RULE_IMAGES));
+      } catch (err) {
+        setError((err as Error).message || `No se pudo subir "${file.name}"`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError('');
     const mult = form.delayUnit === 'd' ? 1440 : form.delayUnit === 'h' ? 60 : 1;
     const data = {
-      name: form.name, trigger: form.trigger as MlMessageRule['trigger'], text: form.text, active: form.active,
+      name: form.name, trigger: form.trigger as MlMessageRule['trigger'], text: form.text, active: form.active, images,
       delayMinutes: Math.max(0, Math.round(Number(form.delayValue) || 0) * mult),
       match: form.match, markVerification: form.markVerification,
       conditions: conds.filter((c) => c.values.length),
@@ -658,6 +689,33 @@ function RuleForm({ rule, conns, companyId, productNames, onProductName, onClose
                 className="rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono text-[11px] text-gray-600 hover:bg-gray-50">{v}</button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Imágenes ({images.length}/{MAX_RULE_IMAGES})</label>
+          <div className="flex flex-wrap items-center gap-2"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
+            {images.map((img, i) => (
+              <div key={img.url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                <img src={imgUrl(img.url)} alt={img.name} className="h-full w-full object-cover" />
+                <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label={`Quitar ${img.name}`}
+                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/90 text-sm font-bold text-gray-700 shadow hover:bg-white">×</button>
+              </div>
+            ))}
+            {Array.from({ length: uploading }).map((_, i) => (
+              <div key={`up-${i}`} className="grid h-20 w-20 place-items-center rounded-lg border border-dashed border-gray-300 text-[11px] text-gray-400">Subiendo…</div>
+            ))}
+            {images.length + uploading < MAX_RULE_IMAGES && (
+              <label className="grid h-20 w-20 cursor-pointer place-items-center rounded-lg border border-dashed border-gray-300 text-center text-[11px] text-gray-500 hover:bg-gray-50">
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="sr-only"
+                  onChange={(e) => { addImages(e.target.files); e.target.value = ''; }} />
+                + Agregar
+              </label>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-400">JPG, PNG, WEBP o GIF, hasta 10 MB cada una. Se envían junto al texto a cada comprador. También puedes arrastrarlas aquí.</p>
         </div>
 
         <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">

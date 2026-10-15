@@ -4,6 +4,7 @@ import { MarketplaceType, Prisma, Role, SaleChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { integrationsDisabled } from '../../common/integrations.util';
 import { MercadolibreService } from './mercadolibre.service';
+import { StorageService } from '../../common/storage/storage.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const MAX_TEXT = 350; // límite de Mercado Libre para mensajes postventa
@@ -15,6 +16,9 @@ export type MlMsgFile = { id: string; name: string; type: string | null; size: n
 export type MlMsg = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[]; files?: MlMsgFile[] };
 
 export const RULE_TRIGGERS = ['SALE_CREATED', 'INVOICE_ISSUED', 'ORDER_DISPATCHED', 'ORDER_DELIVERED'] as const;
+const MAX_RULE_IMAGES = 5;
+const RULE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+type RuleImage = { url: string; name: string; type: string; size: number };
 const COND_FIELDS = ['category', 'product', 'shipping', 'total', 'account'] as const;
 type Cond = { field: (typeof COND_FIELDS)[number]; values: string[]; labels?: Record<string, string> };
 
@@ -41,7 +45,7 @@ const shippingGroup = (m?: string | null) => {
 export class MlMessagesService {
   private readonly logger = new Logger(MlMessagesService.name);
 
-  constructor(private prisma: PrismaService, private ml: MercadolibreService) {}
+  constructor(private prisma: PrismaService, private ml: MercadolibreService, private storage: StorageService) {}
 
   private companyWhere(user: any, companyId?: string) {
     if (user.role === Role.SUPER_ADMIN) return companyId ? { companyId } : {};
@@ -224,16 +228,32 @@ export class MlMessagesService {
   // Sube un archivo (foto o documento) a Mercado Libre para adjuntarlo al próximo mensaje.
   async uploadAttachment(user: any, id: string, file: { buffer: Buffer; mimetype: string; originalname: string; size: number }) {
     const conv = await this.ownConversation(user, id);
-    const token = await this.ml.getValidToken(conv.connectionId);
+    const mlId = await this.uploadToMl(conv.connectionId, file.buffer, file.mimetype, file.originalname);
+    return { id: mlId, name: file.originalname, type: file.mimetype, size: file.size };
+  }
+
+  // Sube bytes a los adjuntos de mensajes de una cuenta de ML y devuelve el id del archivo.
+  private async uploadToMl(connectionId: string, buffer: Buffer, mimetype: string, name: string) {
+    const token = await this.ml.getValidToken(connectionId);
     const form = new FormData();
-    form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || 'archivo');
+    form.append('file', new Blob([new Uint8Array(buffer)], { type: mimetype }), name || 'archivo');
     const res = await fetch(`${ML_API}/messages/attachments?tag=post_sale&site_id=${SITE_ID}`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) throw new BadRequestException(data.message || 'Mercado Libre rechazó el archivo');
     if (!data.id) throw new BadRequestException('Mercado Libre no devolvió el identificador del archivo');
-    return { id: String(data.id), name: file.originalname, type: file.mimetype, size: file.size };
+    return String(data.id);
+  }
+
+  // Imagen para un mensaje programado: se guarda en nuestro almacenamiento (los adjuntos de ML
+  // son por cuenta) y se sube a la cuenta de la venta al momento de enviar.
+  async uploadRuleImage(user: any, companyIdParam: string | undefined, file: Express.Multer.File) {
+    const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : user.companyId;
+    if (!companyId) throw new BadRequestException('Selecciona una empresa');
+    if (!RULE_IMAGE_TYPES.includes(file.mimetype)) throw new BadRequestException('Solo se aceptan imágenes JPG, PNG, WEBP o GIF');
+    const stored = await this.storage.persist(file, { folder: `ml-mensajes/${companyId}` });
+    return { url: stored.url, name: file.originalname || stored.filename, type: file.mimetype, size: file.size };
   }
 
   // Descarga un adjunto de la conversación desde Mercado Libre (requiere el token de la cuenta).
@@ -350,7 +370,11 @@ export class MlMessagesService {
   private checkRule(dto: any) {
     if (!RULE_TRIGGERS.includes(dto.trigger)) throw new BadRequestException('Momento de envío no válido');
     const text = String(dto.text || '').trim();
-    if (!text) throw new BadRequestException('Escribe el mensaje');
+    const images: RuleImage[] = (Array.isArray(dto.images) ? dto.images : [])
+      .filter((i: any) => i && typeof i.url === 'string' && (/^https?:\/\//.test(i.url) || i.url.startsWith('/api/uploads/')))
+      .slice(0, MAX_RULE_IMAGES)
+      .map((i: any) => ({ url: i.url, name: String(i.name || 'imagen').slice(0, 120), type: String(i.type || ''), size: Number(i.size) || 0 }));
+    if (!text && !images.length) throw new BadRequestException('Escribe el mensaje o agrega una imagen');
     if (text.length > MAX_TEXT) throw new BadRequestException(`El mensaje no puede superar ${MAX_TEXT} caracteres`);
     const conditions: Cond[] = (Array.isArray(dto.conditions) ? dto.conditions : [])
       .filter((c: any) => COND_FIELDS.includes(c?.field))
@@ -370,6 +394,7 @@ export class MlMessagesService {
       trigger: dto.trigger,
       delayMinutes: Math.max(0, Math.round(Number(dto.delayMinutes) || 0)),
       text,
+      images: images.length ? (images as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
       connectionId: dto.connectionId || null,
       minTotal: dto.minTotal != null && dto.minTotal !== '' ? Number(dto.minTotal) : null,
     };
@@ -440,6 +465,18 @@ export class MlMessagesService {
     return null;
   }
 
+  // Sube las imágenes del mensaje programado a la cuenta de ML de la venta (ids de adjunto).
+  private async ruleAttachments(images: unknown, connectionId: string) {
+    const list = (Array.isArray(images) ? images : []) as RuleImage[];
+    const ids: string[] = [];
+    for (const img of list) {
+      const file = await this.storage.read(img.url);
+      if (!file) throw new Error(`No se encontró la imagen "${img.name}"`);
+      ids.push(await this.uploadToMl(connectionId, file.bytes, img.type || file.mime, img.name));
+    }
+    return ids;
+  }
+
   async runRules() {
     const rules = await this.prisma.mlMessageRule.findMany({ where: { active: true } });
     const now = Date.now();
@@ -480,7 +517,8 @@ export class MlMessagesService {
             include: { connection: { select: { mlUserId: true } } },
           });
           if (conv.blocked) { status = 'SKIPPED'; detail = 'Mensajería bloqueada por Mercado Libre'; } else {
-            await this.sendRaw(conv, this.fill(rule.text, sale));
+            const attachments = await this.ruleAttachments(rule.images, sale.connectionId!);
+            await this.sendRaw(conv, this.fill(rule.text, sale), attachments);
           }
         } catch (e: any) {
           status = 'FAILED';

@@ -127,8 +127,11 @@ export type MlMessageRule = {
   id: string; name: string; active: boolean; trigger: 'SALE_CREATED' | 'INVOICE_ISSUED' | 'ORDER_DISPATCHED' | 'ORDER_DELIVERED';
   delayMinutes: number; text: string; connectionId: string | null; minTotal: string | number | null; createdAt: string;
   conditions: MlRuleCondition[] | null; match: 'ALL' | 'ANY'; markVerification: boolean;
+  // Imágenes que se envían junto al texto (guardadas en el sistema).
+  images?: MlRuleImage[] | null;
   _count?: { logs: number };
 };
+export type MlRuleImage = { url: string; name: string; type: string; size: number };
 
 // ── Promociones de Mercado Libre ──
 export type MlPromoType = 'PRICE_DISCOUNT' | 'SELLER_CAMPAIGN' | 'VOLUME' | 'DEAL' | 'MARKETPLACE_CAMPAIGN' | 'SMART' | 'PRICE_MATCHING'
@@ -972,6 +975,8 @@ export const api = {
       forSale: (saleId: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/sales/${saleId}`, {}, token),
       rules: (token: string, companyId?: string) =>
         apiFetch<MlMessageRule[]>(`/ecommerce/ml/messages/rules${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+      uploadRuleImage: (file: File, token: string, companyId?: string) =>
+        apiUpload<MlRuleImage>(`/ecommerce/ml/messages/rules/images${companyId ? `?companyId=${companyId}` : ''}`, file, token),
       createRule: (data: Partial<MlMessageRule> & { companyId?: string }, token: string) =>
         apiFetch<MlMessageRule>('/ecommerce/ml/messages/rules', { method: 'POST', body: JSON.stringify(data) }, token),
       updateRule: (id: string, data: Partial<MlMessageRule>, token: string) =>

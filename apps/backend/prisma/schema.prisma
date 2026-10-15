@@ -2444,6 +2444,9 @@ model MlMessageRule {
   trigger      String   // SALE_CREATED | INVOICE_ISSUED | ORDER_DISPATCHED | ORDER_DELIVERED
   delayMinutes Int      @default(0)
   text         String   @db.Text
+  // Imágenes que van con el mensaje: [{ url, name, type, size }] guardadas en nuestro
+  // almacenamiento; al enviar se suben a la cuenta de Mercado Libre de la venta.
+  images       Json?
   // Criterios opcionales: una cuenta de ML y/o monto mínimo de la venta.
   connectionId String?
   minTotal     Decimal? @db.Decimal(12, 2)

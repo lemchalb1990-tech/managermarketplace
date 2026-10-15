@@ -586,6 +586,16 @@ export class MercadolibreController {
     return this.messages.createRule(user, body || {});
   }
 
+  // Imagen para un mensaje programado (se guarda y se envía junto al texto).
+  @Post('messages/rules/images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadRuleImage(@CurrentUser() user: any, @UploadedFile() file: Express.Multer.File, @Query('companyId') companyId?: string) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    return this.messages.uploadRuleImage(user, companyId, file);
+  }
+
   @Patch('messages/rules/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
