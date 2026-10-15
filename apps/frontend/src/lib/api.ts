@@ -361,6 +361,39 @@ export async function apiDownload(path: string, token: string, filename: string)
   URL.revokeObjectURL(url);
 }
 
+export type BulkLoadMode = 'both' | 'create' | 'update';
+export type BulkLoadAction = 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
+export interface BulkLoadFields {
+  groups: { name: string; fields: { key: string; label: string; help: string; required: boolean; requiredOnCreate: boolean }[] }[];
+  maxRows: number;
+  productCount: number;
+}
+export interface BulkLoadRow {
+  row: number;
+  sku: string;
+  name: string | null;
+  action: BulkLoadAction;
+  errors: string[];
+  warnings: string[];
+  changes: { field: string; from: string | number | null; to: string | number | null }[];
+}
+export interface BulkLoadPreview {
+  previewId: string;
+  fileName: string;
+  columns: string[];
+  ignoredColumns: string[];
+  counts: { create: number; update: number; unchanged: number; error: number };
+  planWarning: string | null;
+  rows: BulkLoadRow[];
+}
+export interface BulkLoadJob {
+  status: 'RUNNING' | 'DONE' | 'FAILED';
+  total: number;
+  done: number;
+  result: { created: number; updated: number; skipped: number } | null;
+  error: string | null;
+}
+
 // Query string sin claves vacías (para filtros opcionales).
 function toQuery(params: Record<string, string | number | boolean | undefined | null>): string {
   const q = new URLSearchParams();
@@ -752,6 +785,25 @@ export const api = {
       apiFetch<any>(`/product-masters/products/${productId}/channel-price`, { method: 'POST', body: JSON.stringify({ connectionId, price }) }, token),
     removeChannelPrice: (productId: string, connectionId: string, token: string) =>
       apiFetch<any>(`/product-masters/products/${productId}/channel-price/${connectionId}`, { method: 'DELETE' }, token),
+    // Carga masiva de productos (solo Super Admin): plantilla con campos elegidos, vista previa y confirmación.
+    bulkLoad: {
+      fields: (token: string, companyId: string) =>
+        apiFetch<BulkLoadFields>(`/catalog/products/bulk/import-products/fields?companyId=${companyId}`, {}, token),
+      downloadTemplate: (token: string, companyId: string, fields: string[], withProducts: boolean) =>
+        apiDownload(
+          `/catalog/products/bulk/import-products/template?${toQuery({ companyId, fields: fields.join(','), withProducts: withProducts ? '1' : '' })}`,
+          token, 'plantilla-carga-productos.xlsx',
+        ),
+      preview: (file: File, token: string, companyId: string, onProgress?: (percent: number) => void) =>
+        apiUpload<BulkLoadPreview>(`/catalog/products/bulk/import-products/preview?companyId=${companyId}`, file, token, onProgress),
+      downloadErrors: (previewId: string, token: string) =>
+        apiDownload(`/catalog/products/bulk/import-products/preview/${previewId}/errors`, token, 'carga-productos-errores.xlsx'),
+      confirm: (previewId: string, mode: BulkLoadMode, token: string) =>
+        apiFetch<{ jobId: string; total: number }>(
+          '/catalog/products/bulk/import-products/confirm', { method: 'POST', body: JSON.stringify({ previewId, mode }) }, token),
+      job: (jobId: string, token: string) =>
+        apiFetch<BulkLoadJob>(`/catalog/products/bulk/import-products/jobs/${jobId}`, {}, token),
+    },
     bulkImport: (file: File, token: string, companyId?: string, onProgress?: (percent: number) => void) =>
       apiUpload<{ updated: number; skipped: number; errors: { row: number; sku: string; reason: string }[] }>(
         `/catalog/products/bulk/import${companyId ? `?companyId=${companyId}` : ''}`, file, token, onProgress),
