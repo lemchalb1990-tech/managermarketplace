@@ -617,6 +617,7 @@ export default function DashboardPage() {
                     <tr className="text-[11px] text-[var(--text-muted)]">
                       <th className="text-left font-medium pb-2">Usuario</th>
                       <th className="text-right font-medium pb-2 px-2">Ventas</th>
+                      <th className="text-right font-medium pb-2 px-2">Productos</th>
                       <th className="hidden sm:table-cell text-right font-medium pb-2 px-2">Ticket prom</th>
                       <th className="text-right font-medium pb-2">Total</th>
                     </tr>
@@ -626,6 +627,7 @@ export default function DashboardPage() {
                       <tr key={u.userId || 'none'}>
                         <td className="py-2 text-[var(--text-2)] truncate max-w-[10rem]">{u.name}</td>
                         <td className="text-right px-2 font-semibold text-[var(--text)]">{u.count}</td>
+                        <td className="text-right px-2 text-[var(--text-2)]">{(u.units ?? 0).toLocaleString('es-CL')}</td>
                         <td className="hidden sm:table-cell text-right px-2 text-[var(--text-2)]">${Math.round(u.count ? u.total / u.count : 0).toLocaleString('es-CL')}</td>
                         <td className="text-right font-semibold text-[var(--text)]">${Math.round(u.total).toLocaleString('es-CL')}</td>
                       </tr>

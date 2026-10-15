@@ -1561,7 +1561,7 @@ export const api = {
       return apiFetch<{
         totalSales: number; totalRevenue: number;
         byPayment: { method: string; total: number; count: number }[];
-        byUser: { userId: string | null; name: string; total: number; count: number }[];
+        byUser: { userId: string | null; name: string; total: number; count: number; units?: number }[];
       }>(`/pos/sales/pos-breakdown?${q}`, {}, token);
     },
     weeklySales: (token: string, params?: { companyId?: string; days?: number; channel?: string }) => {

@@ -437,6 +437,7 @@ export class PosService {
         total: true, paymentMethod: true, userId: true,
         user: { select: { name: true } },
         payments: { select: { method: true, amount: true } },
+        items: { select: { quantity: true } },
       },
     });
 
@@ -446,7 +447,7 @@ export class PosService {
       e.total += amount; e.count++;
       byPayment.set(key, e);
     };
-    const byUser = new Map<string, { userId: string | null; name: string; total: number; count: number }>();
+    const byUser = new Map<string, { userId: string | null; name: string; total: number; count: number; units: number }>();
     for (const sale of sales) {
       const total = Number(sale.total);
       if (sale.payments.length) {
@@ -455,8 +456,9 @@ export class PosService {
         addPay(sale.paymentMethod && sale.paymentMethod !== 'MIXED' ? sale.paymentMethod : 'SIN_ESPECIFICAR', total);
       }
       const key = sale.userId || 'none';
-      const u = byUser.get(key) || { userId: sale.userId, name: sale.user?.name || 'Sin usuario', total: 0, count: 0 };
+      const u = byUser.get(key) || { userId: sale.userId, name: sale.user?.name || 'Sin usuario', total: 0, count: 0, units: 0 };
       u.total += total; u.count++;
+      u.units += sale.items.reduce((s, i) => s + i.quantity, 0);
       byUser.set(key, u);
     }
 
