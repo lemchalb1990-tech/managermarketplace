@@ -171,6 +171,64 @@ export class InventoryReportsService {
     };
   }
 
+  // Ficha del producto (pestaña «Stock por bodega»): cantidad, reservado y en tránsito por
+  // bodega, cuál es la asignada, el último movimiento de cada una y los movimientos recientes.
+  async productStock(user: any, productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, sku: true, name: true, stock: true, criticalStock: true, warehouseId: true, type: true, dropship: true, companyId: true },
+    });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && product.companyId !== user.companyId) throw new ForbiddenException();
+    const companyId = product.companyId;
+    await this.ensureCompanySeeded(companyId);
+
+    const [warehouses, stocks, transit, recent] = await Promise.all([
+      this.prisma.warehouse.findMany({ where: { companyId }, select: { id: true, name: true, active: true }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.productStock.findMany({ where: { productId }, select: { warehouseId: true, quantity: true, reserved: true } }),
+      this.prisma.transferDocumentLine.findMany({
+        where: { productId, document: { companyId, status: TransferStatus.IN_TRANSIT } },
+        select: { quantity: true, document: { select: { toWarehouseId: true } } },
+      }),
+      this.movements(user, { companyId, productId, page: '1' } as MovementsQuery, 30),
+    ]);
+
+    const byWh = new Map(stocks.map((s) => [s.warehouseId, s]));
+    const transitIn = new Map<string, number>();
+    for (const t of transit) transitIn.set(t.document.toWarehouseId, (transitIn.get(t.document.toWarehouseId) ?? 0) + t.quantity);
+    // Último movimiento por bodega: el más reciente de cada una (de los que se trajeron, o una consulta aparte).
+    const lastByWh = new Map<string, (typeof recent.items)[number]>();
+    for (const m of recent.items) if (m.warehouse && !lastByWh.has(m.warehouse.id)) lastByWh.set(m.warehouse.id, m);
+    const missing = warehouses.filter((w) => byWh.has(w.id) && !lastByWh.has(w.id)).map((w) => w.id);
+    if (missing.length) {
+      const older = await Promise.all(missing.map((warehouseId) => this.prisma.stockMovement.findFirst({
+        where: { productId, warehouseId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, createdAt: true, type: true, quantity: true, reason: true, warehouseId: true },
+      })));
+      for (const m of older) {
+        if (m?.warehouseId) lastByWh.set(m.warehouseId, { id: m.id, createdAt: m.createdAt, type: m.type, typeLabel: MOVEMENT_LABELS[m.type], quantity: m.quantity, reason: m.reason } as any);
+      }
+    }
+
+    return {
+      product: { id: product.id, sku: product.sku, name: product.name, stock: product.stock, criticalStock: product.criticalStock, warehouseId: product.warehouseId, managesStock: product.type === ProductType.ARTICULO && !product.dropship },
+      // Bodegas activas, y las inactivas solo si todavía guardan stock de este producto.
+      warehouses: warehouses
+        .filter((w) => w.active || (byWh.get(w.id)?.quantity ?? 0) > 0)
+        .map((w) => {
+          const s = byWh.get(w.id);
+          const last = lastByWh.get(w.id);
+          return {
+            id: w.id, name: w.name, active: w.active, assigned: w.id === product.warehouseId,
+            quantity: s?.quantity ?? 0, reserved: s?.reserved ?? 0, available: Math.max(0, (s?.quantity ?? 0) - (s?.reserved ?? 0)),
+            inTransitIn: transitIn.get(w.id) ?? 0,
+            lastMovement: last ? { createdAt: last.createdAt, typeLabel: last.typeLabel, quantity: last.quantity } : null,
+          };
+        }),
+      movements: recent.items,
+    };
+  }
+
   async availabilityCsv(user: any, q: AvailabilityQuery): Promise<string> {
     const first = await this.availability(user, { ...q, page: '1', pageSize: '200' });
     const all = [...first.rows];

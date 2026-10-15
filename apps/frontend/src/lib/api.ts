@@ -444,6 +444,15 @@ export type InventoryMovements = {
   items: InventoryMovement[]; total: number; page: number; pages: number;
   summary: { entries: number; exits: number; byType: Record<string, number> };
 };
+export type ProductStockByWarehouse = {
+  product: { id: string; sku: string; name: string; stock: number; criticalStock: number; warehouseId: string | null; managesStock: boolean };
+  warehouses: Array<{
+    id: string; name: string; active: boolean; assigned: boolean;
+    quantity: number; reserved: number; available: number; inTransitIn: number;
+    lastMovement: { createdAt: string; typeLabel: string; quantity: number } | null;
+  }>;
+  movements: InventoryMovement[];
+};
 export type TransferStatus = 'DRAFT' | 'IN_TRANSIT' | 'RECEIVED' | 'RECEIVED_WITH_DIFF' | 'CANCELLED';
 type UserRef = { id: string; name: string } | null;
 export type TransferDocument = {
@@ -1499,6 +1508,9 @@ export const api = {
       apiDownload(`/inventory/movements/export?${toQuery(params)}`, token, 'historial-inventario.csv'),
     adjust: (data: { companyId?: string; productId: string; warehouseId: string; mode: 'SET' | 'DELTA'; quantity: number; reason: string }, token: string) =>
       apiFetch<{ warehouseId: string; balanceAfter: number; productStock: number; delta: number }>('/inventory/adjust', { method: 'POST', body: JSON.stringify(data) }, token),
+    // Pestaña «Stock por bodega» de la ficha del producto.
+    productStock: (productId: string, token: string) =>
+      apiFetch<ProductStockByWarehouse>(`/inventory/products/${productId}/stock`, {}, token),
     reconciliation: (token: string, companyId?: string) =>
       apiFetch<Array<{ id: string; sku: string; name: string; total: number; warehousesSum: number; difference: number }>>(`/inventory/reconciliation${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     reconcile: (data: { companyId?: string; productIds?: string[] }, token: string) =>

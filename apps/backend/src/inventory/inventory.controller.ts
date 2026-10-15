@@ -1,4 +1,4 @@
-import { assertCanEditField } from '../catalog/product-field-access';
+import { assertCanEditField, assertCanViewField } from '../catalog/product-field-access';
 import { Controller, Get, Post, Patch, Body, Param, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,6 +32,14 @@ export class InventoryController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="disponibilidad-por-bodega.csv"`);
     res.send(csv);
+  }
+
+  // Pestaña «Stock por bodega» de la ficha del producto: también para quien solo tiene Catálogo.
+  @Get('products/:id/stock')
+  @RequirePermissions('catalog', 'inventory', 'warehouses')
+  productStock(@CurrentUser() user: any, @Param('id') id: string) {
+    assertCanViewField(user, 'stock');
+    return this.reports.productStock(user, id);
   }
 
   @Get('movements')

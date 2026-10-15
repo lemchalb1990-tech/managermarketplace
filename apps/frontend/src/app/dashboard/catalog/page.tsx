@@ -13,6 +13,7 @@ import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import MergeModal from './MergeModal';
 import BulkEditModal from './BulkEditModal';
+import ProductStockTab from './ProductStockTab';
 import MergeStatusModal, { type MergeStatus } from './MergeStatusModal';
 import WalmartListingCard from './WalmartListingCard';
 import MlPhotoCheck from './MlPhotoCheck';
@@ -22,7 +23,7 @@ import {
   fieldDomId, fieldBorder, isFieldInvalid, focusField,
 } from './publishCheck';
 import ChannelPublicationsCard, { GenericChannelActions, PublicationsController, PublicationsSaver } from './ChannelPublicationsCard';
-import { Skeleton, SkeletonCards, SkeletonRows, SkeletonTable } from '@/components/Skeleton';
+import { Skeleton, SkeletonCards, SkeletonRows } from '@/components/Skeleton';
 import { SetupSteps, EmptyFiltered, useCompanySetup, type SetupStep } from '@/components/EmptyState';
 import { FilterBar, FilterField, FilterCount } from '@/components/FilterBar';
 
@@ -1781,8 +1782,6 @@ export default function CatalogPage() {
       setQuickPhotoBusy(false);
     }
   };
-  const [stockMovements, setStockMovements] = useState<any[]>([]);
-  const [stockMovLoading, setStockMovLoading] = useState(false);
 
   // isSuperAdminOverride: en la carga inicial (ver load()), currentUser todavía no se ha
   // actualizado en el estado del componente cuando se dispara este primer fetch —el closure
@@ -2176,7 +2175,8 @@ export default function CatalogPage() {
         mlPrice: editForm.mlPrice !== '' ? parseFloat(editForm.mlPrice) : undefined,
         cost: editForm.cost !== '' ? parseFloat(editForm.cost) : undefined,
         supplierPrice: hasDropshippingModule && editForm.supplierPrice !== '' ? parseFloat(editForm.supplierPrice) : undefined,
-        stock: parseInt(editForm.stock),
+        // El stock de un producto existente se cambia por bodega (pestaña «Stock por bodega»):
+        // no se envía, para no pisar ajustes hechos mientras la ficha estaba abierta.
         criticalStock: editForm.criticalStock !== '' ? parseInt(editForm.criticalStock) : undefined,
         category: editForm.category || undefined,
         mlCategoryId: editForm.mlCategoryId || undefined,
@@ -2524,15 +2524,6 @@ export default function CatalogPage() {
       setTimeout(() => setAutoSaveNotice(''), 2500);
     }
     setTab(newTab);
-    if (newTab === 'stock' && selected) {
-      setStockMovLoading(true);
-      try {
-        const token = getToken()!;
-        const movs = await api.pos.stockMovements(selected.id, token);
-        setStockMovements(movs);
-      } catch { setStockMovements([]); }
-      finally { setStockMovLoading(false); }
-    }
   }
 
   function openPublishModal(connectionId: string, isRepublish: boolean) {
@@ -3531,8 +3522,8 @@ export default function CatalogPage() {
                     tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}>
                   {/* En celular, nombres resumidos para que las pestañas quepan en una línea */}
-                  <span className="sm:hidden">{t === 'edit' ? 'Info' : t === 'images' ? `Imág (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conex' : 'Mov'}</span>
-                  <span className="hidden sm:inline">{t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conexiones' : 'Movimientos'}</span>
+                  <span className="sm:hidden">{t === 'edit' ? 'Info' : t === 'images' ? `Imág (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conex' : 'Stock'}</span>
+                  <span className="hidden sm:inline">{t === 'edit' ? 'Información' : t === 'images' ? `Imágenes (${selected.images?.length ?? 0})` : t === 'connections' ? 'Conexiones' : 'Stock por bodega'}</span>
                   {t === 'edit' && isDirty && (
                     <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-orange-400 align-middle" title="Cambios sin guardar — se guardan solos al cambiar de pestaña" />
                   )}
@@ -3863,12 +3854,12 @@ export default function CatalogPage() {
                     </label>
                     <input type="number" min="0" value={editForm.stock}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, stock: e.target.value }))}
-                      disabled={editForm.type === 'SERVICIO'}
-                      id={fieldDomId('stock')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                      disabled={editForm.type === 'SERVICIO' || !!selected?.id}
+                      id={fieldDomId('stock')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500" />
                     {editForm.type !== 'SERVICIO' && selected?.id && (
-                      <p className="mt-1 text-[11px] text-gray-400">
-                        Un cambio queda como ajuste en su bodega.{' '}
-                        <a href={`/dashboard/inventario?tab=historial&productId=${selected.id}`} className="text-blue-600 hover:underline">Ver historial y stock por bodega</a>
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        Total de todas las bodegas.{' '}
+                        <button type="button" onClick={() => changeTab('stock')} className="text-blue-600 hover:underline">Ver y ajustar por bodega</button>
                       </p>
                     )}
                   </PField>
@@ -4158,63 +4149,20 @@ export default function CatalogPage() {
               )}
 
               {tab === 'stock' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm text-gray-600 font-medium">
-                      Últimos 100 movimientos · Stock actual:
-                      <span className={`ml-1 font-bold ${selected.stock === 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                        {selected.stock} uds
-                      </span>
-                    </p>
-                    <button
-                      onClick={() => changeTab('stock')}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Actualizar
-                    </button>
-                  </div>
-                  {stockMovLoading ? (
-                    <SkeletonTable rows={4} cols={5} />
-                  ) : stockMovements.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-8">Sin movimientos registrados para este producto.</p>
-                  ) : (
-                    <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
-                      {stockMovements.map((mov) => {
-                        const isPositive = mov.quantity > 0;
-                        const typeLabel: Record<string, string> = {
-                          SALE: 'Venta',
-                          RETURN: 'Devolución',
-                          ADJUSTMENT: 'Ajuste',
-                          INITIAL: 'Inicial',
-                        };
-                        const channelLabel: Record<string, string> = {
-                          POS: 'POS',
-                          MERCADO_LIBRE: 'Mercado Libre',
-                          MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
-                        };
-                        const saleChannel = mov.saleItem?.sale?.channel;
-                        return (
-                          <div key={mov.id} className="flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50">
-                            <span className={`text-sm font-bold w-10 text-right shrink-0 ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
-                              {isPositive ? '+' : ''}{mov.quantity}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-800">
-                                {typeLabel[mov.type] || mov.type}
-                                {saleChannel && <span className="ml-1 text-gray-400">· {channelLabel[saleChannel] || saleChannel}</span>}
-                              </p>
-                              {mov.reason && <p className="text-xs text-gray-400 truncate">{mov.reason}</p>}
-                              {mov.user && <p className="text-xs text-gray-400">Por: {mov.user.name}</p>}
-                            </div>
-                            <p className="text-xs text-gray-400 shrink-0">
-                              {new Date(mov.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: tz })}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <ProductStockTab
+                  productId={selected.id}
+                  companyId={isSuperAdmin ? selectedCompanyId : undefined}
+                  tz={tz}
+                  canAdjust={pfEdit('stock') && can(currentUser, 'inventory.adjust', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'])}
+                  canTransfer={can(currentUser, 'transfers', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'])}
+                  onChanged={async () => {
+                    const refreshed = await refreshSelected(selected.id).catch(() => null);
+                    if (!refreshed) return;
+                    // El total de la pestaña Información sigue al stock real (no se edita ahí).
+                    setEditForm((f: any) => ({ ...f, stock: String(refreshed.stock) }));
+                    if (originalFormRef.current) originalFormRef.current.stock = String(refreshed.stock);
+                  }}
+                />
               )}
 
               {tab === 'connections' && (

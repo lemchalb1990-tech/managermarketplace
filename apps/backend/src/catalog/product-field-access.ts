@@ -36,6 +36,12 @@ export function dropNotEditableOnUpdate(user: any, dto: Record<string, any>) {
   }
 }
 
+export function assertCanViewField(user: any, field: string) {
+  if (!canProductField(user, field, 'view')) {
+    throw new ForbiddenException(`No tienes permiso para ver: ${labelOf(field)}`);
+  }
+}
+
 export function assertCanEditField(user: any, field: string) {
   if (!canProductField(user, field, 'edit')) {
     throw new ForbiddenException(`No tienes permiso para modificar: ${labelOf(field)}`);
