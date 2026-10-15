@@ -5,16 +5,18 @@ import { Modal } from '@/components/ui/Modal';
 import { getToken } from '@/lib/auth';
 import { api, type CatalogFilters } from '@/lib/api';
 
-type Field = 'warehouse' | 'criticalStock';
+type Field = 'warehouse' | 'criticalStock' | 'variablePrice';
 
-// Editar en lote (solo Super Admin, para implementaciones): bodega asignada o stock crítico de
-// los productos marcados o de todos los que coinciden con los filtros del catálogo.
+// Editar en lote (solo Super Admin, para implementaciones): bodega asignada, stock crítico o
+// activar el precio variable (con el módulo) de los productos marcados o de todos los que
+// coinciden con los filtros del catálogo.
 export default function BulkEditModal({
   companyId,
   ids,
   filters,
   count,
   warehouses,
+  variablePriceEnabled,
   onClose,
   onDone,
 }: {
@@ -24,6 +26,8 @@ export default function BulkEditModal({
   filters: CatalogFilters | null;
   count: number;
   warehouses: { id: string; name: string }[];
+  // La empresa tiene el módulo Precio variable (y el punto de venta).
+  variablePriceEnabled?: boolean;
   onClose: () => void;
   onDone: (updated: number) => void;
 }) {
@@ -33,7 +37,9 @@ export default function BulkEditModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const valid = field === 'warehouse' ? !!warehouseId : critical.trim() !== '' && Number(critical) >= 0;
+  const valid = field === 'warehouse' ? !!warehouseId
+    : field === 'criticalStock' ? critical.trim() !== '' && Number(critical) >= 0
+    : true;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -44,7 +50,9 @@ export default function BulkEditModal({
       const res = await api.catalog.bulkUpdateFields({
         companyId,
         ...(filters ? { filters } : { ids }),
-        ...(field === 'warehouse' ? { warehouseId } : { criticalStock: Math.trunc(Number(critical)) }),
+        ...(field === 'warehouse' ? { warehouseId }
+          : field === 'criticalStock' ? { criticalStock: Math.trunc(Number(critical)) }
+          : { variablePrice: true }),
       }, getToken()!);
       onDone(res.updated);
     } catch (err) {
@@ -78,9 +86,10 @@ export default function BulkEditModal({
       </>}
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className={`grid grid-cols-1 gap-2 ${variablePriceEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           {option('warehouse', 'Bodega asignada', 'Desde dónde se descuentan las ventas')}
           {option('criticalStock', 'Stock crítico', 'Mínimo antes del aviso')}
+          {variablePriceEnabled && option('variablePrice', 'Precio variable', 'Activar en el punto de venta')}
         </div>
         {field === 'warehouse' ? (
           <div>
@@ -94,6 +103,10 @@ export default function BulkEditModal({
               No mueve el stock que ya está repartido por bodega: desde ahora las ventas de marketplaces y órdenes de estos productos se descuentan de la bodega elegida.
             </p>
           </div>
+        ) : field === 'variablePrice' ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            Se marca «Precio variable en el punto de venta» en estos productos: al cobrar se pedirá el precio real. No cambia su precio de venta ni su precio mínimo, y los que ya lo tenían quedan igual.
+          </p>
         ) : (
           <div>
             <label className="block text-xs font-medium text-[var(--text-2)] mb-1">Nuevo stock crítico (unidades)</label>

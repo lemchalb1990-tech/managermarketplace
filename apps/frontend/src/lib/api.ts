@@ -782,7 +782,7 @@ export const api = {
     bulkSetActive: (ids: string[], active: boolean, token: string) =>
       apiFetch<{ updated: number }>('/catalog/products/bulk/active', { method: 'PATCH', body: JSON.stringify({ ids, active }) }, token),
     // Editar en lote (solo Super Admin): productos marcados (ids) o todos los que coinciden con filters.
-    bulkUpdateFields: (data: { companyId: string; ids?: string[]; filters?: CatalogFilters; warehouseId?: string; criticalStock?: number }, token: string) =>
+    bulkUpdateFields: (data: { companyId: string; ids?: string[]; filters?: CatalogFilters; warehouseId?: string; criticalStock?: number; variablePrice?: boolean }, token: string) =>
       apiFetch<{ updated: number }>('/catalog/products/bulk/fields', { method: 'PATCH', body: JSON.stringify(data) }, token),
     bulkDelete: (ids: string[], token: string) =>
       apiFetch<{ deleted: number; failed: { id: string; name: string; reason: string; canForce?: boolean }[] }>(

@@ -101,7 +101,7 @@ export class CatalogController {
     return this.service.bulkSetActive(dto.ids, dto.active, user);
   }
 
-  // Editar en lote (bodega asignada / stock crítico): solo Super Admin, para implementaciones.
+  // Editar en lote (bodega asignada / stock crítico / activar precio variable): solo Super Admin, para implementaciones.
   @Patch('products/bulk/fields')
   @Roles(Role.SUPER_ADMIN)
   bulkUpdateFields(@Body() dto: BulkUpdateFieldsDto, @CurrentUser() user: any) {

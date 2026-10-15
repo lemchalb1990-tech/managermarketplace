@@ -277,6 +277,11 @@ export class BulkUpdateFieldsDto {
   @IsInt()
   @Min(0)
   criticalStock?: number;
+
+  // Solo activa el precio variable en el punto de venta (no lo desactiva en lote).
+  @IsOptional()
+  @IsBoolean()
+  variablePrice?: boolean;
 }
 
 // Campos del producto que se pueden elegir "campo por campo" al unificar duplicados.

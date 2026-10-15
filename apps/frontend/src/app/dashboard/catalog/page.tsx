@@ -4378,6 +4378,7 @@ export default function CatalogPage() {
           filters={allMatching ? currentCatalogFilters() : null}
           count={allMatching ? total : selectedIds.size}
           warehouses={warehouses}
+          variablePriceEnabled={hasVariablePriceModule}
           onClose={() => setBulkEditOpen(false)}
           onDone={async (updated) => {
             setBulkEditOpen(false);

@@ -9,6 +9,8 @@ import { warehouseStockFor } from '../common/warehouse-stock.util';
 import { dropHiddenOnCreate, dropNotEditableOnUpdate, assertCanEditField, stripHiddenProductFields, assertCanCreateProduct, assertCanActivateProduct, assertCanAddImages } from './product-field-access';
 import { MarketplaceType, MovementType, Prisma, ProductType, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
+import { matchesModule } from '../common/modules.util';
+import { VARIABLE_PRICE_MODULE } from '../pos/sale-prices.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, AdjustStockDto, MergeProductsDto, BulkUpdateFieldsDto } from './dto/product.dto';
 import { InventoryCostingService } from '../purchases/inventory-costing.service';
@@ -409,6 +411,13 @@ export class CatalogService {
       data.warehouseId = dto.warehouseId;
     }
     if (dto.criticalStock != null) data.criticalStock = dto.criticalStock;
+    if (dto.variablePrice === true) {
+      const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
+      if (!matchesModule(company?.modules, VARIABLE_PRICE_MODULE)) {
+        throw new BadRequestException('La empresa no tiene activo el módulo Precio variable');
+      }
+      data.variablePrice = true;
+    }
     if (!Object.keys(data).length) throw new BadRequestException('Elige qué campo modificar');
 
     let ids: string[];
