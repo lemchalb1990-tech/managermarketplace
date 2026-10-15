@@ -183,11 +183,13 @@ export class CatalogService {
       // Prisma no compara dos columnas de la misma fila directamente: se resuelven los
       // ids con stock <= criticalStock por SQL crudo y se filtra el resto de la búsqueda por esos ids.
       const critical = await this.prisma.$queryRaw<{ id: string }[]>(
-        Prisma.sql`SELECT id FROM "Product" WHERE active = true AND stock <= "criticalStock"${
+        Prisma.sql`SELECT id FROM "products" WHERE active = true AND stock <= "criticalStock"${
           companyId ? Prisma.sql` AND "companyId" = ${companyId}` : Prisma.empty
         }`,
       );
       where.id = { in: critical.map((r) => r.id) };
+    } else if (query.stockFilter === 'in') {
+      where.AND = [...(where.AND || []), { stock: { gt: 0 } }];
     } else if (query.stockFilter === 'out') {
       // Servicios y productos dropship no manejan stock propio (siempre queda en 0 por
       // diseño) — "Sin stock" no aplica a ellos, solo a artículos con stock propio agotado.

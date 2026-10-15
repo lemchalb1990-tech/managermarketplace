@@ -1660,7 +1660,7 @@ export default function CatalogPage() {
     ...(activeFilter ? [{ label: activeFilter === 'true' ? 'Activos' : 'Inactivos', onRemove: () => setActiveFilter('') }] : []),
     ...(channelFilter ? [{ label: `Canal: ${MARKETPLACE_LABELS[channelFilter] || channelFilter}`, onRemove: () => setChannelFilter('') }] : []),
     ...(listingStatusFilter ? [{ label: `Publicación: ${({ ACTIVE: 'Activa', PAUSED: 'Pausada', ERROR_CLOSED: 'Con error o cerrada', NONE: 'Sin publicar' } as Record<string, string>)[listingStatusFilter] ?? listingStatusFilter}`, onRemove: () => setListingStatusFilter('') }] : []),
-    ...(stockFilter ? [{ label: 'Stock crítico', onRemove: () => setStockFilter('') }] : []),
+    ...(stockFilter ? [{ label: ({ in: 'Con stock', critical: 'Stock crítico', out: 'Sin stock' } as Record<string, string>)[stockFilter] ?? 'Stock', onRemove: () => setStockFilter('') }] : []),
   ];
   const catalogSetup = useCompanySetup(!loading && products.length === 0 && catalogFilters.length === 0);
   function clearCatalogFilters() { setSearch(''); setWarehouseFilter(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
@@ -3047,6 +3047,7 @@ export default function CatalogPage() {
             className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white"
           >
             <option value="">Todos</option>
+            <option value="in">Con stock</option>
             <option value="critical">Stock crítico</option>
             <option value="out">Sin stock</option>
           </select>
