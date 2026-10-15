@@ -36,8 +36,8 @@ const ALL_COMPANY_MODULES = [
 ];
 
 
-const emptyForm = { name: '', slug: '', maxUsers: 10, adminName: '', adminEmail: '', adminPassword: '' };
-type EditState = { id: string; name: string; active: boolean; maxUsers: number; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string; aiPlanId: string; origAiPlanId: string; addons: AddonsState } | null;
+const emptyForm = { name: '', slug: '', adminName: '', adminEmail: '', adminPassword: '' };
+type EditState = { id: string; name: string; active: boolean; modules: string[] | null; autoSyncSales: boolean; autoSyncIntervalMinutes: number; planId: string; billing: 'MONTHLY' | 'ANNUAL'; origPlanId: string; origBilling: string; aiPlanId: string; origAiPlanId: string; addons: AddonsState } | null;
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -175,7 +175,7 @@ export default function CompaniesPage() {
     setLoading(true);
     try {
       const token = getToken()!;
-      const payload: any = { name: form.name, slug: form.slug, maxUsers: form.maxUsers };
+      const payload: any = { name: form.name, slug: form.slug };
       if (form.adminEmail) {
         payload.admin = { name: form.adminName, email: form.adminEmail, password: form.adminPassword };
       }
@@ -224,7 +224,6 @@ export default function CompaniesPage() {
       const result = await api.companies.update(editing.id, {
         name: editing.name,
         active: editing.active,
-        maxUsers: editing.maxUsers,
         modules: editing.modules,
         autoSyncSales: editing.autoSyncSales,
         autoSyncIntervalMinutes: editing.autoSyncIntervalMinutes,
@@ -284,12 +283,6 @@ export default function CompaniesPage() {
                 <input value={form.name} onChange={(e) => handleNameChange(e.target.value)}
                   required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Máximo de usuarios</label>
-                <input type="number" min={1} max={500} value={form.maxUsers}
-                  onChange={(e) => setForm(f => ({ ...f, maxUsers: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
             </div>
 
             <div>
@@ -346,39 +339,11 @@ export default function CompaniesPage() {
       {editing && (
         <Modal title="Editar empresa" subtitle={editing.name} size="xl" busy={editLoading} onClose={() => setEditing(null)}>
           <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                 <input value={editing.name} onChange={(e) => setEditing(s => s && ({ ...s, name: e.target.value }))}
                   required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Máximo de usuarios</label>
-                {(() => {
-                  // Con plan, el máximo lo definen el plan y sus usuarios adicionales (se editan en
-                  // «Adicionales sobre el plan»); el campo propio de la empresa solo rige sin plan.
-                  const plan = plans.find((p) => p.id === editing.planId);
-                  if (!plan) {
-                    return (
-                      <input type="number" min={1} max={500} value={editing.maxUsers}
-                        onChange={(e) => setEditing(s => s && ({ ...s, maxUsers: Number(e.target.value) }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    );
-                  }
-                  const extra = Math.max(0, Math.trunc(Number(editing.addons.extraUsers) || 0));
-                  return (
-                    <>
-                      <p className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-700">
-                        {plan.maxUsers == null ? 'Sin límite' : (plan.maxUsers + extra).toLocaleString('es-CL')}
-                      </p>
-                      <p className="mt-1 text-[11px] text-gray-400">
-                        {plan.maxUsers == null
-                          ? `El plan ${plan.name} no limita usuarios.`
-                          : `Plan ${plan.name}: ${plan.maxUsers}${extra > 0 ? ` + ${extra} adicional${extra === 1 ? '' : 'es'}` : ''}. Se cambia en Adicionales.`}
-                      </p>
-                    </>
-                  );
-                })()}
               </div>
               <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -529,10 +494,8 @@ export default function CompaniesPage() {
                 <td className="px-4 py-3 text-gray-500 font-mono">{c.slug}</td>
                 <td className="px-4 py-3 text-gray-600">
                   {(() => {
-                    // Con plan, el límite de usuarios es el del plan más sus adicionales (null = sin límite).
-                    const max = c.subscriptionPlan
-                      ? (c.subscriptionPlan.maxUsers == null ? null : c.subscriptionPlan.maxUsers + (c.extraUsers ?? 0))
-                      : (c.maxUsers ?? 10);
+                    // Límite de usuarios: el del plan más sus adicionales. Sin plan (o plan sin tope) = sin límite.
+                    const max = c.subscriptionPlan?.maxUsers == null ? null : c.subscriptionPlan.maxUsers + (c.extraUsers ?? 0);
                     return (
                       <>
                         <span className={max != null && (c._count?.users ?? 0) >= max ? 'text-red-600 font-medium' : ''}>
@@ -567,7 +530,7 @@ export default function CompaniesPage() {
                       Revertir baja
                     </button>
                   )}
-                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, maxUsers: c.maxUsers ?? 10, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY', aiPlanId: c.aiPlanId ?? '', origAiPlanId: c.aiPlanId ?? '', addons: addonsFromCompany(c) }); setEditError(''); }}
+                  <button onClick={() => { setEditing({ id: c.id, name: c.name, active: c.active, modules: Array.isArray(c.modules) ? c.modules : null, autoSyncSales: !!c.autoSyncSales, autoSyncIntervalMinutes: c.autoSyncIntervalMinutes ?? 1, planId: c.subscriptionPlanId ?? '', billing: c.subscriptionBilling === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY', origPlanId: c.subscriptionPlanId ?? '', origBilling: c.subscriptionBilling ?? 'MONTHLY', aiPlanId: c.aiPlanId ?? '', origAiPlanId: c.aiPlanId ?? '', addons: addonsFromCompany(c) }); setEditError(''); }}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium">
                     Editar
                   </button>

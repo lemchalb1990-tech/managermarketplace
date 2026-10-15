@@ -26,12 +26,6 @@ export class CreateCompanyDto {
   slug: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(500)
-  maxUsers?: number;
-
-  @IsOptional()
   @ValidateNested()
   @Type(() => AdminDto)
   admin?: AdminDto;
@@ -45,12 +39,6 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   active?: boolean;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(500)
-  maxUsers?: number;
 
   @IsOptional()
   modules?: string[] | null;

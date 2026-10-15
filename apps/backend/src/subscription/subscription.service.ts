@@ -12,17 +12,17 @@ const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'm
 };
 
 type LimitCompany = {
-  maxUsers: number; extraChannels: number; extraProducts: number; extraUsers: number; extraWarehouses: number;
+  extraChannels: number; extraProducts: number; extraUsers: number; extraWarehouses: number;
   subscriptionPlan: { maxChannels: number | null; maxProducts: number | null; maxUsers: number | null; maxWarehouses: number | null } | null;
 };
-const LIMIT_SELECT = { maxUsers: true, extraChannels: true, extraProducts: true, extraUsers: true, extraWarehouses: true } as const;
+const LIMIT_SELECT = { extraChannels: true, extraProducts: true, extraUsers: true, extraWarehouses: true } as const;
 
-// Límite de un recurso: el del plan más los adicionales de la empresa. Sin plan, solo los
-// usuarios se limitan (máximo de la empresa, configuración previa); un plan sin límite en
-// ese recurso sigue sin límite (los adicionales no aplican).
+// Límite de un recurso: el del plan más los adicionales de la empresa. Sin plan no hay
+// límites; un plan sin límite en ese recurso sigue sin límite (los adicionales no aplican).
+// (Company.maxUsers quedó sin uso: el máximo de usuarios lo define siempre el plan.)
 function limitFor(company: LimitCompany, resource: PlanResource): { limit: number | null; planLimit: number | null; extra: number } {
   const plan = company.subscriptionPlan;
-  if (!plan) return { limit: resource === 'users' ? company.maxUsers : null, planLimit: null, extra: 0 };
+  if (!plan) return { limit: null, planLimit: null, extra: 0 };
   const planLimit = plan[RESOURCE[resource].field];
   const extra = company[RESOURCE[resource].extra] ?? 0;
   return { limit: planLimit == null ? null : planLimit + extra, planLimit, extra: planLimit == null ? 0 : extra };
