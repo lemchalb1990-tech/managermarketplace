@@ -13,6 +13,13 @@ import { confirmDialog, alertDialog } from '../ConfirmDialog';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 import { SetupSteps, EmptyFiltered, useCompanySetup, salesSetupSteps } from '@/components/EmptyState';
 import { hasModule } from '@/lib/modules';
+import { PageHeader, SectionCard } from '@/components/ui';
+
+function shiftDay(key: string, days: number): string {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 const CHANNEL_LABELS: Record<string, string> = {
   POS: 'Punto de Venta',
@@ -39,26 +46,49 @@ const PAYMENT_LABELS: Record<string, string> = {
   MIXED: 'Mixto',
 };
 
-// Totales por método de pago (una venta mixta suma a cada medio lo suyo; los marketplaces,
-// que no tienen medio de pago propio, no entran).
-function PaymentTotals({ title, rows }: { title: string; rows: { method: string; total: number; count: number }[] }) {
+const money = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
+
+// Lista compacta con barra proporcional (canales o medios de pago del día).
+function BreakdownList({ title, rows }: { title: string; rows: { key: string; label: string; total: number; count: number; unit: string }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.total));
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium text-[var(--text-muted)] mb-1.5">{title}</p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-[var(--text-muted)] py-2">Sin movimientos</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.map((r) => (
+            <li key={r.key} className="text-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[var(--text-2)] truncate">{r.label} <span className="text-[var(--text-muted)]">· {r.count} {r.unit}{r.count === 1 ? '' : 's'}</span></span>
+                <span className="font-semibold text-[var(--text)] tabular-nums">{money(r.total)}</span>
+              </div>
+              <div className="h-1 rounded-full bg-[var(--border-soft)] mt-1 overflow-hidden">
+                <div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${(r.total / max) * 100}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Totales por método de pago de las ventas filtradas (una venta mixta suma a cada medio lo suyo;
+// los marketplaces, que no tienen medio de pago propio, no entran): una franja de chips.
+function PaymentStrip({ rows }: { rows: { method: string; total: number; count: number }[] }) {
   const sum = rows.reduce((a, r) => a + r.total, 0);
   return (
-    <div className="mt-4 first:mt-0">
-      <p className="text-xs font-semibold text-gray-600 mb-2">{title}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-        {rows.map((r) => (
-          <div key={r.method} className="bg-gray-50 rounded-xl px-3 py-2">
-            <p className="text-xs text-gray-500">{PAYMENT_LABELS[r.method] || r.method}</p>
-            <p className="text-base font-bold text-gray-800">${Math.round(r.total).toLocaleString('es-CL')}</p>
-            <p className="text-[11px] text-gray-400">{r.count} pago{r.count === 1 ? '' : 's'}</p>
-          </div>
-        ))}
-        <div className="bg-blue-50 rounded-xl px-3 py-2">
-          <p className="text-xs text-gray-500">Total</p>
-          <p className="text-base font-bold text-blue-600">${Math.round(sum).toLocaleString('es-CL')}</p>
-        </div>
-      </div>
+    <div className="ui-card px-3 sm:px-5 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+      <span className="font-medium text-[var(--text-muted)]">Por medio de pago · ventas filtradas</span>
+      {rows.map((r) => (
+        <span key={r.method} className="text-[var(--text-2)]">
+          {PAYMENT_LABELS[r.method] || r.method} <b className="text-[var(--text)] tabular-nums">{money(r.total)}</b>
+          <span className="text-[var(--text-muted)]"> ({r.count})</span>
+        </span>
+      ))}
+      <span className="sm:ml-auto text-[var(--text-2)]">Total <b className="text-[var(--brand-ink)] tabular-nums">{money(sum)}</b></span>
     </div>
   );
 }
@@ -259,13 +289,13 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
 
   useEffect(() => onActivity(['sale'], () => { loadSales(page); loadSummary(); }), [page, loadSales, loadSummary]);
 
-  const fmt = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;
+  const fmt = money;
+  const todayKey = dateKeyInTz(tz);
+  const isToday = summaryDate === todayKey;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between -mb-3">
-        <h1 className="ui-page-title">Ventas</h1>
-      </div>
+    <div className="max-w-6xl mx-auto space-y-3">
+      <PageHeader title="Ventas" tight />
 
       {isSuperAdmin && !selectedCompanyId ? (
         <div className="flex flex-col items-center justify-center text-center text-gray-400 text-sm border border-dashed border-gray-300 rounded-2xl py-20">
@@ -275,52 +305,43 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
       ) : (
       <>
       {/* Resumen del día */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="ui-section-title">Resumen del día</h2>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={summaryDate}
-              onChange={(e) => setSummaryDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={loadSummary}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1 rounded-lg"
-            >
-              Actualizar
-            </button>
+      <SectionCard
+        compactHeader
+        title={<>Resumen del día {isToday && <span className="font-normal text-[var(--text-muted)]">· hoy</span>}</>}
+        actions={
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setSummaryDate(shiftDay(summaryDate, -1))} aria-label="Día anterior" className="w-7 h-7 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-soft)]">‹</button>
+            <input type="date" value={summaryDate} max={todayKey} onChange={(e) => e.target.value && setSummaryDate(e.target.value)}
+              className="border border-[var(--border)] rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-soft)]" />
+            <button type="button" onClick={() => setSummaryDate(shiftDay(summaryDate, 1))} disabled={summaryDate >= todayKey} aria-label="Día siguiente" className="w-7 h-7 rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:bg-[var(--surface-soft)] disabled:opacity-40">›</button>
+            {!isToday && <button type="button" onClick={() => setSummaryDate(todayKey)} className="ui-btn-secondary !py-1 !px-2 text-xs ml-1">Hoy</button>}
           </div>
-        </div>
-
-        {summaryLoading ? (
-          <SkeletonCards count={4} className="grid grid-cols-2 md:grid-cols-4 gap-4" height={80} />
+        }
+      >
+        {summaryLoading && !summary ? (
+          <SkeletonCards count={3} className="grid grid-cols-1 md:grid-cols-3 gap-4" height={90} />
         ) : summary ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Total ventas</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.totalSales}</p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Ingresos totales</p>
-              <p className="text-2xl font-bold text-blue-600">{fmt(summary.totalRevenue)}</p>
-            </div>
-            {Object.entries(summary.byChannel || {}).map(([ch, data]: any) => (
-              <div key={ch} className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 mb-1">{CHANNEL_LABELS[ch] || ch}</p>
-                <p className="text-lg font-bold text-gray-800">{fmt(data.total)}</p>
-                <p className="text-xs text-gray-400">{data.count} ventas</p>
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 transition-opacity ${summaryLoading ? 'opacity-60' : ''}`}>
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
+              <div className="rounded-xl bg-[var(--brand-light)] px-3 py-2.5">
+                <p className="text-[11px] text-[var(--text-muted)]">Ingresos totales</p>
+                <p className="text-xl font-bold text-[var(--brand-ink)] tabular-nums">{fmt(summary.totalRevenue)}</p>
               </div>
-            ))}
+              <div className="rounded-xl bg-[var(--surface-soft)] px-3 py-2.5">
+                <p className="text-[11px] text-[var(--text-muted)]">Total ventas</p>
+                <p className="text-xl font-bold text-[var(--text)] tabular-nums">{summary.totalSales}</p>
+              </div>
+            </div>
+            <BreakdownList title="Por canal" rows={Object.entries(summary.byChannel || {})
+              .map(([ch, d]: any) => ({ key: ch, label: CHANNEL_LABELS[ch] || ch, total: d.total, count: d.count, unit: 'venta' }))
+              .sort((x, y) => y.total - x.total)} />
+            <BreakdownList title="Por medio de pago" rows={(summary.byPayment || [])
+              .map((r: { method: string; total: number; count: number }) => ({ key: r.method, label: PAYMENT_LABELS[r.method] || r.method, total: r.total, count: r.count, unit: 'pago' }))} />
           </div>
         ) : (
-          <p className="text-gray-400 text-sm">Sin datos para este día.</p>
+          <p className="text-[var(--text-muted)] text-sm">Sin datos para este día.</p>
         )}
-        {!summaryLoading && summary?.byPayment?.length > 0 && (
-          <PaymentTotals title="Totales del día por método de pago" rows={summary.byPayment} />
-        )}
-      </div>
+      </SectionCard>
 
       {/* Filtros */}
       <FilterBar
@@ -344,11 +365,7 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
         </FilterField>
       </FilterBar>
 
-      {paymentTotals.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
-          <PaymentTotals title="Totales por método de pago · ventas filtradas" rows={paymentTotals} />
-        </div>
-      )}
+      {paymentTotals.length > 0 && <PaymentStrip rows={paymentTotals} />}
 
       {/* Tabla de ventas */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
