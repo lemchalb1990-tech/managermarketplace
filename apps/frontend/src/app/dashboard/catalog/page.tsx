@@ -1622,6 +1622,8 @@ export default function CatalogPage() {
   const canMergeProducts = pfPerms
     ? pfPerms.includes('*') || pfPerms.includes('product.merge')
     : currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN';
+  // Selección múltiple: administradores, o quien solo puede unificar (para elegir los duplicados).
+  const canSelectProducts = isAdmin || canMergeProducts;
   // Subir fotos: con "Imágenes: modificar" o con "Agregar fotos nuevas" (eliminar/principal solo con modificar).
   const canAddImages = pfEdit('images') || (pfView('images') && (!pfPerms || pfPerms.includes('product.images.add')));
   const fView = (f: string) => pfView(f) || (!selected?.id && (f === 'name' || f === 'sku' || f === 'price'));
@@ -3067,7 +3069,7 @@ export default function CatalogPage() {
         {categories.map((c) => <option key={c} value={c} />)}
       </datalist>
 
-      {isAdmin && selectedIds.size === 0 && (
+      {canSelectProducts && selectedIds.size === 0 && (
         <div className="flex justify-end -mt-1 mb-2">
           <button onClick={() => setCodePicker({ text: '', loading: false, error: '', result: null, picked: new Set() })}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium">
@@ -3152,10 +3154,10 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {isAdmin && selectedIds.size > 0 && (
+      {canSelectProducts && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
           <span className="text-sm text-blue-800 font-medium">{(allMatching ? total : selectedIds.size).toLocaleString('es-CL')} seleccionado(s)</span>
-          {canActivateProduct && (<>
+          {isAdmin && canActivateProduct && (<>
           <button onClick={() => handleBulkSetActive(true)} disabled={bulkLoading}
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
             Activar
@@ -3165,10 +3167,12 @@ export default function CatalogPage() {
             Desactivar
           </button>
           </>)}
+          {isAdmin && (
           <button onClick={handleBulkDelete} disabled={bulkLoading}
             className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">
             Eliminar
           </button>
+          )}
           {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && (
             <button onClick={handleBulkDeleteListings} disabled={bulkLoading}
               title="Borra el vínculo interno con el marketplace sin afectar la publicación real"
@@ -3183,6 +3187,9 @@ export default function CatalogPage() {
               {pullLoading || bulkLoading ? 'Sincronizando...' : 'Resincronizar con Mercado Libre'}
             </button>
           )}
+          {canMergeProducts && selectedIds.size < 2 && !isAdmin && (
+            <span className="text-xs text-blue-700">Marca al menos 2 productos para unificarlos</span>
+          )}
           {canMergeProducts && selectedIds.size >= 2 && (
             <button onClick={openMergeModal} disabled={bulkLoading || mergeLoading}
               title="Fusiona productos duplicados (p.ej. importados de distintas cuentas de marketplace) en un solo SKU"
@@ -3190,7 +3197,7 @@ export default function CatalogPage() {
               {mergeLoading ? 'Cargando...' : 'Unificar'}
             </button>
           )}
-          {canPromos && (
+          {isAdmin && canPromos && (
             <button onClick={() => router.push(`/dashboard/mercadolibre/promociones?products=${Array.from(selectedIds).join(',')}`)}
               title="Descuento individual en Mercado Libre para los productos seleccionados, con vista previa de la ganancia"
               className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
@@ -3252,7 +3259,7 @@ export default function CatalogPage() {
             return (
               <div key={p.id} onClick={() => openModal(p)}
                 className="relative bg-white border border-gray-200 rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all">
-                {isAdmin && (
+                {canSelectProducts && (
                   <input type="checkbox" checked={selectedIds.has(p.id)}
                     onClick={(e) => e.stopPropagation()}
                     onChange={() => toggleSelect(p.id)}
@@ -3306,7 +3313,7 @@ export default function CatalogPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {isAdmin && (
+              {canSelectProducts && (
                 <th className="px-4 py-3 w-10">
                   <input type="checkbox"
                     checked={products.length > 0 && selectedIds.size === products.length}
@@ -3364,7 +3371,7 @@ export default function CatalogPage() {
               const imgSize = compact ? 'w-6 h-6 min-w-6' : 'w-10 h-10 min-w-10';
               return (
                 <tr key={p.id} onClick={() => openModal(p)} className="hover:bg-gray-50 cursor-pointer">
-                  {isAdmin && (
+                  {canSelectProducts && (
                     <td className={compact ? 'px-4 py-1' : 'px-4 py-2'} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.has(p.id)}
                         onChange={() => toggleSelect(p.id)} />
@@ -3454,10 +3461,10 @@ export default function CatalogPage() {
               );
             })}
             {!loading && products.length === 0 && (
-              <tr><td colSpan={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length}>{catalogEmpty}</td></tr>
+              <tr><td colSpan={(canSelectProducts ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length}>{catalogEmpty}</td></tr>
             )}
             {loading && (
-              <SkeletonRows cols={(isAdmin ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} />
+              <SkeletonRows cols={(canSelectProducts ? 8 : 7) + (activeConnections.length > 0 ? 2 : 0) + webPriceConnections.length} />
             )}
           </tbody>
         </table>
