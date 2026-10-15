@@ -46,6 +46,29 @@ function FileIcon() {
   );
 }
 
+// Motivos de bloqueo que informa Mercado Libre (conversation_status.substatus) explicados para el vendedor.
+const BLOCK_REASONS: Array<[RegExp, string, string]> = [
+  [/initiated_by_seller/i, 'Esperando respuesta del comprador',
+    'Ya le escribiste al comprador y Mercado Libre no permite enviar otro mensaje hasta que responda. Cuando conteste, podrás seguir la conversación aquí.'],
+  [/fulfillment|full/i, 'Venta Full en camino',
+    'En ventas Full, Mercado Libre habilita los mensajes cuando el paquete se entrega.'],
+  [/mediation|claim/i, 'Hay un reclamo abierto',
+    'Mientras el reclamo esté abierto, la conversación sigue en la sección Reclamos.'],
+  [/cancel/i, 'Venta cancelada', 'Mercado Libre no permite enviar mensajes en ventas canceladas.'],
+  [/time|expired/i, 'Plazo vencido', 'Pasó el plazo que Mercado Libre da para conversar sobre esta venta.'],
+];
+
+function BlockedNotice({ reason }: { reason: string | null }) {
+  const hit = reason ? BLOCK_REASONS.find(([re]) => re.test(reason)) : null;
+  return (
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+      <p className="font-semibold">{hit ? hit[1] : 'Mensajería bloqueada por Mercado Libre'}</p>
+      <p className="mt-0.5 text-amber-800">{hit ? hit[2] : 'Mercado Libre no permite enviar mensajes en esta venta por ahora.'}</p>
+      {reason && !hit && <p className="mt-1 font-mono text-[10px] text-amber-700">Código: {reason}</p>}
+    </div>
+  );
+}
+
 /** Adjunto de un mensaje: miniatura si es imagen, ficha con nombre si es documento. Abre el archivo. */
 function Attachment({ conversationId, file, mine }: { conversationId: string; file: MlChatFile; mine: boolean }) {
   const [thumb, setThumb] = useState<string | null>(null);
@@ -200,9 +223,7 @@ export function MlChat({ conversation, onChange, compact = false }: {
       </div>
 
       {conversation.blocked ? (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Mercado Libre tiene bloqueada la mensajería de esta venta{conversation.blockedReason ? ` (${conversation.blockedReason})` : ''}. En ventas Full se habilita al entregarse el paquete.
-        </p>
+        <BlockedNotice reason={conversation.blockedReason} />
       ) : (
         <div className="mt-3 space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
