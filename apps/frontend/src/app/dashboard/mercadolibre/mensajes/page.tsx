@@ -32,18 +32,37 @@ function MensajesInner() {
   const { companyId } = useMlCompany();
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>('inbox');
+  const [unread, setUnread] = useState(0);
+
+  // Sin leer en el botón Bandeja: se actualiza con mensajes nuevos o al leer/marcar una conversación.
+  const loadUnread = useCallback(() => {
+    api.marketplace.messages.unreadCount(getToken()!, companyId).then((r) => setUnread(r.count)).catch(() => null);
+  }, [companyId]);
+  useEffect(() => {
+    const id = requestAnimationFrame(loadUnread);
+    window.addEventListener('ml-messages-changed', loadUnread);
+    const off = onActivity(['message'], loadUnread);
+    return () => { cancelAnimationFrame(id); window.removeEventListener('ml-messages-changed', loadUnread); off(); };
+  }, [loadUnread]);
 
   return (
     <div className="max-w-[1400px]">
-      <h1 className="ui-page-title mb-1">Mensajes</h1>
-      <p className="ui-page-subtitle mb-4">Conversaciones con los compradores de tus ventas de Mercado Libre y mensajes que se envían solos.</p>
-      <div className="mb-4 flex gap-1 border-b border-gray-200">
-        {([['inbox', 'Bandeja'], ['rules', 'Mensajes programados']] as const).map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setTab(k)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? 'border-[var(--brand)] text-[var(--brand-ink)]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="ui-page-title mb-1">Mensajes</h1>
+          <p className="ui-page-subtitle">Conversaciones con los compradores de tus ventas de Mercado Libre y mensajes que se envían solos.</p>
+        </div>
+        <div role="tablist" aria-label="Secciones de mensajes" className="flex gap-1 rounded-xl border border-gray-200 bg-white p-1">
+          {([['inbox', 'Bandeja'], ['rules', 'Mensajes programados']] as const).map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === k ? 'bg-[var(--navy)] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              {l}
+              {k === 'inbox' && unread > 0 && (
+                <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[10px] font-bold ${tab === k ? 'bg-white text-[var(--navy)]' : 'bg-[var(--brand)] text-white'}`}>{unread}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
       {tab === 'inbox' ? <Inbox companyId={companyId} initialId={params.get('c')} /> : <Rules companyId={companyId} />}
     </div>
