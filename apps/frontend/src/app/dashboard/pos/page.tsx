@@ -6,6 +6,8 @@ import { api, imgUrl, openDocumentUrl } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
 import PosFilters from './PosFilters';
+import { hasModule, matchesModule } from '@/lib/modules';
+import { splitComboTotal } from './variablePrice';
 
 interface CartItem {
   productId: string;
@@ -16,6 +18,11 @@ interface CartItem {
   quantity: number;
   imageUrl?: string;
   type?: string;
+  // Precio de catálogo (price puede cambiar al confirmar el precio real de un producto variable).
+  listPrice: number;
+  // Precio variable (módulo "variable_price"): el precio real se confirma al cobrar.
+  variablePrice?: boolean;
+  minPrice?: number | null;
 }
 
 const PAGE_SIZE = 20;
@@ -32,7 +39,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 export default function PosPage() {
-  const { selectedCompanyId } = useAdminCompany();
+  const { selectedCompanyId, companies: adminCompanies } = useAdminCompany();
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any>(null);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -53,6 +60,13 @@ export default function PosPage() {
 
   // Checkout modal state
   const [showCheckout, setShowCheckout] = useState(false);
+  // Paso previo al cobro: confirmar el precio real de los productos con precio variable,
+  // por producto o como un total de combo que se reparte entre ellos.
+  const [showPriceConfirm, setShowPriceConfirm] = useState(false);
+  const [priceMode, setPriceMode] = useState<'line' | 'combo'>('line');
+  const [linePrices, setLinePrices] = useState<Record<string, string>>({});
+  const [comboTotal, setComboTotal] = useState('');
+  const [priceError, setPriceError] = useState('');
   // En móvil el carrito es un panel que se abre con el botón flotante (no tapa el catálogo).
   const [showCartMobile, setShowCartMobile] = useState(false);
   const [fulfillmentType, setFulfillmentType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
@@ -228,6 +242,12 @@ export default function PosPage() {
   // pedido), solo se factura — al abrir el cobro se deja marcado el documento tributario.
   const servicesOnly = cart.length > 0 && cart.every((c) => c.type === 'SERVICIO');
 
+  // Módulo de precio variable de la empresa (Super Admin: la empresa que está gestionando).
+  const activeCompany = isSuperAdmin ? (adminCompanies || []).find((c: any) => c.id === selectedCompanyId) : null;
+  const variablePriceEnabled = isSuperAdmin
+    ? !!activeCompany && matchesModule(activeCompany.modules, 'variable_price')
+    : hasModule(user, 'variable_price');
+
   function addToCart(product: any) {
     const isService = product.type === 'SERVICIO';
     setCart((prev) => {
@@ -248,10 +268,13 @@ export default function PosPage() {
           name: product.name,
           sku: product.sku,
           price: Number(product.price),
+          listPrice: Number(product.price),
           stock: product.stock,
           quantity: 1,
           imageUrl: primaryImg?.url,
           type: product.type,
+          variablePrice: variablePriceEnabled && !!product.variablePrice,
+          minPrice: product.minPrice != null ? Number(product.minPrice) : null,
         },
       ];
     });
@@ -274,11 +297,56 @@ export default function PosPage() {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
   }
 
+  const variableItems = cart.filter((c) => c.variablePrice);
+
   function openCheckout() {
     setErrorMsg('');
     setSuccessMsg('');
+    if (variableItems.length > 0) {
+      // Se pide siempre al cobrar, con lo último confirmado como sugerencia.
+      setLinePrices(Object.fromEntries(variableItems.map((c) => [c.productId, String(c.price)])));
+      setComboTotal(String(variableItems.reduce((s, c) => s + c.price * c.quantity, 0)));
+      setPriceError('');
+      setShowPriceConfirm(true);
+      return;
+    }
+    proceedToCheckout();
+  }
+
+  function proceedToCheckout() {
     if (servicesOnly && billingConns.length > 0) setEmitDte(true);
     setShowCheckout(true);
+  }
+
+  // Precio por unidad de cada producto variable según lo ingresado (null si falta un dato).
+  const comboMode = priceMode === 'combo' && variableItems.length > 1;
+  const confirmedPrices: Record<string, number> | null = comboMode
+    ? (Number(comboTotal) > 0
+      ? splitComboTotal(variableItems.map((c) => ({ id: c.productId, quantity: c.quantity, weight: c.listPrice })), Number(comboTotal))
+      : null)
+    : (variableItems.every((c) => Number(linePrices[c.productId]) > 0)
+      ? Object.fromEntries(variableItems.map((c) => [c.productId, Number(linePrices[c.productId])]))
+      : null);
+  const fixedTotal = cart.filter((c) => !c.variablePrice).reduce((s, c) => s + c.price * c.quantity, 0);
+  const confirmedTotal = confirmedPrices
+    ? fixedTotal + variableItems.reduce((s, c) => s + (confirmedPrices[c.productId] ?? 0) * c.quantity, 0)
+    : null;
+
+  function confirmPrices() {
+    if (!confirmedPrices) {
+      setPriceError(comboMode ? 'Ingresa el total del combo' : 'Ingresa el precio de cada producto');
+      return;
+    }
+    for (const c of variableItems) {
+      const unit = confirmedPrices[c.productId];
+      if (c.minPrice != null && unit < c.minPrice - 0.005) {
+        setPriceError(`"${c.name}" queda en ${clp(unit)} por unidad, bajo su mínimo de ${clp(c.minPrice)}`);
+        return;
+      }
+    }
+    setCart((prev) => prev.map((c) => (c.variablePrice ? { ...c, price: confirmedPrices[c.productId] } : c)));
+    setShowPriceConfirm(false);
+    proceedToCheckout();
   }
 
   function closeCheckout() {
@@ -292,7 +360,7 @@ export default function PosPage() {
   // F2 = Cobrar (atajo de caja). Se guarda la última versión de la función para el listener.
   const openCheckoutRef = useRef<() => void>(() => {});
   useEffect(() => {
-    openCheckoutRef.current = () => { if (cart.length > 0 && !showCheckout) openCheckout(); };
+    openCheckoutRef.current = () => { if (cart.length > 0 && !showCheckout && !showPriceConfirm) openCheckout(); };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -801,6 +869,10 @@ export default function PosPage() {
                         +
                       </button>
                       <span className="ml-1 text-[11px] text-gray-400 whitespace-nowrap">× {clp(item.price)}</span>
+                      {item.variablePrice && (
+                        <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 whitespace-nowrap"
+                          title="El precio real se confirma al cobrar">Precio variable</span>
+                      )}
                     </div>
                     <span className="text-sm font-semibold text-gray-900 tabular-nums">{clp(item.price * item.quantity)}</span>
                   </div>
@@ -872,6 +944,104 @@ export default function PosPage() {
           </button>
         </div>
       </div>
+
+      {/* Confirmar precios de productos con precio variable (antes de cobrar) */}
+      {showPriceConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="ui-section-title">Confirmar precios</h2>
+              <button onClick={() => setShowPriceConfirm(false)} aria-label="Cerrar"
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg font-bold transition">
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                {variableItems.length === 1 ? 'Este producto tiene' : 'Estos productos tienen'} precio variable. Ingresa el precio real de venta.
+              </p>
+
+              {variableItems.length > 1 && (
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 text-sm">
+                  <button type="button" onClick={() => { setPriceMode('line'); setPriceError(''); }}
+                    className={`rounded-md py-1.5 font-medium transition ${!comboMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    Precio por producto
+                  </button>
+                  <button type="button" onClick={() => { setPriceMode('combo'); setPriceError(''); }}
+                    className={`rounded-md py-1.5 font-medium transition ${comboMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    Total del combo
+                  </button>
+                </div>
+              )}
+
+              {comboMode && (
+                <div>
+                  <label className="block text-xs text-gray-500 font-medium mb-1">Total cobrado por estos productos</label>
+                  <input type="number" min="0" step="1" inputMode="numeric" autoFocus value={comboTotal}
+                    onChange={(e) => { setComboTotal(e.target.value); setPriceError(''); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') confirmPrices(); }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <p className="text-[11px] text-gray-400 mt-1">Se reparte entre los productos en proporción a su precio de referencia.</p>
+                </div>
+              )}
+
+              <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+                {variableItems.map((c, idx) => {
+                  const unit = confirmedPrices?.[c.productId];
+                  const belowMin = unit != null && c.minPrice != null && unit < c.minPrice - 0.005;
+                  return (
+                    <li key={c.productId} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate" title={c.name}>{c.name}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {c.quantity} {c.quantity === 1 ? 'unidad' : 'unidades'} · referencia {clp(c.listPrice)}{c.minPrice != null ? ` · mínimo ${clp(c.minPrice)}` : ''}
+                        </p>
+                      </div>
+                      {comboMode ? (
+                        <div className={`text-right text-sm tabular-nums ${belowMin ? 'text-red-600' : 'text-gray-700'}`}>
+                          <p className="font-semibold">{unit != null ? clp(unit * c.quantity) : '—'}</p>
+                          {unit != null && c.quantity > 1 && <p className="text-[11px] text-gray-400">{clp(unit)} c/u</p>}
+                        </div>
+                      ) : (
+                        <div className="w-32">
+                          <input type="number" min="0" step="1" inputMode="numeric" autoFocus={idx === 0}
+                            aria-label={`Precio por unidad de ${c.name}`}
+                            value={linePrices[c.productId] ?? ''}
+                            onChange={(e) => { setLinePrices((lp) => ({ ...lp, [c.productId]: e.target.value })); setPriceError(''); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmPrices(); }}
+                            className={`w-full border ${belowMin ? 'border-red-400' : 'border-gray-300'} rounded-lg px-2 py-1.5 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500`} />
+                          <p className="text-[10px] text-gray-400 text-right mt-0.5">por unidad</p>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {fixedTotal > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Otros productos (precio fijo)</span>
+                  <span className="tabular-nums">{clp(fixedTotal)}</span>
+                </div>
+              )}
+
+              {priceError && <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2">{priceError}</div>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-600">Total de la venta</span>
+                <span className="text-xl font-bold text-gray-900 tabular-nums">{confirmedTotal != null ? clp(confirmedTotal) : '—'}</span>
+              </div>
+              <button onClick={confirmPrices}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition">
+                Confirmar y continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de checkout */}
       {showCheckout && (

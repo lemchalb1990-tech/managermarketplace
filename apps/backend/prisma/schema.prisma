@@ -439,6 +439,11 @@ model Product {
   supplierPrice Decimal?    @db.Decimal(10, 2)
   // Fase 7 (motor de precios): precio mayorista, aparte del precio de venta normal.
   wholesalePrice Decimal?   @db.Decimal(10, 2)
+  // Precio variable (módulo "variable_price"): en el punto de venta el precio real se
+  // confirma al cobrar (por línea o como total de combo); price queda como referencia.
+  // minPrice (opcional) es el piso que no se puede bajar al confirmar.
+  variablePrice Boolean     @default(false)
+  minPrice      Decimal?    @db.Decimal(10, 2)
   stock         Int         @default(0)
   // Umbral de stock crítico: al alcanzarlo (o bajarlo) las ventas pausan la publicación.
   criticalStock Int         @default(0)
@@ -1004,6 +1009,9 @@ model SaleItem {
   id        String   @id @default(cuid())
   quantity  Int
   unitPrice Decimal  @db.Decimal(10, 2)
+  // Precio de catálogo del producto al momento de la venta (punto de venta). Con precio
+  // variable permite comparar lo cobrado contra el precio de referencia.
+  listPrice Decimal? @db.Decimal(10, 2)
   totalCost Decimal? @db.Decimal(10, 2)
   // Neto sin IVA de la línea en ventas importadas de marketplaces (venta − comisión ± envío).
   netAmount Decimal? @db.Decimal(10, 2)

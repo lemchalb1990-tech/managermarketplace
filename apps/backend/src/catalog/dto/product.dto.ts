@@ -43,6 +43,18 @@ export class CreateProductDto {
   @Min(0)
   supplierPrice?: number;
 
+  // Precio variable en el punto de venta (módulo "variable_price"): el precio real se
+  // confirma al cobrar. minPrice es el piso opcional (null = sin piso).
+  @IsOptional()
+  @IsBoolean()
+  variablePrice?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minPrice?: number | null;
+
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -143,6 +155,18 @@ export class UpdateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   supplierPrice?: number;
+
+  // Precio variable en el punto de venta (módulo "variable_price"): el precio real se
+  // confirma al cobrar. minPrice es el piso opcional (null = sin piso).
+  @IsOptional()
+  @IsBoolean()
+  variablePrice?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minPrice?: number | null;
 
   @IsOptional()
   @Type(() => Number)

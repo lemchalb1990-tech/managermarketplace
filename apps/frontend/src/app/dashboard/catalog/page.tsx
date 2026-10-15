@@ -1433,6 +1433,7 @@ const emptyForm = {
   sku: '', name: '', type: 'ARTICULO', description: '', price: '', mlPrice: '', cost: '', supplierPrice: '',
   stock: '', criticalStock: '', category: '', mlCategoryId: '', mlDescription: '', mlAttributes: [] as any[], warehouseId: '', mlManufacturingDays: '',
   packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '', noBarcode: false,
+  variablePrice: false, minPrice: '',
   channelPrices: {} as Record<string, string>,
 };
 
@@ -1633,6 +1634,8 @@ export default function CatalogPage() {
   const hasPosModule = companyHas('pos');
   const hasPurchasesModule = companyHas('purchases');
   const hasDropshippingModule = companyHas('dropshipping');
+  // Precio variable: solo tiene sentido con el punto de venta (el precio real se ingresa al cobrar).
+  const hasVariablePriceModule = hasPosModule && companyHas('variable_price');
 
   const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
   const mlChecked = connections.some((c) => publishTargets[c.id]);
@@ -2024,7 +2027,9 @@ export default function CatalogPage() {
       JSON.stringify(editForm.channelPrices || {}) !== orig.channelPrices ||
       editForm.warehouseId !== orig.warehouseId ||
       (editForm.barcode || '') !== (orig.barcode || '') ||
-      !!editForm.noBarcode !== !!orig.noBarcode;
+      !!editForm.noBarcode !== !!orig.noBarcode ||
+      !!editForm.variablePrice !== !!orig.variablePrice ||
+      (editForm.minPrice || '') !== (orig.minPrice || '');
     setIsDirty(dirty);
   }, [editForm]);
 
@@ -2076,6 +2081,8 @@ export default function CatalogPage() {
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
       barcode: product.barcode || '',
       noBarcode: !!product.noBarcode,
+      variablePrice: !!product.variablePrice,
+      minPrice: product.minPrice != null ? String(Number(product.minPrice)) : '',
       channelPrices: channelPriceMap(product),
     });
     setTab('edit');
@@ -2105,6 +2112,8 @@ export default function CatalogPage() {
       packageWeight: product.packageWeight != null ? String(Number(product.packageWeight)) : '',
       barcode: product.barcode || '',
       noBarcode: !!product.noBarcode,
+      variablePrice: !!product.variablePrice,
+      minPrice: product.minPrice != null ? String(Number(product.minPrice)) : '',
       channelPrices: JSON.stringify(channelPriceMap(product)),
     };
     setMlCategoryAttrs([]);
@@ -2179,6 +2188,7 @@ export default function CatalogPage() {
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
         barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
         noBarcode: !!editForm.noBarcode,
+        ...(hasVariablePriceModule ? { variablePrice: !!editForm.variablePrice, minPrice: editForm.variablePrice && editForm.minPrice !== '' ? parseFloat(editForm.minPrice) : null } : {}),
       };
       await api.catalog.update(selected.id, payload, token);
       const prevDays = selected.mlManufacturingDays != null ? Number(selected.mlManufacturingDays) : 0;
@@ -2235,6 +2245,7 @@ export default function CatalogPage() {
         packageWeight: editForm.packageWeight !== '' ? parseFloat(editForm.packageWeight) : undefined,
         barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
         noBarcode: !!editForm.noBarcode,
+        ...(hasVariablePriceModule && editForm.variablePrice ? { variablePrice: true, minPrice: editForm.minPrice !== '' ? parseFloat(editForm.minPrice) : undefined } : {}),
         ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
       };
       const created = await api.catalog.create(payload, token);
@@ -3769,6 +3780,23 @@ export default function CatalogPage() {
                       onChange={(e) => setEditForm((f: any) => ({ ...f, price: e.target.value }))}
                       id={fieldDomId('price')} required className={`w-full px-3 py-2 border ${fieldBorder(mlBad('price'))} rounded-lg text-sm`} />
                   </PField>
+                  {hasVariablePriceModule && (
+                    <PField allowed={fView('price')} editable={fEdit('price')}>
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1">
+                        <input type="checkbox" checked={!!editForm.variablePrice}
+                          onChange={(e) => setEditForm((f: any) => ({ ...f, variablePrice: e.target.checked, ...(e.target.checked ? {} : { minPrice: '' }) }))} />
+                        Precio variable en el punto de venta
+                      </label>
+                      <input type="number" step="0.01" min="0" value={editForm.minPrice || ''}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, minPrice: e.target.value }))}
+                        disabled={!editForm.variablePrice}
+                        placeholder="Precio mínimo (opcional)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400" />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Al cobrar se ingresa el precio real (por producto o como total de combo). El precio de venta queda como referencia.
+                      </p>
+                    </PField>
+                  )}
                   {hasMlModule && (selected.id || mlChecked) && (
                     <PField allowed={fView('price')} editable={fEdit('price')}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">

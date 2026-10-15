@@ -10,6 +10,8 @@ import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz, dateKeyStringInTz, shiftDateKey } from '../common/timezone';
 import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
+import { matchesModule } from '../common/modules.util';
+import { assertSalePrices, VARIABLE_PRICE_MODULE } from './sale-prices.util';
 
 const POS_MANAGER_ROLES: Role[] = [Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER];
 
@@ -147,7 +149,11 @@ export class PosService {
     return assigned[0];
   }
 
-  async createSale(dto: CreateSaleDto, user: any, opts: { useSellerWarehouse?: boolean } = { useSellerWarehouse: true }) {
+  // enforcePrices: venta directa desde el punto de venta. Cada línea debe ir al precio de
+  // catálogo, salvo los productos con precio variable (si la empresa tiene el módulo), que
+  // llevan el precio real confirmado al cobrar. Las órdenes de trabajo convertidas no lo usan:
+  // traen los precios acordados en la orden.
+  async createSale(dto: CreateSaleDto, user: any, opts: { useSellerWarehouse?: boolean; enforcePrices?: boolean } = { useSellerWarehouse: true, enforcePrices: true }) {
     const companyId = this.resolveCompanyId(user, dto.companyId);
     // Venta directa: se vende (y descuenta) desde la bodega del vendedor. Las órdenes de
     // trabajo convertidas mantienen la bodega de cada producto (ahí reservaron el stock).
@@ -191,6 +197,11 @@ export class PosService {
           throw new BadRequestException(`Sin stock suficiente en la bodega "${saleWarehouse.name}" para "${p.name}": disponible ${available}, solicitado ${wanted}`);
         }
       }
+    }
+
+    if (opts.enforcePrices) {
+      const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { modules: true } });
+      assertSalePrices(dto.items, products, matchesModule(company?.modules, VARIABLE_PRICE_MODULE));
     }
 
     const total = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
@@ -255,6 +266,7 @@ export class PosService {
               productId: i.productId,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
+              listPrice: products.find(p => p.id === i.productId)!.price,
             })),
           },
         },

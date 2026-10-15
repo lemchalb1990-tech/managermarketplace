@@ -11,7 +11,7 @@ const FIELD_KEYS: Record<string, string[]> = {
   criticalStock: ['criticalStock'],
   warehouse: ['warehouseId'],
   description: ['description'],
-  price: ['price', 'mlPrice', 'wholesalePrice'],
+  price: ['price', 'mlPrice', 'wholesalePrice', 'variablePrice', 'minPrice'],
   category: ['category'],
 };
 
