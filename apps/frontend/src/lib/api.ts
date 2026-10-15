@@ -93,17 +93,35 @@ export async function apiUploadForm<T>(
   return res.json();
 }
 
-export type MlChatMessage = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[] };
+export type MlChatFile = { id: string; name: string; type: string | null; size: number | null };
+export type MlChatMessage = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[]; files?: MlChatFile[] };
 export type MlConversationRow = {
   id: string; packId: string; buyerName: string | null; lastText: string | null; lastFrom: string | null;
   lastMessageAt: string | null; unread: number; blocked: boolean;
   connection: { id: string; name: string };
-  sale: { id: string; saleNumber: number | null; items: Array<{ product: { name: string; images: { url: string }[] } | null }> } | null;
+  sale: {
+    id: string; saleNumber: number | null; shippingMethod: string | null; order: { status: string } | null;
+    items: Array<{ product: { name: string; images: { url: string }[] } | null }>;
+  } | null;
 };
-export type MlConversationFull = MlConversationRow & {
+export type MlConversationPage = { rows: MlConversationRow[]; total: number; page: number; pageSize: number };
+export type MlConversationFull = Omit<MlConversationRow, 'sale'> & {
   messages: MlChatMessage[] | null; blockedReason: string | null; syncedAt: string | null;
-  sale: (MlConversationRow['sale'] & { externalId: string | null; total: string; order: { id: string } | null; items: Array<{ quantity: number; product: { name: string; images: { url: string }[] } | null }> }) | null;
+  sale: {
+    id: string; saleNumber: number | null; externalId: string | null; total: string; shippingMethod: string | null; createdAt: string;
+    items: Array<{ quantity: number; product: { name: string; sku: string; images: { url: string }[] } | null }>;
+    order: { id: string; status: string; courier: string | null; trackingCode: string | null; dispatchedAt: string | null; deliveredAt: string | null } | null;
+    invoices: Array<{ folio: number | null; status: string; createdAt: string }>;
+    mlMessageLogs: Array<{ status: string; createdAt: string; rule: { name: string } }>;
+  } | null;
 };
+
+// Archivo protegido del backend como URL local (para miniaturas de imágenes con token).
+export async function apiBlobUrl(path: string, token: string): Promise<string> {
+  const res = await fetch(`${API_URL}/api${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Error ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
 export type MlRuleCondition = { field: 'category' | 'product' | 'shipping' | 'total' | 'account'; values: string[]; labels?: Record<string, string> };
 export type MlMessageRule = {
   id: string; name: string; active: boolean; trigger: 'SALE_CREATED' | 'INVOICE_ISSUED' | 'ORDER_DISPATCHED' | 'ORDER_DELIVERED';
@@ -846,21 +864,25 @@ export const api = {
       }, token),
     // Mensajería postventa: bandeja, conversación por venta y mensajes programados.
     messages: {
-      list: (token: string, params: { companyId?: string; unread?: boolean; connectionId?: string; search?: string } = {}) => {
+      list: (token: string, params: { companyId?: string; unread?: boolean; connectionId?: string; search?: string; page?: number } = {}) => {
         const q = new URLSearchParams();
         if (params.companyId) q.set('companyId', params.companyId);
         if (params.unread) q.set('unread', '1');
         if (params.connectionId) q.set('connectionId', params.connectionId);
         if (params.search) q.set('search', params.search);
-        return apiFetch<MlConversationRow[]>(`/ecommerce/ml/messages/conversations${q.toString() ? `?${q}` : ''}`, {}, token);
+        if (params.page && params.page > 1) q.set('page', String(params.page));
+        return apiFetch<MlConversationPage>(`/ecommerce/ml/messages/conversations${q.toString() ? `?${q}` : ''}`, {}, token);
       },
       open: (id: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}`, {}, token),
       unreadCount: (token: string, companyId?: string) =>
         apiFetch<{ count: number }>(`/ecommerce/ml/messages/unread-count${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
       setUnread: (id: string, unread: boolean, token: string) =>
         apiFetch<{ id: string; unread: number }>(`/ecommerce/ml/messages/conversations/${id}/unread`, { method: 'PATCH', body: JSON.stringify({ unread }) }, token),
-      send: (id: string, text: string, token: string) =>
-        apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+      send: (id: string, text: string, token: string, attachments: string[] = []) =>
+        apiFetch<MlConversationFull>(`/ecommerce/ml/messages/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text, attachments }) }, token),
+      uploadAttachment: (id: string, file: File, token: string, onProgress?: (percent: number) => void) =>
+        apiUpload<MlChatFile>(`/ecommerce/ml/messages/conversations/${id}/attachments`, file, token, onProgress),
+      attachmentPath: (id: string, fileId: string) => `/ecommerce/ml/messages/conversations/${id}/attachments/${encodeURIComponent(fileId)}`,
       forSale: (saleId: string, token: string) => apiFetch<MlConversationFull>(`/ecommerce/ml/messages/sales/${saleId}`, {}, token),
       rules: (token: string, companyId?: string) =>
         apiFetch<MlMessageRule[]>(`/ecommerce/ml/messages/rules${companyId ? `?companyId=${companyId}` : ''}`, {}, token),

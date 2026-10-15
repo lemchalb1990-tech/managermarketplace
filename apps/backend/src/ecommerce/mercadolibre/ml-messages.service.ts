@@ -7,8 +7,12 @@ import { MercadolibreService } from './mercadolibre.service';
 
 const ML_API = 'https://api.mercadolibre.com';
 const MAX_TEXT = 350; // límite de Mercado Libre para mensajes postventa
+const PAGE_SIZE = 25; // conversaciones por página en la bandeja
+const SITE_ID = 'MLC';
 
-export type MlMsg = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[] };
+// attachments: nombres (formato antiguo de la caché); files: id de ML para descargarlos.
+export type MlMsgFile = { id: string; name: string; type: string | null; size: number | null };
+export type MlMsg = { id: string; from: 'BUYER' | 'SELLER'; text: string; date: string; attachments?: string[]; files?: MlMsgFile[] };
 
 export const RULE_TRIGGERS = ['SALE_CREATED', 'INVOICE_ISSUED', 'ORDER_DISPATCHED', 'ORDER_DELIVERED'] as const;
 const COND_FIELDS = ['category', 'product', 'shipping', 'total', 'account'] as const;
@@ -63,7 +67,7 @@ export class MlMessagesService {
 
   // ── Conversaciones ─────────────────────────────────────────────────────
 
-  async list(user: any, q: { companyId?: string; unread?: string; connectionId?: string; search?: string }) {
+  async list(user: any, q: { companyId?: string; unread?: string; connectionId?: string; search?: string; page?: string }) {
     const where: Prisma.MlConversationWhereInput = { ...this.companyWhere(user, q.companyId) };
     if (q.unread === '1') where.unread = { gt: 0 };
     if (q.connectionId) where.connectionId = q.connectionId;
@@ -74,15 +78,24 @@ export class MlMessagesService {
         { packId: { contains: q.search } },
       ];
     }
+    const total = await this.prisma.mlConversation.count({ where });
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const page = Math.min(Math.max(1, Number(q.page) || 1), pages);
     const rows = await this.prisma.mlConversation.findMany({
-      where, orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }], take: 200,
+      where, orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
+      skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
       select: {
         id: true, packId: true, buyerName: true, lastText: true, lastFrom: true, lastMessageAt: true, unread: true, blocked: true,
         connection: { select: { id: true, name: true } },
-        sale: { select: { id: true, saleNumber: true, items: { take: 1, select: { product: { select: { name: true, images: { take: 1, orderBy: { order: 'asc' }, select: { url: true } } } } } } } },
+        sale: {
+          select: {
+            id: true, saleNumber: true, shippingMethod: true, order: { select: { status: true } },
+            items: { take: 1, select: { product: { select: { name: true, images: { take: 1, orderBy: { order: 'asc' }, select: { url: true } } } } } },
+          },
+        },
       },
     });
-    return rows;
+    return { rows, total, page, pageSize: PAGE_SIZE };
   }
 
   // Conversación de una venta (se crea si no existe) con los mensajes al día.
@@ -129,15 +142,34 @@ export class MlMessagesService {
     const seller = conv.connection.mlUserId;
     if (!seller || integrationsDisabled()) return this.view(conv.id);
     try {
-      const data = await this.mlFetch(conv.connectionId, `/messages/packs/${conv.packId}/sellers/${seller}?tag=post_sale&mark_as_read=${markRead ? 'true' : 'false'}`);
-      const raw: any[] = data?.messages || [];
-      const msgs: MlMsg[] = raw.map((m) => ({
-        id: String(m.id),
-        from: (String(m.from?.user_id) === String(seller) ? 'SELLER' : 'BUYER') as MlMsg['from'],
-        text: String(m.text || ''),
-        date: m.message_date?.created || m.date_created || new Date().toISOString(),
-        attachments: (m.message_attachments || []).map((a: any) => a.original_filename || a.filename).filter(Boolean),
-      })).sort((a, b) => a.date.localeCompare(b.date));
+      // Mercado Libre devuelve los mensajes por páginas (10 por defecto): se recorren todas
+      // para tener el historial completo.
+      const base = `/messages/packs/${conv.packId}/sellers/${seller}?tag=post_sale&mark_as_read=${markRead ? 'true' : 'false'}`;
+      let data: any = null;
+      const raw: any[] = [];
+      for (let offset = 0; offset < 5000;) {
+        const pageData = await this.mlFetch(conv.connectionId, `${base}&limit=50&offset=${offset}`);
+        data = data || pageData;
+        const batch: any[] = pageData?.messages || [];
+        raw.push(...batch);
+        const total = Number(pageData?.paging?.total ?? 0);
+        offset += batch.length;
+        if (!batch.length || offset >= total) break;
+      }
+      const seen = new Set<string>();
+      const msgs: MlMsg[] = raw.filter((m) => !seen.has(String(m.id)) && !!seen.add(String(m.id))).map((m) => {
+        const files: MlMsgFile[] = (m.message_attachments || [])
+          .filter((a: any) => a?.filename)
+          .map((a: any) => ({ id: String(a.filename), name: String(a.original_filename || a.filename), type: a.type || null, size: a.size ?? null }));
+        return {
+          id: String(m.id),
+          from: (String(m.from?.user_id) === String(seller) ? 'SELLER' : 'BUYER') as MlMsg['from'],
+          text: String(m.text || ''),
+          date: m.message_date?.created || m.date_created || new Date().toISOString(),
+          attachments: files.map((f) => f.name),
+          files,
+        };
+      }).sort((a, b) => a.date.localeCompare(b.date));
       const last = msgs[msgs.length - 1];
       const buyerMsg = raw.find((m) => String(m.from?.user_id) !== String(seller));
       const status = data?.conversation_status || {};
@@ -169,9 +201,50 @@ export class MlMessagesService {
       where: { id },
       include: {
         connection: { select: { id: true, name: true } },
-        sale: { select: { id: true, saleNumber: true, externalId: true, total: true, items: { take: 3, select: { quantity: true, product: { select: { name: true, images: { take: 1, orderBy: { order: 'asc' }, select: { url: true } } } } } }, order: { select: { id: true } } } },
+        sale: {
+          select: {
+            id: true, saleNumber: true, externalId: true, total: true, shippingMethod: true, createdAt: true,
+            items: { take: 3, select: { quantity: true, product: { select: { name: true, sku: true, images: { take: 1, orderBy: { order: 'asc' }, select: { url: true } } } } } },
+            order: { select: { id: true, status: true, courier: true, trackingCode: true, dispatchedAt: true, deliveredAt: true } },
+            invoices: { orderBy: { createdAt: 'desc' }, take: 1, select: { folio: true, status: true, createdAt: true } },
+            mlMessageLogs: { orderBy: { createdAt: 'asc' }, select: { status: true, createdAt: true, rule: { select: { name: true } } } },
+          },
+        },
       },
     });
+  }
+
+  private async ownConversation(user: any, id: string) {
+    const conv = await this.prisma.mlConversation.findUnique({ where: { id } });
+    if (!conv) throw new NotFoundException('Conversación no encontrada');
+    if (user.role !== Role.SUPER_ADMIN && conv.companyId !== user.companyId) throw new ForbiddenException();
+    return conv;
+  }
+
+  // Sube un archivo (foto o documento) a Mercado Libre para adjuntarlo al próximo mensaje.
+  async uploadAttachment(user: any, id: string, file: { buffer: Buffer; mimetype: string; originalname: string; size: number }) {
+    const conv = await this.ownConversation(user, id);
+    const token = await this.ml.getValidToken(conv.connectionId);
+    const form = new FormData();
+    form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || 'archivo');
+    const res = await fetch(`${ML_API}/messages/attachments?tag=post_sale&site_id=${SITE_ID}`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+    });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new BadRequestException(data.message || 'Mercado Libre rechazó el archivo');
+    if (!data.id) throw new BadRequestException('Mercado Libre no devolvió el identificador del archivo');
+    return { id: String(data.id), name: file.originalname, type: file.mimetype, size: file.size };
+  }
+
+  // Descarga un adjunto de la conversación desde Mercado Libre (requiere el token de la cuenta).
+  async downloadAttachment(user: any, id: string, fileId: string) {
+    const conv = await this.ownConversation(user, id);
+    const token = await this.ml.getValidToken(conv.connectionId);
+    const res = await fetch(`${ML_API}/messages/attachments/${encodeURIComponent(fileId)}?tag=post_sale&site_id=${SITE_ID}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new BadRequestException('No se pudo descargar el archivo desde Mercado Libre');
+    return { buffer: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') || 'application/octet-stream' };
   }
 
   // El comprador (user_id de ML) se saca de la orden si todavía no escribió.
@@ -187,36 +260,43 @@ export class MlMessagesService {
 
   // Envía un mensaje. Si Mercado Libre exige iniciar el contacto con un motivo (el comprador aún
   // no escribió), se usa el motivo "Otro" con el mismo texto.
-  async send(user: any, id: string, text: string) {
+  async send(user: any, id: string, text: string, attachments: string[] = []) {
     const conv = await this.prisma.mlConversation.findUnique({ where: { id }, include: { connection: { select: { mlUserId: true } } } });
     if (!conv) throw new NotFoundException('Conversación no encontrada');
     if (user && user.role !== Role.SUPER_ADMIN && conv.companyId !== user.companyId) throw new ForbiddenException();
-    await this.sendRaw(conv, text);
+    await this.sendRaw(conv, text, attachments);
     return this.refresh(conv.id, false);
   }
 
-  private async sendRaw(conv: { id: string; connectionId: string; packId: string; buyerId: string | null; saleId: string | null; connection: { mlUserId: string | null } }, rawText: string) {
+  // attachments = ids devueltos por uploadAttachment. Se puede enviar solo archivos, sin texto.
+  private async sendRaw(conv: { id: string; connectionId: string; packId: string; buyerId: string | null; saleId: string | null; connection: { mlUserId: string | null } }, rawText: string, rawAttachments: string[] = []) {
     const text = String(rawText || '').trim();
-    if (!text) throw new BadRequestException('Escribe un mensaje');
+    const attachments = (Array.isArray(rawAttachments) ? rawAttachments : []).map(String).filter(Boolean).slice(0, 10);
+    if (!text && !attachments.length) throw new BadRequestException('Escribe un mensaje o adjunta un archivo');
     if (text.length > MAX_TEXT) throw new BadRequestException(`Mercado Libre permite hasta ${MAX_TEXT} caracteres`);
     const seller = conv.connection.mlUserId;
     if (!seller) throw new BadRequestException('La cuenta de Mercado Libre no tiene usuario autorizado');
     const buyer = await this.buyerId(conv);
+    const post = () => this.mlFetch(conv.connectionId, `/messages/packs/${conv.packId}/sellers/${seller}?tag=post_sale`, {
+      method: 'POST', body: JSON.stringify({ from: { user_id: seller }, to: { user_id: buyer }, text, ...(attachments.length ? { attachments } : {}) }),
+    });
     try {
-      await this.mlFetch(conv.connectionId, `/messages/packs/${conv.packId}/sellers/${seller}?tag=post_sale`, {
-        method: 'POST', body: JSON.stringify({ from: { user_id: seller }, to: { user_id: buyer }, text }),
-      });
+      await post();
     } catch (e: any) {
-      // Sin conversación iniciada por el comprador: se inicia con un motivo.
+      // Sin conversación iniciada por el comprador: se inicia con un motivo. El motivo no admite
+      // archivos, así que después se reintenta el mensaje con los adjuntos.
       if (e.status === 403 || e.status === 400) {
         await this.mlFetch(conv.connectionId, `/messages/action_guide/packs/${conv.packId}/option?tag=post_sale`, {
-          method: 'POST', body: JSON.stringify({ option_id: 'OTHER', text }),
-        });
+          method: 'POST', body: JSON.stringify({ option_id: 'OTHER', text: text || 'Te enviamos un archivo sobre tu compra.' }),
+        }).catch((e2: any) => { throw new BadRequestException(`Mercado Libre rechazó el mensaje: ${e2.message}`); });
+        if (attachments.length) {
+          await post().catch((e3: any) => { throw new BadRequestException(`Mercado Libre no aceptó los archivos: ${e3.message}`); });
+        }
       } else {
         throw new BadRequestException(`Mercado Libre rechazó el mensaje: ${e.message}`);
       }
     }
-    await this.prisma.mlConversation.update({ where: { id: conv.id }, data: { buyerId: buyer, lastText: text, lastFrom: 'SELLER', lastMessageAt: new Date() } });
+    await this.prisma.mlConversation.update({ where: { id: conv.id }, data: { buyerId: buyer, lastText: text || `Archivo adjunto (${attachments.length})`, lastFrom: 'SELLER', lastMessageAt: new Date() } });
   }
 
   // ── Sincronización: mensajes sin leer de cada cuenta ───────────────────

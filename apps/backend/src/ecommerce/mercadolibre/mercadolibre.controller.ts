@@ -542,8 +542,27 @@ export class MercadolibreController {
   @Post('messages/conversations/:id/send')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
-  sendMessage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { text: string }) {
-    return this.messages.send(user, id, body?.text);
+  sendMessage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { text: string; attachments?: string[] }) {
+    return this.messages.send(user, id, body?.text, body?.attachments || []);
+  }
+
+  @Post('messages/conversations/:id/attachments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  uploadMessageAttachment(@CurrentUser() user: any, @Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    return this.messages.uploadAttachment(user, id, file);
+  }
+
+  @Get('messages/conversations/:id/attachments/:fileId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
+  async downloadMessageAttachment(@CurrentUser() user: any, @Param('id') id: string, @Param('fileId') fileId: string, @Res() res: Response) {
+    const file = await this.messages.downloadAttachment(user, id, fileId);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileId.replace(/"/g, '')}"`);
+    res.send(file.buffer);
   }
 
   @Get('messages/sales/:saleId')

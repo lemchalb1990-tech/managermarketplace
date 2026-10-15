@@ -34,7 +34,7 @@ function MensajesInner() {
   const [tab, setTab] = useState<Tab>('inbox');
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-[1400px]">
       <h1 className="ui-page-title mb-1">Mensajes</h1>
       <p className="ui-page-subtitle mb-4">Conversaciones con los compradores de tus ventas de Mercado Libre y mensajes que se envían solos.</p>
       <div className="mb-4 flex gap-1 border-b border-gray-200">
@@ -50,8 +50,31 @@ function MensajesInner() {
   );
 }
 
+// Estado de la orden interna → etiqueta y color en la bandeja y en la ficha.
+const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: 'Por despachar', cls: 'bg-orange-50 text-orange-800' },
+  PREPARING: { label: 'Por despachar', cls: 'bg-orange-50 text-orange-800' },
+  READY: { label: 'Lista para despacho', cls: 'bg-orange-50 text-orange-800' },
+  IN_TRANSIT: { label: 'En camino', cls: 'bg-[var(--brand-light)] text-[var(--brand-ink)]' },
+  DELIVERED: { label: 'Entregada', cls: 'bg-green-50 text-green-800' },
+  CANCELLED: { label: 'Cancelada', cls: 'bg-gray-100 text-gray-600' },
+};
+const INVOICE_STATUS: Record<string, string> = { DRAFT: 'Borrador', ISSUED: 'Emitida', ACCEPTED: 'Emitida', REJECTED: 'Rechazada', CANCELLED: 'Anulada' };
+const LOG_STATUS: Record<string, { label: string; cls: string }> = {
+  SENT: { label: 'Enviado', cls: 'text-green-700' },
+  FAILED: { label: 'Falló', cls: 'text-red-600' },
+  SKIPPED: { label: 'Omitido', cls: 'text-gray-500' },
+};
+const clp = (v: string | number) => `$${Number(v).toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
+const when = (d: string) => new Date(d).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const initials = (s: string | null) => (s || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
+
 function Inbox({ companyId, initialId }: { companyId?: string; initialId: string | null }) {
   const [rows, setRows] = useState<MlConversationRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [unreadTotal, setUnreadTotal] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<string | null>(initialId);
@@ -59,14 +82,21 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
-    api.marketplace.messages.list(getToken()!, { companyId, unread: unreadOnly, search: search.trim() || undefined })
-      .then(setRows).catch(() => setRows([]));
-  }, [companyId, unreadOnly, search]);
+    const t = getToken()!;
+    api.marketplace.messages.list(t, { companyId, unread: unreadOnly, search: search.trim() || undefined, page })
+      .then((r) => { setRows(r.rows); setTotal(r.total); setPageSize(r.pageSize); if (r.page !== page) setPage(r.page); })
+      .catch(() => { setRows([]); setTotal(0); });
+    api.marketplace.messages.unreadCount(t, companyId).then((r) => setUnreadTotal(r.count)).catch(() => null);
+  }, [companyId, unreadOnly, search, page]);
   useEffect(() => {
     const id = setTimeout(load, 250);
     return () => clearTimeout(id);
   }, [load]);
   useEffect(() => onActivity(['message'], load), [load]);
+
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total ? (page - 1) * pageSize + 1 : 0;
+  const to = Math.min(page * pageSize, total);
 
   useEffect(() => {
     if (!openId) return;
@@ -86,8 +116,6 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
     return () => { alive = false; cancelAnimationFrame(id); };
   }, [openId]);
 
-  const unread = rows.filter((r) => r.unread > 0).length;
-
   // Queda como pendiente (solo en el panel) y se cierra para que no se vuelva a marcar leída.
   async function markUnread(id: string) {
     await api.marketplace.messages.setUnread(id, true, getToken()!).catch(() => null);
@@ -95,18 +123,20 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
     setOpenId(null);
     setConv(null);
     window.dispatchEvent(new Event('ml-messages-changed'));
+    load();
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
-      <div className="ui-card flex min-h-[520px] flex-col overflow-hidden">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)_minmax(0,0.75fr)]">
+      {/* Lista de conversaciones (25 por página) */}
+      <div className="ui-card flex h-[680px] flex-col overflow-hidden">
         <div className="space-y-2 border-b border-gray-100 p-3">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por comprador o mensaje…" className={inputCls} />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Comprador, mensaje o N° de venta…" className={inputCls} />
           <div className="flex gap-1 text-xs font-semibold">
             {[false, true].map((v) => (
-              <button key={String(v)} type="button" onClick={() => setUnreadOnly(v)}
+              <button key={String(v)} type="button" onClick={() => { setUnreadOnly(v); setPage(1); }}
                 className={`rounded-full px-3 py-1 ${unreadOnly === v ? 'bg-[var(--navy)] text-white' : 'bg-gray-100 text-gray-600'}`}>
-                {v ? `Sin leer${unread ? ` (${unread})` : ''}` : 'Todos'}
+                {v ? `Sin leer${unreadTotal ? ` (${unreadTotal})` : ''}` : 'Todos'}
               </button>
             ))}
           </div>
@@ -115,23 +145,30 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
           {rows.length === 0 && <li className="p-6 text-center text-sm text-gray-400">Sin conversaciones. Aparecen cuando un comprador escribe o cuando escribes desde una venta.</li>}
           {rows.map((r) => {
             const img = r.sale?.items[0]?.product?.images?.[0]?.url;
+            const st = r.sale?.order?.status ? ORDER_STATUS[r.sale.order.status] : null;
+            const active = openId === r.id;
             return (
               <li key={r.id}>
                 <button type="button" onClick={() => setOpenId(r.id)}
-                  className={`flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 ${openId === r.id ? 'bg-[var(--brand-light)]' : ''}`}>
-                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                  className={`flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 ${active ? 'bg-[var(--brand-light)] shadow-[inset_3px_0_0_var(--brand)]' : ''}`}>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-gray-100 text-xs font-bold text-gray-600">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {img ? <img src={imgUrl(img)} alt="" className="h-full w-full object-cover" /> : null}
+                    {img ? <img src={imgUrl(img)} alt="" className="h-full w-full object-cover" /> : initials(r.buyerName)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className={`truncate text-sm ${r.unread ? 'font-bold' : 'font-medium'}`}>{r.buyerName || `Venta ${r.packId}`}</span>
-                      <span className="shrink-0 text-[11px] text-gray-400">{ago(r.lastMessageAt)}</span>
+                      <span className={`shrink-0 text-[11px] ${r.unread ? 'font-semibold text-[var(--brand)]' : 'text-gray-400'}`}>{ago(r.lastMessageAt)}</span>
                     </span>
-                    <span className="block truncate text-xs text-gray-500">{r.sale?.items[0]?.product?.name || r.connection.name}</span>
-                    <span className={`block truncate text-xs ${r.unread ? 'text-gray-800' : 'text-gray-400'}`}>
+                    <span className={`block truncate text-xs ${r.unread ? 'text-gray-800' : 'text-gray-500'}`}>
                       {r.lastFrom === 'SELLER' ? 'Tú: ' : ''}{r.lastText || 'Sin mensajes'}
                     </span>
+                    {(st || r.sale?.shippingMethod) && (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {st && <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.label}</span>}
+                        {r.sale?.shippingMethod && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">{r.sale.shippingMethod}</span>}
+                      </span>
+                    )}
                   </span>
                   {r.unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--brand)] px-1.5 text-[10px] font-bold text-white">{r.unread}</span>}
                 </button>
@@ -139,9 +176,23 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
             );
           })}
         </ul>
+        <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-2 text-xs text-gray-500">
+          <span>{from}–{to} de {total}</span>
+          <span className="flex items-center gap-1">
+            {([['«', 1, 'Primera página'], ['‹', page - 1, 'Página anterior'], ['›', page + 1, 'Página siguiente'], ['»', pages, 'Última página']] as const).map(([l, p, aria]) => (
+              <button key={aria} type="button" aria-label={aria} title={aria} onClick={() => setPage(p)}
+                disabled={p < 1 || p > pages || p === page}
+                className="grid h-7 min-w-7 place-items-center rounded-md border border-gray-200 bg-white px-1.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                {l}
+              </button>
+            ))}
+            <span className="ml-1">Pág. {page}/{pages}</span>
+          </span>
+        </div>
       </div>
 
-      <div className="ui-card flex min-h-[520px] flex-col p-4">
+      {/* Chat con el historial completo */}
+      <div className="ui-card flex h-[680px] flex-col p-4">
         {!openId ? (
           <p className="m-auto text-sm text-gray-400">Elige una conversación para verla y responder.</p>
         ) : loading && !conv ? (
@@ -149,19 +200,17 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
         ) : conv ? (
           <>
             <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{conv.buyerName || `Venta ${conv.packId}`}</p>
-                <p className="truncate text-xs text-gray-500">
-                  {conv.connection.name} · Venta {conv.sale?.externalId || conv.packId}
-                  {conv.sale?.items?.[0]?.product?.name ? ` · ${conv.sale.items[0].product.name}` : ''}
-                </p>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--brand)] text-xs font-bold text-white">{initials(conv.buyerName)}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{conv.buyerName || `Venta ${conv.packId}`}</p>
+                  <p className="truncate text-xs text-gray-500">Venta {conv.sale?.externalId || conv.packId} · {conv.connection.name}</p>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
-                <button type="button" onClick={() => markUnread(conv.id)} className="text-gray-500 hover:text-gray-800">Marcar como no leído</button>
-                {conv.sale?.order?.id && (
-                  <Link href={`/dashboard/orders/${conv.sale.order.id}`} className="text-[var(--brand)] hover:underline">Ver orden →</Link>
-                )}
-              </div>
+              <button type="button" onClick={() => markUnread(conv.id)}
+                className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                Marcar no leído
+              </button>
             </div>
             <div className="min-h-0 flex-1"><MlChat conversation={conv} onChange={(c) => { setConv(c); load(); }} /></div>
           </>
@@ -169,7 +218,94 @@ function Inbox({ companyId, initialId }: { companyId?: string; initialId: string
           <p className="m-auto text-sm text-gray-400">No se pudo abrir la conversación.</p>
         )}
       </div>
+
+      {/* Ficha de la venta */}
+      <div className="flex flex-col gap-3 lg:col-span-2 xl:col-span-1">
+        {conv && openId ? <SaleCard conv={conv} /> : (
+          <div className="ui-card p-4 text-sm text-gray-400">La ficha de la venta aparece al abrir una conversación.</div>
+        )}
+      </div>
     </div>
+  );
+}
+
+function SaleCard({ conv }: { conv: MlConversationFull }) {
+  const sale = conv.sale;
+  if (!sale) return <div className="ui-card p-4 text-sm text-gray-400">Esta conversación no está vinculada a una venta del panel.</div>;
+  const order = sale.order;
+  const st = order?.status ? ORDER_STATUS[order.status] : null;
+  const inv = sale.invoices[0];
+  const invoiced = !!inv && ['ISSUED', 'ACCEPTED'].includes(inv.status);
+  const steps: Array<{ label: string; date: string | null; done: boolean }> = [
+    { label: 'Venta recibida', date: sale.createdAt, done: true },
+    { label: inv ? `Boleta ${inv.folio ? `N° ${inv.folio}` : ''}`.trim() : 'Boleta', date: invoiced ? inv!.createdAt : null, done: invoiced },
+    { label: 'Despachada', date: order?.dispatchedAt || null, done: !!order?.dispatchedAt || ['IN_TRANSIT', 'DELIVERED'].includes(order?.status || '') },
+    { label: 'Entregada', date: order?.deliveredAt || null, done: order?.status === 'DELIVERED' },
+  ];
+  const current = steps.findIndex((s) => !s.done);
+  const title = 'text-[11px] font-bold uppercase tracking-wide text-gray-500';
+
+  return (
+    <>
+      <div className="ui-card space-y-3 p-4">
+        <p className={title}>Venta</p>
+        <div className="space-y-2">
+          {sale.items.map((it, i) => {
+            const img = it.product?.images?.[0]?.url;
+            return (
+              <div key={i} className="flex items-center gap-2.5">
+                <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {img ? <img src={imgUrl(img)} alt="" className="h-full w-full object-cover" /> : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{it.product?.name || 'Producto'}</span>
+                  <span className="block text-xs text-gray-500">{it.quantity} u.{it.product?.sku ? ` · SKU ${it.product.sku}` : ''}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <dl className="grid grid-cols-2 gap-2 text-xs">
+          <div><dt className="text-gray-500">Total</dt><dd className="font-bold">{clp(sale.total)}</dd></div>
+          <div><dt className="text-gray-500">Envío</dt><dd className="font-bold">{sale.shippingMethod || '—'}</dd></div>
+          <div><dt className="text-gray-500">Boleta</dt><dd className="font-bold">{inv ? INVOICE_STATUS[inv.status] || inv.status : 'Sin emitir'}</dd></div>
+          <div><dt className="text-gray-500">Estado</dt><dd>{st ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span> : '—'}</dd></div>
+          {order?.trackingCode && <div className="col-span-2"><dt className="text-gray-500">Seguimiento</dt><dd className="font-bold">{order.courier ? `${order.courier} · ` : ''}{order.trackingCode}</dd></div>}
+        </dl>
+        {order?.id && <Link href={`/dashboard/orders/${order.id}`} className="inline-block text-sm font-semibold text-[var(--brand)] hover:underline">Ver orden →</Link>}
+      </div>
+
+      <div className="ui-card space-y-2.5 p-4">
+        <p className={title}>Recorrido</p>
+        {order?.status === 'CANCELLED' ? <p className="text-xs text-gray-500">Orden cancelada.</p> : (
+          <ol className="space-y-2.5">
+            {steps.map((s, i) => (
+              <li key={s.label} className={`flex items-center gap-2 text-xs ${i === current ? 'font-semibold text-gray-900' : s.done ? 'text-gray-700' : 'text-gray-400'}`}>
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.done ? 'bg-green-600' : i === current ? 'bg-[var(--brand)] ring-[3px] ring-[var(--brand-light)]' : 'border-2 border-gray-300'}`} />
+                <span className="flex-1">{s.label}</span>
+                {s.date && s.done && <span className="text-[11px] font-normal text-gray-400">{when(s.date)}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <div className="ui-card space-y-2 p-4">
+        <p className={title}>Mensajes automáticos</p>
+        {sale.mlMessageLogs.length === 0
+          ? <p className="text-xs text-gray-400">Ningún mensaje programado se ha procesado para esta venta.</p>
+          : sale.mlMessageLogs.map((l, i) => {
+            const s = LOG_STATUS[l.status] || { label: l.status, cls: 'text-gray-500' };
+            return (
+              <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate">{l.rule.name}</span>
+                <span className={`shrink-0 font-semibold ${s.cls}`}>{s.label}</span>
+              </div>
+            );
+          })}
+      </div>
+    </>
   );
 }
 
