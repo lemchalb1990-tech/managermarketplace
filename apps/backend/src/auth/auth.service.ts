@@ -24,7 +24,7 @@ function sanitizeCompany(company: any) {
   return { ...rest, planName: subscriptionPlan?.name ?? null, planFeatures: subscriptionPlan?.features ?? null };
 }
 
-function shapeUser(user: any) {
+export function shapeUser(user: any) {
   const { password: _p, company, accessProfile, ...rest } = user;
   return {
     ...rest,

@@ -22,4 +22,7 @@ export function saveSession(token: string, user: any) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  // Sesión del Super Admin guardada durante una simulación de permisos (ver lib/simulation).
+  localStorage.removeItem('mp_sim_origin_token');
+  localStorage.removeItem('mp_sim_origin_user');
 }

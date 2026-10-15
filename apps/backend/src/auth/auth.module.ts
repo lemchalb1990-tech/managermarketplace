@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { SimulationController, SimulationService } from './simulation.controller';
 import { SettingsModule } from '../settings/settings.module';
 import { EmailModule } from '../email/email.module';
 
@@ -22,8 +23,8 @@ import { EmailModule } from '../email/email.module';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy],
-  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy, SimulationService],
+  controllers: [AuthController, SimulationController],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

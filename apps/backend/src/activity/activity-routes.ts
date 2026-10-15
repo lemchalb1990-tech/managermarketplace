@@ -4,18 +4,18 @@
 
 export type ActivityAction =
   | 'CREAR' | 'EDITAR' | 'ELIMINAR' | 'IMPORTAR' | 'PUBLICAR' | 'SINCRONIZAR' | 'ESTADO'
-  | 'UNIFICAR' | 'EMITIR' | 'SESION' | 'SESION_FALLIDA' | 'BLOQUEADO' | 'ALERTA';
+  | 'UNIFICAR' | 'EMITIR' | 'SESION' | 'SESION_FALLIDA' | 'BLOQUEADO' | 'ALERTA' | 'SIMULAR';
 
 export const ACTION_LABELS: Record<ActivityAction, string> = {
   CREAR: 'Crear', EDITAR: 'Editar', ELIMINAR: 'Eliminar', IMPORTAR: 'Importar', PUBLICAR: 'Publicar',
   SINCRONIZAR: 'Sincronizar', ESTADO: 'Cambio de estado', UNIFICAR: 'Unificar', EMITIR: 'Emitir documento',
-  SESION: 'Inicio de sesión', SESION_FALLIDA: 'Inicio de sesión fallido', BLOQUEADO: 'Acción bloqueada', ALERTA: 'Alerta',
+  SESION: 'Inicio de sesión', SESION_FALLIDA: 'Inicio de sesión fallido', BLOQUEADO: 'Acción bloqueada', ALERTA: 'Alerta', SIMULAR: 'Simulación de permisos',
 };
 
 const VERB: Record<ActivityAction, string> = {
   CREAR: 'Creó', EDITAR: 'Editó', ELIMINAR: 'Eliminó', IMPORTAR: 'Importó', PUBLICAR: 'Publicó',
   SINCRONIZAR: 'Sincronizó', ESTADO: 'Cambió el estado de', UNIFICAR: 'Unificó', EMITIR: 'Emitió',
-  SESION: 'Inició sesión', SESION_FALLIDA: 'Intento de inicio de sesión fallido', BLOQUEADO: 'Intentó eliminar (bloqueado)', ALERTA: 'Alerta',
+  SESION: 'Inició sesión', SESION_FALLIDA: 'Intento de inicio de sesión fallido', BLOQUEADO: 'Intentó eliminar (bloqueado)', ALERTA: 'Alerta', SIMULAR: 'Simuló',
 };
 
 // Primer segmento de la ruta (o los dos primeros) → módulo.

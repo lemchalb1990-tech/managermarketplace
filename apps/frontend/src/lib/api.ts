@@ -394,6 +394,18 @@ export interface BulkLoadJob {
   error: string | null;
 }
 
+export interface SimulationTarget { companyId: string; profileId?: string; userId?: string }
+export interface SimulationTargets {
+  profiles: { id: string; name: string; users: number }[];
+  users: { id: string; name: string; email: string; roleLabel: string; profileName: string | null }[];
+}
+export interface SimulationPreview {
+  user: any;
+  roleLabel: string;
+  groups: { label: string; items: { key: string; label: string; granted: boolean }[] }[];
+  uncovered: string[];
+}
+
 // Query string sin claves vacías (para filtros opcionales).
 function toQuery(params: Record<string, string | number | boolean | undefined | null>): string {
   const q = new URLSearchParams();
@@ -699,6 +711,16 @@ export const api = {
       apiFetch<any>('/warehouse/packing/scan', { method: 'POST', body: JSON.stringify(data) }, token),
     confirmPacked: (orderId: string, token: string) =>
       apiFetch<any>(`/warehouse/packing/${orderId}/confirm`, { method: 'POST' }, token),
+  },
+  // Probar permisos («ver como», solo Super Admin; la sesión simulada es de solo lectura).
+  simulation: {
+    targets: (companyId: string, token: string) =>
+      apiFetch<SimulationTargets>(`/auth/simulate/targets?companyId=${companyId}`, {}, token),
+    preview: (target: SimulationTarget, token: string) =>
+      apiFetch<SimulationPreview>(`/auth/simulate/preview?${toQuery({ ...target })}`, {}, token),
+    start: (target: SimulationTarget, token: string) =>
+      apiFetch<{ access_token: string; user: any }>('/auth/simulate/start', { method: 'POST', body: JSON.stringify(target) }, token),
+    stop: (token: string) => apiFetch<{ ok: boolean }>('/auth/simulate/stop', { method: 'POST' }, token),
   },
   accessProfiles: {
     catalog: (token: string) =>
