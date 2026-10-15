@@ -109,6 +109,34 @@ export class CatalogService {
     });
   }
 
+  // SKU sugerido para un producto nuevo. Toma el formato del SKU más reciente que termine en
+  // número (prefijo + correlativo con sus ceros, p. ej. POL-0142) y propone el siguiente libre.
+  // Sin ese patrón (o si el número es largo, como un código de barras), parte en SKU-0001.
+  async suggestSku(user: any, companyIdParam?: string) {
+    const companyId = this.resolveCompanyId(user, companyIdParam);
+    const recent = await this.prisma.product.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' }, take: 50, select: { sku: true } });
+    let prefix = 'SKU-';
+    let width = 4;
+    for (const { sku } of recent) {
+      const m = sku.match(/^(.*?)(\d+)$/);
+      if (!m || m[2].length > 6) continue;
+      prefix = m[1];
+      width = m[2].length;
+      break;
+    }
+    const same = await this.prisma.product.findMany({ where: { companyId, sku: { startsWith: prefix } }, select: { sku: true } });
+    const taken = new Set(same.map((p) => p.sku));
+    let max = 0;
+    for (const { sku } of same) {
+      const rest = sku.slice(prefix.length);
+      if (/^\d{1,6}$/.test(rest)) max = Math.max(max, Number(rest));
+    }
+    let n = max + 1;
+    let sku = `${prefix}${String(n).padStart(width, '0')}`;
+    while (taken.has(sku)) sku = `${prefix}${String(++n).padStart(width, '0')}`;
+    return { sku };
+  }
+
   async findAll(user: any, companyIdParam?: string) {
     const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : this.getCompanyId(user);
     const products = await this.prisma.product.findMany({

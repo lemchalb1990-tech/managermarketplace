@@ -64,6 +64,12 @@ export class CatalogController {
     return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir, stockWarehouseId });
   }
 
+  // SKU sugerido para un producto nuevo: sigue el formato de los SKU más recientes de la empresa.
+  @Get('products/suggest-sku')
+  suggestSku(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.suggestSku(user, companyId);
+  }
+
   // Dashboard: total de productos con stock crítico y los más urgentes (sin descargar el catálogo).
   @Get('products/critical-stock')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)

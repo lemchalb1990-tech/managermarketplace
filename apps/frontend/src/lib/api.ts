@@ -756,6 +756,9 @@ export const api = {
       if (companyId) q.set('companyId', companyId);
       return apiFetch<string[]>(`/catalog/products/categories?${q}`, {}, token);
     },
+    // SKU sugerido para un producto nuevo (sigue el formato de los SKU más recientes).
+    suggestSku: (token: string, companyId?: string) =>
+      apiFetch<{ sku: string }>(`/catalog/products/suggest-sku${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
     search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: boolean; stockFilter?: string; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; stockWarehouseId?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));

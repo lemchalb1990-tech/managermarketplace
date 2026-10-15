@@ -2137,6 +2137,12 @@ export default function CatalogPage() {
     setPublishTargets({});
     setPendingPublishTargets([]);
     setNewImages([]);
+    // SKU sugerido: se completa solo si el usuario todavía no escribió uno.
+    if (!isSuperAdmin || selectedCompanyId) {
+      api.catalog.suggestSku(getToken()!, isSuperAdmin ? selectedCompanyId : undefined)
+        .then(({ sku }) => setEditForm((f: any) => (f.sku ? f : { ...f, sku })))
+        .catch(() => {});
+    }
   }
 
   async function refreshSelected(id: string) {
@@ -3725,6 +3731,9 @@ export default function CatalogPage() {
                     <input value={editForm.sku || ''}
                       onChange={(e) => setEditForm((f: any) => ({ ...f, sku: e.target.value }))}
                       required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+                    {!selected?.id && (
+                      <p className="mt-1 text-[11px] text-gray-400">Sugerido según tus últimos SKU. Puedes cambiarlo.</p>
+                    )}
                   </PField>
                   {/* Solo con Walmart activo: es el único canal que exige código de barras. */}
                   {walmartConnections.length > 0 && (
