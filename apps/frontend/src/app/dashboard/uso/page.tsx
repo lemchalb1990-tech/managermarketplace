@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/auth';
-import { api, formatMb, STORAGE_CATEGORY_LABEL, SUBSCRIPTION_FEATURE_LABEL, type AiUsageReport, type PlanFeature, type SubscriptionFeature, type SubscriptionResource, type SubscriptionUsage } from '@/lib/api';
+import { api, formatMb, SUBSCRIPTION_FEATURE_LABEL, type AiUsageReport, type PlanFeature, type SubscriptionFeature, type SubscriptionResource, type SubscriptionUsage } from '@/lib/api';
 import { SectionCard } from '@/components/ui';
 import { Skeleton, SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -151,86 +151,6 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
   );
 }
 
-// Mis datos: cuántos registros tiene la empresa y qué ocupa su almacenamiento.
-function DataSection({ sub, isSuperAdmin }: { sub: SubscriptionUsage; isSuperAdmin: boolean }) {
-  const [measure, setMeasure] = useState<{ measuredAt: string | null; running: boolean } | null>(null);
-  const [msg, setMsg] = useState('');
-  useEffect(() => {
-    const token = getToken();
-    if (!isSuperAdmin || !token) return;
-    api.subscription.storageStatus(token).then(setMeasure).catch(() => {});
-  }, [isSuperAdmin]);
-  if (!sub.data) return null;
-  const { counts, storage } = sub.data;
-  const totalMb = storage.reduce((sum, s) => sum + s.mb, 0);
-  const tiles: [string, number][] = [
-    ['Productos', counts.products], ['Publicaciones', counts.listings], ['Ventas', counts.sales],
-    ['Órdenes', counts.orders], ['Clientes', counts.clients],
-  ];
-
-  async function remeasure() {
-    const token = getToken();
-    if (!token) return;
-    setMsg('');
-    try {
-      await api.subscription.measureStorage(token);
-      setMeasure((m) => ({ measuredAt: m?.measuredAt ?? null, running: true }));
-      setMsg('Medición iniciada. Puede tardar unos minutos; recarga la página para ver el resultado.');
-    } catch (e) { setMsg((e as Error).message); }
-  }
-
-  return (
-    <SectionCard title="Mis datos">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {tiles.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-[var(--border-soft)] p-3">
-            <p className="ui-stat-label">{label}</p>
-            <p className="text-lg font-bold text-[var(--text)] mt-0.5">{n(value)}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5">
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <p className="text-sm font-semibold text-[var(--text)]">Espacio usado por tipo de archivo</p>
-          <p className="text-xs text-[var(--text-muted)]">{formatMb(totalMb)} en total</p>
-        </div>
-        {storage.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">Aún no hay fotos ni archivos subidos.</p>
-        ) : (
-          <div className="space-y-2">
-            {storage.map((s) => (
-              <div key={s.category}>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-[var(--text)]">{STORAGE_CATEGORY_LABEL[s.category] ?? s.category} <span className="text-[var(--text-muted)]">· {n(s.files)} archivo{s.files === 1 ? '' : 's'}</span></span>
-                  <span className="tabular-nums text-[var(--text-muted)]">{formatMb(s.mb)}</span>
-                </div>
-                <div className="h-1.5 bg-[var(--border-soft)] rounded-full mt-1 overflow-hidden">
-                  <div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${totalMb ? Math.max(2, Math.round((s.mb / totalMb) * 100)) : 0}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="text-[11px] text-[var(--text-muted)] mt-3">Las fotos importadas desde los marketplaces quedan en sus servidores y no ocupan tu espacio.</p>
-        {isSuperAdmin && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
-            <span>
-              {measure?.running ? 'Midiendo archivos existentes…'
-                : measure?.measuredAt ? `Archivos anteriores medidos el ${new Date(measure.measuredAt).toLocaleString('es-CL')}`
-                : 'Los archivos anteriores aún no se han medido.'}
-            </span>
-            <button type="button" onClick={remeasure} disabled={!!measure?.running}
-              className="px-2.5 py-1 rounded-md border border-[var(--border-soft)] hover:bg-gray-50 disabled:opacity-50">
-              Volver a medir (todas las empresas)
-            </button>
-            {msg && <span>{msg}</span>}
-          </div>
-        )}
-      </div>
-    </SectionCard>
-  );
-}
-
 // Uso de la empresa: plan contratado y su consumo, créditos de IA y lo que se ha usado.
 export default function UsagePage() {
   const { isSuperAdmin, selectedCompanyId, companyId } = useAdminCompany();
@@ -287,7 +207,6 @@ export default function UsagePage() {
       {data && (
         <>
           {sub && <SubscriptionSection sub={sub} tz={tz} />}
-          {sub && <DataSection sub={sub} isSuperAdmin={isSuperAdmin} />}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="ui-card p-4 sm:p-5">
               <p className="ui-stat-label">Plan de revisión de fotos</p>

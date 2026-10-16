@@ -104,7 +104,6 @@ export class SubscriptionService {
     const trialExpired = !!(plan?.isTrial && company.trialEndsAt && company.trialEndsAt < new Date());
     return {
       plan, billing: company.subscriptionBilling, trialEndsAt: company.trialEndsAt, trialExpired, usage,
-      data: await this.dataSummary(companyId),
       features: companyPlanFeatures(company),
       extraFeatures: plan ? company.extraFeatures : [],
       addonsMonthlyPrice: company.addonsMonthlyPrice,
@@ -142,24 +141,6 @@ export class SubscriptionService {
   /** Antes de guardar un archivo: rechaza si con sus bytes se pasa del almacenamiento del plan. */
   async assertStorageRoom(companyId: string | null | undefined, bytes: number) {
     await this.assertCanAdd(companyId, 'storage', bytes / MB);
-  }
-
-  /** Cantidad de datos de la empresa y el espacio que usan sus archivos por tipo. */
-  async dataSummary(companyId: string) {
-    const [products, listings, sales, orders, clients, files] = await Promise.all([
-      this.prisma.product.count({ where: { companyId } }),
-      this.prisma.listing.count({ where: { connection: { companyId } } }),
-      this.prisma.sale.count({ where: { companyId } }),
-      this.prisma.order.count({ where: { companyId } }),
-      this.prisma.client.count({ where: { companyId } }),
-      this.prisma.storedFile.groupBy({ by: ['category'], where: { companyId }, _sum: { bytes: true }, _count: { _all: true } }),
-    ]);
-    return {
-      counts: { products, listings, sales, orders, clients },
-      storage: files
-        .map((f) => ({ category: f.category, files: f._count._all, mb: (f._sum.bytes ?? 0) / MB }))
-        .sort((a, b) => b.mb - a.mb),
-    };
   }
 
   /**
