@@ -363,34 +363,25 @@ function Rules({ companyId }: { companyId?: string }) {
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
-  // Activar / pausar desde la tarjeta. Si hay envíos en espera (al pausar) o acumulados durante la
-  // pausa (al activar), se pregunta qué hacer con ellos antes de cambiar.
-  const [asking, setAsking] = useState<MlMessageRule | null>(null);
+  // Activar / pausar desde la tarjeta. Activar lo deja vigente desde este instante: no se envía a
+  // ventas cuyo momento ocurrió antes ni mientras estuvo pausado.
   const [busyId, setBusyId] = useState('');
   const [toast, setToast] = useState('');
 
-  async function applyActive(r: MlMessageRule, active: boolean, pending?: 'cancel' | 'keep' | 'skip' | 'send') {
-    setAsking(null);
+  async function toggle(r: MlMessageRule) {
+    const active = !r.active;
     setBusyId(r.id);
     // Cambio inmediato en pantalla; si falla, se recarga el estado real.
     setRules((list) => list.map((x) => (x.id === r.id ? { ...x, active } : x)));
     try {
-      const res = await api.marketplace.messages.setRuleActive(r.id, active, pending, getToken()!);
-      const extra = res.skipped ? ` · ${res.skipped} ${active ? 'venta(s) acumulada(s) omitida(s)' : 'envío(s) en espera cancelado(s)'}` : '';
-      setToast(active ? `«${r.name}» activo: se enviará a las ventas nuevas${extra}` : `«${r.name}» pausado: no se enviará a ventas nuevas${extra}`);
+      await api.marketplace.messages.setRuleActive(r.id, active, getToken()!);
+      setToast(active ? `«${r.name}» activo desde ahora: se enviará solo a lo que ocurra desde este momento` : `«${r.name}» pausado: no se enviará más`);
     } catch (e) {
       setToast((e as Error).message || 'No se pudo cambiar el estado');
     } finally {
       setBusyId('');
       load();
     }
-  }
-
-  function toggle(r: MlMessageRule) {
-    const pendingWhenPausing = (r.waitingCount || 0) + (r.dueCount || 0);
-    if (r.active && pendingWhenPausing > 0) { setAsking(r); return; }
-    if (!r.active && (r.dueCount || 0) > 0) { setAsking(r); return; }
-    applyActive(r, !r.active);
   }
 
   useEffect(() => {
@@ -408,7 +399,7 @@ function Rules({ companyId }: { companyId?: string }) {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-xs leading-relaxed text-gray-500">
-          Cada mensaje se envía una sola vez por venta de Mercado Libre, cuando la venta cumple el momento elegido y pasa la espera. Solo aplica a ventas nuevas desde que lo creas. Mercado Libre permite hasta 350 caracteres y modera los mensajes promocionales.
+          Cada mensaje se envía una sola vez por venta de Mercado Libre, cuando la venta cumple el momento elegido y pasa la espera. Solo aplica a lo que ocurra desde que el mensaje se activa (al crearlo o al volver a activarlo): nunca se envía a ventas anteriores ni a las de una pausa. Mercado Libre permite hasta 350 caracteres y modera los mensajes promocionales.
         </p>
         <button type="button" onClick={() => setEditing('new')} className={btnPrimary}>+ Nuevo mensaje programado</button>
       </div>
@@ -438,11 +429,11 @@ function Rules({ companyId }: { companyId?: string }) {
                 ))}
               </div>
             )}
-            {(!!r.waitingCount || (!r.active && !!r.dueCount) || r.lastSentAt) && (
+            {(r.active || r.lastSentAt) && (
               <p className="mt-2 text-[11px] text-gray-500">
-                {!!r.waitingCount && <span className="font-medium text-blue-700">⏳ {r.waitingCount}{r.queueCapped ? '+' : ''} envío(s) en espera</span>}
-                {!r.active && !!r.dueCount && <span className={`font-medium text-amber-700 ${r.waitingCount ? 'before:mx-1 before:content-["·"]' : ''}`}>{r.dueCount}{r.queueCapped ? '+' : ''} venta(s) acumulada(s) en la pausa</span>}
-                {r.lastSentAt && <span className={(r.waitingCount || (!r.active && r.dueCount)) ? 'before:mx-1 before:content-["·"]' : ''}>último envío {timeAgo(r.lastSentAt)}</span>}
+                {r.active && r.activeSince && <span>Activo desde {new Date(r.activeSince).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                {r.active && !!r.waitingCount && <span className="font-medium text-blue-700 before:mx-1 before:content-['·']">⏳ {r.waitingCount}{r.queueCapped ? '+' : ''} envío(s) en espera</span>}
+                {r.lastSentAt && <span className={r.active ? "before:mx-1 before:content-['·']" : ''}>último envío {timeAgo(r.lastSentAt)}</span>}
               </p>
             )}
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
@@ -461,34 +452,6 @@ function Rules({ companyId }: { companyId?: string }) {
       </div>
       {toast && (
         <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
-      )}
-      {asking && (
-        <Modal title={asking.active ? `Pausar «${asking.name}»` : `Activar «${asking.name}»`} onClose={() => setAsking(null)}
-          footer={asking.active ? (
-            <>
-              <button type="button" onClick={() => setAsking(null)} className={btnSecondary}>Volver</button>
-              <button type="button" onClick={() => applyActive(asking, false, 'keep')} className={btnSecondary}>Conservarlos</button>
-              <button type="button" onClick={() => applyActive(asking, false, 'cancel')} className={btnPrimary}>Cancelarlos y pausar</button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setAsking(null)} className={btnSecondary}>Volver</button>
-              <button type="button" onClick={() => applyActive(asking, true, 'send')} className={btnSecondary}>Enviarles también</button>
-              <button type="button" onClick={() => applyActive(asking, true, 'skip')} className={btnPrimary}>Solo ventas nuevas</button>
-            </>
-          )}>
-          {asking.active ? (
-            <p className="text-sm text-gray-700">
-              Hay <strong>{(asking.waitingCount || 0) + (asking.dueCount || 0)}{asking.queueCapped ? '+' : ''}</strong> venta(s) esperando este mensaje.
-              Mientras esté pausado no se envía nada. ¿Cancelamos esos envíos o los conservamos? Al reactivarlo podrás elegir si enviárselos.
-            </p>
-          ) : (
-            <p className="text-sm text-gray-700">
-              Mientras estuvo pausado, a <strong>{asking.dueCount}{asking.queueCapped ? '+' : ''}</strong> venta(s) ya les correspondía este mensaje.
-              ¿Se los enviamos ahora o lo dejamos solo para las ventas nuevas?
-            </p>
-          )}
-        </Modal>
       )}
       {editing && <RuleForm rule={editing === 'new' ? null : editing} conns={conns} companyId={companyId}
         productNames={productNames} onProductName={(id, name) => setProductNames((m) => ({ ...m, [id]: name }))}

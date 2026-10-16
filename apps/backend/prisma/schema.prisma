@@ -2498,6 +2498,9 @@ model MlMessageRule {
   id           String   @id @default(cuid())
   name         String
   active       Boolean  @default(true)
+  // Desde cuándo está activo (al crearlo y en cada activación): solo se envía a ventas cuyo
+  // momento de envío ocurrió después; las anteriores quedan omitidas.
+  activeSince  DateTime @default(now())
   trigger      String   // SALE_CREATED | INVOICE_ISSUED | ORDER_DISPATCHED | ORDER_DELIVERED
   delayMinutes Int      @default(0)
   text         String   @db.Text
