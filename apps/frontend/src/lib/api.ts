@@ -130,6 +130,8 @@ export type MlMessageRule = {
   // Imágenes que se envían junto al texto (guardadas en el sistema).
   images?: MlRuleImage[] | null;
   _count?: { logs: number };
+  // Cola: ventas que esperan su envío, envíos ya vencidos (acumulados en pausa) y último envío.
+  waitingCount?: number; dueCount?: number; queueCapped?: boolean; lastSentAt?: string | null;
 };
 export type MlRuleImage = { url: string; name: string; type: string; size: number };
 
@@ -1067,6 +1069,8 @@ export const api = {
       updateRule: (id: string, data: Partial<MlMessageRule>, token: string) =>
         apiFetch<MlMessageRule>(`/ecommerce/ml/messages/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
       deleteRule: (id: string, token: string) => apiFetch<any>(`/ecommerce/ml/messages/rules/${id}`, { method: 'DELETE' }, token),
+      setRuleActive: (id: string, active: boolean, pending: 'cancel' | 'keep' | 'skip' | 'send' | undefined, token: string) =>
+        apiFetch<{ ok: boolean; active: boolean; skipped: number }>(`/ecommerce/ml/messages/rules/${id}/active`, { method: 'POST', body: JSON.stringify({ active, pending }) }, token),
     },
     // Promociones: invitaciones de ML, promociones propias, aplicación masiva y reglas que sugieren.
     promotions: {

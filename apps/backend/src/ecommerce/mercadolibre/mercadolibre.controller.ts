@@ -603,6 +603,14 @@ export class MercadolibreController {
     return this.messages.updateRule(user, id, body || {});
   }
 
+  // Activar o pausar desde la tarjeta, decidiendo qué pasa con los envíos en espera o acumulados.
+  @Post('messages/rules/:id/active')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
+  setRuleActive(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.messages.setRuleActive(user, id, { active: !!body?.active, pending: body?.pending });
+  }
+
   @Delete('messages/rules/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)

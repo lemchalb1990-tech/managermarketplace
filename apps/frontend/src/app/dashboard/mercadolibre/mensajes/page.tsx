@@ -338,6 +338,17 @@ const TRIGGERS: Record<MlMessageRule['trigger'], string> = {
 const VARS = ['{nombre}', '{producto}', '{productos}', '{numero_venta}', '{boleta}', '{link_boleta}', '{tienda}'];
 const delayLabel = (m: number) => (!m ? 'al instante' : m % 1440 === 0 ? `${m / 1440} día(s) después` : m % 60 === 0 ? `${m / 60} h después` : `${m} min después`);
 
+// «hace 5 min», «hace 3 h», «hace 2 días».
+function timeAgo(iso: string) {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return `hace ${d} día${d === 1 ? '' : 's'}`;
+}
+
 function Rules({ companyId }: { companyId?: string }) {
   const [rules, setRules] = useState<MlMessageRule[]>([]);
   const [conns, setConns] = useState<Array<{ id: string; name: string }>>([]);
@@ -352,10 +363,41 @@ function Rules({ companyId }: { companyId?: string }) {
   }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
-  async function toggle(r: MlMessageRule) {
-    await api.marketplace.messages.updateRule(r.id, { active: !r.active }, getToken()!).catch(() => null);
-    load();
+  // Activar / pausar desde la tarjeta. Si hay envíos en espera (al pausar) o acumulados durante la
+  // pausa (al activar), se pregunta qué hacer con ellos antes de cambiar.
+  const [asking, setAsking] = useState<MlMessageRule | null>(null);
+  const [busyId, setBusyId] = useState('');
+  const [toast, setToast] = useState('');
+
+  async function applyActive(r: MlMessageRule, active: boolean, pending?: 'cancel' | 'keep' | 'skip' | 'send') {
+    setAsking(null);
+    setBusyId(r.id);
+    // Cambio inmediato en pantalla; si falla, se recarga el estado real.
+    setRules((list) => list.map((x) => (x.id === r.id ? { ...x, active } : x)));
+    try {
+      const res = await api.marketplace.messages.setRuleActive(r.id, active, pending, getToken()!);
+      const extra = res.skipped ? ` · ${res.skipped} ${active ? 'venta(s) acumulada(s) omitida(s)' : 'envío(s) en espera cancelado(s)'}` : '';
+      setToast(active ? `«${r.name}» activo: se enviará a las ventas nuevas${extra}` : `«${r.name}» pausado: no se enviará a ventas nuevas${extra}`);
+    } catch (e) {
+      setToast((e as Error).message || 'No se pudo cambiar el estado');
+    } finally {
+      setBusyId('');
+      load();
+    }
   }
+
+  function toggle(r: MlMessageRule) {
+    const pendingWhenPausing = (r.waitingCount || 0) + (r.dueCount || 0);
+    if (r.active && pendingWhenPausing > 0) { setAsking(r); return; }
+    if (!r.active && (r.dueCount || 0) > 0) { setAsking(r); return; }
+    applyActive(r, !r.active);
+  }
+
+  useEffect(() => {
+    if (!toast) return;
+    const h = setTimeout(() => setToast(''), 5000);
+    return () => clearTimeout(h);
+  }, [toast]);
   async function remove(r: MlMessageRule) {
     if (!(await confirmDialog(`¿Eliminar "${r.name}"?`, { danger: true }))) return;
     await api.marketplace.messages.deleteRule(r.id, getToken()!).catch(() => null);
@@ -379,10 +421,14 @@ function Rules({ companyId }: { companyId?: string }) {
                 <p className="text-sm font-semibold">{r.name}</p>
                 <p className="text-xs text-gray-500">{TRIGGERS[r.trigger]} · {delayLabel(r.delayMinutes)}</p>
               </div>
-              <button type="button" onClick={() => toggle(r)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${r.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {r.active ? 'Activo' : 'Pausado'}
-              </button>
+              <label className="flex shrink-0 cursor-pointer items-center gap-2">
+                <span className={`text-[11px] font-semibold ${r.active ? 'text-green-700' : 'text-gray-500'}`}>{r.active ? 'Activo' : 'Pausado'}</span>
+                <button type="button" role="switch" aria-checked={r.active} aria-label={r.active ? `Pausar «${r.name}»` : `Activar «${r.name}»`}
+                  disabled={busyId === r.id} onClick={() => toggle(r)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${r.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${r.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+              </label>
             </div>
             <p className="mt-2 rounded-lg bg-[var(--page-bg)] px-3 py-2 text-xs text-gray-700">{r.text}</p>
             {!!r.images?.length && (
@@ -391,6 +437,13 @@ function Rules({ companyId }: { companyId?: string }) {
                   <img key={img.url} src={imgUrl(img.url)} alt={img.name} className="h-10 w-10 rounded-md border border-gray-200 object-cover" />
                 ))}
               </div>
+            )}
+            {(!!r.waitingCount || (!r.active && !!r.dueCount) || r.lastSentAt) && (
+              <p className="mt-2 text-[11px] text-gray-500">
+                {!!r.waitingCount && <span className="font-medium text-blue-700">⏳ {r.waitingCount}{r.queueCapped ? '+' : ''} envío(s) en espera</span>}
+                {!r.active && !!r.dueCount && <span className={`font-medium text-amber-700 ${r.waitingCount ? 'before:mx-1 before:content-["·"]' : ''}`}>{r.dueCount}{r.queueCapped ? '+' : ''} venta(s) acumulada(s) en la pausa</span>}
+                {r.lastSentAt && <span className={(r.waitingCount || (!r.active && r.dueCount)) ? 'before:mx-1 before:content-["·"]' : ''}>último envío {timeAgo(r.lastSentAt)}</span>}
+              </p>
             )}
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
               <span>
@@ -406,6 +459,37 @@ function Rules({ companyId }: { companyId?: string }) {
           </div>
         ))}
       </div>
+      {toast && (
+        <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>
+      )}
+      {asking && (
+        <Modal title={asking.active ? `Pausar «${asking.name}»` : `Activar «${asking.name}»`} onClose={() => setAsking(null)}
+          footer={asking.active ? (
+            <>
+              <button type="button" onClick={() => setAsking(null)} className={btnSecondary}>Volver</button>
+              <button type="button" onClick={() => applyActive(asking, false, 'keep')} className={btnSecondary}>Conservarlos</button>
+              <button type="button" onClick={() => applyActive(asking, false, 'cancel')} className={btnPrimary}>Cancelarlos y pausar</button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setAsking(null)} className={btnSecondary}>Volver</button>
+              <button type="button" onClick={() => applyActive(asking, true, 'send')} className={btnSecondary}>Enviarles también</button>
+              <button type="button" onClick={() => applyActive(asking, true, 'skip')} className={btnPrimary}>Solo ventas nuevas</button>
+            </>
+          )}>
+          {asking.active ? (
+            <p className="text-sm text-gray-700">
+              Hay <strong>{(asking.waitingCount || 0) + (asking.dueCount || 0)}{asking.queueCapped ? '+' : ''}</strong> venta(s) esperando este mensaje.
+              Mientras esté pausado no se envía nada. ¿Cancelamos esos envíos o los conservamos? Al reactivarlo podrás elegir si enviárselos.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-700">
+              Mientras estuvo pausado, a <strong>{asking.dueCount}{asking.queueCapped ? '+' : ''}</strong> venta(s) ya les correspondía este mensaje.
+              ¿Se los enviamos ahora o lo dejamos solo para las ventas nuevas?
+            </p>
+          )}
+        </Modal>
+      )}
       {editing && <RuleForm rule={editing === 'new' ? null : editing} conns={conns} companyId={companyId}
         productNames={productNames} onProductName={(id, name) => setProductNames((m) => ({ ...m, [id]: name }))}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}

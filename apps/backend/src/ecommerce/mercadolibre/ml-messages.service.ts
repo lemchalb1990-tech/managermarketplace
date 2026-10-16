@@ -361,10 +361,88 @@ export class MlMessagesService {
   // ── Mensajes programados ───────────────────────────────────────────────
 
   async listRules(user: any, companyId?: string) {
-    return this.prisma.mlMessageRule.findMany({
+    const rules = await this.prisma.mlMessageRule.findMany({
       where: this.companyWhere(user, companyId), orderBy: { createdAt: 'asc' },
       include: { _count: { select: { logs: true } } },
     });
+    // Para la tarjeta: envíos en espera, envíos ya vencidos (acumulados en pausa) y el último envío.
+    const lastSent = await this.prisma.mlMessageLog.groupBy({
+      by: ['ruleId'], where: { ruleId: { in: rules.map((r) => r.id) }, status: 'SENT' }, _max: { createdAt: true },
+    });
+    const lastByRule = new Map(lastSent.map((l) => [l.ruleId, l._max.createdAt]));
+    return Promise.all(rules.map(async (r) => {
+      const q = await this.ruleQueue(r).catch(() => ({ waiting: [], due: [], capped: false }));
+      return { ...r, waitingCount: q.waiting.length, dueCount: q.due.length, queueCapped: q.capped, lastSentAt: lastByRule.get(r.id) ?? null };
+    }));
+  }
+
+  // Ventas de la regla aún sin procesar (sin registro), con lo necesario para decidir el envío.
+  private ruleSales(rule: { id: string; companyId: string; createdAt: Date; connectionId: string | null; minTotal: Prisma.Decimal | null }, take: number) {
+    return this.prisma.sale.findMany({
+      where: {
+        companyId: rule.companyId, channel: SaleChannel.MERCADO_LIBRE, createdAt: { gte: rule.createdAt },
+        ...(rule.connectionId ? { connectionId: rule.connectionId } : { connectionId: { not: null } }),
+        ...(rule.minTotal != null ? { total: { gte: rule.minTotal } } : {}),
+        mlMessageLogs: { none: { ruleId: rule.id } },
+      },
+      take,
+      orderBy: { createdAt: 'asc' },
+      include: {
+        items: { select: { productId: true, quantity: true, product: { select: { name: true, category: true } } } },
+        invoices: { orderBy: { createdAt: 'desc' }, select: { folio: true, pdfUrl: true, status: true, createdAt: true } },
+        order: { select: { id: true, status: true, dispatchedAt: true, deliveredAt: true, updatedAt: true, verificationPending: true } },
+        company: { select: { name: true } },
+      },
+    });
+  }
+
+  /**
+   * Cola de una regla: «en espera» = la venta ya cumplió el momento pero falta la espera;
+   * «vencidos» = ya debió enviarse (se envía en la próxima pasada; en una regla pausada son
+   * los que se acumularon durante la pausa). Solo ventas que cumplen las condiciones.
+   */
+  private async ruleQueue(rule: Parameters<MlMessagesService['ruleSales']>[0] & { trigger: string; delayMinutes: number; conditions: unknown; match: string }) {
+    const CAP = 500;
+    const sales = await this.ruleSales(rule, CAP);
+    const now = Date.now();
+    const waiting: typeof sales = [];
+    const due: typeof sales = [];
+    for (const sale of sales) {
+      const at = this.triggerAt(rule.trigger, sale);
+      if (!at || !this.matches(rule, sale)) continue;
+      if (at.getTime() + rule.delayMinutes * 60_000 > now) waiting.push(sale);
+      else due.push(sale);
+    }
+    return { waiting, due, capped: sales.length >= CAP };
+  }
+
+  /**
+   * Activa o pausa un mensaje programado desde la tarjeta.
+   * Al pausar, pending='cancel' cancela los envíos en espera (y los vencidos); 'keep' los deja
+   * para cuando se reactive. Al activar, pending='skip' descarta las ventas cuyo envío se cumplió
+   * mientras estaba pausado (quedan omitidas); 'send' les envía el mensaje en la próxima pasada.
+   */
+  async setRuleActive(user: any, id: string, dto: { active: boolean; pending?: 'cancel' | 'keep' | 'skip' | 'send' }) {
+    const rule = await this.prisma.mlMessageRule.findUnique({ where: { id } });
+    if (!rule) throw new NotFoundException('Mensaje programado no encontrado');
+    if (user.role !== Role.SUPER_ADMIN && rule.companyId !== user.companyId) throw new ForbiddenException();
+    const active = !!dto.active;
+    let skipped = 0;
+    if (rule.active !== active) {
+      const q = await this.ruleQueue(rule);
+      const toSkip = !active && dto.pending === 'cancel' ? [...q.waiting, ...q.due]
+        : active && dto.pending === 'skip' ? q.due : [];
+      const detail = active ? 'Su envío se cumplió mientras el mensaje estaba pausado' : 'Cancelado al pausar el mensaje';
+      if (toSkip.length) {
+        const res = await this.prisma.mlMessageLog.createMany({
+          data: toSkip.map((s) => ({ ruleId: rule.id, saleId: s.id, status: 'SKIPPED', detail })),
+          skipDuplicates: true,
+        });
+        skipped = res.count;
+      }
+      await this.prisma.mlMessageRule.update({ where: { id }, data: { active } });
+    }
+    return { ok: true, active, skipped };
   }
 
   private checkRule(dto: any) {
@@ -410,6 +488,9 @@ export class MlMessagesService {
     const rule = await this.prisma.mlMessageRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException('Mensaje programado no encontrado');
     if (user.role !== Role.SUPER_ADMIN && rule.companyId !== user.companyId) throw new ForbiddenException();
+    // Reactivado desde el formulario: las ventas cuyo envío se cumplió durante la pausa quedan
+    // omitidas (no se le escribe de golpe a todos los compradores acumulados).
+    if (!rule.active && dto.active === true) await this.setRuleActive(user, id, { active: true, pending: 'skip' });
     return this.prisma.mlMessageRule.update({ where: { id }, data: this.checkRule({ ...rule, minTotal: rule.minTotal != null ? Number(rule.minTotal) : null, ...dto }) });
   }
 
@@ -482,22 +563,7 @@ export class MlMessagesService {
     const now = Date.now();
     for (const rule of rules) {
       // Solo ventas desde que se creó el mensaje programado (no se escribe a ventas antiguas).
-      const sales = await this.prisma.sale.findMany({
-        where: {
-          companyId: rule.companyId, channel: SaleChannel.MERCADO_LIBRE, createdAt: { gte: rule.createdAt },
-          ...(rule.connectionId ? { connectionId: rule.connectionId } : { connectionId: { not: null } }),
-          ...(rule.minTotal != null ? { total: { gte: rule.minTotal } } : {}),
-          mlMessageLogs: { none: { ruleId: rule.id } },
-        },
-        take: 50,
-        orderBy: { createdAt: 'asc' },
-        include: {
-          items: { select: { productId: true, quantity: true, product: { select: { name: true, category: true } } } },
-          invoices: { orderBy: { createdAt: 'desc' }, select: { folio: true, pdfUrl: true, status: true, createdAt: true } },
-          order: { select: { id: true, status: true, dispatchedAt: true, deliveredAt: true, updatedAt: true, verificationPending: true } },
-          company: { select: { name: true } },
-        },
-      });
+      const sales = await this.ruleSales(rule, 50);
       for (const sale of sales) {
         const at = this.triggerAt(rule.trigger, sale);
         if (!at || at.getTime() + rule.delayMinutes * 60_000 > now) continue;
