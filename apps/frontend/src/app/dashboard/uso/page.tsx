@@ -54,12 +54,12 @@ function TypeBadge({ kind }: { kind: string }) {
 }
 
 const RESOURCES: { key: SubscriptionResource; label: string; fmt?: (n: number) => string }[] = [
-  { key: 'channels', label: 'Canales o cuentas' },
+  { key: 'channels', label: 'Canales' },
   { key: 'products', label: 'Productos' },
-  { key: 'listings', label: 'Publicaciones en marketplaces' },
+  { key: 'listings', label: 'Publicaciones' },
   { key: 'users', label: 'Usuarios' },
   { key: 'warehouses', label: 'Bodegas' },
-  { key: 'storage', label: 'Almacenamiento de fotos y archivos', fmt: formatMb },
+  { key: 'storage', label: 'Almacenamiento', fmt: formatMb },
 ];
 const n = (v: number) => v.toLocaleString('es-CL');
 const ALL_SUB_FEATURES = Object.keys(SUBSCRIPTION_FEATURE_LABEL) as SubscriptionFeature[];
@@ -102,7 +102,7 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
           </p>
         );
       })()}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         {RESOURCES.map((r) => {
           const u = sub.usage[r.key];
           if (!u) return null;
@@ -110,12 +110,10 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
           const p = u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
           const full = u.limit != null && u.used >= u.limit;
           return (
-            <div key={r.key} className="rounded-xl border border-[var(--border-soft)] p-3.5">
-              <p className="ui-stat-label">{r.label}</p>
-              <p className={`text-xl font-bold mt-1 ${full ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
-                {f(u.used)}
-                <span className="text-sm font-normal text-[var(--text-muted)]"> {u.limit == null ? '' : `de ${f(u.limit)}`}</span>
-              </p>
+            <div key={r.key} className="rounded-xl border border-[var(--border-soft)] p-3 min-w-0" title={r.key === 'storage' ? 'Fotos y archivos subidos' : undefined}>
+              <p className="ui-stat-label truncate">{r.label}</p>
+              <p className={`text-lg font-bold mt-1 leading-tight truncate ${full ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>{f(u.used)}</p>
+              <p className="text-[11px] text-[var(--text-muted)] truncate">{u.limit == null ? ' ' : `de ${f(u.limit)}`}</p>
               {u.limit != null ? (
                 <>
                   <div className="h-1.5 bg-[var(--border-soft)] rounded-full mt-2 overflow-hidden">
