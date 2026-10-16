@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useContact, scheduleHref, trialHref, contactHref } from "./contact";
 
-const DISMISS_KEY = "lp_cta_bar_closed";
+const DISMISS_KEY = "lp_wa_dialog_closed";
 const ext = (h: string) => (h.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {});
 
 function WhatsAppIcon({ size = 26 }: { size?: number }) {
@@ -14,84 +14,115 @@ function WhatsAppIcon({ size = 26 }: { size?: number }) {
   );
 }
 
-// Botón flotante de WhatsApp (toda la página) y, al pasar el inicio, un aviso abajo con
-// «Agenda con un ejecutivo» y «Solicita tu prueba demo». El aviso se puede cerrar (por sesión)
-// y se oculta al llegar al cierre de la página, que ya tiene ese llamado.
-export function FloatingContact({ heroId, endId, signupEnabled }: { heroId: string; endId: string; signupEnabled: boolean }) {
+// Botón flotante de WhatsApp con ondas y, al pasar el inicio, un diálogo tipo chat de WhatsApp
+// sobre el botón: «Agenda con un ejecutivo y solicita tu prueba demo», con las tres salidas
+// (WhatsApp, agenda y prueba). Se abre solo una vez por sesión; el botón lo abre y lo cierra.
+export function FloatingContact({ heroId, signupEnabled }: { heroId: string; signupEnabled: boolean }) {
   const c = useContact();
-  const [pastHero, setPastHero] = useState(false);
-  const [atEnd, setAtEnd] = useState(false);
-  const [closed, setClosed] = useState(true);
+  const [open, setOpen] = useState(false);
+  const autoOpened = useRef(false);
 
   useEffect(() => {
-    try { setClosed(sessionStorage.getItem(DISMISS_KEY) === "1"); } catch { setClosed(false); }
+    let dismissed = false;
+    try { dismissed = sessionStorage.getItem(DISMISS_KEY) === "1"; } catch { /* sin almacenamiento */ }
+    autoOpened.current = dismissed;
     const hero = document.getElementById(heroId);
-    const end = document.getElementById(endId);
-    const observers: IntersectionObserver[] = [];
-    if (hero) {
-      // Pasó el inicio cuando el hero ya no se ve y quedó arriba (no al cargar más abajo del todo).
-      const o = new IntersectionObserver(([e]) => setPastHero(!e.isIntersecting && e.boundingClientRect.top < 0));
-      o.observe(hero);
-      observers.push(o);
-    }
-    if (end) {
-      const o = new IntersectionObserver(([e]) => setAtEnd(e.isIntersecting));
-      o.observe(end);
-      observers.push(o);
-    }
-    return () => observers.forEach((o) => o.disconnect());
-  }, [heroId, endId]);
+    if (!hero) return;
+    // Al pasar el inicio (el hero ya no se ve y quedó arriba) el diálogo se abre una sola vez.
+    const o = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting && e.boundingClientRect.top < 0 && !autoOpened.current) {
+        autoOpened.current = true;
+        setOpen(true);
+      }
+    });
+    o.observe(hero);
+    return () => o.disconnect();
+  }, [heroId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const whatsapp = c?.whatsapp ? contactHref(c) : null;
   const schedule = scheduleHref(c);
   const trial = signupEnabled ? "/login?registro=1" : trialHref(c);
-  const showBar = pastHero && !atEnd && !closed && !!(schedule || trial);
+  if (!whatsapp && !schedule && !trial) return null;
 
   function close() {
-    setClosed(true);
+    setOpen(false);
     try { sessionStorage.setItem(DISMISS_KEY, "1"); } catch { /* sin almacenamiento */ }
   }
 
   return (
-    <>
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       <div
-        role="region"
-        aria-label="Agenda una reunión o solicita tu prueba"
-        aria-hidden={!showBar}
-        className={`lp-cta-bar fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:px-6 sm:pb-5 ${showBar ? "lp-cta-bar--in" : ""}`}
+        id="lp-wa-dialog"
+        role="dialog"
+        aria-label="Habla con Admin Marketplace"
+        aria-hidden={!open}
+        className={`lp-wa-dialog w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-[0_16px_48px_rgba(0,0,0,0.22)] ${open ? "lp-wa-dialog--in" : ""}`}
       >
-        <div className="relative mx-auto flex max-w-5xl flex-col gap-3 rounded-2xl bg-[#02093a] px-4 py-3.5 text-white shadow-[0_12px_40px_rgba(2,9,58,0.35)] sm:flex-row sm:items-center sm:gap-5 sm:px-6">
-          <p className="flex-1 pr-9 text-[15px] leading-snug sm:pr-0">
-            <span className="font-semibold">¿Te ayudamos a empezar?</span>{" "}
-            <span className="text-white/75">Agenda con un ejecutivo y solicita tu prueba demo.</span>
-          </p>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {schedule && (
-              <a href={schedule} {...ext(schedule)} tabIndex={showBar ? 0 : -1} className="lp-btn lp-btn--light">Agenda con un ejecutivo</a>
-            )}
-            {trial && (
-              <a href={trial} {...ext(trial)} tabIndex={showBar ? 0 : -1} className="lp-btn bg-[#0075de] text-white hover:bg-[#0062ba]">Solicita tu prueba demo</a>
-            )}
+        <div className="flex items-center gap-3 bg-[#075e54] px-4 py-3 text-white">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[15px] font-bold text-[#075e54]">M</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-tight">Admin Marketplace</p>
+            <p className="text-[12px] text-white/80">Ejecutivo comercial</p>
           </div>
-          <button type="button" onClick={close} tabIndex={showBar ? 0 : -1} aria-label="Cerrar aviso"
-            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white sm:static sm:order-last">
+          <button type="button" onClick={close} tabIndex={open ? 0 : -1} aria-label="Cerrar"
+            className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
+
+        <div className="lp-wa-chat space-y-2 px-4 py-4">
+          <div className="lp-wa-bubble max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-2 text-[14px] leading-snug text-[#111b21] shadow-sm">
+            ¡Hola! ¿Te ayudamos a empezar?
+          </div>
+          <div className="lp-wa-bubble max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-2 text-[14px] leading-snug text-[#111b21] shadow-sm">
+            Agenda con un ejecutivo y solicita tu prueba demo. Te mostramos el panel con tus canales.
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 px-4 pb-4">
+          {whatsapp && (
+            <a href={whatsapp} target="_blank" rel="noopener noreferrer" tabIndex={open ? 0 : -1}
+              className="flex items-center justify-center gap-2 rounded-full bg-[#25d366] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-[#1ebe5b]">
+              <WhatsAppIcon size={18} /> Escríbenos por WhatsApp
+            </a>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            {schedule && (
+              <a href={schedule} {...ext(schedule)} tabIndex={open ? 0 : -1}
+                className={`rounded-full border border-[#02093a]/15 px-3 py-2 text-center text-[13px] font-semibold text-[#02093a] hover:bg-[#02093a]/5 ${trial ? "" : "col-span-2"}`}>
+                Agenda con un ejecutivo
+              </a>
+            )}
+            {trial && (
+              <a href={trial} {...ext(trial)} tabIndex={open ? 0 : -1}
+                className={`rounded-full bg-[#02093a] px-3 py-2 text-center text-[13px] font-semibold text-white hover:bg-[#0b1d5c] ${schedule ? "" : "col-span-2"}`}>
+                Solicita tu prueba demo
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
-      {whatsapp && (
-        <a
-          href={whatsapp}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Escríbenos por WhatsApp"
-          title="Escríbenos por WhatsApp"
-          className={`lp-wa fixed right-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25d366] text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:bg-[#1ebe5b] sm:right-6 ${showBar ? "bottom-[150px] sm:bottom-28" : "bottom-4 sm:bottom-6"}`}
-        >
-          <WhatsAppIcon />
-        </a>
-      )}
-    </>
+      <button
+        type="button"
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-expanded={open}
+        aria-controls="lp-wa-dialog"
+        aria-label={open ? "Cerrar el chat" : "Habla con nosotros por WhatsApp"}
+        className="lp-wa relative grid h-14 w-14 place-items-center rounded-full bg-[#25d366] text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:bg-[#1ebe5b]"
+      >
+        {!open && <><span className="lp-wa-wave" aria-hidden="true" /><span className="lp-wa-wave lp-wa-wave--2" aria-hidden="true" /></>}
+        {open
+          ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          : <WhatsAppIcon />}
+      </button>
+    </div>
   );
 }

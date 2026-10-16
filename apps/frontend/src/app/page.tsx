@@ -404,7 +404,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <FloatingContact heroId="inicio" endId="cierre" signupEnabled={signupEnabled} />
+      <FloatingContact heroId="inicio" signupEnabled={signupEnabled} />
 
       <footer className="bg-[#02093a] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
         <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px]`}>
