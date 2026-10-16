@@ -122,8 +122,8 @@ export default function PaymentMethodsPage() {
             <div key={p.id} role="button" tabIndex={0}
               onClick={() => { if (!locked) setEditing(p.id); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !locked) setEditing(p.id); }}
-              className={`block group ${locked ? 'cursor-default' : 'cursor-pointer'}`}>
-              <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'} ${locked && !noCompany ? 'opacity-70' : ''}`}>
+              className={`block h-full group ${locked ? 'cursor-default' : 'cursor-pointer'}`}>
+              <div className={`relative flex h-full flex-col bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'} ${locked && !noCompany ? 'opacity-70' : ''}`}>
                 {st !== 'AVAILABLE' && (
                   <span className={`absolute left-3 top-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${st === 'SOON' ? 'bg-[var(--brand)] text-white' : 'bg-gray-700 text-white'}`}>
                     {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
@@ -161,7 +161,7 @@ export default function PaymentMethodsPage() {
                   <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.message}</p>
                 )}
                 {!noCompany && (
-                  <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="mt-auto flex items-center justify-between gap-2 pt-3">
                     <p className={`text-xs font-semibold group-hover:underline ${isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'}`}>
                       {conn ? (isActive ? 'Gestionar conexión →' : 'Conexión desactivada →') : 'Conectar →'}
                     </p>
