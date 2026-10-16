@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, type PaymentRequestInfo, type PaymentProviderKey } from '@/lib/api';
+import { PaymentLinkModal } from '@/components/PaymentLinkModal';
 import { useAdminCompany } from '../../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { confirmDialog } from '../../ConfirmDialog';
@@ -28,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
   REJECTED: 'bg-red-100 text-red-700',
   CANCELLED: 'bg-gray-100 text-gray-500',
 };
-const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto' };
+const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago' };
 
 const emptyForm = () => ({
   id: undefined as string | undefined,
@@ -89,6 +90,47 @@ export default function WorkOrdersPage() {
   }, [token, isSuperAdmin, selectedCompanyId, statusFilter, search]);
 
   useEffect(() => { loadWorkOrders(1); }, [loadWorkOrders]);
+
+  // Link de pago en línea (Flow / Mercado Pago): solo si la empresa lo tiene habilitado.
+  const [onlineProviders, setOnlineProviders] = useState<Array<{ provider: PaymentProviderKey; name: string }>>([]);
+  const [linkFor, setLinkFor] = useState<any>(null);
+  const [linkProvider, setLinkProvider] = useState<PaymentProviderKey | ''>('');
+  const [linkHours, setLinkHours] = useState('72');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [payReq, setPayReq] = useState<PaymentRequestInfo | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    if (isSuperAdmin && !selectedCompanyId) { setOnlineProviders([]); return; }
+    api.payments.available(token, isSuperAdmin ? selectedCompanyId : undefined).then(setOnlineProviders).catch(() => setOnlineProviders([]));
+  }, [token, isSuperAdmin, selectedCompanyId]);
+
+  // Si la orden ya tiene un link pendiente se muestra ese; si no, se elige pasarela y vigencia.
+  async function openPaymentLink(wo: any) {
+    setLinkError('');
+    try {
+      const res = await api.payments.list(token, { companyId: isSuperAdmin ? selectedCompanyId : undefined, workOrderId: wo.id, status: 'PENDING' });
+      if (res.items[0]) { setPayReq(res.items[0]); return; }
+    } catch { /* se ofrece generar uno nuevo */ }
+    setLinkProvider(onlineProviders[0]?.provider || '');
+    setLinkFor(wo);
+  }
+
+  async function generatePaymentLink() {
+    if (!linkFor || !linkProvider) return;
+    setLinkBusy(true);
+    setLinkError('');
+    try {
+      const req = await api.payments.createForWorkOrder(linkFor.id, { provider: linkProvider, expiresInHours: Number(linkHours) }, token);
+      setLinkFor(null);
+      setPayReq(req);
+    } catch (e: any) {
+      setLinkError(e.message || 'No se pudo generar el link');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -440,6 +482,9 @@ export default function WorkOrdersPage() {
                           <>
                             <button onClick={() => openEdit(wo)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Editar</button>
                             <button onClick={() => openConvert(wo)} className="text-xs text-green-600 hover:text-green-800 font-medium">Aceptar y cobrar</button>
+                            {onlineProviders.length > 0 && (
+                              <button onClick={() => openPaymentLink(wo)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Link de pago</button>
+                            )}
                             <button onClick={() => handleReject(wo.id)} disabled={actionLoadingId === wo.id}
                               className="text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50">
                               {actionLoadingId === wo.id ? '...' : 'Rechazar'}
@@ -600,6 +645,59 @@ export default function WorkOrdersPage() {
       )}
 
       {/* Modal aceptar y cobrar */}
+      {linkFor && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="ui-section-title">Link de pago #{String(linkFor.folio).padStart(4, '0')}</h2>
+              <button onClick={() => setLinkFor(null)} disabled={linkBusy} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Total {fmt(linkFor.items.reduce((s: number, i: any) => s + i.quantity * Number(i.unitPrice), 0))}. Compártelo con el cliente: cuando pague,
+                la orden se convierte sola en venta (descuenta stock y crea la orden de retiro).
+              </p>
+              <div>
+                <label className="block text-xs text-gray-500 font-medium mb-1">Pasarela</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {onlineProviders.map((o) => (
+                    <button key={o.provider} type="button" onClick={() => setLinkProvider(o.provider)}
+                      className={`py-2 rounded-lg border-2 text-xs font-semibold transition ${linkProvider === o.provider ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      {o.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 font-medium mb-1">El link vence en</label>
+                <select value={linkHours} onChange={(e) => setLinkHours(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                  <option value="24">24 horas</option>
+                  <option value="72">3 días</option>
+                  <option value="168">7 días</option>
+                </select>
+              </div>
+              <p className="text-[11px] text-gray-400">Mientras el link esté pendiente, la orden no se puede editar, anular ni cobrar de otra forma.</p>
+              {linkError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{linkError}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setLinkFor(null)} disabled={linkBusy} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={generatePaymentLink} disabled={linkBusy || !linkProvider}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                {linkBusy ? 'Generando…' : 'Generar link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {payReq && (
+        <PaymentLinkModal
+          request={payReq}
+          onClose={() => { setPayReq(null); loadWorkOrders(page); }}
+          onPaid={() => { notify('Pago recibido: la orden de trabajo se convirtió en venta.'); loadWorkOrders(page); }}
+        />
+      )}
+
       {converting && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">

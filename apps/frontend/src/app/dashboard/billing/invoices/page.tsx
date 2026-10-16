@@ -43,6 +43,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   TRANSFER: 'Transferencia',
   OTHER: 'Otro',
   MIXED: 'Mixto',
+  FLOW: 'Flow',
+  MERCADO_PAGO: 'Mercado Pago',
 };
 
 const emptyPayForm = { paymentMethod: 'TRANSFER', paymentReference: '', paidAt: '' };

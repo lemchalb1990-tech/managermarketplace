@@ -158,5 +158,6 @@ export const EMAIL_TYPE_LABELS: Record<string, string> = {
   COMPANY_TEST: 'Prueba SMTP de la empresa',
   INVOICE: 'Documento tributario',
   WORK_ORDER: 'Orden de trabajo',
+  PAYMENT_LINK: 'Link de pago',
   DROPSHIP_ORDER: 'Pedido a proveedor (dropshipping)',
 };

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-export const PLAN_FEATURES = ['POS', 'PURCHASES', 'PICKING', 'MULTICOMPANY', 'ML_PROMOTIONS'] as const;
+export const PLAN_FEATURES = ['POS', 'PURCHASES', 'PICKING', 'MULTICOMPANY', 'ML_PROMOTIONS', 'ONLINE_PAYMENTS'] as const;
 export type PlanResource = 'channels' | 'products' | 'users' | 'warehouses';
 
 const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'maxUsers' | 'maxWarehouses'; extra: 'extraChannels' | 'extraProducts' | 'extraUsers' | 'extraWarehouses'; label: string }> = {

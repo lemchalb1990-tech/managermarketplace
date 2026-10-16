@@ -44,6 +44,8 @@ const PAYMENT_LABELS: Record<string, string> = {
   TRANSFER: 'Transferencia',
   OTHER: 'Otro',
   MIXED: 'Mixto',
+  FLOW: 'Flow',
+  MERCADO_PAGO: 'Mercado Pago',
 };
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('es-CL')}`;

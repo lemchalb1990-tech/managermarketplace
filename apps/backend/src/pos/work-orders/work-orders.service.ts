@@ -179,6 +179,13 @@ export class WorkOrdersService {
     return workOrder;
   }
 
+  // Con un link de pago en línea pendiente, la orden no se toca: el monto del link quedaría
+  // distinto o el cliente podría pagar algo ya anulado/cobrado.
+  private async assertNoPendingLink(id: string) {
+    const open = await this.prisma.paymentRequest.count({ where: { workOrderId: id, status: 'PENDING', expiresAt: { gt: new Date() } } });
+    if (open) throw new BadRequestException('Esta orden tiene un link de pago pendiente. Cancélalo primero (Cobros en línea o el botón del link).');
+  }
+
   async findOne(id: string, user: any) {
     return this.getOwned(id, user);
   }
@@ -196,6 +203,7 @@ export class WorkOrdersService {
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Solo se pueden editar órdenes de trabajo pendientes');
     }
+    await this.assertNoPendingLink(id);
     if (dto.clientId) {
       const client = await this.prisma.client.findUnique({ where: { id: dto.clientId } });
       if (!client || client.companyId !== workOrder.companyId) throw new BadRequestException('Cliente no válido para esta empresa');
@@ -231,6 +239,7 @@ export class WorkOrdersService {
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Solo se pueden rechazar órdenes de trabajo pendientes');
     }
+    await this.assertNoPendingLink(id);
     return this.prisma.$transaction(async (tx) => {
       await this.adjustReservation(tx, workOrder.items, -1);
       return tx.workOrder.update({
@@ -245,6 +254,7 @@ export class WorkOrdersService {
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Solo se pueden anular órdenes de trabajo pendientes');
     }
+    await this.assertNoPendingLink(id);
     return this.prisma.$transaction(async (tx) => {
       await this.adjustReservation(tx, workOrder.items, -1);
       return tx.workOrder.update({
@@ -258,11 +268,13 @@ export class WorkOrdersService {
   // boleta/factura/sin documento a elección del frontend después de esto) y recién ahí se
   // descuenta stock. Las líneas libres (sin productId) se respaldan con un producto tipo
   // SERVICIO auto-generado/reutilizado, ya que una venta siempre requiere un producto real.
-  async convertToSale(id: string, dto: ConvertWorkOrderDto, user: any) {
+  // fromPayment: la convierte el cobro en línea al confirmarse el pago (su link está pendiente).
+  async convertToSale(id: string, dto: ConvertWorkOrderDto, user: any, opts: { fromPayment?: boolean } = {}) {
     const workOrder = await this.getOwned(id, user);
     if (workOrder.status !== WorkOrderStatus.PENDING) {
       throw new BadRequestException('Esta orden de trabajo ya fue procesada');
     }
+    if (!opts.fromPayment) await this.assertNoPendingLink(id);
 
     const saleItems: { productId: string; quantity: number; unitPrice: number }[] = [];
     for (const item of workOrder.items) {

@@ -57,7 +57,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   JUMPSELLER: 'JumpSeller', FALABELLA: 'Falabella', PARIS: 'Paris', HITES: 'Hites', RIPLEY: 'Ripley',
   WALMART: 'Walmart', MANUAL: 'Manual', ORDER_REQUEST: 'Solicitud de pedido',
 };
-const PAY_LABEL: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro' };
+const PAY_LABEL: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago' };
 const DTE_LABEL: Record<string, string> = { BOLETA: 'Boleta', FACTURA: 'Factura', FACTURA_EXENTA: 'Factura exenta', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' };
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MAX_SALES = 50000;

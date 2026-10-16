@@ -8,7 +8,7 @@ export function matchesModule(modules: any, moduleKey: string): boolean {
 }
 
 // Funciones del plan comercial (Company.planFeatures, null = sin plan = todo).
-export type PlanFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS';
+export type PlanFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS' | 'ONLINE_PAYMENTS';
 
 export function planAllows(user: any, feature: PlanFeature | undefined | null): boolean {
   if (!feature) return true;

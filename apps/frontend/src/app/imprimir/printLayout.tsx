@@ -14,7 +14,7 @@ export const PRINT_FORMAT_LABEL: Record<PrintFormat, string> = {
 };
 
 export const PAYMENT_LABEL: Record<string, string> = {
-  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto',
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago',
 };
 
 export type LogoSize = 'SMALL' | 'MEDIUM' | 'LARGE';

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api, imgUrl, openDocumentUrl } from '@/lib/api';
+import { api, imgUrl, openDocumentUrl, type PaymentRequestInfo } from '@/lib/api';
+import { PaymentLinkModal } from '@/components/PaymentLinkModal';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
 import PosFilters from './PosFilters';
@@ -37,6 +38,9 @@ const PAYMENT_LABELS: Record<string, string> = {
   TRANSFER: 'Transferencia',
   OTHER: 'Otro',
 };
+
+// Pasarelas en línea: solo aparecen si la empresa las tiene habilitadas (plan + conexión activa).
+const ONLINE_METHODS = ['FLOW', 'MERCADO_PAGO'];
 
 export default function PosPage() {
   const { selectedCompanyId, companies: adminCompanies } = useAdminCompany();
@@ -80,6 +84,10 @@ export default function PosPage() {
   // de pago" se cobra con varios; un monto vacío toma el saldo que falta.
   const [payments, setPayments] = useState<{ method: string; amount: string }[]>([{ method: 'CASH', amount: '' }]);
   const [notes, setNotes] = useState('');
+  // Cobros en línea: pasarelas habilitadas, cobro en curso y link a distancia.
+  const [onlineProviders, setOnlineProviders] = useState<Array<{ provider: string; name: string; environment: string }>>([]);
+  const [payReq, setPayReq] = useState<PaymentRequestInfo | null>(null);
+  const [remoteLink, setRemoteLink] = useState(false);
   // Bodega de venta: el vendedor vende desde la asignada en Usuarios (fija); un administrador
   // puede elegirla ('' = la bodega de cada producto). El stock mostrado es el de esa bodega.
   // canChoose (administrador): cualquier bodega o la de cada producto. assigned: tiendas del vendedor
@@ -228,10 +236,11 @@ export default function PosPage() {
     if (!token) return;
     const cid = isSuperAdmin ? selectedCompanyId : undefined;
     if (isSuperAdmin && !selectedCompanyId) {
-      setCategories([]); setClients([]); setBillingConns([]);
+      setCategories([]); setClients([]); setBillingConns([]); setOnlineProviders([]);
       return;
     }
     api.catalog.categories(token, cid).then(setCategories).catch(() => {});
+    api.payments.available(token, cid).then(setOnlineProviders).catch(() => setOnlineProviders([]));
     api.clients.list(token, cid).then((d) => setClients(d.filter((c: any) => c.active))).catch(() => setClients([]));
     api.billing.connections.list(token, cid ? { companyId: cid } : undefined)
       .then((cs) => { setBillingConns(cs); if (cs[0]) setDteConnId(cs[0].id); })
@@ -389,10 +398,90 @@ export default function PosPage() {
   const payOk = !multiPay || (Math.abs(payDiff) < 1 && resolvedPayments.every((p) => p.amount > 0));
   const paymentMethod = multiPay ? 'MIXED' : payments[0].method;
 
+  // Cobro en línea (Flow / Mercado Pago): un solo medio, sin pago mixto.
+  const onlineMethod = !multiPay && ONLINE_METHODS.includes(payments[0].method) ? payments[0].method : '';
+
+  // Datos de la venta tal como los recibe el servidor (venta directa o cobro en línea).
+  const buildSaleDto = () => {
+    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
+    const dto: any = {
+      channel: 'POS',
+      paymentMethod,
+      payments: resolvedPayments,
+      ...(posWh.canChoose || posWh.assigned.length > 0 ? { warehouseId: saleWarehouseId } : {}),
+      notes: notes || undefined,
+      fulfillmentType: servicesOnly ? undefined : fulfillmentType,
+      clientId: clientId || undefined,
+      // Sin cliente, los datos de contacto solo se usan (y se muestran) con despacho.
+      customerName: (selectedClient?.name || contactName) || undefined,
+      customerPhone: (selectedClient?.phone || contactPhone) || undefined,
+      customerEmail: (selectedClient?.email || contactEmail) || undefined,
+      address: !servicesOnly && fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
+      commune: !servicesOnly && fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
+      city: !servicesOnly && fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
+      items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price })),
+    };
+    if (companyId) dto.companyId = companyId;
+    return dto;
+  };
+
+  const resetCheckout = () => {
+    setCart([]);
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
+    setAddress(''); setCommune(''); setCity('');
+    setNotes(''); setFulfillmentType('PICKUP');
+    setPayments([{ method: 'CASH', amount: '' }]);
+    setRemoteLink(false);
+    setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
+    setEmitDte(false); setDteType('BOLETA'); setDteFamily('BOLETA');
+    setShowCheckout(false);
+  };
+
+  // Venta registrada: boleta/factura (si se pidió) y punto de venta limpio.
+  const finishSale = async (saleId: string, method: string, saleTotal: number) => {
+    setLastSaleId(saleId);
+    let dteMsg = '';
+    if (emitDte) {
+      try {
+        const inv = await api.billing.invoices.issue({
+          connectionId: dteConnId,
+          dteType,
+          rut: selectedClient?.rut || '66666666-6',
+          razonSocial: selectedClient?.name || contactName || 'Consumidor final',
+          giro: selectedClient?.giro || undefined,
+          address: selectedClient?.address || undefined,
+          commune: selectedClient?.commune || undefined,
+          email: selectedClient?.email || contactEmail || undefined,
+          items: cart.map((c) => ({ name: c.name, quantity: c.quantity, unitPrice: c.price })),
+          saleId,
+          clientId: clientId || undefined,
+          paymentCondition: 'CONTADO',
+          markPaid: true,
+          paymentMethod: method,
+        }, token);
+        const docLabel = dteType === 'BOLETA' ? 'Boleta' : dteType === 'FACTURA_EXENTA' ? 'Factura exenta' : 'Factura';
+        dteMsg = ` · ${docLabel}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
+        setLastInvoice({
+          ...inv,
+          docLabel,
+          defaultEmail: selectedClient?.email || contactEmail || '',
+        });
+      } catch (e: any) {
+        dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
+        setLastInvoice(null);
+      }
+    } else {
+      setLastInvoice(null);
+    }
+
+    setSuccessMsg(`Venta registrada por $${saleTotal.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${dteMsg}`);
+    resetCheckout();
+    await loadProducts(page);
+  };
+
   const checkout = useCallback(async () => {
     if (cart.length === 0) return;
     if (!payOk) { setErrorMsg('Los montos de los medios de pago deben sumar el total de la venta'); return; }
-    const companyId = isSuperAdmin ? selectedCompanyId : undefined;
     if (isSuperAdmin && !selectedCompanyId) return;
 
     // Validación del DTE
@@ -412,78 +501,36 @@ export default function PosPage() {
     setSuccessMsg('');
     setLastSaleId('');
     try {
-      const dto: any = {
-        channel: 'POS',
-        paymentMethod,
-        payments: resolvedPayments,
-        ...(posWh.canChoose || posWh.assigned.length > 0 ? { warehouseId: saleWarehouseId } : {}),
-        notes: notes || undefined,
-        fulfillmentType: servicesOnly ? undefined : fulfillmentType,
-        clientId: clientId || undefined,
-        // Sin cliente, los datos de contacto solo se usan (y se muestran) con despacho.
-        customerName: (selectedClient?.name || contactName) || undefined,
-        customerPhone: (selectedClient?.phone || contactPhone) || undefined,
-        customerEmail: (selectedClient?.email || contactEmail) || undefined,
-        address: !servicesOnly && fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
-        commune: !servicesOnly && fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
-        city: !servicesOnly && fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
-        items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price })),
-      };
-      if (companyId) dto.companyId = companyId;
-
-      const sale = await api.pos.createSale(dto, token);
-      setLastSaleId(sale.id);
-
-      let dteMsg = '';
-      if (emitDte) {
-        try {
-          const inv = await api.billing.invoices.issue({
-            connectionId: dteConnId,
-            dteType,
-            rut: selectedClient?.rut || '66666666-6',
-            razonSocial: selectedClient?.name || contactName || 'Consumidor final',
-            giro: selectedClient?.giro || undefined,
-            address: selectedClient?.address || undefined,
-            commune: selectedClient?.commune || undefined,
-            email: selectedClient?.email || contactEmail || undefined,
-            items: cart.map((c) => ({ name: c.name, quantity: c.quantity, unitPrice: c.price })),
-            saleId: sale.id,
-            clientId: clientId || undefined,
-            paymentCondition: 'CONTADO',
-            markPaid: true,
-            paymentMethod,
-          }, token);
-          const docLabel = dteType === 'BOLETA' ? 'Boleta' : dteType === 'FACTURA_EXENTA' ? 'Factura exenta' : 'Factura';
-          dteMsg = ` · ${docLabel}${inv?.folio ? ` N° ${inv.folio}` : ''} emitida`;
-          setLastInvoice({
-            ...inv,
-            docLabel,
-            defaultEmail: selectedClient?.email || contactEmail || '',
-          });
-        } catch (e: any) {
-          dteMsg = ` · Venta OK, pero el DTE falló: ${e.message}`;
-          setLastInvoice(null);
-        }
-      } else {
-        setLastInvoice(null);
+      const dto = buildSaleDto();
+      if (onlineMethod) {
+        // La venta se registra cuando la pasarela confirma el pago.
+        const { payments: _p, paymentMethod: _m, ...rest } = dto;
+        const req = await api.payments.create({ ...rest, provider: onlineMethod, remote: remoteLink }, token);
+        setPayReq(req);
+        return;
       }
-
-      setSuccessMsg(`Venta registrada por $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${dteMsg}`);
-      setCart([]);
-      setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
-      setAddress(''); setCommune(''); setCity('');
-      setNotes(''); setFulfillmentType('PICKUP');
-      setPayments([{ method: 'CASH', amount: '' }]);
-      setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
-      setEmitDte(false); setDteType('BOLETA'); setDteFamily('BOLETA');
-      setShowCheckout(false);
-      await loadProducts(page);
+      const sale = await api.pos.createSale(dto, token);
+      await finishSale(sale.id, paymentMethod, total);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al procesar la venta');
     } finally {
       setLoading(false);
     }
-  }, [cart, posWh.canChoose, posWh.assigned.length, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, posWh.canChoose, posWh.assigned.length, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId, onlineMethod, remoteLink]);
+
+  // Cierre del cobro en línea: si ya se pagó, la venta quedó registrada; si sigue pendiente,
+  // queda en Cobros en línea y el punto de venta pasa a la siguiente venta; si se canceló,
+  // vuelve al checkout con el mismo carrito para cobrar de otra forma.
+  const closePayReq = (req: PaymentRequestInfo) => {
+    setPayReq(null);
+    if (req.status === 'PENDING' || req.status === 'PROCESSING' || req.status === 'NEEDS_REVIEW') {
+      resetCheckout();
+      setSuccessMsg(req.status === 'PENDING'
+        ? `Cobro de $${Math.round(req.amount).toLocaleString('es-CL')} pendiente: la venta se registrará sola cuando el cliente pague (Ventas → Cobros en línea)`
+        : 'Pago recibido: revisa el cobro en Ventas → Cobros en línea');
+    }
+  };
 
   const createWorkOrderFromCart = useCallback(async () => {
     if (cart.length === 0) return;
@@ -1258,7 +1305,7 @@ export default function PosPage() {
                 <h3 className="ui-subsection-title mb-3">Método de pago</h3>
                 {!multiPay ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {Object.entries(PAYMENT_LABELS).map(([v, l]) => (
+                    {[...Object.entries(PAYMENT_LABELS), ...onlineProviders.map((o) => [o.provider, o.name] as [string, string])].map(([v, l]) => (
                       <button
                         key={v}
                         type="button"
@@ -1312,7 +1359,19 @@ export default function PosPage() {
                     </p>
                   </div>
                 )}
-                {payments.length < 4 && (
+                {onlineMethod && (
+                  <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5 space-y-2">
+                    <p className="text-xs text-blue-800">
+                      Se genera un link y un QR de {onlineMethod === 'FLOW' ? 'Flow' : 'Mercado Pago'}. La venta se registra (y descuenta stock) cuando el cliente paga.
+                      {onlineProviders.find((o) => o.provider === onlineMethod)?.environment === 'test' && ' · Cuenta en modo prueba.'}
+                    </p>
+                    <label className="flex items-center gap-2 text-xs text-gray-700">
+                      <input type="checkbox" checked={remoteLink} onChange={(e) => setRemoteLink(e.target.checked)} className="accent-blue-600" />
+                      El cliente paga a distancia (el link dura 24 horas)
+                    </label>
+                  </div>
+                )}
+                {payments.length < 4 && !onlineMethod && (
                   <button
                     type="button"
                     onClick={() => setPayments((ps) => {
@@ -1354,11 +1413,21 @@ export default function PosPage() {
                 disabled={loading || !payOk}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3 text-sm transition"
               >
-                {loading ? 'Procesando...' : 'Confirmar venta'}
+                {loading ? 'Procesando...' : onlineMethod ? `Generar cobro con ${onlineMethod === 'FLOW' ? 'Flow' : 'Mercado Pago'}` : 'Confirmar venta'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cobro en línea en curso (QR / link) */}
+      {payReq && (
+        <PaymentLinkModal
+          request={payReq}
+          onClose={closePayReq}
+          onPaid={(r) => { if (r.saleId) finishSale(r.saleId, r.provider, r.amount).catch(() => {}); }}
+          note={emitDte ? 'La boleta/factura se emite al confirmarse el pago con esta ventana abierta. Si la cierras antes, emítela desde la venta.' : undefined}
+        />
       )}
 
       {/* Modal de orden de trabajo */}

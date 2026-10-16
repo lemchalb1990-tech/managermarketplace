@@ -504,6 +504,30 @@ export class EmailService {
     this.logger.log(`Orden de trabajo enviada → ${to}`);
   }
 
+  /** Link de pago en línea (Flow / Mercado Pago) generado desde el punto de venta. */
+  async sendPaymentLinkEmail(companyId: string, to: string, data: { amount: number; url: string; providerName: string; expiresAt: Date; customerName?: string | null }): Promise<void> {
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new Error('Configura el servidor SMTP primero');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    const companyName = company?.name ?? 'Tienda';
+    const from = await this.getFromAddress(companyId);
+    const amount = `$${Math.round(data.amount).toLocaleString('es-CL')}`;
+    const expires = data.expiresAt.toLocaleString('es-CL', { timeZone: 'America/Santiago', dateStyle: 'short', timeStyle: 'short' });
+
+    const bodyHtml = shell(
+      `<h2 style="margin:0 0 12px;font-size:20px;color:#1f2937;">${data.customerName ? `Hola ${data.customerName}, ` : ''}tu link de pago</h2>
+       <p style="color:#6b7280;font-size:15px;">${companyName} te envía el link para pagar tu compra con ${data.providerName}.</p>
+       <p style="color:#374151;font-size:15px;">Total: <strong>${amount}</strong></p>
+       <p style="margin:20px 0;"><a href="${data.url}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;">Pagar ${amount}</a></p>
+       <p style="color:#9ca3af;font-size:13px;">El link vence el ${expires}.</p>`,
+      companyName,
+    );
+
+    await this.deliver(companyId, 'PAYMENT_LINK', transporter, { from, to, subject: `Link de pago ${amount} — ${companyName}`, html: bodyHtml });
+    this.logger.log(`Link de pago enviado → ${to}`);
+  }
+
   /**
    * Envía un pedido de dropshipping al proveedor para que despache al cliente final.
    * `to` es el correo del proveedor; el detalle incluye productos, cantidades y la

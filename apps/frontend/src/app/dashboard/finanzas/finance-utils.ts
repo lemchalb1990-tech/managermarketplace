@@ -4,7 +4,7 @@ export const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', '
 
 export const TYPE_LABEL: Record<string, string> = { INCOME: 'Ingresos', EXPENSE: 'Gastos' };
 
-export const PAYMENT_LABEL: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto' };
+export const PAYMENT_LABEL: Record<string, string> = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', MIXED: 'Mixto', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago' };
 
 export function clp(n: number | null | undefined): string {
   if (n == null || !isFinite(n)) return '—';

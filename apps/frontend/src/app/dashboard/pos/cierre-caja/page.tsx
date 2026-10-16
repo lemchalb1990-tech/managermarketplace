@@ -10,7 +10,7 @@ import { confirmDialog } from '../../ConfirmDialog';
 import { SkeletonCards } from '@/components/Skeleton';
 
 const PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', SIN_ESPECIFICAR: 'Sin especificar',
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago', SIN_ESPECIFICAR: 'Sin especificar',
 };
 const MANAGER_ROLES = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'];
 const fmt = (n: number) => `$${Math.round(Number(n) || 0).toLocaleString('es-CL')}`;

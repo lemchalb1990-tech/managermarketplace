@@ -20,7 +20,7 @@ const DTE_TYPES = [
 const IVA = 0.19;
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro',
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago',
 };
 
 interface Item { name: string; longDescription: string; quantity: number; unitPrice: number; discount: number; productId?: string }

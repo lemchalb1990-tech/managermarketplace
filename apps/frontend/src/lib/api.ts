@@ -284,6 +284,21 @@ export type CourierShipmentInfo = {
   lastSyncAt: string | null; createdAt: string;
 };
 
+export type PaymentProviderKey = 'FLOW' | 'MERCADO_PAGO';
+export type PaymentRequestStatus = 'PENDING' | 'PROCESSING' | 'PAID' | 'NEEDS_REVIEW' | 'CANCELLED' | 'EXPIRED';
+export type PaymentConnectionInfo = {
+  id: string; provider: PaymentProviderKey; name: string; active: boolean;
+  settings: { environment?: 'test' | 'prod' }; credentialKeys: string[]; updatedAt: string;
+};
+export type PaymentRequestInfo = {
+  id: string; provider: PaymentProviderKey; providerName: string; status: PaymentRequestStatus; amount: number;
+  subject: string; remote: boolean; paymentUrl: string | null; customerName: string | null; customerEmail: string | null;
+  customerPhone: string | null; paymentMethodName: string | null; fee: number | null; statusDetail: string | null;
+  error: string | null; expiresAt: string; paidAt: string | null; cancelledAt: string | null; createdAt: string;
+  createdByName: string | null; saleId: string | null; saleNumber: number | null; itemsCount: number;
+  workOrderId: string | null; workOrderFolio: number | null;
+};
+
 // Query string sin los parámetros vacíos.
 const qs = (params: Record<string, string | number | undefined | null>) => {
   const q = new URLSearchParams();
@@ -1875,6 +1890,33 @@ export const api = {
     refresh: (shipmentId: string, token: string) =>
       apiFetch<CourierShipmentInfo>(`/couriers/shipments/${shipmentId}/refresh`, { method: 'POST' }, token),
   },
+  // Cobros en línea de la venta directa (Flow, Mercado Pago).
+  payments: {
+    connections: (token: string, companyId?: string) =>
+      apiFetch<{ enabled: boolean; connections: PaymentConnectionInfo[] }>(`/payments/connections${qs({ companyId })}`, {}, token),
+    save: (provider: PaymentProviderKey, data: { companyId?: string; credentials?: Record<string, string>; settings?: { environment?: 'test' | 'prod' }; active?: boolean }, token: string) =>
+      apiFetch<PaymentConnectionInfo>(`/payments/connections/${provider}`, { method: 'PUT', body: JSON.stringify(data) }, token),
+    remove: (provider: PaymentProviderKey, token: string, companyId?: string) =>
+      apiFetch<{ ok: boolean; deactivated?: boolean }>(`/payments/connections/${provider}${qs({ companyId })}`, { method: 'DELETE' }, token),
+    test: (provider: PaymentProviderKey, token: string, companyId?: string) =>
+      apiFetch<{ ok: boolean; message: string }>(`/payments/connections/${provider}/test${qs({ companyId })}`, { method: 'POST' }, token),
+    available: (token: string, companyId?: string) =>
+      apiFetch<Array<{ provider: PaymentProviderKey; name: string; environment: 'test' | 'prod' }>>(`/payments/available${qs({ companyId })}`, {}, token),
+    create: (data: Record<string, unknown>, token: string) =>
+      apiFetch<PaymentRequestInfo>('/payments/requests', { method: 'POST', body: JSON.stringify(data) }, token),
+    list: (token: string, params: { companyId?: string; status?: string; page?: number; workOrderId?: string } = {}) =>
+      apiFetch<{ items: PaymentRequestInfo[]; total: number; page: number; pages: number; needsReview: number }>(`/payments/requests${qs(params)}`, {}, token),
+    createForWorkOrder: (workOrderId: string, data: { provider: PaymentProviderKey; expiresInHours?: number }, token: string) =>
+      apiFetch<PaymentRequestInfo>(`/payments/work-orders/${workOrderId}`, { method: 'POST', body: JSON.stringify(data) }, token),
+    get: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}`, {}, token),
+    cancel: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}/cancel`, { method: 'POST' }, token),
+    sendEmail: (id: string, to: string, token: string) =>
+      apiFetch<{ ok: boolean }>(`/payments/requests/${id}/send-email`, { method: 'POST', body: JSON.stringify({ to }) }, token),
+    retrySale: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}/retry-sale`, { method: 'POST' }, token),
+    dismiss: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}/dismiss`, { method: 'POST' }, token),
+    publicStatus: (id: string) =>
+      apiFetch<{ status: PaymentRequestStatus; amount: number; companyName: string | null; providerName: string; paymentUrl: string | null }>(`/payments/public/${id}`),
+  },
   dropshipping: {
     suppliers: {
       list: (token: string, companyId?: string) => {
@@ -2095,7 +2137,7 @@ export interface PhotoCheckResult {
 }
 
 // ── Planes comerciales ──
-export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS';
+export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPANY' | 'ML_PROMOTIONS' | 'ONLINE_PAYMENTS';
 
 // Filtros del listado del catálogo (los mismos de catalog.search) para acciones sobre todos los que coinciden.
 export interface CatalogFilters {
@@ -2109,6 +2151,7 @@ export const SUBSCRIPTION_FEATURE_LABEL: Record<SubscriptionFeature, string> = {
   PICKING: 'Picking y packing con escaneo',
   MULTICOMPANY: 'Multiempresa',
   ML_PROMOTIONS: 'Promociones de Mercado Libre',
+  ONLINE_PAYMENTS: 'Cobros en línea (Flow / Mercado Pago)',
 };
 
 export interface SubscriptionPlan {

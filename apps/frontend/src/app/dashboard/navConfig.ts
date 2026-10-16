@@ -30,6 +30,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/pos', label: 'Punto de Venta', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/pos/ordenes-trabajo', label: 'Órdenes de trabajo', perm: 'pos.work-orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
+      { href: '/dashboard/cobros', label: 'Cobros en línea', perm: 'payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos', planFeature: 'ONLINE_PAYMENTS' },
       { href: '/dashboard/pos/cierre-caja', label: 'Cierre de caja', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/clientes', label: 'Registro de Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },
       { href: '/dashboard/devoluciones', label: 'Devoluciones', perm: 'returns', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: null, permOnly: true },
@@ -45,6 +46,7 @@ export const navGroups: NavGroup[] = [
       { href: '/dashboard/mis-conexiones', label: 'Mis conexiones', perm: 'ecommerce.connections', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/ecommerce', label: 'E-commerce', perm: 'ecommerce', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'ecommerce' },
       { href: '/dashboard/billing', label: 'Facturación', perm: 'billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'billing' },
+      { href: '/dashboard/medios-pago', label: 'Medios de pago', perm: 'payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'pos', planFeature: 'ONLINE_PAYMENTS' },
       { href: '/dashboard/couriers', label: 'Couriers', perm: 'couriers', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'], module: 'ecommerce' },
       { href: '/dashboard/dropshipping', label: 'Dropshipping', perm: 'dropshipping', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'dropshipping' },
     ],

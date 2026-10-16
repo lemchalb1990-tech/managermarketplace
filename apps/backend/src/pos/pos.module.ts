@@ -18,6 +18,6 @@ import { SettingsModule } from '../settings/settings.module';
   imports: [PrismaModule, EcommerceModule, EmailModule, PurchasesModule, SettingsModule],
   controllers: [PosController, WorkOrdersController, CashClosuresController, SalesReportsController],
   providers: [PosService, WorkOrdersService, CashClosuresService, SalesReportsService, SalesReportSchedulesService],
-  exports: [PosService],
+  exports: [PosService, WorkOrdersService],
 })
 export class PosModule {}

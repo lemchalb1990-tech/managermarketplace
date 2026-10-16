@@ -89,7 +89,7 @@ function KpiCard({
 }
 
 const POS_PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', SIN_ESPECIFICAR: 'Sin especificar',
+  CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', OTHER: 'Otro', FLOW: 'Flow', MERCADO_PAGO: 'Mercado Pago', SIN_ESPECIFICAR: 'Sin especificar',
 };
 
 export default function DashboardPage() {
