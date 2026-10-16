@@ -556,6 +556,15 @@ body {
 }
 .lp-btn:active { transform: translateY(1px); }
 /* Botones en azul oscuro (el azul vivo queda para detalles y animaciones). */
+/* Aviso que aparece abajo al pasar el inicio de la landing, y el botón flotante de WhatsApp. */
+.lp-cta-bar { transform: translateY(110%); opacity: 0; pointer-events: none; transition: transform 0.35s ease, opacity 0.35s ease; }
+.lp-cta-bar--in { transform: none; opacity: 1; pointer-events: auto; }
+.lp-wa { transition: bottom 0.35s ease, background-color 0.2s ease, transform 0.2s ease; }
+.lp-wa:hover { transform: scale(1.05); }
+@media (prefers-reduced-motion: reduce) {
+  .lp-cta-bar, .lp-wa { transition: none; }
+  .lp-wa:hover { transform: none; }
+}
 .lp-btn--primary { background: #02093a; color: #fff; }
 .lp-btn--primary:hover { background: #0b1d5c; }
 /* Sobre fondos azul noche: botón blanco con texto azul oscuro. */

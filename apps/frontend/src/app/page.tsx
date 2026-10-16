@@ -12,6 +12,7 @@ import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
 import { BeforeAfter } from "@/components/landing/before-after";
 import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
+import { FloatingContact } from "@/components/landing/floating-contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
 import {
@@ -232,7 +233,7 @@ export default async function Home() {
 
       <main id="contenido">
         {/* Inicio: franja azul noche a todo el ancho */}
-        <section className="relative overflow-hidden text-white" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
+        <section id="inicio" className="relative overflow-hidden text-white" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
           {/* Puntos tenues y halo azul detrás de la escena */}
           <div className="pointer-events-none absolute inset-0" aria-hidden="true"
             style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1.2px)", backgroundSize: "22px 22px" }} />
@@ -390,7 +391,7 @@ export default async function Home() {
         </section>
 
         {/* Cierre */}
-        <section className="bg-[#02093a] text-white">
+        <section id="cierre" className="bg-[#02093a] text-white">
           <div className={WRAP}>
             <div className="relative flex flex-col gap-6 py-12 sm:flex-row sm:items-end sm:justify-between sm:py-14">
               <div>
@@ -402,6 +403,8 @@ export default async function Home() {
           </div>
         </section>
       </main>
+
+      <FloatingContact heroId="inicio" endId="cierre" signupEnabled={signupEnabled} />
 
       <footer className="bg-[#02093a] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
         <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px]`}>
