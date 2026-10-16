@@ -1,11 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { assertIntegrationsEnabled } from '../common/integrations.util';
-import { EmailType } from '@prisma/client';
+import { EmailType, Prisma } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertEmailConfigDto, UpsertEmailTemplateDto } from './dto/email.dto';
 import { primaryFrontendUrl } from '../common/frontend-url.util';
 import { EmailLogService } from './email-log.service';
+import { DEFAULT_BLOCKS, DEFAULT_BRAND_COLOR, EMAIL_VARIABLES, EmailBlock, EmailBrand, brandedShell, renderBlocks, sanitizeBlocks } from './email-blocks';
 
 const TYPE_LABELS: Record<EmailType, string> = {
   ORDER_CONFIRMED:       'Orden confirmada',
@@ -45,94 +46,26 @@ function shell(content: string, companyName: string, accentColor = '#1d4ed8') {
 </html>`;
 }
 
-const DEFAULT_TEMPLATES: Record<EmailType, { subject: string; body: string }> = {
-  ORDER_CONFIRMED: {
-    subject: 'Confirmación de pedido #{{orderId}} — {{companyName}}',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">¡Tu pedido está confirmado! 🎉</h2>
-<p style="margin:0 0 20px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, hemos recibido tu pedido correctamente.</p>
-{{itemsTable}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border-top:2px solid #e5e7eb;padding-top:16px;">
-  <tr>
-    <td style="font-size:16px;font-weight:700;color:#1f2937;">Total</td>
-    <td align="right" style="font-size:18px;font-weight:700;color:#1d4ed8;">{{total}}</td>
-  </tr>
-</table>
-{{deliveryBlock}}
-<p style="margin:24px 0 0;padding:16px;background:#eff6ff;border-radius:8px;color:#1e40af;font-size:14px;">
-  Te avisaremos por correo en cada etapa de tu pedido.
-</p>`,
-  },
-  ORDER_PREPARING: {
-    subject: 'Estamos preparando tu pedido #{{orderId}} 📦',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">Tu pedido está en preparación 📦</h2>
-<p style="margin:0 0 20px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, nuestro equipo está preparando tu pedido con cuidado.</p>
-{{itemsTable}}
-{{deliveryBlock}}
-<p style="margin:20px 0 0;color:#6b7280;font-size:14px;">Te notificaremos cuando esté listo.</p>`,
-  },
-  ORDER_READY_PICKUP: {
-    subject: 'Tu pedido #{{orderId}} está listo para retiro 🏪',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">¡Tu pedido está listo para retirar! 🏪</h2>
-<p style="margin:0 0 20px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, tu pedido ya está empacado y esperándote.</p>
-{{itemsTable}}
-<div style="margin:20px 0;padding:20px;background:#f0fdf4;border-radius:8px;border-left:4px solid #22c55e;">
-  <p style="margin:0 0 4px;font-weight:700;color:#166534;font-size:15px;">✅ Listo para retiro</p>
-  <p style="margin:0;color:#15803d;font-size:14px;">Preséntate en nuestro local con tu número de pedido: <strong>#{{orderId}}</strong></p>
-</div>
-{{deliveryBlock}}`,
-  },
-  ORDER_OUT_FOR_DELIVERY: {
-    subject: 'Tu pedido #{{orderId}} está en camino 🚚',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">¡Tu pedido está en camino! 🚚</h2>
-<p style="margin:0 0 20px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, tu pedido ha salido para entrega.</p>
-<div style="margin:0 0 20px;padding:20px;background:#fffbeb;border-radius:8px;border-left:4px solid #f59e0b;">
-  <p style="margin:0 0 4px;font-weight:700;color:#92400e;font-size:15px;">🚚 En camino</p>
-  <p style="margin:0;color:#78350f;font-size:14px;">Nuestro despachador está en ruta hacia ti. Asegúrate de estar disponible en la dirección de entrega.</p>
-</div>
-{{itemsTable}}
-{{deliveryBlock}}`,
-  },
-  ORDER_DELIVERED: {
-    subject: 'Pedido #{{orderId}} entregado ✓',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">¡Pedido entregado exitosamente! ✓</h2>
-<p style="margin:0 0 20px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, tu pedido ha sido entregado correctamente.</p>
-<div style="margin:0 0 20px;padding:20px;background:#f0fdf4;border-radius:8px;border-left:4px solid #22c55e;">
-  <p style="margin:0;font-weight:700;color:#166534;font-size:15px;">✅ Entrega completada</p>
-</div>
-{{itemsTable}}
-<p style="margin:20px 0 0;color:#6b7280;font-size:14px;">Gracias por tu compra. ¡Esperamos verte pronto!</p>`,
-  },
-  SALE_RECEIPT: {
-    subject: 'Recibo de tu compra — {{companyName}}',
-    body: `<h2 style="margin:0 0 8px;font-size:20px;color:#1f2937;">Recibo de compra 🧾</h2>
-<p style="margin:0 0 4px;color:#6b7280;font-size:15px;">Hola <strong>{{customerName}}</strong>, gracias por tu compra.</p>
-<p style="margin:0 0 20px;color:#9ca3af;font-size:13px;">Fecha: {{date}}</p>
-{{itemsTable}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border-top:2px solid #e5e7eb;padding-top:16px;">
-  <tr>
-    <td style="font-size:16px;font-weight:700;color:#1f2937;">Total pagado</td>
-    <td align="right" style="font-size:18px;font-weight:700;color:#1d4ed8;">{{total}}</td>
-  </tr>
-</table>
-{{deliveryBlock}}
-<p style="margin:20px 0 0;color:#6b7280;font-size:14px;">Guarda este correo como comprobante de tu compra. ¡Gracias por elegirnos!</p>`,
-  },
-};
 
 function buildItemsTable(items: { name: string; qty: number; unitPrice: number }[]): string {
+  if (!items.length) return '';
+  // Las órdenes no traen precio por línea: sin precios se omite la columna de subtotal.
+  const withPrice = items.some(i => Number(i.unitPrice) > 0);
+  const esc = (v: string) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const th = 'padding:8px 0;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;';
   const rows = items.map(i => `
     <tr>
-      <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;">${i.name}</td>
+      <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;">${esc(i.name)}</td>
       <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#6b7280;text-align:center;">${i.qty}</td>
-      <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;text-align:right;">$${(i.qty * i.unitPrice).toLocaleString('es-CL')}</td>
+      ${withPrice ? `<td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151;text-align:right;">$${(i.qty * i.unitPrice).toLocaleString('es-CL')}</td>` : ''}
     </tr>`).join('');
 
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
   <thead>
     <tr style="background:#f9fafb;">
-      <th style="padding:8px 0;text-align:left;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Producto</th>
-      <th style="padding:8px 0;text-align:center;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Cant.</th>
-      <th style="padding:8px 0;text-align:right;font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Subtotal</th>
+      <th style="${th}text-align:left;">Producto</th>
+      <th style="${th}text-align:center;">Cant.</th>
+      ${withPrice ? `<th style="${th}text-align:right;">Subtotal</th>` : ''}
     </tr>
   </thead>
   <tbody>${rows}</tbody>
@@ -195,7 +128,7 @@ export class EmailService {
   // ─── Templates CRUD ────────────────────────────────────────────────────────
 
   getAllTypes(): { type: EmailType; label: string }[] {
-    return (Object.keys(DEFAULT_TEMPLATES) as EmailType[]).map(type => ({
+    return (Object.keys(DEFAULT_BLOCKS) as EmailType[]).map(type => ({
       type, label: TYPE_LABELS[type],
     }));
   }
@@ -205,14 +138,20 @@ export class EmailService {
       where: { companyId: companyId ?? null },
     });
 
-    return (Object.keys(DEFAULT_TEMPLATES) as EmailType[]).map(type => {
+    return (Object.keys(DEFAULT_BLOCKS) as EmailType[]).map(type => {
       const db = dbTemplates.find(t => t.type === type);
-      const def = DEFAULT_TEMPLATES[type];
+      const def = DEFAULT_BLOCKS[type];
+      // Plantilla HTML personalizada antes del editor por bloques: se respeta tal cual.
+      const legacyHtml = !!db && !db.blocks && !!db.bodyHtml?.trim();
       return {
         type,
         label: TYPE_LABELS[type],
         subject: db?.subject ?? def.subject,
-        bodyHtml: db?.bodyHtml ?? def.body,
+        mode: legacyHtml ? 'html' as const : 'blocks' as const,
+        blocks: legacyHtml ? null : (db?.blocks ? sanitizeBlocks(db.blocks) : def.blocks),
+        bodyHtml: legacyHtml ? db!.bodyHtml : null,
+        defaultSubject: def.subject,
+        defaultBlocks: def.blocks,
         active: db?.active ?? true,
         isCustomized: !!db,
         id: db?.id,
@@ -224,9 +163,13 @@ export class EmailService {
     const existing = await this.prisma.emailTemplate.findUnique({
       where: { companyId_type: { companyId: companyId as string, type } },
     });
+    // Con bloques se guarda solo la lista (el HTML lo arma el sistema al enviar); sin bloques
+    // se conserva el HTML que trae (plantillas antiguas que la empresa no quiso convertir).
+    const blocks = dto.blocks !== undefined ? sanitizeBlocks(dto.blocks) : null;
     const data = {
-      subject: dto.subject,
-      bodyHtml: dto.bodyHtml,
+      subject: String(dto.subject ?? '').slice(0, 300),
+      bodyHtml: blocks ? '' : (dto.bodyHtml ?? existing?.bodyHtml ?? ''),
+      blocks: blocks ? (blocks as any) : Prisma.DbNull,
       active: dto.active ?? true,
     };
     if (existing) {
@@ -260,9 +203,90 @@ export class EmailService {
       where: { companyId: null, type, active: true },
     });
     if (global) return global;
-    // Hardcoded default
-    const def = DEFAULT_TEMPLATES[type];
-    return def ? { subject: def.subject, bodyHtml: def.body } : null;
+    // Predeterminado del sistema
+    const def = DEFAULT_BLOCKS[type];
+    return def ? { subject: def.subject, bodyHtml: '', blocks: def.blocks as unknown } : null;
+  }
+
+  // ─── Identidad de la empresa en sus correos ─────────────────────────────────
+
+  async getBrand(companyId: string | null): Promise<EmailBrand & { companyName: string; hasLogo: boolean }> {
+    if (!companyId) return { color: DEFAULT_BRAND_COLOR, logoUrl: null, showLogo: false, footerText: null, contact: null, companyName: 'Mi Tienda', hasLogo: false };
+    const [brand, company, billing] = await Promise.all([
+      this.prisma.emailBrand.findUnique({ where: { companyId } }),
+      this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
+      this.prisma.billingProfile.findUnique({ where: { companyId }, select: { logoUrl: true } }),
+    ]);
+    const logoUrl = billing?.logoUrl && /^https?:\/\//i.test(billing.logoUrl) ? billing.logoUrl : null;
+    return {
+      color: brand?.color ?? DEFAULT_BRAND_COLOR,
+      logoUrl,
+      showLogo: brand?.showLogo ?? true,
+      footerText: brand?.footerText ?? null,
+      contact: brand?.contact ?? null,
+      companyName: company?.name ?? 'Mi Tienda',
+      hasLogo: !!logoUrl,
+    };
+  }
+
+  async saveBrand(companyId: string | null, dto: { color?: string; showLogo?: boolean; footerText?: string | null; contact?: string | null }) {
+    if (!companyId) throw new BadRequestException('Selecciona una empresa');
+    const color = /^#[0-9a-f]{6}$/i.test(String(dto.color || '')) ? String(dto.color) : DEFAULT_BRAND_COLOR;
+    const data = {
+      color,
+      showLogo: dto.showLogo ?? true,
+      footerText: dto.footerText ? String(dto.footerText).slice(0, 500) : null,
+      contact: dto.contact ? String(dto.contact).slice(0, 300) : null,
+    };
+    await this.prisma.emailBrand.upsert({ where: { companyId }, create: { companyId, ...data }, update: data });
+    return this.getBrand(companyId);
+  }
+
+  /**
+   * Arma asunto y HTML final: bloques (o el HTML antiguo) + identidad de la empresa.
+   * `parts` son los bloques del sistema ya armados con los datos reales del pedido o venta.
+   */
+  private async compose(
+    companyId: string | null,
+    template: { subject: string; bodyHtml?: string | null; blocks?: unknown },
+    vars: Record<string, string>,
+    parts: { items: string; total: string; delivery: string },
+    brandOverride?: EmailBrand,
+  ) {
+    const brand = brandOverride ?? (await this.getBrand(companyId));
+    const subject = renderTemplate(template.subject, vars);
+    const inner = template.blocks
+      ? renderBlocks(sanitizeBlocks(template.blocks), vars, parts, brand)
+      : renderTemplate(template.bodyHtml ?? '', { ...vars, itemsTable: parts.items, deliveryBlock: parts.delivery });
+    return { subject, html: brandedShell(inner, vars.companyName, brand) };
+  }
+
+  /** Vista previa con datos de ejemplo (lo que ve la empresa mientras edita). */
+  async previewTemplate(companyId: string | null, dto: { subject: string; blocks?: unknown; bodyHtml?: string | null; brand?: Partial<EmailBrand> }) {
+    const saved = await this.getBrand(companyId);
+    const brand: EmailBrand = { ...saved, ...(dto.brand ?? {}), logoUrl: saved.logoUrl };
+    const vars: Record<string, string> = Object.fromEntries(Object.entries(EMAIL_VARIABLES).map(([k, v]) => [k, v.sample]));
+    vars.companyName = saved.companyName;
+    const parts = {
+      items: buildItemsTable([
+        { name: 'Silla de escritorio ergonómica', qty: 1, unitPrice: 49990 },
+        { name: 'Cojín lumbar', qty: 2, unitPrice: 4995 },
+      ]),
+      total: vars.total,
+      delivery: buildDeliveryBlock({ address: 'Av. Siempre Viva 742', commune: 'Providencia', city: 'Santiago' }),
+    };
+    return this.compose(companyId, { subject: dto.subject, blocks: dto.blocks ?? null, bodyHtml: dto.bodyHtml }, vars, parts, brand);
+  }
+
+  /** Envía la vista previa a un correo, con el SMTP de la empresa. */
+  async sendTemplateTest(companyId: string | null, type: EmailType, to: string, dto: { subject: string; blocks?: unknown; bodyHtml?: string | null }) {
+    if (!companyId) throw new BadRequestException('Selecciona una empresa');
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new BadRequestException('Configura el servidor SMTP primero (pestaña Configuración SMTP)');
+    const { subject, html } = await this.previewTemplate(companyId, dto);
+    const from = await this.getFromAddress(companyId);
+    await this.deliver(companyId, type, transporter, { from, to, subject: `[Prueba] ${subject}`, html });
+    return { sent: true };
   }
 
   private async getTransporter(companyId: string): Promise<nodemailer.Transporter | null> {
@@ -343,13 +367,9 @@ export class EmailService {
       total,
       address: [order.address, order.commune, order.city].filter(Boolean).join(', '),
       date: new Date().toLocaleDateString('es-CL'),
-      itemsTable,
-      deliveryBlock,
     };
 
-    const subject = renderTemplate(template.subject, vars);
-    const innerHtml = renderTemplate(template.bodyHtml, vars);
-    const bodyHtml = shell(innerHtml, companyName);
+    const { subject, html: bodyHtml } = await this.compose(order.companyId, template, vars, { items: itemsTable, total, delivery: deliveryBlock });
 
     const from = await this.getFromAddress(order.companyId);
 
@@ -387,13 +407,9 @@ export class EmailService {
       total: `$${Number(sale.total).toLocaleString('es-CL')}`,
       address: [sale.address, sale.commune, sale.city].filter(Boolean).join(', '),
       date: new Date().toLocaleDateString('es-CL'),
-      itemsTable,
-      deliveryBlock,
     };
 
-    const subject = renderTemplate(template.subject, vars);
-    const innerHtml = renderTemplate(template.bodyHtml, vars);
-    const bodyHtml = shell(innerHtml, companyName);
+    const { subject, html: bodyHtml } = await this.compose(sale.companyId, template, vars, { items: itemsTable, total: vars.total, delivery: deliveryBlock });
 
     const from = await this.getFromAddress(sale.companyId);
 

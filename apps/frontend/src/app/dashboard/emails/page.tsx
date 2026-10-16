@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, getUser } from '@/lib/auth';
-import { api } from '@/lib/api';
-import { useDashboardTimezone } from '@/lib/dashboardTimezone';
-import { confirmDialog } from '../ConfirmDialog';
+import { api, type CompanyEmailTemplate } from '@/lib/api';
 import { SkeletonForm, SkeletonList } from '@/components/Skeleton';
+import EmailBlockEditor from './EmailBlockEditor';
+import BrandTab from './BrandTab';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; trigger: string }> = {
   ORDER_CONFIRMED:        { label: 'Orden confirmada',       icon: '🎉', trigger: 'Al crear una orden' },
@@ -16,34 +16,17 @@ const TYPE_LABELS: Record<string, { label: string; icon: string; trigger: string
   SALE_RECEIPT:           { label: 'Recibo de venta (POS)',  icon: '🧾', trigger: 'Al registrar venta con email del cliente' },
 };
 
-const VARS = [
-  { key: '{{customerName}}',  desc: 'Nombre del cliente' },
-  { key: '{{orderId}}',       desc: 'ID de la orden (últimos 8 caracteres)' },
-  { key: '{{companyName}}',   desc: 'Nombre de la empresa' },
-  { key: '{{total}}',         desc: 'Total formateado ($)' },
-  { key: '{{address}}',       desc: 'Dirección de entrega' },
-  { key: '{{date}}',          desc: 'Fecha actual' },
-  { key: '{{itemsTable}}',    desc: 'Tabla HTML de productos' },
-  { key: '{{deliveryBlock}}', desc: 'Bloque de tipo de entrega' },
-];
 
 export default function EmailsPage() {
-  const tz = useDashboardTimezone();
-  const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState('');
-  const [tab, setTab] = useState<'templates' | 'smtp'>('templates');
+  const [tab, setTab] = useState<'templates' | 'brand' | 'smtp'>('templates');
 
-  // Templates state
-  const [templates, setTemplates] = useState<any[]>([]);
+  // Plantillas (editor por bloques)
+  const [templates, setTemplates] = useState<CompanyEmailTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [editSubject, setEditSubject] = useState('');
-  const [editBody, setEditBody] = useState('');
-  const [editActive, setEditActive] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  // Cambia al restaurar el original para recargar el editor desde el servidor.
+  const [editorVersion, setEditorVersion] = useState(0);
 
   // SMTP state
   const [smtpForm, setSmtpForm] = useState({ host: '', port: 587, secure: false, user: '', pass: '', fromName: '', fromEmail: '', active: true });
@@ -53,8 +36,6 @@ export default function EmailsPage() {
   const [testTo, setTestTo] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
   const [testMsg, setTestMsg] = useState('');
-
-  const companyId = user?.role === 'SUPER_ADMIN' ? undefined : undefined; // for now SUPER_ADMIN uses global
 
   const loadTemplates = useCallback(async (t: string) => {
     setLoadingTemplates(true);
@@ -88,45 +69,12 @@ export default function EmailsPage() {
   useEffect(() => {
     const t = getToken();
     const u = getUser();
-    if (t && u) { setToken(t); setUser(u); setTestTo(u.email ?? ''); loadTemplates(t); loadSmtp(t); }
+    if (t && u) { setToken(t); setTestTo(u.email ?? ''); loadTemplates(t); loadSmtp(t); }
   }, [loadTemplates, loadSmtp]);
 
-  function selectTemplate(type: string) {
-    const tpl = templates.find(t => t.type === type);
-    if (!tpl) return;
-    setSelectedType(type);
-    setEditSubject(tpl.subject);
-    setEditBody(tpl.bodyHtml);
-    setEditActive(tpl.active);
-    setSaveMsg('');
-    setShowPreview(false);
-  }
-
-  async function handleSaveTemplate() {
-    if (!selectedType) return;
-    setSaving(true);
-    setSaveMsg('');
-    try {
-      await api.email.saveTemplate(selectedType, { subject: editSubject, bodyHtml: editBody, active: editActive }, token);
-      await loadTemplates(token);
-      setSaveMsg('✓ Guardado');
-    } catch (e: any) {
-      setSaveMsg(`Error: ${e.message}`);
-    } finally { setSaving(false); }
-  }
-
-  async function handleReset() {
-    if (!selectedType || !(await confirmDialog('¿Restaurar la plantilla al diseño predeterminado?'))) return;
-    setResetting(true);
-    try {
-      await api.email.resetTemplate(selectedType, token);
-      await loadTemplates(token);
-      const fresh = templates.find(t => t.type === selectedType);
-      if (fresh) selectTemplate(selectedType);
-      setSaveMsg('✓ Plantilla restaurada');
-    } catch (e: any) {
-      setSaveMsg(`Error: ${e.message}`);
-    } finally { setResetting(false); }
+  async function handleTemplateSaved(remount?: boolean) {
+    await loadTemplates(token);
+    if (remount) setEditorVersion((v) => v + 1);
   }
 
   async function handleSaveSmtp(e: React.FormEvent) {
@@ -155,17 +103,6 @@ export default function EmailsPage() {
 
   const selectedTpl = templates.find(t => t.type === selectedType);
 
-  const previewHtml = showPreview ? editBody
-    .replace('{{customerName}}', 'María González')
-    .replace('{{orderId}}', 'AB123456')
-    .replace('{{companyName}}', user?.company?.name ?? 'Mi Empresa')
-    .replace('{{total}}', '$29.990')
-    .replace('{{address}}', 'Av. Providencia 1234, Providencia, Santiago')
-    .replace('{{date}}', new Date().toLocaleDateString('es-CL', { timeZone: tz }))
-    .replace('{{itemsTable}}', `<table width="100%" style="margin-bottom:8px;"><thead><tr style="background:#f9fafb;"><th style="padding:8px 0;text-align:left;font-size:12px;color:#9ca3af;">Producto</th><th style="padding:8px;text-align:center;font-size:12px;color:#9ca3af;">Cant.</th><th style="padding:8px 0;text-align:right;font-size:12px;color:#9ca3af;">Subtotal</th></tr></thead><tbody><tr><td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;">Zapato deportivo talla 42</td><td style="padding:8px;text-align:center;font-size:14px;color:#6b7280;">2</td><td style="padding:8px 0;text-align:right;font-size:14px;">$19.980</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;">Calcetines deporte x3</td><td style="padding:8px;text-align:center;font-size:14px;color:#6b7280;">1</td><td style="padding:8px 0;text-align:right;font-size:14px;">$4.990</td></tr></tbody></table>`)
-    .replace('{{deliveryBlock}}', `<div style="margin:16px 0;padding:14px 16px;background:#f9fafb;border-radius:8px;font-size:14px;color:#374151;"><strong>🏠 Dirección de entrega</strong><br><span style="color:#6b7280;">Av. Providencia 1234, Providencia</span></div>`)
-    : '';
-
   return (
     <div>
       <div className="mb-3">
@@ -175,19 +112,19 @@ export default function EmailsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {(['templates', 'smtp'] as const).map(t => (
+        {(['templates', 'brand', 'smtp'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            {t === 'templates' ? 'Plantillas de correo' : 'Configuración SMTP'}
+            {t === 'templates' ? 'Plantillas de correo' : t === 'brand' ? 'Identidad' : 'Configuración SMTP'}
           </button>
         ))}
       </div>
 
       {/* ── TEMPLATES TAB ── */}
       {tab === 'templates' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-5">
           {/* Left: template list */}
           <div className="space-y-2">
             {loadingTemplates ? (
@@ -196,7 +133,7 @@ export default function EmailsPage() {
               const cfg = TYPE_LABELS[tpl.type];
               const isSelected = selectedType === tpl.type;
               return (
-                <button key={tpl.type} onClick={() => selectTemplate(tpl.type)}
+                <button key={tpl.type} onClick={() => setSelectedType(tpl.type)}
                   className={`w-full text-left rounded-xl border p-4 transition-all ${
                     isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
                   }`}>
@@ -209,7 +146,9 @@ export default function EmailsPage() {
                           <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full shrink-0">Inactivo</span>
                         )}
                         {tpl.isCustomized && (
-                          <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full shrink-0">Personalizado</span>
+                          <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full shrink-0">
+                            {tpl.mode === 'html' ? 'HTML' : 'Personalizado'}
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{cfg?.trigger}</p>
@@ -220,119 +159,25 @@ export default function EmailsPage() {
             })}
           </div>
 
-          {/* Right: editor */}
-          <div className="lg:col-span-2">
-            {!selectedType ? (
+          {/* Derecha: editor por bloques */}
+          <div className="min-w-0">
+            {!selectedTpl ? (
               <div className="bg-white border border-gray-200 rounded-2xl flex items-center justify-center" style={{ minHeight: '420px' }}>
                 <div className="text-center px-6">
                   <p className="text-4xl mb-3">✉️</p>
-                  <p className="text-gray-500 font-medium">Selecciona una plantilla para editarla</p>
-                  <p className="text-gray-400 text-sm mt-1">Personaliza asunto y cuerpo del correo</p>
+                  <p className="text-gray-500 font-medium">Selecciona un correo para editarlo</p>
+                  <p className="text-gray-400 text-sm mt-1">Arma el contenido con bloques y mira cómo queda al instante</p>
                 </div>
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-                {/* Editor header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{TYPE_LABELS[selectedType]?.icon}</span>
-                    <span className="font-semibold text-gray-800">{TYPE_LABELS[selectedType]?.label}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
-                      <div
-                        onClick={() => setEditActive(a => !a)}
-                        className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${editActive ? 'bg-blue-500' : 'bg-gray-300'}`}
-                      >
-                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${editActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                      </div>
-                      {editActive ? 'Activo' : 'Inactivo'}
-                    </label>
-                  </div>
-                </div>
-
-                <div className="p-5 space-y-4">
-                  {/* Subject */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Asunto del correo</label>
-                    <input
-                      value={editSubject}
-                      onChange={e => setEditSubject(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Variable reference */}
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                    <p className="text-xs font-semibold text-blue-700 mb-2">Variables disponibles</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {VARS.map(v => (
-                        <button key={v.key} title={v.desc}
-                          onClick={() => setEditBody(b => b + v.key)}
-                          className="text-xs font-mono bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded hover:bg-blue-100 transition">
-                          {v.key}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Body editor / preview tabs */}
-                  <div>
-                    <div className="flex gap-1 mb-2">
-                      <button onClick={() => setShowPreview(false)}
-                        className={`text-xs px-3 py-1 rounded-lg font-medium transition ${!showPreview ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                        HTML
-                      </button>
-                      <button onClick={() => setShowPreview(true)}
-                        className={`text-xs px-3 py-1 rounded-lg font-medium transition ${showPreview ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                        Vista previa
-                      </button>
-                    </div>
-
-                    {!showPreview ? (
-                      <textarea
-                        value={editBody}
-                        onChange={e => setEditBody(e.target.value)}
-                        rows={16}
-                        spellCheck={false}
-                        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                      />
-                    ) : (
-                      <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50" style={{ height: '380px' }}>
-                        <iframe
-                          srcDoc={previewHtml}
-                          title="Vista previa del correo"
-                          className="w-full h-full border-0"
-                          sandbox="allow-same-origin"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-3 pt-1">
-                    <button onClick={handleSaveTemplate} disabled={saving}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
-                      {saving ? 'Guardando...' : 'Guardar plantilla'}
-                    </button>
-                    {selectedTpl?.isCustomized && (
-                      <button onClick={handleReset} disabled={resetting}
-                        className="text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-4 py-2.5 rounded-xl text-sm transition disabled:opacity-50">
-                        {resetting ? 'Restaurando...' : 'Restaurar predeterminada'}
-                      </button>
-                    )}
-                    {saveMsg && (
-                      <span className={`text-sm ${saveMsg.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                        {saveMsg}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <EmailBlockEditor key={`${selectedTpl.type}:${editorVersion}`} template={selectedTpl} token={token}
+                defaultTestTo={testTo} onSaved={handleTemplateSaved} />
             )}
           </div>
         </div>
       )}
+
+      {tab === 'brand' && token && <BrandTab token={token} />}
 
       {/* ── SMTP TAB ── */}
       {tab === 'smtp' && (

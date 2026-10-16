@@ -1,13 +1,18 @@
 import {
   Controller, Get, Put, Post, Delete, Body, Param, Query,
-  UseGuards, Request,
+  UseGuards, Request, BadRequestException,
 } from '@nestjs/common';
 import { EmailType, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { EmailService } from './email.service';
-import { UpsertEmailConfigDto, UpsertEmailTemplateDto, TestEmailDto, FindEmailDto } from './dto/email.dto';
+import { UpsertEmailConfigDto, UpsertEmailTemplateDto, TestEmailDto, FindEmailDto, PreviewEmailTemplateDto, TestEmailTemplateDto, UpsertEmailBrandDto } from './dto/email.dto';
+
+function assertType(type: string): EmailType {
+  if (!(Object.values(EmailType) as string[]).includes(type)) throw new BadRequestException('Tipo de correo desconocido');
+  return type as EmailType;
+}
 
 @Controller('email')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,6 +57,29 @@ export class EmailController {
     return this.emailService.getTemplates(companyId);
   }
 
+  // Vista previa con datos de ejemplo mientras se edita (no guarda nada).
+  @Post('templates/preview')
+  previewTemplate(@Request() req: any, @Query() q: FindEmailDto, @Body() dto: PreviewEmailTemplateDto) {
+    return this.emailService.previewTemplate(this.resolveCompanyId(req.user, q), dto);
+  }
+
+  @Post('templates/:type/test')
+  testTemplate(@Request() req: any, @Param('type') type: string, @Query() q: FindEmailDto, @Body() dto: TestEmailTemplateDto) {
+    return this.emailService.sendTemplateTest(this.resolveCompanyId(req.user, q), assertType(type), dto.to, dto);
+  }
+
+  // ─── Identidad de la empresa en sus correos ─────────────────────────────────
+
+  @Get('brand')
+  getBrand(@Request() req: any, @Query() q: FindEmailDto) {
+    return this.emailService.getBrand(this.resolveCompanyId(req.user, q));
+  }
+
+  @Put('brand')
+  saveBrand(@Request() req: any, @Query() q: FindEmailDto, @Body() dto: UpsertEmailBrandDto) {
+    return this.emailService.saveBrand(this.resolveCompanyId(req.user, q), dto);
+  }
+
   @Put('templates/:type')
   upsertTemplate(
     @Request() req: any,
@@ -60,7 +88,7 @@ export class EmailController {
     @Body() dto: UpsertEmailTemplateDto,
   ) {
     const companyId = this.resolveCompanyId(req.user, q);
-    return this.emailService.upsertTemplate(companyId, type, dto);
+    return this.emailService.upsertTemplate(companyId, assertType(type), dto);
   }
 
   @Delete('templates/:type')

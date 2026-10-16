@@ -2234,9 +2234,9 @@ export const api = {
     },
     getTemplates: (token: string, companyId?: string) => {
       const q = companyId ? `?companyId=${companyId}` : '';
-      return apiFetch<any[]>(`/email/templates${q}`, {}, token);
+      return apiFetch<CompanyEmailTemplate[]>(`/email/templates${q}`, {}, token);
     },
-    saveTemplate: (type: string, data: { subject: string; bodyHtml: string; active: boolean }, token: string, companyId?: string) => {
+    saveTemplate: (type: string, data: { subject: string; bodyHtml?: string; blocks?: EmailBlock[]; active: boolean }, token: string, companyId?: string) => {
       const q = companyId ? `?companyId=${companyId}` : '';
       return apiFetch<any>(`/email/templates/${type}${q}`, { method: 'PUT', body: JSON.stringify(data) }, token);
     },
@@ -2244,8 +2244,61 @@ export const api = {
       const q = companyId ? `?companyId=${companyId}` : '';
       return apiFetch<any>(`/email/templates/${type}${q}`, { method: 'DELETE' }, token);
     },
+    previewTemplate: (data: EmailTemplateDraft & { brand?: Partial<EmailBrandSettings> }, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<{ subject: string; html: string }>(`/email/templates/preview${q}`, { method: 'POST', body: JSON.stringify(data) }, token);
+    },
+    testTemplate: (type: string, data: EmailTemplateDraft & { to: string }, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<{ sent: boolean }>(`/email/templates/${type}/test${q}`, { method: 'POST', body: JSON.stringify(data) }, token);
+    },
+    getBrand: (token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<EmailBrandSettings>(`/email/brand${q}`, {}, token);
+    },
+    saveBrand: (data: Partial<EmailBrandSettings>, token: string, companyId?: string) => {
+      const q = companyId ? `?companyId=${companyId}` : '';
+      return apiFetch<EmailBrandSettings>(`/email/brand${q}`, { method: 'PUT', body: JSON.stringify(data) }, token);
+    },
   },
 };
+
+// ── Correos a clientes: editor por bloques ──
+export type EmailBlock =
+  | { type: 'title'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'note'; text: string; tone?: 'info' | 'success' | 'warning' }
+  | { type: 'items' }
+  | { type: 'total' }
+  | { type: 'delivery' }
+  | { type: 'button'; label: string; url: string }
+  | { type: 'image'; url: string; alt?: string }
+  | { type: 'divider' };
+
+export interface EmailTemplateDraft { subject: string; blocks?: EmailBlock[] | null; bodyHtml?: string | null }
+
+export interface CompanyEmailTemplate {
+  type: string;
+  label: string;
+  subject: string;
+  mode: 'blocks' | 'html';
+  blocks: EmailBlock[] | null;
+  bodyHtml: string | null;
+  defaultSubject: string;
+  defaultBlocks: EmailBlock[];
+  active: boolean;
+  isCustomized: boolean;
+}
+
+export interface EmailBrandSettings {
+  color: string;
+  logoUrl: string | null;
+  showLogo: boolean;
+  footerText: string | null;
+  contact: string | null;
+  companyName: string;
+  hasLogo: boolean;
+}
 
 // ── IA: planes, créditos y revisión de fotos ──
 export interface AiPlan {

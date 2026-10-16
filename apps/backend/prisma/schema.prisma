@@ -215,6 +215,7 @@ model Company {
   billingConnections BillingConnection[]
   invoices           Invoice[]
   emailConfig        EmailConfig?
+  emailBrand         EmailBrand?
   emailTemplates     EmailTemplate[]
   suppliers          Supplier[]
   purchases          Purchase[]
@@ -1899,6 +1900,22 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Identidad de la empresa en los correos a sus clientes (Ajustes → Correos). El logo es el del
+// perfil de facturación; aquí solo si se muestra.
+model EmailBrand {
+  id         String   @id @default(cuid())
+  companyId  String   @unique
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  color      String   @default("#1d4ed8")
+  showLogo   Boolean  @default(true)
+  footerText String?
+  contact    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("email_brands")
+}
+
 model EmailConfig {
   id        String   @id @default(cuid())
   companyId String   @unique
@@ -1924,6 +1941,9 @@ model EmailTemplate {
   type      EmailType
   subject   String
   bodyHtml  String    @db.Text
+  // Correo armado con el editor por bloques (lista de bloques). Con bloques, bodyHtml queda
+  // vacío; sin bloques, se usa bodyHtml (plantillas HTML personalizadas antes del editor).
+  blocks    Json?
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
