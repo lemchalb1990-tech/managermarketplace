@@ -195,6 +195,7 @@ model Company {
   extraProducts           Int      @default(0)
   extraUsers              Int      @default(0)
   extraWarehouses         Int      @default(0)
+  extraListings           Int      @default(0)
   extraFeatures           String[] @default([])
   // Precio mensual acordado por los adicionales (CLP, sin IVA) y nota interna.
   addonsMonthlyPrice      Int?
@@ -2404,6 +2405,8 @@ model SubscriptionPlan {
   maxProducts              Int?
   maxUsers                 Int?
   maxWarehouses            Int?
+  // Publicaciones vinculadas (activas y pausadas) en todos los marketplaces. null = sin límite.
+  maxListings              Int?
   features                 String[]  @default([])
   // Texto libre de add-ons incluidos (p. ej. "1 a elección", "Todos").
   addons                   String?

@@ -450,6 +450,7 @@ export class RipleyAdapter implements PlatformAdapter {
         linkedProductIds.add(product.id);
         linkedIds.add(offer.shop_sku);
 
+        await this.subscription.assertCanAddListing(conn.companyId, { productId: product.id, connectionId: conn.id });
         await this.prisma.listing.upsert({
           where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: {

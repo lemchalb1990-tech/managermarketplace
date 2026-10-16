@@ -17,7 +17,7 @@ type Form = {
   name: string; description: string;
   monthlyPrice: string; annualPrice: string; priceFrom: boolean;
   implementationPrice: string; implementationFreeAnnual: boolean;
-  maxChannels: string; maxProducts: string; maxUsers: string; maxWarehouses: string;
+  maxChannels: string; maxProducts: string; maxListings: string; maxUsers: string; maxWarehouses: string;
   features: SubscriptionFeature[]; addons: string;
   isTrial: boolean; trialDays: string; sortOrder: string; active: boolean;
 };
@@ -31,7 +31,7 @@ function toForm(p?: SubscriptionPlan): Form {
     name: p?.name ?? '', description: p?.description ?? '',
     monthlyPrice: s(p?.monthlyPrice), annualPrice: s(p?.annualPrice), priceFrom: p?.priceFrom ?? false,
     implementationPrice: s(p?.implementationPrice), implementationFreeAnnual: p?.implementationFreeAnnual ?? false,
-    maxChannels: s(p?.maxChannels), maxProducts: s(p?.maxProducts), maxUsers: s(p?.maxUsers), maxWarehouses: s(p?.maxWarehouses),
+    maxChannels: s(p?.maxChannels), maxProducts: s(p?.maxProducts), maxListings: s(p?.maxListings), maxUsers: s(p?.maxUsers), maxWarehouses: s(p?.maxWarehouses),
     features: p?.features ?? [], addons: p?.addons ?? '',
     isTrial: p?.isTrial ?? false, trialDays: s(p?.trialDays ?? (p ? null : 15)), sortOrder: s(p?.sortOrder ?? 0), active: p?.active ?? true,
   };
@@ -67,7 +67,7 @@ export default function PlansPage() {
       name: form.name.trim(), description: form.description.trim() || null,
       monthlyPrice: n(form.monthlyPrice), annualPrice: n(form.annualPrice), priceFrom: form.priceFrom,
       implementationPrice: n(form.implementationPrice), implementationFreeAnnual: form.implementationFreeAnnual,
-      maxChannels: n(form.maxChannels), maxProducts: n(form.maxProducts), maxUsers: n(form.maxUsers), maxWarehouses: n(form.maxWarehouses),
+      maxChannels: n(form.maxChannels), maxProducts: n(form.maxProducts), maxListings: n(form.maxListings), maxUsers: n(form.maxUsers), maxWarehouses: n(form.maxWarehouses),
       features: form.features, addons: form.addons.trim() || null,
       isTrial: form.isTrial, trialDays: form.isTrial ? (n(form.trialDays) || 15) : null,
       sortOrder: n(form.sortOrder) ?? 0, active: form.active,
@@ -120,6 +120,7 @@ export default function PlansPage() {
                   <th className="px-3 py-2.5 font-medium text-right">Anual</th>
                   <th className="px-3 py-2.5 font-medium text-right">Canales</th>
                   <th className="px-3 py-2.5 font-medium text-right">Productos</th>
+                  <th className="px-3 py-2.5 font-medium text-right">Publicaciones</th>
                   <th className="px-3 py-2.5 font-medium text-right">Usuarios</th>
                   <th className="px-3 py-2.5 font-medium text-right">Bodegas</th>
                   <th className="px-3 py-2.5 font-medium">Incluye</th>
@@ -142,6 +143,7 @@ export default function PlansPage() {
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">{p.isTrial ? '—' : p.annualPrice == null ? 'A medida' : clp(p.annualPrice)}</td>
                     <td className="px-3 py-2.5 text-right">{lim(p.maxChannels)}</td>
                     <td className="px-3 py-2.5 text-right">{lim(p.maxProducts)}</td>
+                    <td className="px-3 py-2.5 text-right">{lim(p.maxListings)}</td>
                     <td className="px-3 py-2.5 text-right">{lim(p.maxUsers)}</td>
                     <td className="px-3 py-2.5 text-right">{lim(p.maxWarehouses)}</td>
                     <td className="px-3 py-2.5">
@@ -215,8 +217,8 @@ export default function PlansPage() {
 
             <div>
               <h3 className="ui-section-title mb-2">Límites <span className="text-xs font-normal text-[var(--text-muted)]">(vacío = sin límite)</span></h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {([['maxChannels', 'Canales o cuentas'], ['maxProducts', 'Productos'], ['maxUsers', 'Usuarios'], ['maxWarehouses', 'Bodegas']] as const).map(([k, label]) => (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                {([['maxChannels', 'Canales o cuentas'], ['maxProducts', 'Productos'], ['maxListings', 'Publicaciones'], ['maxUsers', 'Usuarios'], ['maxWarehouses', 'Bodegas']] as const).map(([k, label]) => (
                   <div key={k}>
                     <label className={labelCls}>{label}</label>
                     <input type="number" min={0} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder="Sin límite" className={inputCls} />

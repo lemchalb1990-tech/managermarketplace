@@ -15,6 +15,7 @@ export type PublicPlan = {
   implementationFreeAnnual: boolean;
   maxChannels: number | null;
   maxProducts: number | null;
+  maxListings?: number | null;
   maxUsers: number | null;
   maxWarehouses: number | null;
   features: string[];
@@ -25,11 +26,11 @@ export type PublicPlan = {
 
 // Respaldo si la API no responde: los mismos planes con que parte el sistema.
 export const DEFAULT_PLANS: PublicPlan[] = [
-  { id: "plan_demo", name: "Demo", description: "Prueba gratis 15 días con todo lo de Crece.", monthlyPrice: 0, annualPrice: null, priceFrom: false, implementationPrice: null, implementationFreeAnnual: false, maxChannels: 5, maxProducts: 5000, maxUsers: 5, maxWarehouses: 3, features: ["POS", "PURCHASES"], addons: null, isTrial: true, trialDays: 15 },
-  { id: "plan_emprende", name: "Emprende", description: "Para partir vendiendo en pocos canales.", monthlyPrice: 79000, annualPrice: 790000, priceFrom: false, implementationPrice: 120000, implementationFreeAnnual: true, maxChannels: 2, maxProducts: 1000, maxUsers: 2, maxWarehouses: 1, features: [], addons: null, isTrial: false, trialDays: null },
-  { id: "plan_crece", name: "Crece", description: "Tiendas multicanal en crecimiento.", monthlyPrice: 179000, annualPrice: 1790000, priceFrom: false, implementationPrice: 290000, implementationFreeAnnual: false, maxChannels: 5, maxProducts: 5000, maxUsers: 5, maxWarehouses: 3, features: ["POS", "PURCHASES"], addons: null, isTrial: false, trialDays: null },
-  { id: "plan_escala", name: "Escala", description: "Operación grande con bodega y despacho.", monthlyPrice: 349000, annualPrice: 3490000, priceFrom: false, implementationPrice: 490000, implementationFreeAnnual: false, maxChannels: 10, maxProducts: 20000, maxUsers: 15, maxWarehouses: null, features: ["POS", "PURCHASES", "PICKING"], addons: "1 a elección", isTrial: false, trialDays: null },
-  { id: "plan_corporativo", name: "Corporativo", description: "A medida, sin límites y multiempresa.", monthlyPrice: 590000, annualPrice: null, priceFrom: true, implementationPrice: null, implementationFreeAnnual: false, maxChannels: null, maxProducts: null, maxUsers: null, maxWarehouses: null, features: ["POS", "PURCHASES", "PICKING", "MULTICOMPANY"], addons: "Todos", isTrial: false, trialDays: null },
+  { id: "plan_demo", name: "Demo", description: "Prueba gratis 15 días con todo lo de Crece.", monthlyPrice: 0, annualPrice: null, priceFrom: false, implementationPrice: null, implementationFreeAnnual: false, maxChannels: 5, maxProducts: 5000, maxListings: 10000, maxUsers: 5, maxWarehouses: 3, features: ["POS", "PURCHASES"], addons: null, isTrial: true, trialDays: 15 },
+  { id: "plan_emprende", name: "Emprende", description: "Para partir vendiendo en pocos canales.", monthlyPrice: 79000, annualPrice: 790000, priceFrom: false, implementationPrice: 120000, implementationFreeAnnual: true, maxChannels: 2, maxProducts: 1000, maxListings: 2000, maxUsers: 2, maxWarehouses: 1, features: [], addons: null, isTrial: false, trialDays: null },
+  { id: "plan_crece", name: "Crece", description: "Tiendas multicanal en crecimiento.", monthlyPrice: 179000, annualPrice: 1790000, priceFrom: false, implementationPrice: 290000, implementationFreeAnnual: false, maxChannels: 5, maxProducts: 5000, maxListings: 10000, maxUsers: 5, maxWarehouses: 3, features: ["POS", "PURCHASES"], addons: null, isTrial: false, trialDays: null },
+  { id: "plan_escala", name: "Escala", description: "Operación grande con bodega y despacho.", monthlyPrice: 349000, annualPrice: 3490000, priceFrom: false, implementationPrice: 490000, implementationFreeAnnual: false, maxChannels: 10, maxProducts: 20000, maxListings: 40000, maxUsers: 15, maxWarehouses: null, features: ["POS", "PURCHASES", "PICKING"], addons: "1 a elección", isTrial: false, trialDays: null },
+  { id: "plan_corporativo", name: "Corporativo", description: "A medida, sin límites y multiempresa.", monthlyPrice: 590000, annualPrice: null, priceFrom: true, implementationPrice: null, implementationFreeAnnual: false, maxChannels: null, maxProducts: null, maxListings: null, maxUsers: null, maxWarehouses: null, features: ["POS", "PURCHASES", "PICKING", "MULTICOMPANY"], addons: "Todos", isTrial: false, trialDays: null },
 ];
 
 const FEATURE_LABEL: Record<string, string> = {
@@ -68,6 +69,7 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
   const rows: Array<[string, (p: PublicPlan) => ReactNode]> = [
     ["Canales de venta", (p) => num(p.maxChannels)],
     ["Productos", (p) => num(p.maxProducts)],
+    ["Publicaciones", (p) => num(p.maxListings ?? null)],
     ["Usuarios", (p) => num(p.maxUsers)],
     ["Bodegas", (p) => (p.maxWarehouses == null ? "Ilimitadas" : num(p.maxWarehouses))],
     ...features.map((f): [string, (p: PublicPlan) => ReactNode] => [

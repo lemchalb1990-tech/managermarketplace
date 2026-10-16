@@ -17,6 +17,7 @@ class PlanDto {
   @IsOptional() @IsBoolean() implementationFreeAnnual?: boolean;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) maxChannels?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) maxProducts?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) maxListings?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) maxUsers?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) maxWarehouses?: number | null;
   @IsOptional() @IsArray() @IsIn(PLAN_FEATURES as unknown as string[], { each: true }) features?: string[];

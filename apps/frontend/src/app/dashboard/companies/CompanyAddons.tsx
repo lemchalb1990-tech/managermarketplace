@@ -5,6 +5,7 @@ import { SUBSCRIPTION_FEATURE_LABEL, type SubscriptionFeature, type Subscription
 export type AddonsState = {
   extraChannels: string;
   extraProducts: string;
+  extraListings: string;
   extraUsers: string;
   extraWarehouses: string;
   extraFeatures: string[];
@@ -16,6 +17,7 @@ export function addonsFromCompany(c: any): AddonsState {
   return {
     extraChannels: String(c.extraChannels ?? 0),
     extraProducts: String(c.extraProducts ?? 0),
+    extraListings: String(c.extraListings ?? 0),
     extraUsers: String(c.extraUsers ?? 0),
     extraWarehouses: String(c.extraWarehouses ?? 0),
     extraFeatures: Array.isArray(c.extraFeatures) ? c.extraFeatures : [],
@@ -29,11 +31,12 @@ const toInt = (v: string) => Math.max(0, Math.trunc(Number(v) || 0));
 // Lo que se envía al guardar la empresa. Sin plan, los adicionales no aplican y se limpian.
 export function addonsPayload(a: AddonsState, hasPlan: boolean) {
   if (!hasPlan) {
-    return { extraChannels: 0, extraProducts: 0, extraUsers: 0, extraWarehouses: 0, extraFeatures: [], addonsMonthlyPrice: null, addonsNote: null };
+    return { extraChannels: 0, extraProducts: 0, extraListings: 0, extraUsers: 0, extraWarehouses: 0, extraFeatures: [], addonsMonthlyPrice: null, addonsNote: null };
   }
   return {
     extraChannels: toInt(a.extraChannels),
     extraProducts: toInt(a.extraProducts),
+    extraListings: toInt(a.extraListings),
     extraUsers: toInt(a.extraUsers),
     extraWarehouses: toInt(a.extraWarehouses),
     extraFeatures: a.extraFeatures,
@@ -45,6 +48,7 @@ export function addonsPayload(a: AddonsState, hasPlan: boolean) {
 const RESOURCES = [
   { key: 'extraChannels', plan: 'maxChannels', label: 'Canales' },
   { key: 'extraProducts', plan: 'maxProducts', label: 'Productos (SKU)' },
+  { key: 'extraListings', plan: 'maxListings', label: 'Publicaciones' },
   { key: 'extraUsers', plan: 'maxUsers', label: 'Usuarios' },
   { key: 'extraWarehouses', plan: 'maxWarehouses', label: 'Bodegas' },
 ] as const;

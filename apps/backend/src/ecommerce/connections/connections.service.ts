@@ -227,6 +227,7 @@ export class ConnectionsService {
     const sorted = [...(product.images || [])].sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary) || (a.order ?? 0) - (b.order ?? 0));
     product.imageUrls = await Promise.all(sorted.map((img: any) => toAbsoluteUrl(this.settings, img.url))).catch(() => []);
 
+    await this.subscription.assertCanAddListing(conn.companyId, { productId, connectionId });
     const result = await adapter.publishProduct(conn, product);
 
     return this.prisma.listing.upsert({
@@ -342,6 +343,7 @@ export class ConnectionsService {
     if (!conn) throw new NotFoundException('Conexión no encontrada');
     if (user.role !== Role.SUPER_ADMIN && conn.companyId !== user.companyId) throw new ForbiddenException();
     await this.catalog.findOne(productId, user);
+    await this.subscription.assertCanAddListing(conn.companyId, { productId, connectionId });
 
     return this.prisma.listing.upsert({
       where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } },

@@ -275,6 +275,7 @@ export class WalmartAdapter implements PlatformAdapter {
     const listing = await this.prisma.listing.findUnique({
       where: { productId_connectionId_slot: { productId, connectionId: conn.id, slot: 0 } }, include: { images: { orderBy: { order: 'asc' } } },
     });
+    await this.subscription.assertCanAddListing(conn.companyId, { productId, connectionId: conn.id });
     const a: any = listing?.channelAttributes || {};
     const missing: string[] = [];
     const gtin = String(a.gtin || product.barcode || '').replace(/\D/g, '');
@@ -557,6 +558,7 @@ export class WalmartAdapter implements PlatformAdapter {
         linkedProductIds.add(product.id);
         linkedIds.add(externalId);
 
+        await this.subscription.assertCanAddListing(conn.companyId, { productId: product.id, connectionId: conn.id });
         await this.prisma.listing.upsert({
           where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: { externalId, status: 'ACTIVE' as any, syncedAt: new Date(), title: r.name },

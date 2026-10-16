@@ -2427,6 +2427,7 @@ export interface SubscriptionPlan {
   implementationFreeAnnual: boolean;
   maxChannels: number | null;
   maxProducts: number | null;
+  maxListings: number | null;
   maxUsers: number | null;
   maxWarehouses: number | null;
   features: SubscriptionFeature[];
@@ -2438,7 +2439,7 @@ export interface SubscriptionPlan {
   _count?: { companies: number };
 }
 
-export type SubscriptionResource = 'channels' | 'products' | 'users' | 'warehouses';
+export type SubscriptionResource = 'channels' | 'products' | 'listings' | 'users' | 'warehouses';
 
 export interface SubscriptionUsage {
   plan: SubscriptionPlan | null;

@@ -62,6 +62,7 @@ export class UpdateCompanyDto {
   // Adicionales sobre el plan comercial.
   @IsOptional() @IsInt() @Min(0) @Max(1000) extraChannels?: number;
   @IsOptional() @IsInt() @Min(0) @Max(10000000) extraProducts?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(10000000) extraListings?: number;
   @IsOptional() @IsInt() @Min(0) @Max(10000) extraUsers?: number;
   @IsOptional() @IsInt() @Min(0) @Max(1000) extraWarehouses?: number;
   @IsOptional() @IsArray() @IsIn(PLAN_FEATURES as unknown as string[], { each: true }) extraFeatures?: string[];

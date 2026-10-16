@@ -394,6 +394,7 @@ export class FalabellaAdapter implements PlatformAdapter {
         linkedProductIds.add(product.id);
         linkedIds.add(r.sellerSku);
 
+        await this.subscription.assertCanAddListing(conn.companyId, { productId: product.id, connectionId: conn.id });
         const listing = await this.prisma.listing.upsert({
           where: { productId_connectionId_slot: { productId: product.id, connectionId: conn.id, slot: 0 } },
           update: {

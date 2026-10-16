@@ -915,6 +915,7 @@ export class MercadolibreService {
     const fullTitle = (title?.trim() || (product.listings || []).find((l: any) => l.connectionId === connectionId)?.title || product.name).trim();
     let accountTitle = fullTitle.slice(0, 60);
     await this.getConnectionForUser(connectionId, user);
+    await this.subscription.assertCanAddListing(product.companyId, { productId, connectionId });
     const token = await this.getValidToken(connectionId);
 
     const categoryId = (product as any).mlCategoryId || await this.settings.get('ML_DEFAULT_CATEGORY');
@@ -2142,6 +2143,7 @@ export class MercadolibreService {
           const usedSlots = (await this.prisma.listing.findMany({ where: { productId: product.id, connectionId }, select: { slot: true } })).map((x) => x.slot);
           let slot = 0;
           while (usedSlots.includes(slot)) slot++;
+          await this.subscription.assertCanAddListing(conn.companyId);
           await this.prisma.listing.create({
             data: {
               productId: product.id,
@@ -2199,6 +2201,7 @@ export class MercadolibreService {
               },
             });
           }
+          await this.subscription.assertCanAddListing(conn.companyId);
           await this.prisma.listing.create({
             data: {
               productId: newProduct.id,

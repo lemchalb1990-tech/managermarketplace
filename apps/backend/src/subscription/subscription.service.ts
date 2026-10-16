@@ -1,21 +1,26 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ListingStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const PLAN_FEATURES = ['POS', 'PURCHASES', 'PICKING', 'MULTICOMPANY', 'ML_PROMOTIONS', 'ONLINE_PAYMENTS'] as const;
-export type PlanResource = 'channels' | 'products' | 'users' | 'warehouses';
+export type PlanResource = 'channels' | 'products' | 'listings' | 'users' | 'warehouses';
 
-const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'maxUsers' | 'maxWarehouses'; extra: 'extraChannels' | 'extraProducts' | 'extraUsers' | 'extraWarehouses'; label: string }> = {
+// Publicaciones que cuentan para el límite del plan: las vinculadas activas y pausadas.
+const COUNTED_LISTING = [ListingStatus.ACTIVE, ListingStatus.PAUSED];
+
+const RESOURCE: Record<PlanResource, { field: 'maxChannels' | 'maxProducts' | 'maxListings' | 'maxUsers' | 'maxWarehouses'; extra: 'extraChannels' | 'extraProducts' | 'extraListings' | 'extraUsers' | 'extraWarehouses'; label: string }> = {
   channels: { field: 'maxChannels', extra: 'extraChannels', label: 'canales o cuentas conectadas' },
   products: { field: 'maxProducts', extra: 'extraProducts', label: 'productos' },
+  listings: { field: 'maxListings', extra: 'extraListings', label: 'publicaciones en marketplaces' },
   users: { field: 'maxUsers', extra: 'extraUsers', label: 'usuarios' },
   warehouses: { field: 'maxWarehouses', extra: 'extraWarehouses', label: 'bodegas' },
 };
 
 type LimitCompany = {
-  extraChannels: number; extraProducts: number; extraUsers: number; extraWarehouses: number;
-  subscriptionPlan: { maxChannels: number | null; maxProducts: number | null; maxUsers: number | null; maxWarehouses: number | null } | null;
+  extraChannels: number; extraProducts: number; extraListings: number; extraUsers: number; extraWarehouses: number;
+  subscriptionPlan: { maxChannels: number | null; maxProducts: number | null; maxListings: number | null; maxUsers: number | null; maxWarehouses: number | null } | null;
 };
-const LIMIT_SELECT = { extraChannels: true, extraProducts: true, extraUsers: true, extraWarehouses: true } as const;
+const LIMIT_SELECT = { extraChannels: true, extraProducts: true, extraListings: true, extraUsers: true, extraWarehouses: true } as const;
 
 // Límite de un recurso: el del plan más los adicionales de la empresa. Sin plan no hay
 // límites; un plan sin límite en ese recurso sigue sin límite (los adicionales no aplican).
@@ -45,6 +50,7 @@ export interface PlanInput {
   implementationFreeAnnual?: boolean;
   maxChannels?: number | null;
   maxProducts?: number | null;
+  maxListings?: number | null;
   maxUsers?: number | null;
   maxWarehouses?: number | null;
   features?: string[];
@@ -64,13 +70,14 @@ export class SubscriptionService {
   // ── Consumo y límites ──────────────────────────────────────────────────
 
   private async counts(companyId: string): Promise<Record<PlanResource, number>> {
-    const [channels, products, users, warehouses] = await Promise.all([
+    const [channels, products, listings, users, warehouses] = await Promise.all([
       this.prisma.marketplaceConnection.count({ where: { companyId, active: true } }),
       this.prisma.product.count({ where: { companyId, active: true } }),
+      this.prisma.listing.count({ where: { status: { in: COUNTED_LISTING }, connection: { companyId } } }),
       this.prisma.user.count({ where: { companyId, active: true } }),
       this.prisma.warehouse.count({ where: { companyId, active: true } }),
     ]);
-    return { channels, products, users, warehouses };
+    return { channels, products, listings, users, warehouses };
   }
 
   /** Plan de la empresa, consumo frente a cada límite y estado de la prueba. */
@@ -99,7 +106,7 @@ export class SubscriptionService {
     if (!companyId) return;
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { ...LIMIT_SELECT, subscriptionPlan: { select: { name: true, maxChannels: true, maxProducts: true, maxUsers: true, maxWarehouses: true } } },
+      select: { ...LIMIT_SELECT, subscriptionPlan: { select: { name: true, maxChannels: true, maxProducts: true, maxListings: true, maxUsers: true, maxWarehouses: true } } },
     });
     if (!company) return;
     const plan = company.subscriptionPlan;
@@ -114,6 +121,23 @@ export class SubscriptionService {
           : `Límite de ${RESOURCE[resource].label} alcanzado (${limit}). Contacta al administrador del sistema.`,
       );
     }
+  }
+
+  /**
+   * Antes de crear o vincular una publicación. Si ya existe la de ese producto, cuenta y
+   * posición (se actualiza o se vuelve a publicar), no suma y no se valida. Se llama antes de
+   * llamar al marketplace, para no crear allá algo que el plan no permite.
+   */
+  async assertCanAddListing(companyId: string | null | undefined, key?: { productId: string; connectionId: string; slot?: number }) {
+    if (!companyId) return;
+    if (key) {
+      const existing = await this.prisma.listing.findUnique({
+        where: { productId_connectionId_slot: { productId: key.productId, connectionId: key.connectionId, slot: key.slot ?? 0 } },
+        select: { status: true },
+      });
+      if (existing && COUNTED_LISTING.includes(existing.status as (typeof COUNTED_LISTING)[number])) return;
+    }
+    await this.assertCanAdd(companyId, 'listings');
   }
 
   // ── Catálogo de planes (Super Admin) ───────────────────────────────────
@@ -132,7 +156,7 @@ export class SubscriptionService {
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: {
         id: true, name: true, description: true, monthlyPrice: true, annualPrice: true, priceFrom: true,
-        implementationPrice: true, implementationFreeAnnual: true, maxChannels: true, maxProducts: true,
+        implementationPrice: true, implementationFreeAnnual: true, maxChannels: true, maxProducts: true, maxListings: true,
         maxUsers: true, maxWarehouses: true, features: true, addons: true, isTrial: true, trialDays: true,
       },
     });
@@ -193,6 +217,7 @@ export class SubscriptionService {
       implementationFreeAnnual: input.implementationFreeAnnual,
       maxChannels: int(input.maxChannels),
       maxProducts: int(input.maxProducts),
+      maxListings: int(input.maxListings),
       maxUsers: int(input.maxUsers),
       maxWarehouses: int(input.maxWarehouses),
       features: input.features === undefined ? undefined : PLAN_FEATURES.filter((f) => input.features!.includes(f)),

@@ -56,6 +56,7 @@ function TypeBadge({ kind }: { kind: string }) {
 const RESOURCES: { key: SubscriptionResource; label: string }[] = [
   { key: 'channels', label: 'Canales o cuentas' },
   { key: 'products', label: 'Productos' },
+  { key: 'listings', label: 'Publicaciones en marketplaces' },
   { key: 'users', label: 'Usuarios' },
   { key: 'warehouses', label: 'Bodegas' },
 ];
