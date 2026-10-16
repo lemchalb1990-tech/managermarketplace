@@ -661,7 +661,8 @@ export const api = {
     // Medición del espacio que ya ocupaban los archivos (Super Admin).
     storageStatus: (token: string) => apiFetch<{ measuredAt: string | null; running: boolean }>('/storage-usage/status', {}, token),
     measureStorage: (token: string) => apiFetch<{ started: boolean }>('/storage-usage/measure', { method: 'POST' }, token),
-    consumption: (token: string) => apiFetch<CompanyConsumptionReport>('/storage-usage/consumption', {}, token),
+    // Último cálculo (se hace cada noche); running = se está calculando ahora.
+    consumption: (token: string) => apiFetch<{ report: CompanyConsumptionReport | null; running: boolean }>('/storage-usage/consumption', {}, token),
     plans: {
       list: (token: string) => apiFetch<SubscriptionPlan[]>('/subscription/plans', {}, token),
       create: (data: Partial<SubscriptionPlan>, token: string) =>

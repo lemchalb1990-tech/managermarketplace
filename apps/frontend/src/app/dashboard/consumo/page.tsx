@@ -4,7 +4,6 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { api, type CompanyConsumptionReport } from '@/lib/api';
 import { PageHeader } from '@/components/ui';
-import { btnSecondary } from '@/components/ui/Modal';
 import { SkeletonTable } from '@/components/Skeleton';
 
 // Bytes → texto («850 KB», «12,4 MB», «2,1 GB»).
@@ -17,10 +16,11 @@ const num = (n: number) => n.toLocaleString('es-CL');
 const tableName = (t: string) => t.replace(/_/g, ' ');
 type SortKey = 'totalBytes' | 'dbBytes' | 'fileBytes' | 'name';
 
-// Consumo por empresa (Super Admin): base de datos estimada y archivos, calculado al abrir.
+// Consumo por empresa (Super Admin): base de datos estimada y archivos. Se calcula cada noche;
+// la página muestra el último cálculo (la primera vez lo espera).
 export default function ConsumptionPage() {
   const [report, setReport] = useState<CompanyConsumptionReport | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>('totalBytes');
@@ -29,18 +29,22 @@ export default function ConsumptionPage() {
   const load = useCallback(() => {
     const token = getToken();
     if (!token) return;
-    setLoading(true);
-    setError('');
     api.subscription.consumption(token)
-      .then(setReport)
-      .catch((e) => setError((e as Error).message || 'No se pudo calcular el consumo.'))
-      .finally(() => setLoading(false));
+      .then((r) => { setReport(r.report); setRunning(r.running); setError(''); })
+      .catch((e) => setError((e as Error).message || 'No se pudo cargar el consumo.'));
   }, []);
 
   useEffect(() => {
     const id = requestAnimationFrame(load);
     return () => cancelAnimationFrame(id);
   }, [load]);
+
+  // Mientras se hace el primer cálculo, se vuelve a consultar cada 15 segundos.
+  useEffect(() => {
+    if (report || !running) return;
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [report, running, load]);
 
   const rows = useMemo(() => {
     const list = (report?.companies ?? []).filter((c) => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -60,7 +64,6 @@ export default function ConsumptionPage() {
       <PageHeader
         title="Consumo por empresa"
         crumbs={[{ label: 'Administrador de plataforma' }, { label: 'Consumo por empresa' }]}
-        actions={<button type="button" onClick={load} disabled={loading} className={btnSecondary}>{loading ? 'Calculando…' : 'Recalcular'}</button>}
       />
 
       {p && (
@@ -80,9 +83,9 @@ export default function ConsumptionPage() {
             <p className="ui-stat-value text-[var(--text)]">{num(p.companies)}</p>
           </div>
           <div className="ui-card p-4">
-            <p className="ui-stat-label">Calculado</p>
+            <p className="ui-stat-label">Último cálculo</p>
             <p className="text-sm font-semibold text-[var(--text)] mt-1">{new Date(report!.generatedAt).toLocaleString('es-CL')}</p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">Compáralo con el plan de Supabase</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">Se actualiza cada noche</p>
           </div>
         </div>
       )}
@@ -94,6 +97,9 @@ export default function ConsumptionPage() {
           <p className="text-[11px] text-[var(--text-muted)]">Base de datos estimada por proporción de filas; archivos exactos.</p>
         </div>
         {error && <p className="px-4 py-3 text-sm text-[var(--danger)]">{error}</p>}
+        {!report && !error && running && (
+          <p className="px-4 pt-3 text-sm text-[var(--text-2)]">Calculando el consumo por primera vez; puede tardar unos minutos. La página se actualiza sola.</p>
+        )}
         {!report && !error ? <SkeletonTable rows={8} cols={7} /> : report && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-sm">

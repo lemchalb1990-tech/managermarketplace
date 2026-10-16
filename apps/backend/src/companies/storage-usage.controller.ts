@@ -14,10 +14,11 @@ import { CompanyConsumptionService } from './company-consumption.service';
 export class StorageUsageController {
   constructor(private service: StorageUsageService, private prisma: PrismaService, private consumption: CompanyConsumptionService) {}
 
-  // Consumo de base de datos (estimado) y archivos (exacto) de cada empresa.
+  // Consumo de base de datos (estimado) y archivos (exacto) de cada empresa: el último cálculo
+  // (se recalcula cada noche).
   @Get('consumption')
-  report() {
-    return this.consumption.report();
+  consumptionReport() {
+    return this.consumption.latest();
   }
 
   @Get('status')

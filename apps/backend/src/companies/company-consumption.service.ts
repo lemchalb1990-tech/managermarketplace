@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 
 const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 const MAX_HOPS = 3;
+// Último cálculo guardado (marca interna: las claves con "_" no salen en la configuración).
+const REPORT_KEY = '_CONSUMPTION_REPORT';
 
 type Fk = { child: string; col: string; parent: string; pcol: string };
 
@@ -11,11 +14,52 @@ type Fk = { child: string; col: string; parent: string; pcol: string };
  * (estimado). Postgres no informa tamaño por empresa, así que por cada tabla se cuentan las
  * filas de cada empresa y se multiplican por el peso promedio por fila de esa tabla (datos +
  * índices). Las tablas sin companyId se atribuyen siguiendo sus llaves foráneas hasta una que
- * lo tenga (p. ej. sale_items → sales). Se calcula al pedirlo: una consulta agrupada por tabla.
+ * lo tenga (p. ej. sale_items → sales). Es pesado (una consulta agrupada por tabla), así que se
+ * calcula cada noche y se guarda; el Super Admin ve el último cálculo.
  */
 @Injectable()
 export class CompanyConsumptionService {
+  private readonly logger = new Logger(CompanyConsumptionService.name);
+  private running: Promise<void> | null = null;
+
   constructor(private prisma: PrismaService) {}
+
+  @Cron('0 8 * * *') // 08:00 UTC ≈ madrugada en Chile
+  nightly() {
+    void this.refresh();
+  }
+
+  get isRunning() {
+    return !!this.running;
+  }
+
+  /** Recalcula en segundo plano y guarda el resultado (si ya está corriendo, no repite). */
+  refresh() {
+    if (!this.running) {
+      this.running = (async () => {
+        const started = Date.now();
+        try {
+          const value = JSON.stringify(await this.report());
+          await this.prisma.setting.upsert({
+            where: { key: REPORT_KEY },
+            create: { key: REPORT_KEY, value, label: 'Consumo por empresa', group: 'sistema' },
+            update: { value },
+          });
+          this.logger.log(`Consumo por empresa calculado en ${Math.round((Date.now() - started) / 1000)} s`);
+        } catch (err: any) {
+          this.logger.error(`No se pudo calcular el consumo por empresa: ${err?.message || err}`);
+        }
+      })().finally(() => { this.running = null; });
+    }
+    return this.running;
+  }
+
+  /** Último cálculo guardado. Si nunca se ha hecho, lo inicia. */
+  async latest() {
+    const row = await this.prisma.setting.findUnique({ where: { key: REPORT_KEY } });
+    if (!row && !this.running) void this.refresh();
+    return { report: row ? JSON.parse(row.value) : null, running: this.isRunning };
+  }
 
   async report() {
     const db = this.prisma;
