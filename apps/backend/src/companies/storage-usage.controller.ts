@@ -5,13 +5,20 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageUsageService } from './storage-usage.service';
+import { CompanyConsumptionService } from './company-consumption.service';
 
 // Medición del espacio que ya ocupaban las empresas antes del registro por archivo (Super Admin).
 @Controller('storage-usage')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN)
 export class StorageUsageController {
-  constructor(private service: StorageUsageService, private prisma: PrismaService) {}
+  constructor(private service: StorageUsageService, private prisma: PrismaService, private consumption: CompanyConsumptionService) {}
+
+  // Consumo de base de datos (estimado) y archivos (exacto) de cada empresa.
+  @Get('consumption')
+  report() {
+    return this.consumption.report();
+  }
 
   @Get('status')
   async status() {

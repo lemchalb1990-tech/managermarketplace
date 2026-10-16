@@ -661,6 +661,7 @@ export const api = {
     // Medición del espacio que ya ocupaban los archivos (Super Admin).
     storageStatus: (token: string) => apiFetch<{ measuredAt: string | null; running: boolean }>('/storage-usage/status', {}, token),
     measureStorage: (token: string) => apiFetch<{ started: boolean }>('/storage-usage/measure', { method: 'POST' }, token),
+    consumption: (token: string) => apiFetch<CompanyConsumptionReport>('/storage-usage/consumption', {}, token),
     plans: {
       list: (token: string) => apiFetch<SubscriptionPlan[]>('/subscription/plans', {}, token),
       create: (data: Partial<SubscriptionPlan>, token: string) =>
@@ -2449,6 +2450,18 @@ export type SubscriptionResource = 'channels' | 'products' | 'listings' | 'users
 
 // Espacio en MB → texto («850 MB», «2,5 GB»).
 export const formatMb = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toLocaleString('es-CL', { maximumFractionDigits: 1 })} GB` : `${Math.ceil(mb).toLocaleString('es-CL')} MB`);
+
+// Consumo por empresa (Super Admin): base de datos estimada y archivos exactos, en bytes.
+export interface CompanyConsumptionReport {
+  generatedAt: string;
+  platform: { dbBytes: number; systemBytes: number; fileBytes: number; companies: number };
+  companies: {
+    id: string; name: string; active: boolean; plan: string | null;
+    dbBytes: number; fileBytes: number; files: number; totalBytes: number;
+    products: number; listings: number; sales: number;
+    topTables: { table: string; rows: number; bytes: number }[];
+  }[];
+}
 
 export interface SubscriptionUsage {
   plan: SubscriptionPlan | null;
