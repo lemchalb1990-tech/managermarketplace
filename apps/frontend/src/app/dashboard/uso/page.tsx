@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/auth';
-import { api, formatMb, SUBSCRIPTION_FEATURE_LABEL, type AiUsageReport, type PlanFeature, type SubscriptionFeature, type SubscriptionResource, type SubscriptionUsage } from '@/lib/api';
+import { api, SUBSCRIPTION_FEATURE_LABEL, type AiUsageReport, type PlanFeature, type SubscriptionFeature, type SubscriptionResource, type SubscriptionUsage } from '@/lib/api';
 import { SectionCard } from '@/components/ui';
 import { Skeleton, SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 import { useAdminCompany } from '../AdminCompanyContext';
@@ -59,7 +59,6 @@ const RESOURCES: { key: SubscriptionResource; label: string; fmt?: (n: number) =
   { key: 'listings', label: 'Publicaciones' },
   { key: 'users', label: 'Usuarios' },
   { key: 'warehouses', label: 'Bodegas' },
-  { key: 'storage', label: 'Almacenamiento', fmt: formatMb },
 ];
 const n = (v: number) => v.toLocaleString('es-CL');
 const ALL_SUB_FEATURES = Object.keys(SUBSCRIPTION_FEATURE_LABEL) as SubscriptionFeature[];
@@ -90,19 +89,7 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
           </span>
         )}
       </div>
-      {(() => {
-        const s = sub.usage.storage;
-        if (!s || s.limit == null || s.used < s.limit * 0.8) return null;
-        const full = s.used >= s.limit;
-        return (
-          <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${full ? 'bg-red-50 text-[var(--danger)]' : 'bg-amber-50 text-amber-800'}`}>
-            {full
-              ? `Llegaste al límite de almacenamiento (${formatMb(s.limit)}): no se pueden subir fotos ni archivos nuevos. Borra los que no uses o mejora tu plan.`
-              : `Usas el ${Math.round((s.used / s.limit) * 100)}% de tu almacenamiento (${formatMb(s.used)} de ${formatMb(s.limit)}). Al llegar al 100% no se podrán subir fotos ni archivos nuevos.`}
-          </p>
-        );
-      })()}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
         {RESOURCES.map((r) => {
           const u = sub.usage[r.key];
           if (!u) return null;
@@ -110,7 +97,7 @@ function SubscriptionSection({ sub, tz }: { sub: SubscriptionUsage; tz: string }
           const p = u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
           const full = u.limit != null && u.used >= u.limit;
           return (
-            <div key={r.key} className="rounded-xl border border-[var(--border-soft)] p-3 min-w-0" title={r.key === 'storage' ? 'Fotos y archivos subidos' : undefined}>
+            <div key={r.key} className="rounded-xl border border-[var(--border-soft)] p-3 min-w-0">
               <p className="ui-stat-label truncate">{r.label}</p>
               <p className={`text-lg font-bold mt-1 leading-tight truncate ${full ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>{f(u.used)}</p>
               <p className="text-[11px] text-[var(--text-muted)] truncate">{u.limit == null ? ' ' : `de ${f(u.limit)}`}</p>

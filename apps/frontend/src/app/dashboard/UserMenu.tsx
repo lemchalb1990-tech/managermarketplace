@@ -101,15 +101,12 @@ export function UserMenu({ user, roleLabel, onLogout }: { user: MenuUser; roleLa
   const products = usage?.usage.products;
   const productsPct = products?.limit ? Math.min(100, Math.round((products.used / products.limit) * 100)) : 0;
   const people = usage?.usage.users;
-  // Aviso de almacenamiento desde el 80% del plan.
-  const storage = usage?.usage.storage;
-  const storagePct = storage?.limit ? Math.round((storage.used / storage.limit) * 100) : 0;
 
   const tiles: Tile[] = [
     ...(isAdmin ? [
       { key: 'company', icon: 'company', title: 'Mi empresa', hint: 'Datos y configuración', href: '/dashboard/settings' },
       { key: 'users', icon: 'users', title: 'Usuarios', hint: people ? `${people.used} persona${people.used === 1 ? '' : 's'} en tu equipo` : 'Tu equipo y permisos', href: '/dashboard/users' },
-      { key: 'plan', icon: 'plan', title: 'Plan y uso', hint: storagePct >= 80 ? `Almacenamiento al ${Math.min(100, storagePct)}%` : plan?.isTrial ? 'Elige tu plan' : 'Límites y consumo', href: '/dashboard/uso' },
+      { key: 'plan', icon: 'plan', title: 'Plan y uso', hint: plan?.isTrial ? 'Elige tu plan' : 'Límites y consumo', href: '/dashboard/uso' },
     ] : []),
     { key: 'lock', icon: 'lock', title: 'Contraseña', hint: 'Te enviamos un enlace', onClick: sendPasswordLink },
     ...(installAvailable(installApp) ? [
