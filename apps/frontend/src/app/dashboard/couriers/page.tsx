@@ -1,12 +1,12 @@
 'use client';
 
-import { connectorStatus } from '@/lib/connectors';
+import { connectorStatus, connectorVisibleTo, VisibilityBadge } from '@/lib/connectors';
 import { useCallback, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, type CourierConnectionInfo } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
-import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { useReservedPlatforms, usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
 import { PlatformEditModal } from '@/components/PlatformEditModal';
 import { CourierLogos } from './logos';
 
@@ -87,6 +87,7 @@ export default function CouriersPage() {
   const sharedLogos = usePlatformLogos();
   const [savedLogos, setSavedLogos] = useState<Record<string, PlatformLogoSetting>>({});
   const logoMap = { ...sharedLogos, ...savedLogos };
+  const reserved = useReservedPlatforms();
   const [editingInfo, setEditingInfo] = useState<Provider | null>(null);
   const infoCourier = COURIERS.find((c) => c.id === editingInfo);
 
@@ -140,6 +141,8 @@ export default function CouriersPage() {
           // Estado definido por el Super Admin en Sincronizadores (los couriers parten desactivados).
           const st = connectorStatus(logoMap, key);
           if (!isSuperAdmin && st === 'DISABLED' && !conn) return null;
+          // Reservado: solo las empresas elegidas (quien ya lo tiene conectado lo sigue viendo).
+          if (!connectorVisibleTo(logoMap, key, reserved) && !conn) return null;
           const locked = !isSuperAdmin && st !== 'AVAILABLE' && !conn;
           return (
             <div key={c.id} role="button" tabIndex={0} onClick={() => { if (!locked) setEditing(c.id); }}
@@ -151,6 +154,7 @@ export default function CouriersPage() {
                     {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
                   </span>
                 )}
+                {isSuperAdmin && <VisibilityBadge map={logoMap} k={key} className="absolute right-12 top-3" />}
                 {isSuperAdmin && (
                   <button
                     type="button"

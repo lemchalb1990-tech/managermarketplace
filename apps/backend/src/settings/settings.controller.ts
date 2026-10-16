@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -6,6 +6,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { IsArray, IsString, ValidateNested, IsOptional, IsInt, Min, Max, IsObject, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -37,6 +38,8 @@ class PlatformSettingDto {
   @IsOptional() @IsInt() @Min(30) @Max(250) logoScale?: number;
   @IsOptional() @IsObject() logoScales?: Record<string, number>;
   @IsOptional() @IsIn(['AVAILABLE', 'SOON', 'DISABLED']) status?: string;
+  @IsOptional() @IsIn(['PUBLIC', 'INTERNAL', 'RESERVED']) visibility?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) allowedCompanyIds?: string[];
 }
 
 @Controller('settings')
@@ -61,8 +64,16 @@ export class SettingsController {
 
   @Get('platforms')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR)
-  getPlatforms() {
-    return this.service.getPlatformSettings();
+  getPlatforms(@CurrentUser() user: any) {
+    // Las empresas de los sincronizadores reservados solo las ve el Super Admin.
+    return user?.role === Role.SUPER_ADMIN ? this.service.getPlatformSettings() : this.service.getPublicPlatformSettings();
+  }
+
+  // Sincronizadores reservados que puede ver la empresa (Super Admin: los de la empresa elegida).
+  @Get('platforms/access')
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER, Role.VENDEDOR, Role.ORDER_MANAGER, Role.DESPACHADOR)
+  platformAccess(@CurrentUser() user: any, @Query('companyId') companyId?: string) {
+    return this.service.reservedPlatformsFor(user?.role === Role.SUPER_ADMIN ? companyId || null : user?.companyId || null);
   }
 
   // Cuántas empresas usan cada sincronizador (para avisar antes de desactivarlo).

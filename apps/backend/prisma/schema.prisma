@@ -1563,6 +1563,10 @@ model PlatformSetting {
   // Estado del sincronizador (solo Super Admin): AVAILABLE, SOON (se ve como "Próximamente",
   // no se puede conectar) o DISABLED (oculto). Null = el valor por defecto del sincronizador.
   status      String?
+  // Quién lo ve: PUBLIC (landing y todos los clientes), INTERNAL (todos los clientes, no la
+  // landing) o RESERVED (solo las empresas de allowedCompanyIds). Null = PUBLIC.
+  visibility        String?
+  allowedCompanyIds String[] @default([])
   updatedAt   DateTime @updatedAt
 
   @@map("platform_settings")

@@ -59,8 +59,11 @@ export class CouriersService {
     const companyId = resolveCompanyId(user, dto.companyId);
     // Los couriers nacen desactivados: solo se conectan cuando el Super Admin los habilita.
     if (user?.role !== 'SUPER_ADMIN') {
-      const row = await this.prisma.platformSetting.findUnique({ where: { platform: provider.toLowerCase() }, select: { status: true } });
+      const row = await this.prisma.platformSetting.findUnique({ where: { platform: provider.toLowerCase() }, select: { status: true, visibility: true, allowedCompanyIds: true } });
       if ((row?.status || 'DISABLED') !== 'AVAILABLE') throw new ForbiddenException(`${COURIER_NAMES[provider]} no está disponible por ahora`);
+      // Reservado: solo las empresas que eligió el Super Admin (quien ya lo tenía puede seguir editándolo).
+      const existing = await this.prisma.courierConnection.findUnique({ where: { companyId_provider: { companyId, provider } }, select: { id: true } });
+      if (!existing && row?.visibility === 'RESERVED' && !row.allowedCompanyIds.includes(companyId)) throw new ForbiddenException(`${COURIER_NAMES[provider]} no está disponible por ahora`);
     }
     const prev = await this.prisma.courierConnection.findUnique({ where: { companyId_provider: { companyId, provider } } });
     // Las credenciales vacías no borran las guardadas (el formulario no las muestra).

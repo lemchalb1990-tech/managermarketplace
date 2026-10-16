@@ -1,13 +1,13 @@
 'use client';
 
-import { connectorStatus } from '@/lib/connectors';
+import { connectorStatus, connectorVisibleTo } from '@/lib/connectors';
 import { useEffect, useRef, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { useDashboardTimezone } from '@/lib/dashboardTimezone';
 import { PlatformEditModal } from '@/components/PlatformEditModal';
-import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, invalidatePlatformLogosCache } from '@/lib/platformLogos';
+import { useReservedPlatforms, usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, invalidatePlatformLogosCache } from '@/lib/platformLogos';
 import { confirmDialog } from '../ConfirmDialog';
 import { SkeletonCards, SkeletonTable } from '@/components/Skeleton';
 
@@ -120,6 +120,7 @@ export default function DropshippingPage() {
   const [progressNow, setProgressNow] = useState(Date.now());
 
   const logoMap = usePlatformLogos();
+  const reserved = useReservedPlatforms();
   const [editingLogoKey, setEditingLogoKey] = useState<string | null>(null);
   // Proveedor abierto en la ventana de detalle (al hacer clic en su tarjeta).
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -530,7 +531,7 @@ export default function DropshippingPage() {
                   onChange={(e) => setSupplierForm((f) => ({ ...f, connectorType: e.target.value as 'FEED' | 'NORIEGA_API' }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   <option value="FEED">Feed URL (CSV/JSON público)</option>
-                  {(isSuperAdmin || connectorStatus(logoMap, CONNECTOR_LOGO_KEY.NORIEGA_API) === 'AVAILABLE') && (
+                  {(isSuperAdmin || (connectorStatus(logoMap, CONNECTOR_LOGO_KEY.NORIEGA_API) === 'AVAILABLE' && connectorVisibleTo(logoMap, CONNECTOR_LOGO_KEY.NORIEGA_API, reserved))) && (
                     <option value="NORIEGA_API">API Noriega (login + token)</option>
                   )}
                 </select>

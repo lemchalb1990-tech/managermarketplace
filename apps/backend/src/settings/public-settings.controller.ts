@@ -10,7 +10,7 @@ export class PublicSettingsController {
 
   @Get()
   getPlatformLogos() {
-    return this.service.getPlatformSettings();
+    return this.service.getPublicPlatformSettings();
   }
 }
 

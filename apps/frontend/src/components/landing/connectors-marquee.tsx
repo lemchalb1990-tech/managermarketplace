@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { logoScaleStyle, usePlatformLogos, viewScale } from "@/lib/platformLogos";
-import { CONNECTORS, CONNECTOR_BY_KEY, connectorStatus } from "@/lib/connectors";
+import { CONNECTORS, CONNECTOR_BY_KEY, connectorOnLanding, connectorStatus } from "@/lib/connectors";
 
 function Chip({ node, soon }: { node: ReactNode; soon: boolean }) {
   return (
@@ -23,14 +23,14 @@ function Chip({ node, soon }: { node: ReactNode; soon: boolean }) {
 /**
  * Cinta con los conectores: todos los del sistema (registro de sincronizadores) más las
  * plataformas que el Super Admin registre con logo. Los desactivados no aparecen y los
- * "próximamente" llevan su etiqueta. Un conector nuevo se suma solo.
+ * "próximamente" llevan su etiqueta. Solo los «Publicado» (no Interno ni Reservado). Un conector nuevo se suma solo.
  */
 export function ConnectorsMarquee() {
   const map = usePlatformLogos();
   const keys = Array.from(new Set([
     ...CONNECTORS.map((c) => c.key),
     ...Object.keys(map).filter((k) => map[k]?.logoUrl),
-  ])).filter((k) => connectorStatus(map, k) !== "DISABLED");
+  ])).filter((k) => connectorStatus(map, k) !== "DISABLED" && connectorOnLanding(map, k));
   const node = (k: string) => {
     const s = map[k];
     // eslint-disable-next-line @next/next/no-img-element

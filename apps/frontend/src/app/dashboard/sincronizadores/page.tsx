@@ -8,7 +8,7 @@ import {
   usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription,
   invalidatePlatformLogosCache, type PlatformLogoSetting,
 } from '@/lib/platformLogos';
-import { CONNECTORS, GROUP_LABELS, connectorStatus, type ConnectorGroup, type ConnectorStatus } from '@/lib/connectors';
+import { CONNECTORS, GROUP_LABELS, connectorStatus, VisibilityBadge, type ConnectorGroup, type ConnectorStatus } from '@/lib/connectors';
 import { PlatformEditModal } from '@/components/PlatformEditModal';
 import { confirmDialog } from '../ConfirmDialog';
 
@@ -92,7 +92,7 @@ export default function SincronizadoresPage() {
               return (
                 <div key={c.key} className={`relative rounded-2xl border-2 bg-white p-5 transition-all hover:shadow-md ${
                   status === 'AVAILABLE' ? 'border-green-400' : status === 'SOON' ? 'border-[var(--brand)]/40' : 'border-gray-200'}`}>
-                  <button type="button" onClick={() => setEditing(c.key)} title="Editar nombre, descripción y logo"
+                  <button type="button" onClick={() => setEditing(c.key)} title="Editar nombre, descripción, logo y visibilidad"
                     className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700">
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -106,7 +106,10 @@ export default function SincronizadoresPage() {
                   </div>
                   <h3 className="ui-section-title mb-1">{name}</h3>
                   <p className="text-xs leading-relaxed text-gray-500">{resolvePlatformDescription(map, c.key, c.description)}</p>
-                  <p className="mt-2 text-[11px] text-gray-400">{used ? `${used} empresa(s) lo usan` : 'Sin empresas conectadas'}</p>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-gray-400">{used ? `${used} empresa(s) lo usan` : 'Sin empresas conectadas'}</p>
+                    <VisibilityBadge map={map} k={c.key} />
+                  </div>
                   {/* Estado: tres opciones */}
                   <div role="radiogroup" aria-label={`Estado de ${name}`} className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 text-[11px] font-semibold">
                     {STATUS.map((s) => (

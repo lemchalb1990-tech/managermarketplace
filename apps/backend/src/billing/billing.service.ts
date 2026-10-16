@@ -85,8 +85,10 @@ export class BillingService {
     const cId = this.resolveCompanyId(user, dto);
     // Solo se conectan facturadores disponibles (el Super Admin puede probar cualquiera).
     if (user.role !== 'SUPER_ADMIN') {
-      const row = await this.prisma.platformSetting.findUnique({ where: { platform: String(dto.provider).toLowerCase() }, select: { status: true } });
+      const row = await this.prisma.platformSetting.findUnique({ where: { platform: String(dto.provider).toLowerCase() }, select: { status: true, visibility: true, allowedCompanyIds: true } });
       if (row?.status && row.status !== 'AVAILABLE') throw new ForbiddenException('Este facturador no está disponible por ahora');
+      // Reservado: solo las empresas que eligió el Super Admin.
+      if (row?.visibility === 'RESERVED' && !row.allowedCompanyIds.includes(cId)) throw new ForbiddenException('Este facturador no está disponible por ahora');
     }
     const conn = await this.prisma.billingConnection.create({
       data: {

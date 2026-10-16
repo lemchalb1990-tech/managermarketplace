@@ -1,13 +1,13 @@
 'use client';
 
-import { connectorStatus } from '@/lib/connectors';
+import { connectorStatus, connectorVisibleTo, VisibilityBadge } from '@/lib/connectors';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Logos } from './components/logos';
-import { invalidatePlatformLogosCache, logoScaleStyle, viewScale } from '@/lib/platformLogos';
-import { PlatformLogoField } from '@/components/PlatformLogoField';
+import { logoScaleStyle, viewScale, useReservedPlatforms } from '@/lib/platformLogos';
+import { PlatformEditModal } from '@/components/PlatformEditModal';
 import { useAdminCompany } from '../AdminCompanyContext';
 
 const DEFAULT_PLATFORMS = [
@@ -88,17 +88,13 @@ function hasModule(user: any, moduleKey: string): boolean {
   return userMods.includes(moduleKey);
 }
 
-const emptyEdit = { displayName: '', description: '', logoUrl: '', logoScale: 100, logoScales: null as Record<string, number> | null };
-
 export default function EcommercePage() {
   const { selectedCompanyId } = useAdminCompany();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customSettings, setCustomSettings] = useState<Record<string, any>>({});
   const [activeMarketplaces, setActiveMarketplaces] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState(emptyEdit);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const reserved = useReservedPlatforms();
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
@@ -136,39 +132,7 @@ export default function EcommercePage() {
   }, [selectedCompanyId]);
 
   function openEdit(id: string) {
-    const c = customSettings[id];
-    setEditForm({
-      displayName: c?.displayName || '',
-      description: c?.description || '',
-      logoUrl: c?.logoUrl || '',
-      logoScale: c?.logoScale || 100,
-      logoScales: c?.logoScales || null,
-    });
     setEditingId(id);
-    setSaveError('');
-  }
-
-  async function handleSave() {
-    if (!editingId) return;
-    setSaving(true);
-    setSaveError('');
-    try {
-      const token = getToken()!;
-      const updated = await api.settings.platforms.update(editingId, {
-        displayName: editForm.displayName.trim() || undefined,
-        description: editForm.description.trim() || undefined,
-        logoUrl: editForm.logoUrl.trim() || undefined,
-        logoScale: editForm.logoScale,
-        logoScales: editForm.logoScales || undefined,
-      }, token);
-      setCustomSettings((prev) => ({ ...prev, [editingId]: updated }));
-      invalidatePlatformLogosCache();
-      setEditingId(null);
-    } catch (err: any) {
-      setSaveError(err.message || 'Error al guardar');
-    } finally {
-      setSaving(false);
-    }
   }
 
   const platforms = DEFAULT_PLATFORMS.map((p) => {
@@ -200,6 +164,8 @@ export default function EcommercePage() {
           // Estado definido por el Super Admin en Sincronizadores.
           const st = connectorStatus(customSettings, p.id);
           if (!isSuperAdmin && st === 'DISABLED' && !isActive) return null;
+          // Reservado: solo las empresas elegidas (quien ya lo tiene conectado lo sigue viendo).
+          if (!connectorVisibleTo(customSettings, p.id, reserved) && !isActive) return null;
           const locked = !isSuperAdmin && st === 'SOON' && !isActive;
           return (
             <Link key={p.id} href={p.href} aria-disabled={locked} className={`block group ${locked ? 'pointer-events-none opacity-70' : ''}`}>
@@ -211,6 +177,7 @@ export default function EcommercePage() {
                     {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
                   </span>
                 )}
+                {isSuperAdmin && <VisibilityBadge map={customSettings} k={p.id} className="absolute right-12 top-3" />}
 
                 {isSuperAdmin && (
                   <button
@@ -252,71 +219,17 @@ export default function EcommercePage() {
         )}
       </div>
 
-      {/* Modal edición (solo Super Admin) */}
+      {/* Edición de nombre, descripción, logo y visibilidad (solo Super Admin) */}
       {editingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="ui-section-title">
-                Editar — {DEFAULT_PLATFORMS.find(p => p.id === editingId)?.name}
-              </h2>
-              <button onClick={() => setEditingId(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Nombre de la plataforma</label>
-                <input
-                  value={editForm.displayName}
-                  onChange={(e) => setEditForm((f) => ({ ...f, displayName: e.target.value }))}
-                  placeholder={DEFAULT_PLATFORMS.find(p => p.id === editingId)?.name}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">Deja vacío para usar el nombre por defecto.</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Descripción</label>
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder={DEFAULT_PLATFORMS.find(p => p.id === editingId)?.description}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Logo</label>
-                <PlatformLogoField
-                  platform={editingId}
-                  name={editForm.displayName || DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.name || ''}
-                  logoUrl={editForm.logoUrl}
-                  logoScale={editForm.logoScale}
-                  logoScales={editForm.logoScales}
-                  fallback={Logos[editingId]}
-                  onChange={(v) => setEditForm((f) => ({ ...f, ...v }))}
-                />
-              </div>
-
-              {saveError && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{saveError}</p>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
-              <button onClick={() => setEditingId(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
-                {saving ? 'Guardando...' : 'Guardar cambios'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PlatformEditModal
+          platform={editingId}
+          defaultName={DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.name || editingId}
+          defaultDescription={DEFAULT_PLATFORMS.find((p) => p.id === editingId)?.description || ''}
+          current={customSettings[editingId]}
+          fallback={Logos[editingId]}
+          onClose={() => setEditingId(null)}
+          onSaved={(u) => { setCustomSettings((prev) => ({ ...prev, [u.platform]: u })); setEditingId(null); }}
+        />
       )}
     </div>
   );

@@ -124,7 +124,10 @@ export class PaymentsService {
     const prev = await this.prisma.paymentConnection.findUnique({ where: { companyId_provider: { companyId, provider } } });
     // Una pasarela no disponible (Próximamente / Desactivado) solo la conecta el Super Admin;
     // quien ya la tenía conectada puede seguir editándola.
-    if (!isSuperAdmin(user) && !prev && (await this.settings.platformStatus(PAYMENT_PLATFORM_KEY[provider])) !== 'AVAILABLE') {
+    if (!isSuperAdmin(user) && !prev && (
+      (await this.settings.platformStatus(PAYMENT_PLATFORM_KEY[provider])) !== 'AVAILABLE'
+      || !(await this.settings.platformVisibleTo(PAYMENT_PLATFORM_KEY[provider], companyId))
+    )) {
       throw new ForbiddenException(`${PAYMENT_PROVIDER_NAMES[provider]} no está disponible por ahora`);
     }
     // Las credenciales vacías no borran las guardadas (el formulario no las muestra).

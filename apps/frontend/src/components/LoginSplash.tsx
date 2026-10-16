@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useLoginSplash, resetLoginSplash, type LoginSplashState } from '@/lib/loginSplash';
 import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
-import { connectorStatus } from '@/lib/connectors';
+import { connectorOnLanding, connectorStatus } from '@/lib/connectors';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
 
 // Tiempo mínimo a la vista para que la animación se alcance a leer, y tope por si el
@@ -65,7 +65,7 @@ function Splash({ s }: { s: LoginSplashState }) {
   }, [ready]);
 
   const known = (s.channels ?? []).filter((k) => Logos[k]);
-  const channels = s.channels === null ? [] : (known.length ? known : FALLBACK.filter((k) => connectorStatus(logoMap, k) === 'AVAILABLE')).slice(0, MAX_CHANNELS);
+  const channels = s.channels === null ? [] : (known.length ? known : FALLBACK.filter((k) => connectorStatus(logoMap, k) === 'AVAILABLE' && connectorOnLanding(logoMap, k))).slice(0, MAX_CHANNELS);
   const origin = s.origin ? `${s.origin.x}px ${s.origin.y}px` : '50% 50%';
 
   return (

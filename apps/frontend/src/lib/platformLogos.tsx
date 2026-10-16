@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from './api';
+import { getToken, getUser } from './auth';
 
 export type PlatformLogoSetting = {
   platform: string;
@@ -11,6 +12,10 @@ export type PlatformLogoSetting = {
   logoScale?: number;
   logoScales?: Record<string, number> | null;
   status?: string | null;
+  // PUBLIC (landing y clientes) | INTERNAL (solo clientes) | RESERVED (empresas elegidas). Null = PUBLIC.
+  visibility?: string | null;
+  // Solo en la lista del Super Admin (GET /settings/platforms).
+  allowedCompanyIds?: string[];
 };
 
 // Vistas donde se muestra un logo; cada una puede tener su propio tamaño.
@@ -48,6 +53,29 @@ function fetchMap(): Promise<LogoMap> {
 // ya montadas dejen de mostrar el valor viejo en cache.
 export function invalidatePlatformLogosCache() {
   cache = null;
+}
+
+/**
+ * Sincronizadores reservados que puede ver la empresa del usuario. null = Super Admin (ve todos,
+ * con la etiqueta «Reservado»).
+ */
+export function useReservedPlatforms(): Set<string> | null {
+  const [reserved, setReserved] = useState<Set<string> | null>(new Set());
+  useEffect(() => {
+    let mounted = true;
+    const user = getUser();
+    const token = getToken();
+    if (user?.role === 'SUPER_ADMIN') {
+      const id = requestAnimationFrame(() => { if (mounted) setReserved(null); });
+      return () => { mounted = false; cancelAnimationFrame(id); };
+    }
+    if (!token) return;
+    api.settings.platforms.access(token)
+      .then((keys) => { if (mounted) setReserved(new Set(keys)); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+  return reserved;
 }
 
 export function usePlatformLogos(): LogoMap {

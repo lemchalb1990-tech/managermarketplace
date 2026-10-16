@@ -414,9 +414,33 @@ export class SettingsService implements OnModuleInit {
     return this.prisma.platformSetting.findMany({ orderBy: { platform: 'asc' } });
   }
 
-  async upsertPlatformSetting(platform: string, input: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number>; status?: string }) {
-    const { logoScales, ...rest } = input;
+  // Versión pública (landing, login y panel): sin la lista de empresas de los reservados.
+  async getPublicPlatformSettings() {
+    const rows = await this.getPlatformSettings();
+    return rows.map(({ allowedCompanyIds: _ids, ...r }) => r);
+  }
+
+  /** Claves de los sincronizadores reservados que puede ver una empresa. */
+  async reservedPlatformsFor(companyId: string | null): Promise<string[]> {
+    if (!companyId) return [];
+    const rows = await this.prisma.platformSetting.findMany({
+      where: { visibility: 'RESERVED', allowedCompanyIds: { has: companyId } },
+      select: { platform: true },
+    });
+    return rows.map((r) => r.platform);
+  }
+
+  /** ¿La empresa puede ver (y conectar) este sincronizador? Reservado = solo las empresas elegidas. */
+  async platformVisibleTo(key: string, companyId: string | null): Promise<boolean> {
+    const row = await this.prisma.platformSetting.findUnique({ where: { platform: key }, select: { visibility: true, allowedCompanyIds: true } });
+    if (row?.visibility !== 'RESERVED') return true;
+    return !!companyId && row.allowedCompanyIds.includes(companyId);
+  }
+
+  async upsertPlatformSetting(platform: string, input: { displayName?: string; description?: string; logoUrl?: string; logoScale?: number; logoScales?: Record<string, number>; status?: string; visibility?: string; allowedCompanyIds?: string[] }) {
+    const { logoScales, allowedCompanyIds, ...rest } = input;
     const data: Record<string, unknown> = { ...rest };
+    if (allowedCompanyIds !== undefined) data.allowedCompanyIds = Array.from(new Set(allowedCompanyIds.filter(Boolean)));
     if (logoScales !== undefined) {
       // Solo vistas conocidas y valores dentro del rango que permite el editor.
       const clean: Record<string, number> = {};

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePlatformLogos } from "@/lib/platformLogos";
-import { connectorStatus } from "@/lib/connectors";
+import { connectorOnLanding, connectorStatus } from "@/lib/connectors";
 
 const LINE = "1px solid rgba(0,0,0,0.08)";
 const BLUE = "#0075de";
@@ -147,7 +147,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   const [step, setStep] = useState(0);
   // Solo los canales disponibles (los desactivados o "próximamente" no aparecen en la animación).
   const platforms = usePlatformLogos();
-  const channels = CHANNELS.filter((c) => connectorStatus(platforms, c.key) === "AVAILABLE");
+  const channels = CHANNELS.filter((c) => connectorStatus(platforms, c.key) === "AVAILABLE" && connectorOnLanding(platforms, c.key));
   const sales = SALES.filter((x) => channels.some((c) => c.key === CHANNELS[x.ch].key));
   const areaRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);

@@ -1,13 +1,13 @@
 'use client';
 
-import { connectorStatus } from '@/lib/connectors';
+import { connectorStatus, connectorVisibleTo, VisibilityBadge } from '@/lib/connectors';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken, getUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { BillingLogos } from './components/logos';
 import { useBillingCompany } from './BillingCompanyContext';
-import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { useReservedPlatforms, usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
 import { PlatformEditModal } from '@/components/PlatformEditModal';
 
 const PROVIDERS = [
@@ -65,6 +65,7 @@ export default function BillingPage() {
   // Cambios guardados en esta página: se ven al tiro, sin esperar a recargar.
   const [saved, setSaved] = useState<Record<string, PlatformLogoSetting>>({});
   const logoMap = { ...sharedLogos, ...saved };
+  const reserved = useReservedPlatforms();
   const [activeProviders, setActiveProviders] = useState<Set<string>>(new Set());
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -131,6 +132,8 @@ export default function BillingPage() {
           // Estado definido por el Super Admin en Sincronizadores.
           const st = connectorStatus(logoMap, p.id);
           if (!isSuperAdmin && st === 'DISABLED' && !isActive) return null;
+          // Reservado: solo las empresas elegidas (quien ya lo tiene conectado lo sigue viendo).
+          if (!connectorVisibleTo(logoMap, p.id, reserved) && !isActive) return null;
           const locked = !isSuperAdmin && st === 'SOON' && !isActive;
           return (
             <Link key={p.id} href={p.href} aria-disabled={locked} className={`block group ${locked ? 'pointer-events-none opacity-70' : ''}`}>
@@ -142,6 +145,7 @@ export default function BillingPage() {
                     {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
                   </span>
                 )}
+                {isSuperAdmin && <VisibilityBadge map={logoMap} k={p.id} className="absolute right-12 top-3" />}
                 {isSuperAdmin && (
                   <button
                     onClick={(e) => { e.preventDefault(); setEditingId(p.id); }}

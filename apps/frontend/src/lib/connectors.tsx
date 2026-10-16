@@ -58,6 +58,41 @@ export const CONNECTORS: Connector[] = [
 
 export const CONNECTOR_BY_KEY: Record<string, Connector> = Object.fromEntries(CONNECTORS.map((c) => [c.key, c]));
 
+export type ConnectorVisibility = 'PUBLIC' | 'INTERNAL' | 'RESERVED';
+
+export const VISIBILITY_LABELS: Record<ConnectorVisibility, string> = {
+  PUBLIC: 'Publicado',
+  INTERNAL: 'Interno',
+  RESERVED: 'Reservado',
+};
+
+// Visibilidad: Publicado (landing y clientes), Interno (solo clientes) o Reservado (empresas elegidas).
+export function connectorVisibility(map: Record<string, { visibility?: string | null } | undefined>, key: string): ConnectorVisibility {
+  const v = map[key]?.visibility as ConnectorVisibility | undefined;
+  return v === 'INTERNAL' || v === 'RESERVED' ? v : 'PUBLIC';
+}
+
+// ¿Lo ve este cliente en el panel? reserved = claves reservadas habilitadas para su empresa
+// (useReservedPlatforms); null = Super Admin, que ve todos.
+export function connectorVisibleTo(map: Record<string, { visibility?: string | null } | undefined>, key: string, reserved: Set<string> | null): boolean {
+  if (reserved === null) return true;
+  return connectorVisibility(map, key) !== 'RESERVED' || reserved.has(key);
+}
+
+// Etiqueta para el Super Admin cuando el sincronizador no es público.
+export function VisibilityBadge({ map, k, className = '' }: { map: Record<string, { visibility?: string | null } | undefined>; k: string; className?: string }) {
+  const v = connectorVisibility(map, k);
+  if (v === 'PUBLIC') return null;
+  return (
+    <span className={`z-10 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 ${className}`}>{VISIBILITY_LABELS[v]}</span>
+  );
+}
+
+// ¿Aparece en la landing y el login? Solo los publicados que no están desactivados.
+export function connectorOnLanding(map: Record<string, { status?: string | null; visibility?: string | null } | undefined>, key: string): boolean {
+  return connectorVisibility(map, key) === 'PUBLIC';
+}
+
 // Estado efectivo: el guardado por el Super Admin o el valor por defecto del sincronizador.
 export function connectorStatus(map: Record<string, { status?: string | null } | undefined>, key: string): ConnectorStatus {
   const saved = map[key]?.status as ConnectorStatus | undefined;

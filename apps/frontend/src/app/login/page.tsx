@@ -1,6 +1,6 @@
 'use client';
 
-import { connectorStatus } from '@/lib/connectors';
+import { connectorOnLanding, connectorStatus } from '@/lib/connectors';
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -151,7 +151,7 @@ export default function LoginPage() {
         <div>
           <p className="mb-3 text-[13px] font-medium text-white/60">Tus principales canales</p>
           <div className="flex items-center gap-2.5">
-            {brandChannels.filter((k) => connectorStatus(logoMap, k) === 'AVAILABLE').map((k, i) => (
+            {brandChannels.filter((k) => connectorStatus(logoMap, k) === 'AVAILABLE' && connectorOnLanding(logoMap, k)).map((k, i) => (
               <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
                 <span className="h-full w-full overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{resolvePlatformLogo(logoMap, k, Logos[k], k, 'login')}</span>
               </span>

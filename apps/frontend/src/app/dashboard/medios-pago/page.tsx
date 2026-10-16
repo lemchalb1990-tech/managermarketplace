@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, type PaymentConnectionInfo, type PaymentProviderKey } from '@/lib/api';
-import { connectorStatus } from '@/lib/connectors';
-import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { connectorStatus, connectorVisibleTo, VisibilityBadge } from '@/lib/connectors';
+import { useReservedPlatforms, usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
 import { PlatformEditModal } from '@/components/PlatformEditModal';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog } from '../ConfirmDialog';
@@ -47,6 +47,7 @@ export default function PaymentMethodsPage() {
   const sharedLogos = usePlatformLogos();
   const [savedLogos, setSavedLogos] = useState<Record<string, PlatformLogoSetting>>({});
   const logoMap = { ...sharedLogos, ...savedLogos };
+  const reserved = useReservedPlatforms();
   const [editingInfo, setEditingInfo] = useState<PaymentProviderKey | null>(null);
   const infoProvider = PROVIDERS.find((p) => p.id === editingInfo);
 
@@ -113,6 +114,8 @@ export default function PaymentMethodsPage() {
           // Estado definido por el Super Admin en Sincronizadores.
           const st = connectorStatus(logoMap, p.key);
           if (!isSuperAdmin && st === 'DISABLED' && !conn) return null;
+          // Reservado: solo las empresas elegidas (quien ya lo tiene conectado lo sigue viendo).
+          if (!connectorVisibleTo(logoMap, p.key, reserved) && !conn) return null;
           const noCompany = isSuperAdmin && !companyId;
           const locked = noCompany || (loaded && !enabled) || (!isSuperAdmin && st !== 'AVAILABLE' && !conn);
           return (
@@ -126,8 +129,13 @@ export default function PaymentMethodsPage() {
                     {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
                   </span>
                 )}
-                {conn?.settings?.environment === 'test' && (
-                  <span className={`absolute ${isSuperAdmin ? 'right-12' : 'right-3'} top-3 z-10 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700`}>Modo prueba</span>
+                {(conn?.settings?.environment === 'test' || isSuperAdmin) && (
+                  <div className={`absolute ${isSuperAdmin ? 'right-12' : 'right-3'} top-3 z-10 flex gap-1`}>
+                    {isSuperAdmin && <VisibilityBadge map={logoMap} k={p.key} />}
+                    {conn?.settings?.environment === 'test' && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Modo prueba</span>
+                    )}
+                  </div>
                 )}
                 {isSuperAdmin && (
                   <button
