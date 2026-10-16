@@ -9,6 +9,7 @@ import { hasModule } from '@/lib/modules';
 import { navGroups, visibleNavGroups } from './navConfig';
 import { can } from '@/lib/permissions';
 import { MessagesIndicator } from './MessagesIndicator';
+import { AssistantWidget } from './AssistantWidget';
 import { AdminCompanyProvider } from './AdminCompanyContext';
 import { CompanyGate, HeaderCompanyPicker } from './CompanyGate';
 import { NotificationsProvider, NotificationBell, NotificationToasts, SoundEnableBanner } from './Notifications';
@@ -280,6 +281,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <NotificationToasts />
         <SoundEnableBanner />
+        <AssistantWidget user={user} />
       </NotificationsProvider>
     </AdminCompanyProvider>
     </DialogProvider>

@@ -167,6 +167,14 @@ export const SETTING_DEFINITIONS: { key: string; label: string; group: string; h
     default: '5',
   },
   {
+    key: 'AI_ASSISTANT_MONTHLY_LIMIT',
+    label: 'Consultas del asistente por empresa al mes',
+    group: 'ia',
+    hint: 'Cuántas preguntas puede hacerle cada empresa al asistente con IA en un mes calendario.',
+    sensitive: false,
+    default: '300',
+  },
+  {
     key: 'NOTIF_SOUND_SALE',
     label: 'Sonido — Nueva venta',
     group: 'notificaciones',

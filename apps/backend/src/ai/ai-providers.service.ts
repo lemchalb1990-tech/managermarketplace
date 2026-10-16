@@ -13,7 +13,9 @@ export class AiProvidersService {
   constructor(private settings: SettingsService) {}
 
   private async taskProvider(task: AiTask) {
-    const id = await this.settings.get(AI_TASKS[task].settingKey);
+    // Asistente y transcripción: si nadie los asignó, usan su proveedor por defecto (Claude / OpenAI).
+    const assigned = await this.settings.get(AI_TASKS[task].settingKey);
+    const id = assigned || (task === 'ASSISTANT' || task === 'TRANSCRIBE' ? AI_TASKS[task].defaultProvider : '');
     const def = id ? providerById(id) : undefined;
     if (!def || !def.tasks.includes(task)) {
       throw new BadRequestException(`No hay una IA asignada para "${AI_TASKS[task].label}" (Administrador de plataforma → Inteligencia artificial).`);
@@ -41,6 +43,12 @@ export class AiProvidersService {
     return out;
   }
 
+  /** API key y modelo para el asistente (Claude) o la transcripción de audio (OpenAI). */
+  async credentialsFor(task: 'ASSISTANT' | 'TRANSCRIBE') {
+    const p = await this.taskProvider(task);
+    return { providerId: p.def.id, key: p.key, model: p.model };
+  }
+
   async checkPhoto(image: ImageData, ctx: PhotoCheckContext): Promise<PhotoVerdict> {
     const p = await this.taskProvider('PHOTO_CHECK');
     return p.adapter.check!(p.key, p.model, image, ctx, p.extra);
@@ -60,7 +68,9 @@ export class AiProvidersService {
 
   async overview() {
     const assigned: Record<string, string> = {};
-    for (const [task, t] of Object.entries(AI_TASKS)) assigned[task] = await this.settings.get(t.settingKey);
+    for (const [task, t] of Object.entries(AI_TASKS)) {
+      assigned[task] = (await this.settings.get(t.settingKey)) || (task === 'ASSISTANT' || task === 'TRANSCRIBE' ? t.defaultProvider : '');
+    }
     const providers = await Promise.all(AI_PROVIDERS.map(async (p) => {
       const models: Record<string, { value: string; default: string; label: string; hint: string }> = {};
       for (const [task, m] of Object.entries(p.models)) {

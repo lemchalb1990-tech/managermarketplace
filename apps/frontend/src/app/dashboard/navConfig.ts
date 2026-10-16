@@ -30,6 +30,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard/pos', label: 'Punto de Venta', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/pos/ordenes-trabajo', label: 'Órdenes de trabajo', perm: 'pos.work-orders', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
+      { href: '/dashboard/cobranza', label: 'Cobranza recurrente', perm: 'cobranza', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'cobranza' },
       { href: '/dashboard/cobros', label: 'Cobros en línea', perm: 'payments', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos', planFeature: 'ONLINE_PAYMENTS' },
       { href: '/dashboard/pos/cierre-caja', label: 'Cierre de caja', perm: 'pos', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR'], module: 'pos' },
       { href: '/dashboard/clientes', label: 'Registro de Clientes', perm: 'clientes', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER'], module: null },

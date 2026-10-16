@@ -2,7 +2,7 @@
 // La API key y los modelos se guardan en la configuración del sistema (grupo "ia"); qué
 // proveedor hace cada tarea se guarda en AI_TASK_<TAREA>.
 
-export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
+export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE' | 'ASSISTANT' | 'TRANSCRIBE';
 
 export const AI_TASKS: Record<AiTask, { label: string; description: string; settingKey: string; defaultProvider: string }> = {
   PHOTO_CHECK: {
@@ -21,6 +21,18 @@ export const AI_TASKS: Record<AiTask, { label: string; description: string; sett
     label: 'Crear imagen de referencia',
     description: 'Genera una imagen del producto a partir del título, con fondo blanco, para usar de referencia cuando no hay una foto adecuada.',
     settingKey: 'AI_TASK_PHOTO_GENERATE',
+    defaultProvider: 'openai',
+  },
+  ASSISTANT: {
+    label: 'Asistente',
+    description: 'Responde las consultas del asistente virtual (ventas, stock, órdenes, cobranza…) con los datos de la empresa. Solo consulta, no modifica nada.',
+    settingKey: 'AI_TASK_ASSISTANT',
+    defaultProvider: 'anthropic',
+  },
+  TRANSCRIBE: {
+    label: 'Transcribir audio',
+    description: 'Convierte en texto las notas de voz que se le dictan al asistente.',
+    settingKey: 'AI_TASK_TRANSCRIBE',
     defaultProvider: 'openai',
   },
 };
@@ -52,8 +64,9 @@ export const AI_PROVIDERS: ProviderDef[] = [
     description: 'Modelos GPT con visión y GPT Image para editar y crear imágenes. Hace todas las tareas.',
     keyUrl: 'https://platform.openai.com/api-keys',
     apiKeySetting: 'OPENAI_API_KEY',
-    tasks: ['PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE'],
+    tasks: ['PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE', 'TRANSCRIBE'],
     taskNotes: {
+      TRANSCRIBE: 'Cobra por minuto de audio; las notas de voz suelen durar segundos.',
       PHOTO_CHECK: 'Cobra por tokens; la foto se envía en baja resolución para que cueste poco.',
       PHOTO_FIX: 'Edita la foto real con alta fidelidad: fondo blanco, centrado y quita textos o marcas de agua. Es la opción más cara por foto.',
       PHOTO_GENERATE: 'Crea la imagen solo desde el título: es una representación, no la foto del producto real.',
@@ -62,21 +75,24 @@ export const AI_PROVIDERS: ProviderDef[] = [
       PHOTO_CHECK: { settingKey: 'OPENAI_VISION_MODEL', default: 'gpt-5-mini', label: 'Modelo para revisar', hint: 'Ej: gpt-5-mini' },
       PHOTO_FIX: { settingKey: 'OPENAI_IMAGE_MODEL', default: 'gpt-image-1.5', label: 'Modelo para corregir', hint: 'Ej: gpt-image-1.5' },
       PHOTO_GENERATE: { settingKey: 'OPENAI_GENERATE_MODEL', default: 'gpt-image-1.5', label: 'Modelo para crear imágenes', hint: 'Ej: gpt-image-1.5' },
+      TRANSCRIBE: { settingKey: 'OPENAI_TRANSCRIBE_MODEL', default: 'gpt-4o-mini-transcribe', label: 'Modelo para transcribir', hint: 'Ej: gpt-4o-mini-transcribe o whisper-1' },
     },
   },
   {
     id: 'anthropic',
     name: 'Claude',
     company: 'Anthropic',
-    description: 'Modelos Claude con visión. Solo revisa fotos: no genera ni edita imágenes.',
+    description: 'Modelos Claude con visión. Revisa fotos y atiende el asistente virtual; no genera ni edita imágenes.',
     keyUrl: 'https://console.anthropic.com/settings/keys',
     apiKeySetting: 'ANTHROPIC_API_KEY',
-    tasks: ['PHOTO_CHECK'],
+    tasks: ['PHOTO_CHECK', 'ASSISTANT'],
     taskNotes: {
+      ASSISTANT: 'Cobra por tokens de cada consulta (las herramientas leen solo lo necesario).',
       PHOTO_CHECK: 'Cobra por tokens (la imagen cuenta como tokens de entrada). claude-haiku-5-5 es la opción más económica.',
     },
     models: {
       PHOTO_CHECK: { settingKey: 'ANTHROPIC_VISION_MODEL', default: 'claude-opus-5-5', label: 'Modelo para revisar', hint: 'Ej: claude-opus-5-5 o claude-haiku-5-5' },
+      ASSISTANT: { settingKey: 'ANTHROPIC_ASSISTANT_MODEL', default: 'claude-opus-5-5', label: 'Modelo del asistente', hint: 'Ej: claude-opus-5-5' },
     },
   },
   {

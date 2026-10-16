@@ -51,6 +51,9 @@ const POLL_CHECK_MS = 4000;
 
 const OPEN: PaymentRequestStatus[] = [PaymentRequestStatus.PENDING];
 
+// Aviso al módulo de cobranza recurrente cuando se paga el link de una cuota.
+export type RecurringChargePaidHandler = (chargeId: string, info: { method: PaymentMethod; reference: string | null; collectedById: string | null }) => Promise<void>;
+
 export interface CreatePaymentRequestDto extends CreateSaleDto {
   provider: PaymentProvider;
   remote?: boolean;
@@ -61,6 +64,12 @@ export interface CreatePaymentRequestDto extends CreateSaleDto {
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  private recurringHandler: RecurringChargePaidHandler | null = null;
+
+  /** El módulo de cobranza se registra al iniciar para recibir los pagos de sus cuotas. */
+  onRecurringChargePaid(handler: RecurringChargePaidHandler) {
+    this.recurringHandler = handler;
+  }
 
   constructor(
     private prisma: PrismaService,
@@ -258,6 +267,43 @@ export class PaymentsService {
     });
   }
 
+  /**
+   * Link de pago de una cuota de cobranza recurrente. Un solo link vigente por cuota: si ya hay
+   * uno pendiente con la misma pasarela, se reutiliza. `user` puede ser el sistema (avisos por correo).
+   */
+  async createForRecurringCharge(user: any, chargeId: string, dto: { provider: PaymentProvider; expiresInHours?: number }) {
+    assertIntegrationsEnabled();
+    const provider = this.provider(dto.provider);
+    const charge = await this.prisma.recurringCharge.findUnique({
+      where: { id: chargeId },
+      include: { subscription: { select: { name: true } }, client: { select: { name: true, email: true, phone: true } }, company: { select: { name: true } } },
+    });
+    if (!charge || (user && !isSuperAdmin(user) && user.companyId && charge.companyId !== user.companyId)) throw new NotFoundException('Cuota no encontrada');
+    if (charge.status !== 'PENDING') throw new BadRequestException('La cuota ya no está pendiente');
+    const amount = Math.round(Number(charge.amount));
+    if (provider === PaymentProvider.FLOW && amount < FLOW_MIN_AMOUNT) throw new BadRequestException(`Flow acepta cobros desde $${FLOW_MIN_AMOUNT}`);
+    await this.assertFeature(charge.companyId);
+    const conn = await this.prisma.paymentConnection.findUnique({ where: { companyId_provider: { companyId: charge.companyId, provider } } });
+    if (!conn || !conn.active) throw new BadRequestException(`${PAYMENT_PROVIDER_NAMES[provider]} no está conectado en esta empresa`);
+    const open = await this.prisma.paymentRequest.findFirst({
+      where: { recurringChargeId: chargeId, provider, status: PaymentRequestStatus.PENDING, expiresAt: { gt: new Date() } },
+      include: { sale: { select: { saleNumber: true } }, workOrder: { select: { folio: true } } },
+    });
+    if (open && Number(open.amount) === amount) return this.view(open);
+    const hours = Math.min(168 * 2, Math.max(1, Math.round(Number(dto.expiresInHours) || 168)));
+    return this.startCharge(user || { id: null, name: 'Cobranza automática' }, conn, {
+      provider, amount, remote: true,
+      expiresAt: new Date(Date.now() + hours * 3600_000),
+      chargeEmail: charge.client.email || (provider === PaymentProvider.FLOW ? user?.email : null) || null,
+      subject: `${charge.subscription.name} — cuota ${charge.number} — ${charge.company?.name || 'tienda'}`,
+      data: {
+        saleData: {} as Prisma.InputJsonValue,
+        customerName: charge.client.name, customerEmail: charge.client.email, customerPhone: charge.client.phone,
+        recurringChargeId: chargeId,
+      },
+    }, charge.companyId);
+  }
+
   /** Link para cobrar el saldo de una venta con abono (fabricación): al pagarse suma el pago a esa venta. */
   async createForSaleBalance(user: any, saleId: string, dto: { provider: PaymentProvider; expiresInHours?: number }) {
     assertIntegrationsEnabled();
@@ -344,7 +390,7 @@ export class PaymentsService {
     conn: { id: string; companyId: string; credentials: Prisma.JsonValue | null; settings: Prisma.JsonValue | null },
     o: {
       provider: PaymentProvider; amount: number; remote: boolean; expiresAt: Date; chargeEmail: string | null; subject: string;
-      data: { saleData: Prisma.InputJsonValue; customerName: string | null; customerEmail: string | null; customerPhone: string | null; workOrderId?: string; balanceSaleId?: string };
+      data: { saleData: Prisma.InputJsonValue; customerName: string | null; customerEmail: string | null; customerPhone: string | null; workOrderId?: string; balanceSaleId?: string; recurringChargeId?: string };
     },
     companyId = conn.companyId,
   ) {
@@ -566,6 +612,17 @@ export class PaymentsService {
     if (!r || r.status !== PaymentRequestStatus.PROCESSING) return;
     const externalId = `PAY-${r.id}`;
     const method = r.provider === PaymentProvider.FLOW ? PaymentMethod.FLOW : PaymentMethod.MERCADO_PAGO;
+    // Cuota de cobranza recurrente: el módulo de cobranza registra el pago (venta y documento).
+    if (r.recurringChargeId) {
+      try {
+        if (!this.recurringHandler) throw new Error('El módulo de cobranza no está disponible');
+        await this.recurringHandler(r.recurringChargeId, { method, reference: r.providerPaymentId, collectedById: r.createdById });
+        await this.prisma.paymentRequest.update({ where: { id }, data: { status: PaymentRequestStatus.PAID, error: null } });
+      } catch (e: any) {
+        await this.prisma.paymentRequest.update({ where: { id }, data: { status: PaymentRequestStatus.NEEDS_REVIEW, error: `Pagado, pero no se pudo registrar en la cuota: ${e?.message || e}` } });
+      }
+      return;
+    }
     // Saldo de una venta con abono: no crea otra venta, suma el pago a la existente.
     if (r.balanceSaleId) {
       try {

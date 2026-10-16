@@ -5,7 +5,9 @@ import { getToken } from '@/lib/auth';
 import { api, type AiProviderInfo, type AiProvidersOverview, type AiTask } from '@/lib/api';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
 
-const TASK_ICON: Record<AiTask, string> = { PHOTO_CHECK: '🔍', PHOTO_FIX: '✨', PHOTO_GENERATE: '🎨' };
+const TASK_ICON: Record<AiTask, string> = { PHOTO_CHECK: '🔍', PHOTO_FIX: '✨', PHOTO_GENERATE: '🎨', ASSISTANT: '💬', TRANSCRIBE: '🎙️' };
+// Tareas que descuentan créditos de IA del plan (el asistente tiene su propio límite mensual).
+const CREDIT_TASKS: AiTask[] = ['PHOTO_CHECK', 'PHOTO_FIX', 'PHOTO_GENERATE'];
 const PROVIDER_COLOR: Record<string, string> = {
   openai: 'bg-gray-900 text-white',
   anthropic: 'bg-orange-100 text-orange-700',
@@ -22,8 +24,11 @@ export default function ProvidersSection() {
   const [data, setData] = useState<AiProvidersOverview | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<AiProviderInfo | null>(null);
-  const [costs, setCosts] = useState<Record<AiTask, string>>({ PHOTO_CHECK: '', PHOTO_FIX: '', PHOTO_GENERATE: '' });
+  const [costs, setCosts] = useState<Partial<Record<AiTask, string>>>({ PHOTO_CHECK: '', PHOTO_FIX: '', PHOTO_GENERATE: '' });
   const [savingCosts, setSavingCosts] = useState(false);
+  // Consultas del asistente por empresa al mes (AI_ASSISTANT_MONTHLY_LIMIT).
+  const [assistantLimit, setAssistantLimit] = useState('');
+  const [limitMsg, setLimitMsg] = useState('');
   const [costsMsg, setCostsMsg] = useState('');
 
   async function load() {
@@ -37,6 +42,21 @@ export default function ProvidersSection() {
   }
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    api.settings.list(getToken()!)
+      .then((rows: Array<{ key: string; value: string | null }>) => setAssistantLimit(rows.find((r) => r.key === 'AI_ASSISTANT_MONTHLY_LIMIT')?.value || '300'))
+      .catch(() => setAssistantLimit('300'));
+  }, []);
+
+  async function saveAssistantLimit() {
+    try {
+      await api.settings.update([{ key: 'AI_ASSISTANT_MONTHLY_LIMIT', value: String(Math.max(1, Number(assistantLimit) || 300)) }], getToken()!);
+      setLimitMsg('✓ Guardado');
+      setTimeout(() => setLimitMsg(''), 2500);
+    } catch (e: any) {
+      setError(e.message || 'No se pudo guardar el límite.');
+    }
+  }
 
   async function saveCosts() {
     setSavingCosts(true);
@@ -86,11 +106,23 @@ export default function ProvidersSection() {
                     Usos: {data.stats[t].today} hoy · {data.stats[t].month} este mes · {data.stats[t].total} en total
                   </p>
                 )}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500">{t === 'PHOTO_GENERATE' ? 'Créditos por imagen' : 'Créditos por foto'}</label>
-                  <input type="number" min={0} value={costs[t]} onChange={(e) => setCosts((c) => ({ ...c, [t]: e.target.value }))}
-                    className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
-                </div>
+                {CREDIT_TASKS.includes(t) ? (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-500">{t === 'PHOTO_GENERATE' ? 'Créditos por imagen' : 'Créditos por foto'}</label>
+                    <input type="number" min={0} value={costs[t] ?? ''} onChange={(e) => setCosts((c) => ({ ...c, [t]: e.target.value }))}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                ) : (
+                  t === 'ASSISTANT' ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-xs text-gray-500">Consultas por empresa al mes</label>
+                      <input type="number" min={1} value={assistantLimit} onChange={(e) => setAssistantLimit(e.target.value)}
+                        className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm" />
+                      <button type="button" onClick={saveAssistantLimit} className="text-xs font-medium text-blue-600 hover:underline">Guardar</button>
+                      {limitMsg && <span className="text-xs text-green-600">{limitMsg}</span>}
+                    </div>
+                  ) : <p className="text-[11px] text-gray-400">Se usa para las notas de voz del asistente.</p>
+                )}
               </div>
             );
           })}

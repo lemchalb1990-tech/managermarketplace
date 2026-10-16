@@ -48,7 +48,7 @@ export const PERMISSION_GROUPS: {
   {
     key: 'inicio',
     label: 'Inicio',
-    items: [{ key: 'dashboard', label: 'Panel de inicio' }],
+    items: [{ key: 'dashboard', label: 'Panel de inicio' }, { key: 'assistant', label: 'Asistente con IA' }],
   },
   {
     key: 'ventas',
@@ -61,6 +61,8 @@ export const PERMISSION_GROUPS: {
       { key: 'pos', label: 'Punto de venta' },
       { key: 'pos.work-orders', label: 'Órdenes de trabajo' },
       { key: 'payments', label: 'Cobros en línea (Flow / Mercado Pago)' },
+      { key: 'cobranza', label: 'Cobranza recurrente: cuotas y pagos' },
+      { key: 'cobranza.manage', label: 'Cobranza recurrente: crear y editar suscripciones' },
       { key: 'clientes', label: 'Clientes' },
     ],
   },
@@ -205,6 +207,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.SUPER_ADMIN]: ['*'],
   [Role.COMPANY_ADMIN]: [
     'dashboard',
+    'assistant',
+    'cobranza',
+    'cobranza.manage',
     'production',
     'production.config',
     'orders',
@@ -258,6 +263,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   ],
   [Role.CATALOG_MANAGER]: [
     'dashboard',
+    'assistant',
+    'cobranza',
+    'cobranza.manage',
     'production',
     'production.config',
     'orders',
@@ -298,6 +306,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     ...PRODUCT_FIELD_ALL_KEYS,
   ],
   [Role.VENDEDOR]: [
+    'assistant',
+    'cobranza',
     'production',
     'orders',
     'orders.scan',
@@ -383,6 +393,7 @@ export const PAGE_ROLES: Record<string, Role[]> = {
   purchases: CA_CM, suppliers: CA_CM, rentabilidad: CA_CM,
   finance: ANY,
   payments: CA_CM_V, production: ANY, 'production.config': CA_CM,
+  assistant: ANY, cobranza: CA_CM_V, 'cobranza.manage': CA_CM,
   'warehouse.board': ANY, 'warehouse.picking': ANY, 'warehouse.packing': ANY,
   despachos: CA_CM, 'mis-rutas': [Role.DESPACHADOR],
   'drivers.fleet': ANY, 'drivers.metrics': ANY, 'drivers.payments': ANY, 'drivers.zones': ANY,

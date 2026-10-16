@@ -24,6 +24,8 @@ const ALL_COMPANY_MODULES = [
   { key: 'ecommerce_walmart', label: 'Walmart', description: 'Marketplace Walmart Chile' },
   { key: 'pos', label: 'Punto de Venta', description: 'Terminal de ventas físicas' },
   { key: 'orders', label: 'Órdenes', description: 'Preparación, picking, packing y entrega. Sin él, las ventas del punto de venta quedan entregadas al cobrar y Órdenes solo la ven los administradores' },
+  { key: 'asistente_ia', label: 'Asistente con IA', description: 'Chat que responde consultas sobre ventas, stock, órdenes, fabricación, deudores y caja con los datos de la empresa. Acepta notas de voz' },
+  { key: 'cobranza', label: 'Cobranza recurrente', description: 'Suscripciones por cliente con cuotas automáticas, avisos por correo con link de pago, venta y boleta/factura al pagar, y estado de cuenta' },
   { key: 'produccion', label: 'Fabricación', description: 'Productos fabricados a pedido o para stock, reparaciones, procesos por rubro, materiales, costos y seguimiento del cliente' },
   { key: 'variable_price', label: 'Precio variable', description: 'Productos cuyo precio real se ingresa al cobrar en el punto de venta (por línea o por combo)' },
   { key: 'sales', label: 'Ventas', description: 'Historial y resumen de ventas' },

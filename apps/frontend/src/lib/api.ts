@@ -370,6 +370,34 @@ export type ProductionPublicView = {
   events: Array<{ message: string; createdAt: string }>;
 };
 
+// ── Asistente con IA ──
+export type AssistantMessageInfo = { id: string; role: 'user' | 'assistant'; text: string; viaVoice: boolean; createdAt: string };
+export type AssistantConversationInfo = { id: string; title: string | null; turns: number; updatedAt: string };
+
+// ── Cobranza recurrente ──
+export type RecurringFrequency = 'WEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+export type RecurringLine = { productId?: string | null; description: string; quantity: number; unitPrice: number };
+export type RecurringSubscriptionInfo = {
+  id: string; name: string; description: string | null; lines: RecurringLine[]; amount: number;
+  frequency: RecurringFrequency; frequencyLabel: string; billingDay: number; startDate: string; endDate: string | null; nextBillingDate: string;
+  dueDays: number; dteType: string | null; billingConnectionId: string | null; paymentProvider: 'FLOW' | 'MERCADO_PAGO' | null;
+  sendReminders: boolean; remindBeforeDays: number; remindEveryDays: number; status: 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'ENDED';
+  notes: string | null; createdAt: string; createdByName: string | null;
+  client: { id: string; name: string; rut: string | null; email: string | null; phone: string | null } | null;
+  pendingCount: number; pendingAmount: number; overdueCount: number;
+  charges?: RecurringChargeInfo[];
+};
+export type RecurringChargeInfo = {
+  id: string; number: number; periodStart: string; periodEnd: string; issueDate: string; dueDate: string; amount: number;
+  description: string | null; lines: RecurringLine[] | null; status: 'PENDING' | 'PAID' | 'CANCELLED'; overdue: boolean;
+  paidAt: string | null; paymentMethod: string | null; paymentReference: string | null; saleId: string | null; invoiceId: string | null;
+  error: string | null; remindersSent: number; lastReminderAt: string | null; cancelledAt: string | null; cancelReason: string | null;
+  subscription: { id: string; name: string; paymentProvider: 'FLOW' | 'MERCADO_PAGO' | null } | null;
+  client: { id: string; name: string; email: string | null; phone: string | null; rut: string | null } | null;
+};
+type Amt = { amount: number; count: number };
+export type RecurringSummary = { overdue: Amt; upcomingWeek: Amt; paidThisMonth: Amt; pending: Amt; activeSubscriptions: number };
+
 // Query string sin los parámetros vacíos.
 const qs = (params: Record<string, string | number | undefined | null>) => {
   const q = new URLSearchParams();
@@ -1995,6 +2023,49 @@ export const api = {
     publicStatus: (id: string) =>
       apiFetch<{ status: PaymentRequestStatus; amount: number; companyName: string | null; providerName: string; paymentUrl: string | null }>(`/payments/public/${id}`),
   },
+  // Asistente con IA (módulo «asistente_ia»).
+  assistant: {
+    status: (token: string, companyId?: string) =>
+      apiFetch<{ enabled: boolean; limit: number; used: number; remaining: number }>(`/assistant/status${qs({ companyId })}`, {}, token),
+    conversations: (token: string, companyId?: string) => apiFetch<AssistantConversationInfo[]>(`/assistant/conversations${qs({ companyId })}`, {}, token),
+    conversation: (id: string, token: string) =>
+      apiFetch<{ id: string; title: string | null; turns: number; maxTurns: number; messages: AssistantMessageInfo[] }>(`/assistant/conversations/${id}`, {}, token),
+    deleteConversation: (id: string, token: string) => apiFetch<{ ok: boolean }>(`/assistant/conversations/${id}`, { method: 'DELETE' }, token),
+    ask: (data: { companyId?: string; conversationId?: string | null; text: string; viaVoice?: boolean }, token: string) =>
+      apiFetch<{ conversationId: string; reply: string; remaining: number }>('/assistant/ask', { method: 'POST', body: JSON.stringify(data) }, token),
+    transcribe: (audio: Blob, token: string, companyId?: string) => {
+      const form = new FormData();
+      const ext = audio.type.includes('ogg') ? 'ogg' : audio.type.includes('mp4') ? 'm4a' : 'webm';
+      form.append('file', audio, `nota.${ext}`);
+      return fetch(`${API_URL}/api/assistant/transcribe${qs({ companyId })}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+        .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || 'No se pudo transcribir'); return r.json() as Promise<{ text: string }>; });
+    },
+  },
+  // Cobranza recurrente (módulo «cobranza»).
+  recurring: {
+    summary: (token: string, companyId?: string) => apiFetch<RecurringSummary>(`/recurring/summary${qs({ companyId })}`, {}, token),
+    subscriptions: (token: string, params: Record<string, string | undefined> = {}) => apiFetch<RecurringSubscriptionInfo[]>(`/recurring/subscriptions${qs(params)}`, {}, token),
+    subscription: (id: string, token: string) => apiFetch<RecurringSubscriptionInfo>(`/recurring/subscriptions/${id}`, {}, token),
+    createSubscription: (data: Record<string, unknown>, token: string) =>
+      apiFetch<RecurringSubscriptionInfo>('/recurring/subscriptions', { method: 'POST', body: JSON.stringify(data) }, token),
+    updateSubscription: (id: string, data: Record<string, unknown>, token: string) =>
+      apiFetch<RecurringSubscriptionInfo>(`/recurring/subscriptions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    setStatus: (id: string, status: 'ACTIVE' | 'PAUSED' | 'CANCELLED', token: string) =>
+      apiFetch<RecurringSubscriptionInfo>(`/recurring/subscriptions/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }, token),
+    generate: (id: string, token: string) => apiFetch<RecurringSubscriptionInfo>(`/recurring/subscriptions/${id}/generate`, { method: 'POST' }, token),
+    charges: (token: string, params: Record<string, string | number | undefined> = {}) =>
+      apiFetch<{ items: RecurringChargeInfo[]; total: number; page: number; pages: number }>(`/recurring/charges${qs(params)}`, {}, token),
+    pay: (id: string, data: { method: string; reference?: string }, token: string) =>
+      apiFetch<RecurringChargeInfo>(`/recurring/charges/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }, token),
+    cancel: (id: string, reason: string, token: string) =>
+      apiFetch<RecurringChargeInfo>(`/recurring/charges/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }, token),
+    remind: (id: string, token: string) => apiFetch<RecurringChargeInfo>(`/recurring/charges/${id}/remind`, { method: 'POST' }, token),
+    link: (id: string, provider: PaymentProviderKey | undefined, token: string) =>
+      apiFetch<PaymentRequestInfo>(`/recurring/charges/${id}/link`, { method: 'POST', body: JSON.stringify({ provider }) }, token),
+    retry: (id: string, token: string) => apiFetch<RecurringChargeInfo>(`/recurring/charges/${id}/retry`, { method: 'POST' }, token),
+    statement: (clientId: string, token: string, companyId?: string) =>
+      apiFetch<{ client: { id: string; name: string; rut: string | null; email: string | null; phone: string | null }; totals: { debt: number; overdue: number; paid: number }; subscriptions: RecurringSubscriptionInfo[]; charges: RecurringChargeInfo[] }>(`/recurring/clients/${clientId}/statement${qs({ companyId })}`, {}, token),
+  },
   // Fabricación (módulo «produccion»).
   production: {
     settings: (token: string, companyId?: string) => apiFetch<ProductionSettings>(`/production/settings${qs({ companyId })}`, {}, token),
@@ -2205,7 +2276,7 @@ export interface AiCreditsStatus {
   ready: Record<AiTask, boolean>;
 }
 
-export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE';
+export type AiTask = 'PHOTO_CHECK' | 'PHOTO_FIX' | 'PHOTO_GENERATE' | 'ASSISTANT' | 'TRANSCRIBE';
 
 export interface AiUsageReport extends AiCreditsStatus {
   stats: Record<string, { today: number; month: number; total: number }>;

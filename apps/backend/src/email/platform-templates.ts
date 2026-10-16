@@ -159,5 +159,6 @@ export const EMAIL_TYPE_LABELS: Record<string, string> = {
   INVOICE: 'Documento tributario',
   WORK_ORDER: 'Orden de trabajo',
   PAYMENT_LINK: 'Link de pago',
+  RECURRING_CHARGE: 'Aviso de cobro (cobranza recurrente)',
   DROPSHIP_ORDER: 'Pedido a proveedor (dropshipping)',
 };

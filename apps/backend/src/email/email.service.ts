@@ -504,6 +504,31 @@ export class EmailService {
     this.logger.log(`Orden de trabajo enviada → ${to}`);
   }
 
+  /** Aviso de cobro de una cuota de cobranza recurrente (por vencer o vencida), con link de pago opcional. */
+  async sendRecurringChargeEmail(companyId: string, to: string, data: {
+    clientName: string; serviceName: string; description?: string | null; number: number; amount: number;
+    issueDate: Date; dueDate: Date; overdue: boolean; paymentUrl?: string | null;
+  }): Promise<void> {
+    const transporter = await this.getTransporter(companyId);
+    if (!transporter) throw new Error('Configura el servidor SMTP primero');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
+    const companyName = company?.name ?? 'Tienda';
+    const from = await this.getFromAddress(companyId);
+    const amount = `$${Math.round(data.amount).toLocaleString('es-CL')}`;
+    const fmt = (d: Date) => d.toLocaleDateString('es-CL', { timeZone: 'America/Santiago', day: 'numeric', month: 'long', year: 'numeric' });
+    const bodyHtml = shell(
+      `<h2 style="margin:0 0 12px;font-size:20px;color:#1f2937;">Hola ${data.clientName.split(' ')[0] || ''}, ${data.overdue ? 'tienes un pago vencido' : 'te recordamos tu próximo pago'}</h2>
+       <p style="color:#374151;font-size:15px;"><strong>${data.serviceName}</strong> — cuota ${data.number}</p>
+       ${data.description ? `<p style="color:#6b7280;font-size:14px;">${data.description}</p>` : ''}
+       <p style="color:#374151;font-size:15px;">Monto: <strong>${amount}</strong><br/>Fecha de facturación: ${fmt(data.issueDate)}<br/>${data.overdue ? 'Venció' : 'Vence'} el <strong>${fmt(data.dueDate)}</strong></p>
+       ${data.paymentUrl ? `<p style="margin:20px 0;"><a href="${data.paymentUrl}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;">Pagar ${amount}</a></p>` : ''}
+       <p style="color:#9ca3af;font-size:13px;">Si ya pagaste, puedes ignorar este mensaje.</p>`,
+      companyName,
+    );
+    const subject = data.overdue ? `Pago vencido: ${data.serviceName} — ${companyName}` : `Recordatorio de pago: ${data.serviceName} — ${companyName}`;
+    await this.deliver(companyId, 'RECURRING_CHARGE', transporter, { from, to, subject, html: bodyHtml });
+  }
+
   /** Link de pago en línea (Flow / Mercado Pago) generado desde el punto de venta. */
   async sendPaymentLinkEmail(companyId: string, to: string, data: { amount: number; url: string; providerName: string; expiresAt: Date; customerName?: string | null }): Promise<void> {
     const transporter = await this.getTransporter(companyId);

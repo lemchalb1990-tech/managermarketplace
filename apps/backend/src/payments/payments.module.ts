@@ -10,5 +10,6 @@ import { PaymentsService } from './payments.service';
   imports: [PrismaModule, PosModule, SettingsModule, EmailModule],
   controllers: [PaymentsController],
   providers: [PaymentsService],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

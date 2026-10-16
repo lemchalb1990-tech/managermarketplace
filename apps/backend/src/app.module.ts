@@ -38,6 +38,8 @@ import { CouriersModule } from './couriers/couriers.module';
 import { OrderAuditModule } from './order-audit/order-audit.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductionModule } from './production/production.module';
+import { AssistantModule } from './assistant/assistant.module';
+import { RecurringModule } from './recurring/recurring.module';
 
 @Module({
   imports: [
@@ -80,6 +82,8 @@ import { ProductionModule } from './production/production.module';
     OrderAuditModule,
     PaymentsModule,
     ProductionModule,
+    AssistantModule,
+    RecurringModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
