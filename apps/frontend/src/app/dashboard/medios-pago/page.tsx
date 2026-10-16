@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, type PaymentConnectionInfo, type PaymentProviderKey } from '@/lib/api';
+import { connectorStatus } from '@/lib/connectors';
+import { usePlatformLogos, resolvePlatformLogo, resolvePlatformName, resolvePlatformDescription, type PlatformLogoSetting } from '@/lib/platformLogos';
+import { PlatformEditModal } from '@/components/PlatformEditModal';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { confirmDialog } from '../ConfirmDialog';
 import { Modal, btnPrimary, btnSecondary, inputCls, labelCls, FormError } from '@/components/ui/Modal';
+import { PaymentLogos } from './logos';
 
 type Field = { key: string; label: string; hint?: string; secret?: boolean };
 
-const PROVIDERS: Array<{ id: PaymentProviderKey; name: string; color: string; initials: string; description: string; help: string; fields: Field[] }> = [
+// key = clave de PlatformSetting (logo, nombre, descripción y estado que edita el Super Admin).
+const PROVIDERS: Array<{ id: PaymentProviderKey; key: string; name: string; description: string; help: string; fields: Field[] }> = [
   {
-    id: 'FLOW', name: 'Flow', color: '#1f1f7a', initials: 'flow',
+    id: 'FLOW', key: 'flow', name: 'Flow',
     description: 'Webpay, tarjetas, transferencias y más medios chilenos a través de tu cuenta Flow.',
     help: 'En flow.cl entra a Mis datos → Integraciones → Credenciales y copia la API Key y la Secret Key. Para pruebas usa las de sandbox.flow.cl.',
     fields: [
@@ -20,7 +25,7 @@ const PROVIDERS: Array<{ id: PaymentProviderKey; name: string; color: string; in
     ],
   },
   {
-    id: 'MERCADO_PAGO', name: 'Mercado Pago', color: '#009ee3', initials: 'MP',
+    id: 'MERCADO_PAGO', key: 'mercadopago', name: 'Mercado Pago',
     description: 'Tarjetas, dinero en cuenta y cuotas con Checkout Pro de Mercado Pago.',
     help: 'En mercadopago.cl/developers entra a Tus integraciones → tu aplicación → Credenciales de producción y copia el Access Token. Para pruebas usa las credenciales de prueba.',
     fields: [
@@ -38,6 +43,12 @@ export default function PaymentMethodsPage() {
   const [editing, setEditing] = useState<PaymentProviderKey | null>(null);
   const [testing, setTesting] = useState<PaymentProviderKey | null>(null);
   const [testMsg, setTestMsg] = useState<Record<string, { ok: boolean; message: string }>>({});
+  // Nombre, descripción y logo editables (Super Admin), igual que E-commerce, Facturación y Couriers.
+  const sharedLogos = usePlatformLogos();
+  const [savedLogos, setSavedLogos] = useState<Record<string, PlatformLogoSetting>>({});
+  const logoMap = { ...sharedLogos, ...savedLogos };
+  const [editingInfo, setEditingInfo] = useState<PaymentProviderKey | null>(null);
+  const infoProvider = PROVIDERS.find((p) => p.id === editingInfo);
 
   // El rol se lee en el navegador (evita diferencias con el render del servidor).
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -83,7 +94,7 @@ export default function PaymentMethodsPage() {
       </div>
 
       {isSuperAdmin && !companyId && (
-        <p className="text-sm text-gray-500">Selecciona una empresa en la barra superior.</p>
+        <p className="mb-4 text-sm text-gray-500">Selecciona una empresa en la barra superior para conectar sus cuentas. Puedes editar el nombre, la descripción y el logo con el lápiz.</p>
       )}
 
       {loaded && !enabled && (
@@ -92,41 +103,59 @@ export default function PaymentMethodsPage() {
         </div>
       )}
 
-      {(!isSuperAdmin || companyId) && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {PROVIDERS.map((p) => {
-            const conn = conns.find((c) => c.provider === p.id);
-            const isActive = !!conn?.active;
-            const msg = testMsg[p.id];
-            const locked = loaded && !enabled;
-            return (
-              <div key={p.id} role="button" tabIndex={0}
-                onClick={() => { if (!locked) setEditing(p.id); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !locked) setEditing(p.id); }}
-                className={`block group ${locked ? 'cursor-default opacity-60' : 'cursor-pointer'}`}>
-                <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'}`}>
-                  {conn?.settings?.environment === 'test' && (
-                    <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Modo prueba</span>
-                  )}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold text-white ${isActive ? '' : 'grayscale opacity-60'}`}
-                      style={{ background: p.color }}>
-                      {p.initials}
-                    </div>
-                    <div>
-                      <h2 className="ui-section-title">{p.name}</h2>
-                      <p className={`text-xs font-medium ${isActive ? 'text-green-600' : conn ? 'text-gray-400' : 'text-gray-400'}`}>
-                        {isActive ? 'Conectado' : conn ? 'Desactivado' : 'Sin conectar'}
-                      </p>
-                    </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {PROVIDERS.map((p) => {
+          const conn = conns.find((c) => c.provider === p.id);
+          const isActive = !!conn?.active;
+          const displayName = resolvePlatformName(logoMap, p.key, p.name);
+          const displayDescription = resolvePlatformDescription(logoMap, p.key, p.description);
+          const msg = testMsg[p.id];
+          // Estado definido por el Super Admin en Sincronizadores.
+          const st = connectorStatus(logoMap, p.key);
+          if (!isSuperAdmin && st === 'DISABLED' && !conn) return null;
+          const noCompany = isSuperAdmin && !companyId;
+          const locked = noCompany || (loaded && !enabled) || (!isSuperAdmin && st !== 'AVAILABLE' && !conn);
+          return (
+            <div key={p.id} role="button" tabIndex={0}
+              onClick={() => { if (!locked) setEditing(p.id); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !locked) setEditing(p.id); }}
+              className={`block group ${locked ? 'cursor-default' : 'cursor-pointer'}`}>
+              <div className={`relative bg-white border-2 rounded-2xl p-5 transition-all hover:shadow-md ${isActive ? 'border-green-400' : 'border-gray-200 hover:border-gray-300'} ${locked && !noCompany ? 'opacity-70' : ''}`}>
+                {st !== 'AVAILABLE' && (
+                  <span className={`absolute left-3 top-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${st === 'SOON' ? 'bg-[var(--brand)] text-white' : 'bg-gray-700 text-white'}`}>
+                    {st === 'SOON' ? 'Próximamente' : 'Desactivado'}
+                  </span>
+                )}
+                {conn?.settings?.environment === 'test' && (
+                  <span className={`absolute ${isSuperAdmin ? 'right-12' : 'right-3'} top-3 z-10 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700`}>Modo prueba</span>
+                )}
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setEditingInfo(p.id); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
+                    title="Editar medio de pago"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
+                <div className="flex justify-center mb-4">
+                  <div className={`w-24 h-16 rounded-lg overflow-hidden transition-all ${isActive ? '' : 'grayscale opacity-50'}`}>
+                    {resolvePlatformLogo(logoMap, p.key, PaymentLogos[p.key], displayName)}
                   </div>
-                  <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
-                  {msg && (
-                    <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.message}</p>
-                  )}
+                </div>
+                <h2 className="ui-section-title mb-1">{displayName}</h2>
+                <p className="text-xs text-gray-500 leading-relaxed">{displayDescription}</p>
+                {msg && (
+                  <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.message}</p>
+                )}
+                {!noCompany && (
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className={`text-xs font-semibold group-hover:underline ${isActive ? 'text-green-600' : 'text-blue-600'}`}>
-                      {conn ? 'Gestionar conexión →' : 'Conectar →'}
+                    <p className={`text-xs font-semibold group-hover:underline ${isActive ? 'text-green-600' : 'text-blue-600 group-hover:text-blue-700'}`}>
+                      {conn ? (isActive ? 'Gestionar conexión →' : 'Conexión desactivada →') : 'Conectar →'}
                     </p>
                     {conn && (
                       <button type="button" onClick={(e) => { e.stopPropagation(); test(p.id); }} disabled={testing === p.id}
@@ -135,16 +164,29 @@ export default function PaymentMethodsPage() {
                       </button>
                     )}
                   </div>
-                </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {infoProvider && (
+        <PlatformEditModal
+          platform={infoProvider.key}
+          defaultName={infoProvider.name}
+          defaultDescription={infoProvider.description}
+          current={logoMap[infoProvider.key]}
+          fallback={PaymentLogos[infoProvider.key]}
+          onClose={() => setEditingInfo(null)}
+          onSaved={(u) => { setSavedLogos((m) => ({ ...m, [u.platform]: u })); setEditingInfo(null); }}
+        />
       )}
 
       {current && (
         <ProviderForm
           provider={current}
+          displayName={resolvePlatformName(logoMap, current.key, current.name)}
           conn={conns.find((c) => c.provider === current.id)}
           companyId={companyId}
           onClose={() => setEditing(null)}
@@ -155,8 +197,8 @@ export default function PaymentMethodsPage() {
   );
 }
 
-function ProviderForm({ provider, conn, companyId, onClose, onSaved }: {
-  provider: (typeof PROVIDERS)[number]; conn?: PaymentConnectionInfo; companyId?: string;
+function ProviderForm({ provider, displayName, conn, companyId, onClose, onSaved }: {
+  provider: (typeof PROVIDERS)[number]; displayName: string; conn?: PaymentConnectionInfo; companyId?: string;
   onClose: () => void; onSaved: () => void;
 }) {
   const [creds, setCreds] = useState<Record<string, string>>({});
@@ -184,7 +226,7 @@ function ProviderForm({ provider, conn, companyId, onClose, onSaved }: {
   }
 
   async function remove() {
-    if (!(await confirmDialog(`¿Quitar la conexión con ${provider.name}? Si ya tiene cobros, solo se desactiva.`, { danger: true }))) return;
+    if (!(await confirmDialog(`¿Quitar la conexión con ${displayName}? Si ya tiene cobros, solo se desactiva.`, { danger: true }))) return;
     setBusy(true);
     setError('');
     try {
@@ -197,7 +239,7 @@ function ProviderForm({ provider, conn, companyId, onClose, onSaved }: {
   }
 
   return (
-    <Modal title={`${conn ? 'Configurar' : 'Conectar'} ${provider.name}`} size="md" busy={busy} onClose={onClose} onSubmit={save}
+    <Modal title={`${conn ? 'Configurar' : 'Conectar'} ${displayName}`} size="md" busy={busy} onClose={onClose} onSubmit={save}
       footer={(
         <>
           {conn && (
@@ -234,7 +276,7 @@ function ProviderForm({ provider, conn, companyId, onClose, onSaved }: {
           Conexión activa (se ofrece en el punto de venta)
         </label>
         <p className="text-[11px] leading-relaxed text-gray-400">
-          Las credenciales se guardan cifradas. Los avisos de pago se configuran solos en cada cobro (no hay que registrar ninguna URL en {provider.name}).
+          Las credenciales se guardan cifradas. Los avisos de pago se configuran solos en cada cobro (no hay que registrar ninguna URL en {displayName}).
         </p>
         <FormError message={error} />
       </div>

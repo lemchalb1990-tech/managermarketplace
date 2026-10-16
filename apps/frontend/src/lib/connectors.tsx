@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 import { Logos } from '@/app/dashboard/ecommerce/components/logos';
 import { BillingLogos } from '@/app/dashboard/billing/components/logos';
 import { CourierLogos } from '@/app/dashboard/couriers/logos';
+import { PaymentLogos } from '@/app/dashboard/medios-pago/logos';
 
 // Registro único de los sincronizadores del sistema. La clave es la misma de PlatformSetting
 // (logo, nombre y estado editables por el Super Admin). Un sincronizador nuevo se agrega aquí.
 
 export type ConnectorStatus = 'AVAILABLE' | 'SOON' | 'DISABLED';
-export type ConnectorGroup = 'ecommerce' | 'billing' | 'couriers' | 'dropshipping';
+export type ConnectorGroup = 'ecommerce' | 'billing' | 'couriers' | 'payments' | 'dropshipping';
 
 export type Connector = {
   key: string;
@@ -23,6 +24,7 @@ export const GROUP_LABELS: Record<ConnectorGroup, string> = {
   ecommerce: 'E-commerce',
   billing: 'Facturación',
   couriers: 'Couriers',
+  payments: 'Medios de pago',
   dropshipping: 'Dropshipping',
 };
 
@@ -49,6 +51,8 @@ export const CONNECTORS: Connector[] = [
   { key: 'chilexpress', name: 'Chilexpress', group: 'couriers', description: 'Cotiza, emite y sigue envíos.', logo: CourierLogos.chilexpress, defaultStatus: 'DISABLED' },
   { key: 'starken', name: 'Starken', group: 'couriers', description: 'Órdenes de flete y seguimiento.', logo: CourierLogos.starken, defaultStatus: 'DISABLED' },
   { key: 'bluexpress', name: 'Blue Express', group: 'couriers', description: 'Órdenes de servicio y seguimiento.', logo: CourierLogos.bluexpress, defaultStatus: 'DISABLED' },
+  { key: 'flow', name: 'Flow', group: 'payments', description: 'Cobros con link o QR (Webpay, tarjetas, transferencias).', logo: PaymentLogos.flow, defaultStatus: 'AVAILABLE' },
+  { key: 'mercadopago', name: 'Mercado Pago', group: 'payments', description: 'Cobros con link o QR (Checkout Pro).', logo: PaymentLogos.mercadopago, defaultStatus: 'AVAILABLE' },
   { key: 'dropship-noriega_api', name: 'API Noriega', group: 'dropshipping', description: 'Catálogo del proveedor por API.', logo: DropLogo, defaultStatus: 'AVAILABLE' },
 ];
 

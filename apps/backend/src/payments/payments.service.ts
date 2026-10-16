@@ -34,6 +34,9 @@ const CREDENTIAL_KEYS: Record<PaymentProvider, string[]> = {
   MERCADO_PAGO: ['accessToken', 'publicKey'],
 };
 
+// Clave de PlatformSetting (logo, nombre y estado que define el Super Admin en Sincronizadores).
+export const PAYMENT_PLATFORM_KEY: Record<PaymentProvider, string> = { FLOW: 'flow', MERCADO_PAGO: 'mercadopago' };
+
 // Función del plan comercial que habilita los cobros en línea.
 export const ONLINE_PAYMENTS_FEATURE = 'ONLINE_PAYMENTS';
 
@@ -119,6 +122,11 @@ export class PaymentsService {
     const companyId = resolveCompanyId(user, dto.companyId);
     await this.assertFeature(companyId);
     const prev = await this.prisma.paymentConnection.findUnique({ where: { companyId_provider: { companyId, provider } } });
+    // Una pasarela no disponible (Próximamente / Desactivado) solo la conecta el Super Admin;
+    // quien ya la tenía conectada puede seguir editándola.
+    if (!isSuperAdmin(user) && !prev && (await this.settings.platformStatus(PAYMENT_PLATFORM_KEY[provider])) !== 'AVAILABLE') {
+      throw new ForbiddenException(`${PAYMENT_PROVIDER_NAMES[provider]} no está disponible por ahora`);
+    }
     // Las credenciales vacías no borran las guardadas (el formulario no las muestra).
     const credentials = { ...((prev?.credentials as Record<string, string>) || {}) };
     for (const k of CREDENTIAL_KEYS[provider]) {
@@ -164,7 +172,11 @@ export class PaymentsService {
     const cId = resolveCompanyId(user, companyId);
     if (!(await this.featureEnabled(cId))) return [];
     const rows = await this.prisma.paymentConnection.findMany({ where: { companyId: cId, active: true }, orderBy: { provider: 'asc' } });
+    // Desactivada por el Super Admin en Sincronizadores: no se ofrece en ninguna empresa.
+    const disabled = new Set<PaymentProvider>();
+    for (const r of rows) if ((await this.settings.platformStatus(PAYMENT_PLATFORM_KEY[r.provider])) === 'DISABLED') disabled.add(r.provider);
     return rows
+      .filter((r) => !disabled.has(r.provider))
       .filter((r) => CREDENTIAL_KEYS[r.provider].slice(0, 1).every((k) => !!(r.credentials as any)?.[k]))
       .map((r) => ({ provider: r.provider, name: PAYMENT_PROVIDER_NAMES[r.provider], environment: (r.settings as any)?.environment || 'prod' }));
   }

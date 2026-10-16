@@ -373,15 +373,17 @@ export class SettingsService implements OnModuleInit {
       }
       m.forEach((v, k) => add(k, v));
     };
-    const [mk, bill, cour, drop] = await Promise.all([
+    const [mk, bill, cour, drop, pay] = await Promise.all([
       this.prisma.marketplaceConnection.findMany({ select: { marketplace: true, companyId: true } }),
       this.prisma.billingConnection.findMany({ where: { active: true }, select: { provider: true, companyId: true } }),
       this.prisma.courierConnection.findMany({ where: { active: true }, select: { provider: true, companyId: true } }),
       this.prisma.dropshipSupplier.findMany({ select: { connectorType: true, companyId: true } }),
+      this.prisma.paymentConnection.findMany({ where: { active: true }, select: { provider: true, companyId: true } }),
     ]);
     group(mk, (r) => (r.marketplace === 'MERCADO_LIBRE' ? 'mercadolibre' : r.marketplace.toLowerCase()));
     group(bill, (r) => r.provider.toLowerCase());
     group(cour, (r) => r.provider.toLowerCase());
+    group(pay, (r) => r.provider.toLowerCase().replace('_', ''));
     group(drop.filter((d) => d.connectorType !== 'FEED'), (r) => `dropship-${r.connectorType.toLowerCase()}`);
     return out;
   }
