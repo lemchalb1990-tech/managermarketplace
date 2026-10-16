@@ -539,6 +539,8 @@ model Product {
   productionMaterialUses ProductionMaterialUse[]
 
   @@unique([sku, companyId])
+  // Catálogo: filtrar por empresa y ordenar por nombre (el único por SKU no sirve para esto).
+  @@index([companyId, name])
   @@map("products")
 }
 
@@ -903,6 +905,8 @@ model ProductImage {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  // Fotos de los productos del listado y de la ficha.
+  @@index([productId, order])
   @@map("product_images")
 }
 
@@ -1300,6 +1304,8 @@ model PurchaseItem {
 
   stockMovements StockMovement[]
 
+  // Conteo de compras por producto y costeo FIFO (lotes vivos por producto y bodega).
+  @@index([productId, warehouseId])
   @@map("purchase_items")
 }
 

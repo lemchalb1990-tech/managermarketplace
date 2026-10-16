@@ -307,9 +307,16 @@ export class CatalogService {
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
+        // Listado liviano: sin los textos largos ni los atributos de Mercado Libre (la ficha trae
+        // el producto completo al abrirla) y solo con la foto principal.
+        omit: { description: true, mlDescription: true, mlAttributes: true },
         include: {
-          images: { orderBy: { order: 'asc' } },
-          listings: { orderBy: { slot: 'asc' }, include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } } },
+          images: { orderBy: [{ isPrimary: 'desc' }, { order: 'asc' }], take: 1 },
+          listings: {
+            orderBy: { slot: 'asc' },
+            omit: { description: true, channelAttributes: true },
+            include: { connection: { select: { id: true, name: true, marketplace: true, active: true } } },
+          },
           channelPrices: { select: { price: true, connectionId: true } },
           warehouse: { select: { id: true, name: true } },
           productMaster: { select: { id: true, name: true, masterSku: true } },

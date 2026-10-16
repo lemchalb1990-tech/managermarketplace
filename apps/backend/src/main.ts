@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
+import * as compression from 'compression';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { frontendUrls } from './common/frontend-url.util';
@@ -10,6 +11,10 @@ import { runWithRequest } from './common/request-context';
 async function bootstrap() {
   installOutboundGuard();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Respuestas comprimidas (gzip): el JSON del catálogo y los listados baja varias veces su peso.
+  // Solo sobre 1 KB; las imágenes y PDF ya vienen comprimidos y la librería los salta.
+  app.use(compression({ threshold: 1024 }));
 
   // Contexto por petición: permite saber qué usuario inició una importación.
   app.use((req: any, _res: any, next: () => void) => runWithRequest(req, next));

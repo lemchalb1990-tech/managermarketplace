@@ -4,7 +4,7 @@ import MlAvailabilityField from './MlAvailabilityField';
 import { ProductionFields, SUPPLY_LABEL, emptyProductionForm, productionFormFrom, productionPayload } from './ProductionFields';
 import { useEffect, useState, FormEvent, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 import { ImportProgress } from '@/components/ImportProgress';
 import { api, imgUrl, ApiError } from '@/lib/api';
 import { hasModule, matchesModule, planAllows } from '@/lib/modules';
@@ -1858,19 +1858,22 @@ export default function CatalogPage() {
   async function load() {
     const token = getToken();
     if (!token) return;
-    const me = await api.me(token).catch(() => null);
-    setCurrentUser(me);
-    const [conns, generic, whs, cats] = await Promise.all([
+    // Todo en paralelo: los productos no dependen de las conexiones, bodegas ni categorías, y el
+    // rol (para saber si es Super Admin) ya está en la sesión guardada.
+    const productsReady = loadProducts(1, undefined, getUser()?.role === 'SUPER_ADMIN');
+    const [me, conns, generic, whs, cats] = await Promise.all([
+      api.me(token).catch(() => null),
       api.marketplace.connections(token, selectedCompanyId || undefined).catch(() => []),
       api.connections.list(token, selectedCompanyId ? { companyId: selectedCompanyId } : undefined).catch(() => []),
       api.warehouses.list(token, selectedCompanyId || undefined).catch(() => []),
       api.catalog.categories(token, selectedCompanyId || undefined).catch(() => []),
     ]);
+    setCurrentUser(me);
     setConnections(conns);
     setGenericConnections(generic);
     setWarehouses(whs);
     setCategories(cats);
-    await loadProducts(1, undefined, me?.role === 'SUPER_ADMIN');
+    await productsReady;
   }
 
   // La empresa activa (para Super Admin) ya está fijada antes de que esta página se
@@ -2060,6 +2063,22 @@ export default function CatalogPage() {
     finally { setAttrLoading(false); }
   }
 
+  // El listado es liviano (sin descripciones ni atributos de Mercado Libre): la ficha se abre con
+  // el producto completo. Si no se pudo traer, se abre con lo que hay en la fila.
+  const [openingId, setOpeningId] = useState('');
+  async function openProduct(p: any) {
+    if (openingId) return;
+    setOpeningId(p.id);
+    try {
+      const full = await api.catalog.get(p.id, getToken()!);
+      openModal({ ...p, ...full });
+    } catch {
+      openModal(p);
+    } finally {
+      setOpeningId('');
+    }
+  }
+
   function openModal(product: any) {
     setSelected(product);
     setPendingPublishTargets([]);
@@ -2156,7 +2175,7 @@ export default function CatalogPage() {
     const token = getToken()!;
     const refreshed = await api.catalog.get(id, token);
     setSelected(refreshed);
-    setProducts(ps => ps.map(p => p.id === refreshed.id ? refreshed : p));
+    setProducts(ps => ps.map(p => p.id === refreshed.id ? { ...p, ...refreshed } : p));
     return refreshed;
   }
 
@@ -3259,7 +3278,7 @@ export default function CatalogPage() {
           {!loading && products.map((p) => {
             const img = primaryImage(p);
             return (
-              <div key={p.id} onClick={() => openModal(p)}
+              <div key={p.id} onClick={() => openProduct(p)}
                 className="relative bg-white border border-gray-200 rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all">
                 {canSelectProducts && (
                   <input type="checkbox" checked={selectedIds.has(p.id)}
@@ -3375,7 +3394,7 @@ export default function CatalogPage() {
               // (max-width: 100% por defecto) desaparecía; ahora siempre se ve y cede el nombre.
               const imgSize = compact ? 'w-6 h-6 min-w-6' : 'w-10 h-10 min-w-10';
               return (
-                <tr key={p.id} onClick={() => openModal(p)} className="hover:bg-gray-50 cursor-pointer">
+                <tr key={p.id} onClick={() => openProduct(p)} className={`hover:bg-gray-50 cursor-pointer ${openingId === p.id ? 'opacity-60' : ''}`}>
                   {canSelectProducts && (
                     <td className={compact ? 'px-4 py-1' : 'px-4 py-2'} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.has(p.id)}
