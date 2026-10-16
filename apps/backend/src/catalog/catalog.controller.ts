@@ -209,17 +209,19 @@ export class CatalogController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const { filename, url } = await this.storage.persist(file);
+    const { filename, url } = await this.storage.persist(file, { owner: { category: 'products', table: 'products', id } });
     return this.service.addImage(id, filename, url, user);
   }
 
   @Delete('products/:id/images/:imageId')
-  removeImage(
+  async removeImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,
     @CurrentUser() user: any,
   ) {
-    return this.service.removeImage(id, imageId, user);
+    const removed = await this.service.removeImage(id, imageId, user);
+    void this.storage.releaseIfUnused([removed.url]).catch(() => {});
+    return removed;
   }
 
   @Patch('products/:id/images/:imageId/primary')

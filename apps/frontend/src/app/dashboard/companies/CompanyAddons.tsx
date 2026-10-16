@@ -6,6 +6,7 @@ export type AddonsState = {
   extraChannels: string;
   extraProducts: string;
   extraListings: string;
+  extraStorageMb: string;
   extraUsers: string;
   extraWarehouses: string;
   extraFeatures: string[];
@@ -18,6 +19,7 @@ export function addonsFromCompany(c: any): AddonsState {
     extraChannels: String(c.extraChannels ?? 0),
     extraProducts: String(c.extraProducts ?? 0),
     extraListings: String(c.extraListings ?? 0),
+    extraStorageMb: String(c.extraStorageMb ?? 0),
     extraUsers: String(c.extraUsers ?? 0),
     extraWarehouses: String(c.extraWarehouses ?? 0),
     extraFeatures: Array.isArray(c.extraFeatures) ? c.extraFeatures : [],
@@ -31,12 +33,13 @@ const toInt = (v: string) => Math.max(0, Math.trunc(Number(v) || 0));
 // Lo que se envía al guardar la empresa. Sin plan, los adicionales no aplican y se limpian.
 export function addonsPayload(a: AddonsState, hasPlan: boolean) {
   if (!hasPlan) {
-    return { extraChannels: 0, extraProducts: 0, extraListings: 0, extraUsers: 0, extraWarehouses: 0, extraFeatures: [], addonsMonthlyPrice: null, addonsNote: null };
+    return { extraChannels: 0, extraProducts: 0, extraListings: 0, extraStorageMb: 0, extraUsers: 0, extraWarehouses: 0, extraFeatures: [], addonsMonthlyPrice: null, addonsNote: null };
   }
   return {
     extraChannels: toInt(a.extraChannels),
     extraProducts: toInt(a.extraProducts),
     extraListings: toInt(a.extraListings),
+    extraStorageMb: toInt(a.extraStorageMb),
     extraUsers: toInt(a.extraUsers),
     extraWarehouses: toInt(a.extraWarehouses),
     extraFeatures: a.extraFeatures,
@@ -51,6 +54,7 @@ const RESOURCES = [
   { key: 'extraListings', plan: 'maxListings', label: 'Publicaciones' },
   { key: 'extraUsers', plan: 'maxUsers', label: 'Usuarios' },
   { key: 'extraWarehouses', plan: 'maxWarehouses', label: 'Bodegas' },
+  { key: 'extraStorageMb', plan: 'maxStorageMb', label: 'Almacenamiento (MB · 1 GB = 1.024)' },
 ] as const;
 
 const ALL_FEATURES = Object.keys(SUBSCRIPTION_FEATURE_LABEL) as SubscriptionFeature[];

@@ -284,7 +284,7 @@ export class FinanceService {
     const ext = EXT[file.mimetype];
     if (!ext) throw new BadRequestException('Tipo de archivo no permitido: usa PDF, JPG, PNG o WebP');
     const filename = `${randomUUID()}${ext}`;
-    const { url } = await this.storage.put(file.buffer, filename, file.mimetype, { folder: 'finance', private: true });
+    const { url } = await this.storage.put(file.buffer, filename, file.mimetype, { folder: 'finance', private: true, owner: { category: 'finance', companyId: m.companyId } });
     await this.deleteAttachmentFile(m.attachmentUrl);
     return this.prisma.financeMovement.update({ where: { id }, data: { attachmentUrl: url } });
   }

@@ -252,7 +252,7 @@ export class MlMessagesService {
     const companyId = user.role === Role.SUPER_ADMIN ? companyIdParam : user.companyId;
     if (!companyId) throw new BadRequestException('Selecciona una empresa');
     if (!RULE_IMAGE_TYPES.includes(file.mimetype)) throw new BadRequestException('Solo se aceptan imágenes JPG, PNG, WEBP o GIF');
-    const stored = await this.storage.persist(file, { folder: `ml-mensajes/${companyId}` });
+    const stored = await this.storage.persist(file, { folder: `ml-mensajes/${companyId}`, owner: { category: 'messages', companyId } });
     return { url: stored.url, name: file.originalname || stored.filename, type: file.mimetype, size: file.size };
   }
 

@@ -100,18 +100,20 @@ export class OrdersController {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
     // Foto de despacho: puede mostrar datos del comprador → archivo privado.
-    const { filename, url } = await this.storage.persist(file, { private: true });
+    const { filename, url } = await this.storage.persist(file, { private: true, owner: { category: 'dispatch', table: 'orders', id } });
     return this.service.addPhoto(id, filename, url, user);
   }
 
   @Delete(':id/photos/:photoId')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
-  removePhoto(
+  async removePhoto(
     @Param('id') id: string,
     @Param('photoId') photoId: string,
     @CurrentUser() user: any,
   ) {
-    return this.service.removePhoto(id, photoId, user);
+    const removed = await this.service.removePhoto(id, photoId, user);
+    void this.storage.releaseIfUnused([removed.url]).catch(() => {});
+    return removed;
   }
 
   @Delete(':id')

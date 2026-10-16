@@ -211,7 +211,7 @@ export class MlPhotoService {
     try {
       const fixed = await this.ai.fixPhoto(await this.download(img.url), (title?.trim() || product.name));
       const ext = fixed.mime === 'image/png' ? 'png' : 'jpg';
-      const { url } = await this.storage.put(fixed.bytes, `ai-fix-${img.id}-${Date.now()}.${ext}`, fixed.mime, { folder: FIX_FOLDER });
+      const { url } = await this.storage.put(fixed.bytes, `ai-fix-${img.id}-${Date.now()}.${ext}`, fixed.mime, { folder: FIX_FOLDER, owner: { category: 'products', companyId: product.companyId } });
       return { url, credits: await this.credits.status(product.companyId) };
     } catch (err) {
       await this.credits.refund(usageId);
@@ -235,7 +235,7 @@ export class MlPhotoService {
         .join('. ');
       const img = await this.ai.generatePhoto(finalTitle, description);
       const ext = img.mime === 'image/png' ? 'png' : 'jpg';
-      const { url } = await this.storage.put(img.bytes, `ai-gen-${productId}-${Date.now()}.${ext}`, img.mime, { folder: GENERATED_FOLDER });
+      const { url } = await this.storage.put(img.bytes, `ai-gen-${productId}-${Date.now()}.${ext}`, img.mime, { folder: GENERATED_FOLDER, owner: { category: 'products', companyId: product.companyId } });
       return { url, credits: await this.credits.status(product.companyId) };
     } catch (err) {
       await this.credits.refund(usageId);

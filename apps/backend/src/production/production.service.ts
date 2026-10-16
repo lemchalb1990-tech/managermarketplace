@@ -782,10 +782,10 @@ export class ProductionService {
   // ── Adjuntos y notas ─────────────────────────────────────────────────
 
   async addAttachment(user: any, orderId: string, file: Express.Multer.File, dto: { stageName?: string; customerVisible?: string | boolean }) {
-    await this.owned(user, orderId);
+    const order = await this.owned(user, orderId);
     if (!file) throw new BadRequestException('No se recibió ningún archivo');
     if (file.size > 15 * 1024 * 1024) throw new BadRequestException('El archivo supera 15 MB');
-    const stored = await this.storage.persist(file, { folder: 'production' });
+    const stored = await this.storage.persist(file, { folder: 'production', owner: { category: 'production', companyId: order.companyId } });
     const visible = dto.customerVisible === true || dto.customerVisible === 'true';
     await this.prisma.productionAttachment.create({
       data: {

@@ -355,7 +355,8 @@ export class SettingsService implements OnModuleInit {
   }
 
   async getAll() {
-    const rows = await this.prisma.setting.findMany({ orderBy: [{ group: 'asc' }, { key: 'asc' }] });
+    // Las claves que empiezan con "_" son marcas internas del sistema (no se editan aquí).
+    const rows = await this.prisma.setting.findMany({ where: { NOT: { key: { startsWith: '_' } } }, orderBy: [{ group: 'asc' }, { key: 'asc' }] });
     return rows.map((r) => ({
       ...r,
       value: r.sensitive ? (r.value ? SENSITIVE_MASK : '') : r.value,

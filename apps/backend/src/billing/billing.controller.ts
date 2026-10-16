@@ -163,7 +163,7 @@ export class BillingController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp|svg\+xml)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG, WebP o SVG');
     }
-    const { url } = await this.storage.persist(file);
+    const { url } = await this.storage.persist(file, { owner: { category: 'logos', companyId: user.role === Role.SUPER_ADMIN ? companyId : user.companyId } });
     return this.service.saveProfileLogo(url, user, companyId);
   }
 

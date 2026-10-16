@@ -658,6 +658,9 @@ export const api = {
   subscription: {
     usage: (token: string, companyId?: string) =>
       apiFetch<SubscriptionUsage>(`/subscription/usage${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
+    // Medición del espacio que ya ocupaban los archivos (Super Admin).
+    storageStatus: (token: string) => apiFetch<{ measuredAt: string | null; running: boolean }>('/storage-usage/status', {}, token),
+    measureStorage: (token: string) => apiFetch<{ started: boolean }>('/storage-usage/measure', { method: 'POST' }, token),
     plans: {
       list: (token: string) => apiFetch<SubscriptionPlan[]>('/subscription/plans', {}, token),
       create: (data: Partial<SubscriptionPlan>, token: string) =>
@@ -2428,6 +2431,8 @@ export interface SubscriptionPlan {
   maxChannels: number | null;
   maxProducts: number | null;
   maxListings: number | null;
+  // Espacio para fotos y archivos, en MB.
+  maxStorageMb: number | null;
   maxUsers: number | null;
   maxWarehouses: number | null;
   features: SubscriptionFeature[];
@@ -2439,7 +2444,17 @@ export interface SubscriptionPlan {
   _count?: { companies: number };
 }
 
-export type SubscriptionResource = 'channels' | 'products' | 'listings' | 'users' | 'warehouses';
+// storage va en MB (con decimales).
+export type SubscriptionResource = 'channels' | 'products' | 'listings' | 'users' | 'warehouses' | 'storage';
+
+export type StorageCategory = 'products' | 'listings' | 'dispatch' | 'documents' | 'finance' | 'production' | 'messages' | 'logos' | 'other';
+export const STORAGE_CATEGORY_LABEL: Record<StorageCategory, string> = {
+  products: 'Fotos de productos', listings: 'Fotos de publicaciones', dispatch: 'Fotos de despacho y entrega',
+  documents: 'Documentos y etiquetas', finance: 'Adjuntos de finanzas', production: 'Adjuntos de fabricación',
+  messages: 'Imágenes de mensajes', logos: 'Logos', other: 'Otros',
+};
+// Espacio en MB → texto («850 MB», «2,5 GB»).
+export const formatMb = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toLocaleString('es-CL', { maximumFractionDigits: 1 })} GB` : `${Math.ceil(mb).toLocaleString('es-CL')} MB`);
 
 export interface SubscriptionUsage {
   plan: SubscriptionPlan | null;
@@ -2452,6 +2467,11 @@ export interface SubscriptionUsage {
   features?: SubscriptionFeature[] | null;
   extraFeatures?: SubscriptionFeature[];
   addonsMonthlyPrice?: number | null;
+  // Cantidad de datos de la empresa y espacio de sus archivos por tipo.
+  data?: {
+    counts: { products: number; listings: number; sales: number; orders: number; clients: number };
+    storage: { category: StorageCategory; files: number; mb: number }[];
+  };
 }
 
 export type SalesReportType = 'producto' | 'categoria' | 'canal' | 'vendedor' | 'pago' | 'comuna' | 'mes' | 'libro';

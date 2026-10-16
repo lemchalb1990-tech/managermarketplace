@@ -182,7 +182,7 @@ export class CouriersService {
 
     let labelUrl = created.labelUrl || null;
     if (created.label) {
-      const stored = await this.storage.put(created.label.bytes, `etiqueta-${provider.toLowerCase()}-${created.trackingNumber}.${created.label.ext}`, created.label.mime, { folder: 'courier-labels' });
+      const stored = await this.storage.put(created.label.bytes, `etiqueta-${provider.toLowerCase()}-${created.trackingNumber}.${created.label.ext}`, created.label.mime, { owner: { category: 'documents', companyId: order.companyId }, folder: 'courier-labels' });
       labelUrl = stored.url;
     }
     const shipment = await this.prisma.courierShipment.create({

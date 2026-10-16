@@ -196,6 +196,7 @@ model Company {
   extraUsers              Int      @default(0)
   extraWarehouses         Int      @default(0)
   extraListings           Int      @default(0)
+  extraStorageMb          Int      @default(0)
   extraFeatures           String[] @default([])
   // Precio mensual acordado por los adicionales (CLP, sin IVA) y nota interna.
   addonsMonthlyPrice      Int?
@@ -217,6 +218,7 @@ model Company {
   invoices           Invoice[]
   emailConfig        EmailConfig?
   emailBrand         EmailBrand?
+  storedFiles        StoredFile[]
   emailTemplates     EmailTemplate[]
   suppliers          Supplier[]
   purchases          Purchase[]
@@ -1917,6 +1919,21 @@ model EmailBrand {
   @@map("email_brands")
 }
 
+// Archivo subido por una empresa (fotos, documentos, adjuntos): su peso cuenta para el límite
+// de almacenamiento del plan. key = ruta bajo uploads/ (la misma que usa StorageService).
+model StoredFile {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String   @unique
+  bytes     Int
+  category  String
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@map("stored_files")
+}
+
 model EmailConfig {
   id        String   @id @default(cuid())
   companyId String   @unique
@@ -2407,6 +2424,8 @@ model SubscriptionPlan {
   maxWarehouses            Int?
   // Publicaciones vinculadas (activas y pausadas) en todos los marketplaces. null = sin límite.
   maxListings              Int?
+  // Espacio para fotos y archivos subidos, en MB. null = sin límite.
+  maxStorageMb             Int?
   features                 String[]  @default([])
   // Texto libre de add-ons incluidos (p. ej. "1 a elección", "Todos").
   addons                   String?

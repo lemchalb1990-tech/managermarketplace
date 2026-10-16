@@ -109,7 +109,7 @@ export class DispatchController {
         throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
       }
       // Foto de entrega: datos personales (domicilio, receptor) → archivo privado.
-      photo = await this.storage.persist(file, { private: true });
+      photo = await this.storage.persist(file, { private: true, owner: { category: 'dispatch', table: 'dispatch_routes', id } });
     }
     return this.service.deliverStop(id, stopId, dto, photo, user);
   }

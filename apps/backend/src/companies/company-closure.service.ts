@@ -120,80 +120,97 @@ export class CompanyClosureService {
   // apunte a una fila borrada. Primero se anulan las referencias opcionales (rompe ciclos) y
   // después se borra en pasadas hasta que ninguna llave foránea lo impida.
 
+  /**
+   * Marca en tablas temporales (del_<tabla>) todas las filas de la empresa, también las que
+   * cuelgan de ellas sin companyId, y junta los archivos subidos que esas filas referencian
+   * (con la tabla de origen). Las tablas temporales se borran al terminar la transacción.
+   */
+  private async markCompanyRows(tx: Tx, companyId: string, onProgress: PurgeProgress = () => {}) {
+    const files: { rel: string; table: string }[] = [];
+    const fks = await tx.$queryRaw<{ child: string; col: string; parent: string; pcol: string; nullable: boolean }[]>`
+      SELECT tc.relname AS child, a.attname AS col, pc.relname AS parent, pa.attname AS pcol, NOT a.attnotnull AS nullable
+      FROM pg_constraint c
+      JOIN pg_class tc ON tc.oid = c.conrelid
+      JOIN pg_class pc ON pc.oid = c.confrelid
+      JOIN pg_namespace n ON n.oid = tc.relnamespace
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = c.confkey[1]
+      WHERE c.contype = 'f' AND n.nspname = current_schema()`;
+    const withCompanyId = (await tx.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND column_name = 'companyId' AND table_name <> '_prisma_migrations'`).map((r) => r.table_name);
+    // Tablas con llave compuesta (p. ej. user_pos_warehouses) no tienen columna id: no se
+    // materializan; se borran directo por sus llaves foráneas antes del resto (paso 1b).
+    const hasId = new Set((await tx.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND column_name = 'id'`).map((r) => r.table_name));
+    const noId = new Set<string>();
+
+    // 1. Filas a borrar, materializadas en tablas temporales (del_<tabla>).
+    const selected = new Set<string>(['companies']);
+    const tmp = (t: string) => ident(`del_${t}`);
+    // Con PK para que ON CONFLICT descarte repetidos y el recorrido de abajo termine.
+    const createTmp = (t: string) => tx.$executeRawUnsafe(`CREATE TEMP TABLE ${tmp(t)} (id text PRIMARY KEY) ON COMMIT DROP`);
+    await createTmp('companies');
+    await tx.$executeRawUnsafe(`INSERT INTO ${tmp('companies')} SELECT id FROM "companies" WHERE id = $1`, companyId);
+    for (const [k, t] of withCompanyId.entries()) {
+      onProgress(5 + Math.round((k / Math.max(1, withCompanyId.length)) * 20), `Identificando datos: ${tableLabel(t)}`);
+      if (!hasId.has(t)) { noId.add(t); continue; }
+      selected.add(t);
+      await createTmp(t);
+      await tx.$executeRawUnsafe(`INSERT INTO ${tmp(t)} SELECT id FROM ${ident(t)} WHERE "companyId" = $1`, companyId);
+    }
+    // Tablas sin companyId que cuelgan de filas borradas (p. ej. sale_items, stock_movements).
+    onProgress(27, 'Buscando datos relacionados');
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const fk of fks) {
+        if (!selected.has(fk.parent) || fk.child === 'companies') continue;
+        if (!hasId.has(fk.child)) { noId.add(fk.child); continue; }
+        if (!selected.has(fk.child)) {
+          selected.add(fk.child);
+          await createTmp(fk.child);
+        }
+        const added = await tx.$executeRawUnsafe(
+          `INSERT INTO ${tmp(fk.child)} SELECT t.id FROM ${ident(fk.child)} t
+           WHERE t.${ident(fk.col)} IN (SELECT p.${ident(fk.pcol)} FROM ${ident(fk.parent)} p WHERE p.id IN (SELECT id FROM ${tmp(fk.parent)}))
+           ON CONFLICT DO NOTHING`,
+        );
+        if (added > 0) changed = true;
+      }
+    }
+
+    // 2. Archivos subidos que referencian las filas borradas (se eliminan tras el commit).
+    onProgress(35, 'Buscando archivos subidos (fotos y documentos)');
+    const textCols = await tx.$queryRaw<{ table_name: string; column_name: string }[]>`
+      SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND data_type IN ('text', 'character varying')`;
+    for (const { table_name: t, column_name: col } of textCols) {
+      if (!selected.has(t)) continue;
+      const bare = col === 'filename';
+      const vals = await tx.$queryRawUnsafe<{ v: string }[]>(
+        `SELECT ${ident(col)} AS v FROM ${ident(t)} WHERE id IN (SELECT id FROM ${tmp(t)}) AND ${ident(col)} IS NOT NULL
+         ${bare ? '' : `AND ${ident(col)} LIKE '%/uploads/%'`}`,
+      );
+      for (const { v } of vals) files.push({ rel: bare ? v : v.split('/uploads/').pop()!.split('?')[0], table: t });
+    }
+    const invoiceIds = selected.has('invoices') ? await tx.$queryRawUnsafe<{ id: string }[]>(`SELECT id FROM ${tmp('invoices')}`) : [];
+    for (const { id } of invoiceIds) files.push({ rel: `invoice-${id}.pdf`, table: 'invoices' }, { rel: `invoice-${id}.xml`, table: 'invoices' });
+    return { fks, withCompanyId, noId, selected, tmp, files };
+  }
+
+  /** Archivos subidos de una empresa (ruta bajo uploads/ y tabla que lo referencia). Solo lee. */
+  async listCompanyFiles(companyId: string): Promise<{ rel: string; table: string }[]> {
+    return this.prisma.$transaction(async (tx) => (await this.markCompanyRows(tx, companyId)).files, { timeout: 5 * 60 * 1000, maxWait: 30 * 1000 });
+  }
+
   async purgeCompany(companyId: string, onProgress: PurgeProgress = () => {}): Promise<{ rows: number; files: number }> {
     const files: string[] = [];
     let rows = 0;
     onProgress(2, 'Preparando la eliminación');
     await this.prisma.$transaction(async (tx) => {
-      const fks = await tx.$queryRaw<{ child: string; col: string; parent: string; pcol: string; nullable: boolean }[]>`
-        SELECT tc.relname AS child, a.attname AS col, pc.relname AS parent, pa.attname AS pcol, NOT a.attnotnull AS nullable
-        FROM pg_constraint c
-        JOIN pg_class tc ON tc.oid = c.conrelid
-        JOIN pg_class pc ON pc.oid = c.confrelid
-        JOIN pg_namespace n ON n.oid = tc.relnamespace
-        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-        JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = c.confkey[1]
-        WHERE c.contype = 'f' AND n.nspname = current_schema()`;
-      const withCompanyId = (await tx.$queryRaw<{ table_name: string }[]>`
-        SELECT table_name FROM information_schema.columns
-        WHERE table_schema = current_schema() AND column_name = 'companyId' AND table_name <> '_prisma_migrations'`).map((r) => r.table_name);
-      // Tablas con llave compuesta (p. ej. user_pos_warehouses) no tienen columna id: no se
-      // materializan; se borran directo por sus llaves foráneas antes del resto (paso 1b).
-      const hasId = new Set((await tx.$queryRaw<{ table_name: string }[]>`
-        SELECT table_name FROM information_schema.columns
-        WHERE table_schema = current_schema() AND column_name = 'id'`).map((r) => r.table_name));
-      const noId = new Set<string>();
-
-      // 1. Filas a borrar, materializadas en tablas temporales (del_<tabla>).
-      const selected = new Set<string>(['companies']);
-      const tmp = (t: string) => ident(`del_${t}`);
-      // Con PK para que ON CONFLICT descarte repetidos y el recorrido de abajo termine.
-      const createTmp = (t: string) => tx.$executeRawUnsafe(`CREATE TEMP TABLE ${tmp(t)} (id text PRIMARY KEY) ON COMMIT DROP`);
-      await createTmp('companies');
-      await tx.$executeRawUnsafe(`INSERT INTO ${tmp('companies')} SELECT id FROM "companies" WHERE id = $1`, companyId);
-      for (const [k, t] of withCompanyId.entries()) {
-        onProgress(5 + Math.round((k / Math.max(1, withCompanyId.length)) * 20), `Identificando datos: ${tableLabel(t)}`);
-        if (!hasId.has(t)) { noId.add(t); continue; }
-        selected.add(t);
-        await createTmp(t);
-        await tx.$executeRawUnsafe(`INSERT INTO ${tmp(t)} SELECT id FROM ${ident(t)} WHERE "companyId" = $1`, companyId);
-      }
-      // Tablas sin companyId que cuelgan de filas borradas (p. ej. sale_items, stock_movements).
-      onProgress(27, 'Buscando datos relacionados');
-      for (let changed = true; changed; ) {
-        changed = false;
-        for (const fk of fks) {
-          if (!selected.has(fk.parent) || fk.child === 'companies') continue;
-          if (!hasId.has(fk.child)) { noId.add(fk.child); continue; }
-          if (!selected.has(fk.child)) {
-            selected.add(fk.child);
-            await createTmp(fk.child);
-          }
-          const added = await tx.$executeRawUnsafe(
-            `INSERT INTO ${tmp(fk.child)} SELECT t.id FROM ${ident(fk.child)} t
-             WHERE t.${ident(fk.col)} IN (SELECT p.${ident(fk.pcol)} FROM ${ident(fk.parent)} p WHERE p.id IN (SELECT id FROM ${tmp(fk.parent)}))
-             ON CONFLICT DO NOTHING`,
-          );
-          if (added > 0) changed = true;
-        }
-      }
-
-      // 2. Archivos subidos que referencian las filas borradas (se eliminan tras el commit).
-      onProgress(35, 'Buscando archivos subidos (fotos y documentos)');
-      const textCols = await tx.$queryRaw<{ table_name: string; column_name: string }[]>`
-        SELECT table_name, column_name FROM information_schema.columns
-        WHERE table_schema = current_schema() AND data_type IN ('text', 'character varying')`;
-      for (const { table_name: t, column_name: col } of textCols) {
-        if (!selected.has(t)) continue;
-        const bare = col === 'filename';
-        const vals = await tx.$queryRawUnsafe<{ v: string }[]>(
-          `SELECT ${ident(col)} AS v FROM ${ident(t)} WHERE id IN (SELECT id FROM ${tmp(t)}) AND ${ident(col)} IS NOT NULL
-           ${bare ? '' : `AND ${ident(col)} LIKE '%/uploads/%'`}`,
-        );
-        for (const { v } of vals) files.push(bare ? v : v.split('/uploads/').pop()!.split('?')[0]);
-      }
-      const invoiceIds = selected.has('invoices') ? await tx.$queryRawUnsafe<{ id: string }[]>(`SELECT id FROM ${tmp('invoices')}`) : [];
-      for (const { id } of invoiceIds) files.push(`invoice-${id}.pdf`, `invoice-${id}.xml`);
+      const { fks, withCompanyId, noId, selected, tmp, files: found } = await this.markCompanyRows(tx, companyId, onProgress);
+      files.push(...found.map((f) => f.rel));
 
       // 1b. Tablas sin id: se borran sus filas de la empresa o que apunten a filas borradas
       //     (antes del paso 3, que si no anularía esas referencias y las dejaría huérfanas).

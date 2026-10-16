@@ -331,7 +331,7 @@ export class BillingService {
   private async hostInvoiceDocumentPublicly(invoiceId: string, doc: InvoiceDocument): Promise<string> {
     const filename = `invoice-${invoiceId}.${doc.extension}`;
     const contentType = doc.extension === 'pdf' ? 'application/pdf' : doc.extension === 'xml' ? 'application/xml' : 'application/octet-stream';
-    const { url } = await this.storage.put(Buffer.from(doc.bytes), filename, contentType);
+    const { url } = await this.storage.put(Buffer.from(doc.bytes), filename, contentType, { owner: { category: 'documents', table: 'invoices', id: invoiceId } });
     return url.startsWith('/') ? toAbsoluteUrl(this.settings, url) : url;
   }
 

@@ -490,7 +490,9 @@ export class ConnectionsService {
     const adapter = this.getListingAdapter(conn);
     const listing = await this.prisma.listing.findUnique({ where: { productId_connectionId_slot: { productId, connectionId, slot: 0 } } });
     if (!listing) throw new NotFoundException('Publicación no encontrada');
-    return adapter.removeListingImage(listing.id, imageId);
+    const image = await this.prisma.listingImage.findFirst({ where: { id: imageId, listingId: listing.id }, select: { url: true } });
+    const result = await adapter.removeListingImage(listing.id, imageId);
+    return { result, url: image?.url ?? null };
   }
 
   // ─── Importar catálogo existente desde el canal ──────────────────────────────

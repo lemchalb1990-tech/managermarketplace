@@ -233,17 +233,19 @@ export class ConnectionsController {
     if (!file.mimetype.match(/^image\/(jpeg|png|webp)$/)) {
       throw new BadRequestException('Tipo de archivo no permitido. Usa JPG, PNG o WebP');
     }
-    const { filename, url } = await this.storage.persist(file);
+    const { filename, url } = await this.storage.persist(file, { owner: { category: 'listings', table: 'products', id: productId } });
     return this.service.addListingImage(connectionId, productId, filename, url, user);
   }
 
   @Delete(':connectionId/products/:productId/listing-images/:imageId')
   @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.CATALOG_MANAGER)
-  removeListingImage(
+  async removeListingImage(
     @Param('connectionId') connectionId: string, @Param('productId') productId: string,
     @Param('imageId') imageId: string, @CurrentUser() user: any,
   ) {
-    return this.service.removeListingImage(connectionId, productId, imageId, user);
+    const { result, url } = await this.service.removeListingImage(connectionId, productId, imageId, user);
+    void this.storage.releaseIfUnused([url]).catch(() => {});
+    return result;
   }
 
   // ─── Importar catálogo existente desde el canal (Paris o Ripley) ─────────────
