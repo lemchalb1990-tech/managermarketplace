@@ -137,9 +137,15 @@ export class CompanyClosureService {
       const withCompanyId = (await tx.$queryRaw<{ table_name: string }[]>`
         SELECT table_name FROM information_schema.columns
         WHERE table_schema = current_schema() AND column_name = 'companyId' AND table_name <> '_prisma_migrations'`).map((r) => r.table_name);
+      // Tablas con llave compuesta (p. ej. user_pos_warehouses) no tienen columna id: no se
+      // materializan; se borran directo por sus llaves foráneas antes del resto (paso 1b).
+      const hasId = new Set((await tx.$queryRaw<{ table_name: string }[]>`
+        SELECT table_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND column_name = 'id'`).map((r) => r.table_name));
+      const noId = new Set<string>();
 
       // 1. Filas a borrar, materializadas en tablas temporales (del_<tabla>).
-      const selected = new Set<string>(['companies', ...withCompanyId]);
+      const selected = new Set<string>(['companies']);
       const tmp = (t: string) => ident(`del_${t}`);
       // Con PK para que ON CONFLICT descarte repetidos y el recorrido de abajo termine.
       const createTmp = (t: string) => tx.$executeRawUnsafe(`CREATE TEMP TABLE ${tmp(t)} (id text PRIMARY KEY) ON COMMIT DROP`);
@@ -147,6 +153,8 @@ export class CompanyClosureService {
       await tx.$executeRawUnsafe(`INSERT INTO ${tmp('companies')} SELECT id FROM "companies" WHERE id = $1`, companyId);
       for (const [k, t] of withCompanyId.entries()) {
         onProgress(5 + Math.round((k / Math.max(1, withCompanyId.length)) * 20), `Identificando datos: ${tableLabel(t)}`);
+        if (!hasId.has(t)) { noId.add(t); continue; }
+        selected.add(t);
         await createTmp(t);
         await tx.$executeRawUnsafe(`INSERT INTO ${tmp(t)} SELECT id FROM ${ident(t)} WHERE "companyId" = $1`, companyId);
       }
@@ -156,6 +164,7 @@ export class CompanyClosureService {
         changed = false;
         for (const fk of fks) {
           if (!selected.has(fk.parent) || fk.child === 'companies') continue;
+          if (!hasId.has(fk.child)) { noId.add(fk.child); continue; }
           if (!selected.has(fk.child)) {
             selected.add(fk.child);
             await createTmp(fk.child);
@@ -185,6 +194,19 @@ export class CompanyClosureService {
       }
       const invoiceIds = selected.has('invoices') ? await tx.$queryRawUnsafe<{ id: string }[]>(`SELECT id FROM ${tmp('invoices')}`) : [];
       for (const { id } of invoiceIds) files.push(`invoice-${id}.pdf`, `invoice-${id}.xml`);
+
+      // 1b. Tablas sin id: se borran sus filas de la empresa o que apunten a filas borradas
+      //     (antes del paso 3, que si no anularía esas referencias y las dejaría huérfanas).
+      for (const t of noId) {
+        if (withCompanyId.includes(t)) rows += await tx.$executeRawUnsafe(`DELETE FROM ${ident(t)} WHERE "companyId" = $1`, companyId);
+        for (const fk of fks) {
+          if (fk.child !== t || !selected.has(fk.parent)) continue;
+          rows += await tx.$executeRawUnsafe(
+            `DELETE FROM ${ident(t)}
+             WHERE ${ident(fk.col)} IN (SELECT p.${ident(fk.pcol)} FROM ${ident(fk.parent)} p WHERE p.id IN (SELECT id FROM ${tmp(fk.parent)}))`,
+          );
+        }
+      }
 
       // 3. Anula referencias opcionales hacia filas borradas (rompe ciclos y libera filas ajenas).
       onProgress(45, 'Desvinculando referencias');
