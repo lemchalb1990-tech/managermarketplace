@@ -36,6 +36,8 @@ describe('ProductBulkLoadService', () => {
     warehouse: null, productStocks: [], _count: { purchaseItems: 0 },
   };
   const prisma: any = {
+    // Empresa sin el módulo de Fabricación: la plantilla no suma esas columnas.
+    company: { findUnique: jest.fn(async () => ({ modules: ['catalog', 'pos'] })) },
     warehouse: { findMany: jest.fn(async ({ where }: any) => warehouses.filter((w) => where.active === undefined || w.active === where.active)) },
     product: {
       findMany: jest.fn(async ({ where, distinct }: any) => {

@@ -1,8 +1,35 @@
-import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean, IsEnum, ValidateNested } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, MinLength, IsOptional, IsArray, IsBoolean, IsEnum, IsIn, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ProductType } from '@prisma/client';
 
 export class CreateProductDto {
+  // Fabricación (módulo «produccion»).
+  @IsOptional()
+  @IsIn(['STOCK', 'MADE_TO_ORDER', 'MADE_FOR_STOCK'])
+  supplyMode?: 'STOCK' | 'MADE_TO_ORDER' | 'MADE_FOR_STOCK';
+
+  @IsOptional()
+  @IsBoolean()
+  requiresProcess?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  manufacturingDays?: number | null;
+
+  @IsOptional()
+  @IsString()
+  productionProcessId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  specFields?: Array<{ key: string; label: string; type?: string; options?: string[]; required?: boolean }> | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  advancePercent?: number | null;
+
   @IsString()
   @MinLength(1)
   sku: string;
@@ -113,6 +140,33 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
+  // Fabricación (módulo «produccion»).
+  @IsOptional()
+  @IsIn(['STOCK', 'MADE_TO_ORDER', 'MADE_FOR_STOCK'])
+  supplyMode?: 'STOCK' | 'MADE_TO_ORDER' | 'MADE_FOR_STOCK';
+
+  @IsOptional()
+  @IsBoolean()
+  requiresProcess?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  manufacturingDays?: number | null;
+
+  @IsOptional()
+  @IsString()
+  productionProcessId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  specFields?: Array<{ key: string; label: string; type?: string; options?: string[]; required?: boolean }> | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  advancePercent?: number | null;
+
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -251,6 +305,7 @@ export class CatalogFiltersDto {
   @IsOptional() @IsString() listingStatus?: string;
   @IsOptional() @IsString() channel?: string;
   @IsOptional() @IsString() stockFilter?: string;
+  @IsOptional() @IsString() supplyMode?: string;
 }
 
 // Edición en lote (solo Super Admin): productos marcados (ids) o todos los que coinciden con

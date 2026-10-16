@@ -77,6 +77,17 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'fabricacion',
+    label: 'Fabricación',
+    items: [
+      { href: '/dashboard/fabricacion', label: 'Tablero de fabricación', perm: 'production', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER', 'DESPACHADOR'], module: 'produccion' },
+      { href: '/dashboard/fabricacion/tareas', label: 'Mis tareas', perm: 'production', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER', 'DESPACHADOR'], module: 'produccion' },
+      { href: '/dashboard/fabricacion/calendario', label: 'Calendario y carga', perm: 'production', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER', 'DESPACHADOR'], module: 'produccion' },
+      { href: '/dashboard/fabricacion/faltantes', label: 'Materiales faltantes', perm: 'production', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR', 'ORDER_MANAGER', 'DESPACHADOR'], module: 'produccion' },
+      { href: '/dashboard/fabricacion/configuracion', label: 'Procesos y áreas', perm: 'production.config', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER'], module: 'produccion' },
+    ],
+  },
+  {
     key: 'finanzas',
     label: 'Finanzas',
     items: [

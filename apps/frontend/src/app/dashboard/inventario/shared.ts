@@ -38,6 +38,8 @@ export const MOVEMENT_TYPES: Array<{ value: string; label: string; cls: string }
   { value: 'RETURN', label: 'Devolución', cls: 'bg-violet-50 text-violet-700' },
   { value: 'ADJUSTMENT', label: 'Ajuste', cls: 'bg-gray-100 text-gray-700' },
   { value: 'INITIAL', label: 'Saldo inicial', cls: 'bg-gray-100 text-gray-500' },
+  { value: 'PRODUCTION_IN', label: 'Fabricación (entrada)', cls: 'bg-teal-50 text-teal-700' },
+  { value: 'PRODUCTION_OUT', label: 'Fabricación (consumo)', cls: 'bg-teal-50 text-teal-700' },
 ];
 export const movementTypeCls = (t: string) => MOVEMENT_TYPES.find((m) => m.value === t)?.cls ?? 'bg-gray-100 text-gray-600';
 

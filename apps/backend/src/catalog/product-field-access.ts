@@ -13,6 +13,7 @@ const FIELD_KEYS: Record<string, string[]> = {
   description: ['description'],
   price: ['price', 'mlPrice', 'wholesalePrice', 'variablePrice', 'minPrice'],
   category: ['category'],
+  fabricacion: ['supplyMode', 'requiresProcess', 'manufacturingDays', 'productionProcessId', 'specFields', 'advancePercent'],
 };
 
 const labelOf = (field: string) => PRODUCT_FIELD_PERMISSIONS.find((f) => f.field === field)?.label || field;

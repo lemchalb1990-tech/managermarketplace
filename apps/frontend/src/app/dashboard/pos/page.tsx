@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { getToken, getUser } from '@/lib/auth';
 import { api, imgUrl, openDocumentUrl, type PaymentRequestInfo } from '@/lib/api';
 import { PaymentLinkModal } from '@/components/PaymentLinkModal';
+import { SpecInputs, missingRequiredSpecs } from '../fabricacion/shared';
+import type { SpecField } from '@/lib/api';
 import { useAdminCompany } from '../AdminCompanyContext';
 import { SkeletonCards } from '@/components/Skeleton';
 import PosFilters from './PosFilters';
@@ -24,6 +26,12 @@ interface CartItem {
   // Precio variable (módulo "variable_price"): el precio real se confirma al cobrar.
   variablePrice?: boolean;
   minPrice?: number | null;
+  // Fabricación: a pedido (se vende sin stock) o servicio con proceso; especificaciones a pedir.
+  madeToOrder?: boolean;
+  withProcess?: boolean;
+  specFields?: SpecField[] | null;
+  advancePercent?: number | null;
+  specs?: Record<string, string>;
 }
 
 const PAGE_SIZE = 20;
@@ -88,6 +96,9 @@ export default function PosPage() {
   const [onlineProviders, setOnlineProviders] = useState<Array<{ provider: string; name: string; environment: string }>>([]);
   const [payReq, setPayReq] = useState<PaymentRequestInfo | null>(null);
   const [remoteLink, setRemoteLink] = useState(false);
+  // Fabricación: cobrar un abono y dejar el saldo pendiente.
+  const [abonoOn, setAbonoOn] = useState(false);
+  const [abonoAmount, setAbonoAmount] = useState('');
   // Bodega de venta: el vendedor vende desde la asignada en Usuarios (fija); un administrador
   // puede elegirla ('' = la bodega de cada producto). El stock mostrado es el de esa bodega.
   // canChoose (administrador): cualquier bodega o la de cada producto. assigned: tiendas del vendedor
@@ -256,9 +267,14 @@ export default function PosPage() {
   const variablePriceEnabled = isSuperAdmin
     ? !!activeCompany && matchesModule(activeCompany.modules, 'variable_price')
     : hasModule(user, 'variable_price');
+  // Fabricación: los productos a pedido se venden sin stock y abren su orden al cobrar.
+  const productionEnabled = isSuperAdmin
+    ? !!activeCompany && matchesModule(activeCompany.modules, 'produccion')
+    : hasModule(user, 'produccion');
+  const isMadeToOrder = (p: any) => productionEnabled && p.type !== 'SERVICIO' && p.supplyMode === 'MADE_TO_ORDER';
 
   function addToCart(product: any) {
-    const isService = product.type === 'SERVICIO';
+    const isService = product.type === 'SERVICIO' || isMadeToOrder(product);
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.productId === product.id);
       if (idx >= 0) {
@@ -284,6 +300,11 @@ export default function PosPage() {
           type: product.type,
           variablePrice: variablePriceEnabled && !!product.variablePrice,
           minPrice: product.minPrice != null ? Number(product.minPrice) : null,
+          madeToOrder: isMadeToOrder(product),
+          withProcess: productionEnabled && (isMadeToOrder(product) || (product.type === 'SERVICIO' && !!product.requiresProcess)),
+          specFields: productionEnabled ? (product.specFields || null) : null,
+          advancePercent: product.advancePercent ?? null,
+          specs: {},
         },
       ];
     });
@@ -295,7 +316,7 @@ export default function PosPage() {
       if (idx < 0) return prev;
       const newQty = prev[idx].quantity + delta;
       if (newQty <= 0) return prev.filter((c) => c.productId !== productId);
-      if (prev[idx].type !== 'SERVICIO' && newQty > prev[idx].stock) return prev;
+      if (prev[idx].type !== 'SERVICIO' && !prev[idx].madeToOrder && newQty > prev[idx].stock) return prev;
       const updated = [...prev];
       updated[idx] = { ...updated[idx], quantity: newQty };
       return updated;
@@ -384,18 +405,26 @@ export default function PosPage() {
   const contactPhone = contactVisible ? customerPhone : '';
   const contactEmail = contactVisible ? customerEmail : '';
   const multiPay = payments.length > 1;
+  // Fabricación: líneas con orden (a pedido o con proceso) y abono sugerido según su anticipo.
+  const productionLines = cart.filter((c) => c.withProcess);
+  const suggestedAbono = Math.round(cart.reduce((s, c) => s + c.price * c.quantity * (c.withProcess ? (c.advancePercent ?? 50) / 100 : 1), 0));
+  const abonoValue = Math.round(Number(abonoAmount) || 0);
+  const abonoActive = abonoOn && productionLines.length > 0 && !(!multiPay && ['FLOW', 'MERCADO_PAGO'].includes(payments[0].method));
+  // Lo que se cobra ahora: el total o el abono.
+  const payTarget = abonoActive ? abonoValue : total;
   const resolvedPayments = (() => {
-    if (!multiPay) return [{ method: payments[0].method, amount: total }];
+    if (!multiPay) return [{ method: payments[0].method, amount: payTarget }];
     const empties = payments.filter((p) => p.amount === '').length;
     const filledSum = payments.reduce((s, p) => s + (p.amount === '' ? 0 : Number(p.amount) || 0), 0);
     return payments.map((p) => ({
       method: p.method,
-      amount: p.amount === '' ? (empties === 1 ? Math.max(0, total - filledSum) : 0) : Number(p.amount) || 0,
+      amount: p.amount === '' ? (empties === 1 ? Math.max(0, payTarget - filledSum) : 0) : Number(p.amount) || 0,
     }));
   })();
   const paidSum = resolvedPayments.reduce((s, p) => s + p.amount, 0);
-  const payDiff = total - paidSum;
-  const payOk = !multiPay || (Math.abs(payDiff) < 1 && resolvedPayments.every((p) => p.amount > 0));
+  const payDiff = payTarget - paidSum;
+  const abonoOk = !abonoActive || (abonoValue > 0 && abonoValue < total);
+  const payOk = abonoOk && (!multiPay || (Math.abs(payDiff) < 1 && resolvedPayments.every((p) => p.amount > 0)));
   const paymentMethod = multiPay ? 'MIXED' : payments[0].method;
 
   // Cobro en línea (Flow / Mercado Pago): un solo medio, sin pago mixto.
@@ -419,7 +448,8 @@ export default function PosPage() {
       address: !servicesOnly && fulfillmentType === 'DELIVERY' ? (address || undefined) : undefined,
       commune: !servicesOnly && fulfillmentType === 'DELIVERY' ? (commune || undefined) : undefined,
       city: !servicesOnly && fulfillmentType === 'DELIVERY' ? (city || undefined) : undefined,
-      items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price })),
+      items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, unitPrice: c.price, ...(c.specs && Object.keys(c.specs).length ? { specs: c.specs } : {}) })),
+      ...(abonoActive ? { allowBalance: true } : {}),
     };
     if (companyId) dto.companyId = companyId;
     return dto;
@@ -432,6 +462,7 @@ export default function PosPage() {
     setNotes(''); setFulfillmentType('PICKUP');
     setPayments([{ method: 'CASH', amount: '' }]);
     setRemoteLink(false);
+    setAbonoOn(false); setAbonoAmount('');
     setClientId(''); setShowNewClient(false); setNewClient(emptyClient);
     setEmitDte(false); setDteType('BOLETA'); setDteFamily('BOLETA');
     setShowCheckout(false);
@@ -474,14 +505,19 @@ export default function PosPage() {
       setLastInvoice(null);
     }
 
-    setSuccessMsg(`Venta registrada por $${saleTotal.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${dteMsg}`);
+    const balanceNote = abonoActive && abonoValue < saleTotal ? ` · Abono $${abonoValue.toLocaleString('es-CL')}, saldo $${(saleTotal - abonoValue).toLocaleString('es-CL')}` : '';
+    const productionNote = productionLines.length ? ` · ${productionLines.length} orden(es) de fabricación creada(s)` : '';
+    setSuccessMsg(`Venta registrada por $${saleTotal.toLocaleString('es-CL', { maximumFractionDigits: 0 })}${balanceNote}${productionNote}${dteMsg}`);
     resetCheckout();
     await loadProducts(page);
   };
 
   const checkout = useCallback(async () => {
     if (cart.length === 0) return;
-    if (!payOk) { setErrorMsg('Los montos de los medios de pago deben sumar el total de la venta'); return; }
+    if (!abonoOk) { setErrorMsg('El abono debe ser mayor a 0 y menor al total'); return; }
+    if (!payOk) { setErrorMsg(abonoActive ? 'Los montos de los medios de pago deben sumar el abono' : 'Los montos de los medios de pago deben sumar el total de la venta'); return; }
+    const missingSpecs = cart.flatMap((c) => missingRequiredSpecs(c.specFields, c.specs).map((l) => `${c.name}: ${l}`));
+    if (missingSpecs.length) { setErrorMsg(`Completa las especificaciones: ${missingSpecs.join(', ')}`); return; }
     if (isSuperAdmin && !selectedCompanyId) return;
 
     // Validación del DTE
@@ -517,7 +553,7 @@ export default function PosPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, posWh.canChoose, posWh.assigned.length, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId, onlineMethod, remoteLink]);
+  }, [cart, posWh.canChoose, posWh.assigned.length, saleWarehouseId, servicesOnly, contactName, contactPhone, contactEmail, paymentMethod, payOk, resolvedPayments, notes, fulfillmentType, customerName, customerPhone, customerEmail, address, commune, city, token, isSuperAdmin, selectedCompanyId, total, loadProducts, page, clientId, selectedClient, emitDte, dteType, dteConnId, onlineMethod, remoteLink, abonoOk, abonoActive]);
 
   // Cierre del cobro en línea: si ya se pagó, la venta quedó registrada; si sigue pendiente,
   // queda en Cobros en línea y el punto de venta pasa a la siguiente venta; si se canceló,
@@ -732,7 +768,8 @@ export default function PosPage() {
               {products.map((p) => {
                 const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
                 const isService = p.type === 'SERVICIO';
-                const out = !isService && p.stock === 0;
+                const toOrder = isMadeToOrder(p);
+                const out = !isService && !toOrder && p.stock === 0;
                 return (
                   <button
                     key={p.id}
@@ -749,8 +786,8 @@ export default function PosPage() {
                             {isService ? '🛠️' : '📦'}
                           </div>
                         )}
-                        <span className={`absolute bottom-1.5 right-1.5 text-[15px] leading-none px-2.5 py-1 rounded-full font-bold shadow-sm ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                          {isService ? 'Serv.' : `${p.stock > 0 ? p.stock : 0} u.`}
+                        <span className={`absolute bottom-1.5 right-1.5 text-[15px] leading-none px-2.5 py-1 rounded-full font-bold shadow-sm ${isService ? 'bg-blue-100 text-blue-700' : toOrder ? 'bg-indigo-100 text-indigo-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {isService ? 'Serv.' : toOrder ? 'A pedido' : `${p.stock > 0 ? p.stock : 0} u.`}
                         </span>
                       </div>
                     </div>
@@ -770,7 +807,8 @@ export default function PosPage() {
               {products.map((p) => {
                 const primaryImg = p.images?.find((i: any) => i.isPrimary) || p.images?.[0];
                 const isService = p.type === 'SERVICIO';
-                const out = !isService && p.stock === 0;
+                const toOrder = isMadeToOrder(p);
+                const out = !isService && !toOrder && p.stock === 0;
                 const compact = view === 'compact';
                 return (
                   <button
@@ -792,8 +830,8 @@ export default function PosPage() {
                       <p className={`font-bold text-gray-900 leading-tight truncate ${compact ? 'text-[13px]' : 'text-sm'}`}>{p.name}</p>
                       <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                      {isService ? 'Servicio' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${isService ? 'bg-blue-100 text-blue-700' : toOrder ? 'bg-indigo-100 text-indigo-700' : p.stock > 5 ? 'bg-green-100 text-green-700' : p.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      {isService ? 'Servicio' : toOrder ? 'A pedido' : p.stock > 0 ? `${p.stock} uds` : 'Sin stock'}
                     </span>
                     <span className={`text-blue-600 font-bold w-20 text-right shrink-0 ${compact ? 'text-xs' : 'text-sm'}`}>
                       ${Number(p.price).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
@@ -1300,6 +1338,43 @@ export default function PosPage() {
               )}
               </>)}
 
+              {/* Fabricación: especificaciones de cada producto a pedido y abono */}
+              {productionLines.length > 0 && (
+                <div className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+                  <h3 className="ui-subsection-title">Fabricación</h3>
+                  <p className="text-xs text-indigo-800">
+                    {productionLines.length === 1 ? 'Se creará 1 orden de fabricación' : `Se crearán ${productionLines.length} órdenes de fabricación`} al confirmar la venta.
+                  </p>
+                  {productionLines.filter((c) => c.specFields?.length).map((c) => (
+                    <div key={c.productId} className="rounded-lg border border-indigo-100 bg-white p-3">
+                      <p className="mb-2 text-sm font-semibold text-gray-800">{c.name}{c.quantity > 1 && ` × ${c.quantity}`}</p>
+                      <SpecInputs fields={c.specFields || []} value={c.specs || {}} compact
+                        onChange={(v) => setCart((prev) => prev.map((x) => (x.productId === c.productId ? { ...x, specs: v } : x)))} />
+                    </div>
+                  ))}
+                  {!onlineMethod && (
+                    <div>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={abonoOn} onChange={(e) => { setAbonoOn(e.target.checked); if (e.target.checked && !abonoAmount) setAbonoAmount(String(suggestedAbono)); }} className="accent-blue-600" />
+                        Cobrar un abono y dejar el saldo pendiente
+                      </label>
+                      {abonoOn && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="relative w-40">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                            <input type="number" min="1" value={abonoAmount} onChange={(e) => setAbonoAmount(e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 py-2 pl-6 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <span className={`text-xs ${abonoOk ? 'text-gray-600' : 'text-red-600'}`}>
+                            Saldo ${Math.max(0, total - abonoValue).toLocaleString('es-CL')} · sugerido ${suggestedAbono.toLocaleString('es-CL')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Método de pago */}
               <div>
                 <h3 className="ui-subsection-title mb-3">Método de pago</h3>
@@ -1405,8 +1480,8 @@ export default function PosPage() {
                 <div className="bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">{errorMsg}</div>
               )}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Total a cobrar</span>
-                <span className="text-xl font-bold text-gray-900">${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
+                <span className="text-sm text-gray-600">{abonoActive ? `Abono (total $${total.toLocaleString('es-CL', { maximumFractionDigits: 0 })})` : 'Total a cobrar'}</span>
+                <span className="text-xl font-bold text-gray-900">${payTarget.toLocaleString('es-CL', { maximumFractionDigits: 0 })}</span>
               </div>
               <button
                 onClick={checkout}

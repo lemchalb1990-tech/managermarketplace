@@ -14,6 +14,8 @@ import { decryptSecret, encryptSecret } from '../common/secret-box';
 import { matchesModule } from '../common/modules.util';
 import { assertSalePrices, VARIABLE_PRICE_MODULE } from '../pos/sale-prices.util';
 import { CreateSaleDto } from '../pos/dto/pos.dto';
+import { isStockless, productionActive } from '../production/production.util';
+import { registerSaleBalancePayment } from '../production/production.service';
 import { ChargeStatus, PaymentAdapter, PaymentCredentials, PaymentSettings } from './payment.types';
 import { flowAdapter } from './providers/flow.adapter';
 import { mercadoPagoAdapter } from './providers/mercadopago.adapter';
@@ -210,11 +212,12 @@ export class PaymentsService {
 
     // Validación previa (la definitiva la hace la venta al confirmarse el pago).
     const products = await this.prisma.product.findMany({ where: { id: { in: dto.items.map((i) => i.productId) }, companyId } });
+    const productionOn = await productionActive(this.prisma, companyId);
     for (const item of dto.items) {
       const p = products.find((x) => x.id === item.productId);
       if (!p) throw new BadRequestException(`Producto ${item.productId} no encontrado`);
       if (!p.active) throw new BadRequestException(`El producto "${p.name}" está inactivo`);
-      if (p.type !== ProductType.SERVICIO && !p.dropship && p.stock < item.quantity) {
+      if (!isStockless(p, productionOn) && p.stock < item.quantity) {
         throw new BadRequestException(`Stock insuficiente para "${p.name}": disponible ${p.stock}, solicitado ${item.quantity}`);
       }
     }
@@ -253,6 +256,41 @@ export class PaymentsService {
         customerPhone: dto.customerPhone || client?.phone || null,
       },
     });
+  }
+
+  /** Link para cobrar el saldo de una venta con abono (fabricación): al pagarse suma el pago a esa venta. */
+  async createForSaleBalance(user: any, saleId: string, dto: { provider: PaymentProvider; expiresInHours?: number }) {
+    assertIntegrationsEnabled();
+    const provider = this.provider(dto.provider);
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      select: { id: true, companyId: true, saleNumber: true, balanceDue: true, customerName: true, customerEmail: true, customerPhone: true, company: { select: { name: true } } },
+    });
+    if (!sale || (!isSuperAdmin(user) && sale.companyId !== user.companyId)) throw new NotFoundException('Venta no encontrada');
+    const amount = Math.round(Number(sale.balanceDue ?? 0));
+    if (!(amount > 0)) throw new BadRequestException('La venta no tiene saldo por cobrar');
+    if (provider === PaymentProvider.FLOW && amount < FLOW_MIN_AMOUNT) throw new BadRequestException(`Flow acepta cobros desde $${FLOW_MIN_AMOUNT}`);
+    await this.assertFeature(sale.companyId);
+    const conn = await this.prisma.paymentConnection.findUnique({ where: { companyId_provider: { companyId: sale.companyId, provider } } });
+    if (!conn || !conn.active) throw new BadRequestException(`${PAYMENT_PROVIDER_NAMES[provider]} no está conectado en esta empresa`);
+    // Un solo link vigente por saldo: si ya hay uno pendiente por el mismo monto, se reutiliza.
+    const open = await this.prisma.paymentRequest.findFirst({
+      where: { balanceSaleId: saleId, status: PaymentRequestStatus.PENDING, expiresAt: { gt: new Date() } },
+      include: { sale: { select: { saleNumber: true } }, workOrder: { select: { folio: true } } },
+    });
+    if (open && Number(open.amount) === amount && open.provider === provider) return this.view(open);
+    const hours = Math.min(168, Math.max(1, Math.round(Number(dto.expiresInHours) || 72)));
+    return this.startCharge(user, conn, {
+      provider, amount, remote: true,
+      expiresAt: new Date(Date.now() + hours * 3600_000),
+      chargeEmail: sale.customerEmail || (provider === PaymentProvider.FLOW ? user.email : null),
+      subject: `Saldo de la venta N° ${sale.saleNumber ?? ''} — ${sale.company?.name || 'tienda'}`,
+      data: {
+        saleData: {} as Prisma.InputJsonValue,
+        customerName: sale.customerName, customerEmail: sale.customerEmail, customerPhone: sale.customerPhone,
+        balanceSaleId: saleId,
+      },
+    }, sale.companyId);
   }
 
   /** Link de pago de una orden de trabajo pendiente: al pagarse, se convierte en venta. */
@@ -306,7 +344,7 @@ export class PaymentsService {
     conn: { id: string; companyId: string; credentials: Prisma.JsonValue | null; settings: Prisma.JsonValue | null },
     o: {
       provider: PaymentProvider; amount: number; remote: boolean; expiresAt: Date; chargeEmail: string | null; subject: string;
-      data: { saleData: Prisma.InputJsonValue; customerName: string | null; customerEmail: string | null; customerPhone: string | null; workOrderId?: string };
+      data: { saleData: Prisma.InputJsonValue; customerName: string | null; customerEmail: string | null; customerPhone: string | null; workOrderId?: string; balanceSaleId?: string };
     },
     companyId = conn.companyId,
   ) {
@@ -528,6 +566,16 @@ export class PaymentsService {
     if (!r || r.status !== PaymentRequestStatus.PROCESSING) return;
     const externalId = `PAY-${r.id}`;
     const method = r.provider === PaymentProvider.FLOW ? PaymentMethod.FLOW : PaymentMethod.MERCADO_PAGO;
+    // Saldo de una venta con abono: no crea otra venta, suma el pago a la existente.
+    if (r.balanceSaleId) {
+      try {
+        await registerSaleBalancePayment(this.prisma, r.balanceSaleId, { method, amount: Number(r.amount), reference: r.providerPaymentId, collectedById: r.createdById });
+        await this.prisma.paymentRequest.update({ where: { id }, data: { status: PaymentRequestStatus.PAID, error: null } });
+      } catch (e: any) {
+        await this.prisma.paymentRequest.update({ where: { id }, data: { status: PaymentRequestStatus.NEEDS_REVIEW, error: `Pagado, pero no se pudo registrar en la venta: ${e?.message || e}` } });
+      }
+      return;
+    }
     try {
       let sale: { id: string } | null = null;
       if (r.workOrderId) {

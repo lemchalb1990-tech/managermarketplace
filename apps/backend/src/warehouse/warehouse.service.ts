@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, PrepStage, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertDispatchable } from '../production/production.service';
 import { SettingsService } from '../settings/settings.service';
 import { startOfDayInTz } from '../common/timezone';
 import { companyWhere, assertSameCompany } from '../common/tenant';
@@ -502,6 +503,8 @@ export class WarehouseService {
     // Empacar solo registra la etapa interna; el status se queda en Preparando. Los demás
     // canales siguen igual que antes.
     const isMlOrder = order.sale?.channel === 'MERCADO_LIBRE';
+    const ref = await this.prisma.order.findUnique({ where: { id: orderId }, select: { saleId: true, companyId: true } });
+    if (ref) await assertDispatchable(this.prisma, ref.saleId, ref.companyId);
     await this.prisma.order.update({
       where: { id: orderId },
       data: {

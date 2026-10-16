@@ -78,6 +78,9 @@ enum MovementType {
   PURCHASE
   TRANSFER_OUT
   TRANSFER_IN
+  // Fabricación: producto terminado que entra a bodega y materiales que se consumen.
+  PRODUCTION_IN
+  PRODUCTION_OUT
 }
 
 enum RouteStatus {
@@ -248,6 +251,12 @@ model Company {
   courierConnections CourierConnection[]
   paymentConnections PaymentConnection[]
   paymentRequests    PaymentRequest[]
+  productionProcesses ProductionProcess[]
+  productionAreas     ProductionArea[]
+  productionOrders    ProductionOrder[]
+  // Configuración de Fabricación: { consumeMaterialsAt: 'START'|'STAGE'|'END', blockDispatchWithBalance,
+  // notifications: { email: false, whatsapp: false } } (los avisos quedan apagados por ahora).
+  productionSettings  Json?
   courierShipments   CourierShipment[]
   mlConversations MlConversation[]
   mlMessageRules  MlMessageRule[]
@@ -472,6 +481,19 @@ model Product {
   active        Boolean     @default(true)
   // Producto fulfilleado por un proveedor dropship: no descuenta stock propio en las ventas.
   dropship      Boolean     @default(false)
+  // Fabricación (módulo «produccion»): cómo se abastece. STOCK = se compra y vende del stock;
+  // MADE_TO_ORDER = se vende sin stock y cada venta abre una orden de fabricación;
+  // MADE_FOR_STOCK = se fabrica por lotes que suman stock y se vende como un artículo normal.
+  supplyMode          ProductSupplyMode @default(STOCK)
+  // Servicio con proceso (reparación, instalación): cada venta abre una orden con su proceso.
+  requiresProcess     Boolean           @default(false)
+  manufacturingDays   Int?
+  productionProcessId String?
+  productionProcess   ProductionProcess? @relation(fields: [productionProcessId], references: [id], onDelete: SetNull)
+  // Especificaciones a pedir al vender: [{ key, label, type: text|number|select|textarea, options?, required? }]
+  specFields          Json?
+  // Anticipo sugerido al vender (porcentaje del total de la línea).
+  advancePercent      Int?
   // Dimensiones y peso del paquete de envío (opcional). Mercado Libre las exige como
   // atributos SELLER_PACKAGE_* en categorías sin dato de paquete propio del catálogo; si
   // quedan vacías, se manda un valor genérico de respaldo al publicar (ver publishProduct).
@@ -510,6 +532,11 @@ model Product {
   variantAttributes  VariantAttribute[]
   channelPrices      ChannelPrice[]
   syncQueueItems     SyncQueueItem[]
+  // Fabricación: lista de materiales (como producto terminado y como insumo) y órdenes.
+  materials          ProductMaterial[] @relation("BomProduct")
+  usedInBoms         ProductMaterial[] @relation("BomMaterial")
+  productionOrders   ProductionOrder[]
+  productionMaterialUses ProductionMaterialUse[]
 
   @@unique([sku, companyId])
   @@map("products")
@@ -960,6 +987,8 @@ model Sale {
   taxes           Decimal?         @db.Decimal(10, 2)
   discount        Decimal?         @db.Decimal(10, 2)
   netAmount       Decimal?         @db.Decimal(10, 2)
+  // Saldo por cobrar de una venta con abono (productos fabricados). Null o 0 = pagada.
+  balanceDue      Decimal?         @db.Decimal(10, 2)
   paymentMethod   PaymentMethod?
   // Método de pago que informa el marketplace (Mercado Pago, tarjeta, Webpay...). Texto libre,
   // distinto de paymentMethod (efectivo/tarjeta/transferencia del punto de venta).
@@ -1011,6 +1040,7 @@ model Sale {
   mlClaims      MlClaim[]
   // Cobro en línea (Flow / Mercado Pago) que originó esta venta del punto de venta.
   paymentRequest PaymentRequest?
+  productionOrders ProductionOrder[]
 
   @@unique([channel, externalId])
   @@index([channel, mlPackId])
@@ -1035,6 +1065,8 @@ model SaleItem {
   // Comisión del marketplace por esta línea, tal como la informa (Mercado Libre: sale_fee por
   // unidad × cantidad, con IVA). Permite ver el cargo de cada producto de la venta.
   marketplaceFee Decimal? @db.Decimal(10, 2)
+  // Especificaciones del cliente para un producto fabricado a pedido ({ campo: valor }).
+  specs          Json?
 
   saleId    String
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -1043,6 +1075,7 @@ model SaleItem {
 
   stockMovements     StockMovement[]
   dropshipOrderItems DropshipOrderItem[]
+  productionOrder    ProductionOrder?
 
   @@map("sale_items")
 }
@@ -1055,9 +1088,14 @@ model SalePayment {
   sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   method    PaymentMethod
   amount    Decimal       @db.Decimal(10, 2)
+  // Pago del saldo de una venta con abono (fabricación): se cobra después, por otro usuario.
+  isBalance     Boolean   @default(false)
+  collectedById String?
+  reference     String?
   createdAt DateTime      @default(now())
 
   @@index([saleId])
+  @@index([collectedById, createdAt])
   @@map("sale_payments")
 }
 
@@ -2953,6 +2991,8 @@ model PaymentRequest {
   connection   PaymentConnection @relation(fields: [connectionId], references: [id])
   saleId       String?           @unique
   sale         Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  // Cobro del saldo de una venta con abono: al pagarse suma un pago a esa venta (no crea otra).
+  balanceSaleId String?
   // Cobro de una orden de trabajo: al pagarse se convierte en venta (con su orden de retiro).
   workOrderId  String?
   workOrder    WorkOrder?        @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
@@ -2961,4 +3001,290 @@ model PaymentRequest {
   @@index([workOrderId])
   @@index([status, expiresAt])
   @@map("payment_requests")
+}
+
+// ── Fabricación (módulo «produccion») ───────────────────────────────────────
+
+enum ProductSupplyMode {
+  STOCK
+  MADE_TO_ORDER
+  MADE_FOR_STOCK
+}
+
+enum ProductionOrderKind {
+  // Para un cliente (venta de un producto a pedido, o creada a mano).
+  MADE_TO_ORDER
+  // Lote que suma stock al terminar.
+  FOR_STOCK
+  // Reparación o servicio con proceso: el equipo es del cliente (no descuenta stock).
+  REPAIR
+}
+
+enum ProductionOrderStatus {
+  PENDING
+  IN_PROGRESS
+  WAITING_APPROVAL
+  ON_HOLD
+  DONE
+  CANCELLED
+}
+
+enum ProductionStageStatus {
+  PENDING
+  IN_PROGRESS
+  WAITING_APPROVAL
+  DONE
+  SKIPPED
+}
+
+// Área de trabajo (corte, armado, tapicería...): costo por hora y capacidad diaria.
+model ProductionArea {
+  id               String   @id @default(cuid())
+  name             String
+  hourlyCost       Decimal  @default(0) @db.Decimal(12, 2)
+  // Horas de trabajo disponibles por día (planificación). Null = sin límite.
+  dailyCapacityHours Decimal? @db.Decimal(8, 2)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  stages    ProductionProcessStage[]
+  orderStages ProductionOrderStage[]
+
+  @@unique([companyId, name])
+  @@map("production_areas")
+}
+
+// Plantilla de proceso por rubro (Mueble a medida, Reparación...).
+model ProductionProcess {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  // Reparación: pide la ficha del equipo recibido.
+  isRepair    Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String
+  company   Company                  @relation(fields: [companyId], references: [id])
+  stages    ProductionProcessStage[]
+  products  Product[]
+  orders    ProductionOrder[]
+
+  @@map("production_processes")
+}
+
+model ProductionProcessStage {
+  id               String  @id @default(cuid())
+  position         Int
+  name             String
+  estimatedDays    Decimal? @db.Decimal(6, 2)
+  // Horas de trabajo estimadas por unidad (planificación y costo estimado).
+  estimatedHours   Decimal? @db.Decimal(8, 2)
+  checklist        String[] @default([])
+  requiresApproval Boolean  @default(false)
+  // Preparado para avisos automáticos (correo / WhatsApp): hoy no envía nada.
+  notifyCustomer   Boolean  @default(false)
+  // El cliente ve esta etapa (y sus fotos públicas) en su link de seguimiento.
+  customerVisible  Boolean  @default(true)
+
+  processId String
+  process   ProductionProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  areaId    String?
+  area      ProductionArea?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+
+  @@index([processId, position])
+  @@map("production_process_stages")
+}
+
+// Lista de materiales: insumos por unidad de producto terminado.
+model ProductMaterial {
+  id         String  @id @default(cuid())
+  quantity   Decimal @db.Decimal(12, 3)
+  // Nombre de la etapa del proceso en que se consume (null = al iniciar la orden).
+  stageName  String?
+  notes      String?
+
+  productId  String
+  product    Product @relation("BomProduct", fields: [productId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Product @relation("BomMaterial", fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, materialId])
+  @@map("product_materials")
+}
+
+model ProductionOrder {
+  id            String                @id @default(cuid())
+  // Correlativo por empresa (OF N°).
+  number        Int
+  kind          ProductionOrderKind   @default(MADE_TO_ORDER)
+  status        ProductionOrderStatus @default(PENDING)
+  priority      Int                   @default(0)
+  productName   String
+  quantity      Int                   @default(1)
+  // { campo: valor } con las especificaciones del cliente.
+  specs         Json?
+  // Reparación: { brand, model, serial, issue, accessories, condition }.
+  repairInfo    Json?
+  notes         String?               @db.Text
+  dueDate       DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  // Link público de seguimiento del cliente.
+  trackingToken String                @unique
+  customerName  String?
+  customerEmail String?
+  customerPhone String?
+  // Costos reales (se recalculan con materiales consumidos y horas registradas).
+  materialsCost Decimal               @default(0) @db.Decimal(12, 2)
+  laborCost     Decimal               @default(0) @db.Decimal(12, 2)
+  // Garantía: orden reabierta a partir de otra terminada.
+  warrantyReason String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  companyId    String
+  company      Company            @relation(fields: [companyId], references: [id])
+  productId    String?
+  product      Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  processId    String?
+  process      ProductionProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  saleId       String?
+  sale         Sale?              @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  saleItemId   String?            @unique
+  saleItem     SaleItem?          @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  clientId     String?
+  // Lote para stock: bodega donde entra el producto terminado.
+  warehouseId  String?
+  assignedToId String?
+  reopenedFromId String?
+  reopenedFrom   ProductionOrder?  @relation("ProductionWarranty", fields: [reopenedFromId], references: [id], onDelete: SetNull)
+  warrantyOrders ProductionOrder[] @relation("ProductionWarranty")
+
+  stages       ProductionOrderStage[]
+  events       ProductionEvent[]
+  attachments  ProductionAttachment[]
+  timeEntries  ProductionTimeEntry[]
+  materialUses ProductionMaterialUse[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@index([saleId])
+  @@map("production_orders")
+}
+
+model ProductionOrderStage {
+  id               String                @id @default(cuid())
+  position         Int
+  name             String
+  status           ProductionStageStatus @default(PENDING)
+  estimatedDays    Decimal?              @db.Decimal(6, 2)
+  estimatedHours   Decimal?              @db.Decimal(8, 2)
+  requiresApproval Boolean               @default(false)
+  notifyCustomer   Boolean               @default(false)
+  customerVisible  Boolean               @default(true)
+  // [{ label, done }]
+  checklist        Json?
+  dueDate          DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  // Aprobación del cliente: PENDING | APPROVED | CHANGES_REQUESTED.
+  approvalStatus   String?
+  approvalNote     String?
+  approvalAt       DateTime?
+  assignedToId     String?
+  assignedToName   String?
+
+  orderId String
+  order   ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  areaId  String?
+  area    ProductionArea? @relation(fields: [areaId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, position])
+  @@index([assignedToId, status])
+  @@map("production_order_stages")
+}
+
+// Bitácora de la orden. Cada cambio de etapa queda aquí: de estos eventos colgarán los avisos
+// automáticos (notifyCustomer / notifiedAt) cuando se activen.
+model ProductionEvent {
+  id              String   @id @default(cuid())
+  type            String
+  message         String   @db.Text
+  stageName       String?
+  customerVisible Boolean  @default(false)
+  notifyCustomer  Boolean  @default(false)
+  notifiedAt      DateTime?
+  actorName       String?
+  createdAt       DateTime @default(now())
+
+  orderId String
+  order   ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([notifyCustomer, notifiedAt])
+  @@map("production_events")
+}
+
+model ProductionAttachment {
+  id              String   @id @default(cuid())
+  url             String
+  name            String
+  mimeType        String?
+  stageName       String?
+  customerVisible Boolean  @default(false)
+  createdByName   String?
+  createdAt       DateTime @default(now())
+
+  orderId String
+  order   ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("production_attachments")
+}
+
+model ProductionTimeEntry {
+  id         String   @id @default(cuid())
+  minutes    Int
+  hourlyCost Decimal  @db.Decimal(12, 2)
+  note       String?
+  stageName  String?
+  userId     String?
+  userName   String?
+  workDate   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  orderId String
+  order   ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("production_time_entries")
+}
+
+// Material de una orden: planificado (lista de materiales × cantidad), reservado y consumido.
+model ProductionMaterialUse {
+  id          String  @id @default(cuid())
+  plannedQty  Decimal @db.Decimal(12, 3)
+  reservedQty Decimal @default(0) @db.Decimal(12, 3)
+  consumedQty Decimal @default(0) @db.Decimal(12, 3)
+  unitCost    Decimal @default(0) @db.Decimal(12, 2)
+  stageName   String?
+  warehouseId String?
+
+  orderId    String
+  order      ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Product         @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, materialId])
+  @@map("production_material_uses")
 }

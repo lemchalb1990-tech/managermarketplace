@@ -15,6 +15,9 @@ type Summary = {
   itemsCount: number;
   total: number;
   cashTotal: number;
+  // Fabricación: saldos de ventas anteriores cobrados en este turno y saldo que quedó por cobrar.
+  balanceCollected?: number;
+  balancePending?: number;
 };
 
 @Injectable()
@@ -57,8 +60,8 @@ export class CashClosuresService {
     const sales = await db.sale.findMany({
       where: { companyId, userId: cashierId, channel: SaleChannel.POS, createdAt: { gte: from, lt: to } },
       select: {
-        total: true, paymentMethod: true,
-        payments: { select: { method: true, amount: true } },
+        total: true, paymentMethod: true, balanceDue: true,
+        payments: { where: { isBalance: false }, select: { method: true, amount: true } },
         items: { select: { productId: true, quantity: true, unitPrice: true, product: { select: { sku: true, name: true } } } },
         order: { select: { fulfillmentType: true } },
       },
@@ -96,6 +99,15 @@ export class CashClosuresService {
       else orders.none++;
     }
 
+    // Pagos de saldo (ventas con abono) cobrados por este cajero en el turno, sean de cuando sean las ventas.
+    const balancePayments = await db.salePayment.findMany({
+      where: { isBalance: true, collectedById: cashierId, createdAt: { gte: from, lt: to }, sale: { companyId } },
+      select: { method: true, amount: true },
+    });
+    for (const p of balancePayments) addPay(p.method, Number(p.amount));
+    const balanceCollected = balancePayments.reduce((s, p) => s + Number(p.amount), 0);
+    const balancePending = sales.reduce((s, v) => s + Number(v.balanceDue ?? 0), 0);
+
     const paymentRows = [...payments]
       .map(([method, v]) => ({ method, total: Math.round(v.total * 100) / 100, count: v.count }))
       .sort((a, b) => b.total - a.total);
@@ -107,6 +119,8 @@ export class CashClosuresService {
       itemsCount,
       total: sales.reduce((s, v) => s + Number(v.total), 0),
       cashTotal: paymentRows.find((p) => p.method === 'CASH')?.total || 0,
+      balanceCollected: Math.round(balanceCollected * 100) / 100,
+      balancePending: Math.round(balancePending * 100) / 100,
     };
   }
 

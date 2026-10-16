@@ -12,6 +12,7 @@ import { CreateSaleDto, StockAdjustDto } from './dto/pos.dto';
 import { warehouseStockFor } from '../common/warehouse-stock.util';
 import { matchesModule } from '../common/modules.util';
 import { assertSalePrices, VARIABLE_PRICE_MODULE } from './sale-prices.util';
+import { createProductionOrderForSaleItem, isMadeToOrder, isProcessService, isStockless, productionActive } from '../production/production.util';
 
 // Módulo por empresa: proceso de órdenes (preparación, despacho y entrega).
 const ORDERS_MODULE = 'orders';
@@ -177,11 +178,13 @@ export class PosService {
       where: { id: { in: dto.items.map(i => i.productId) }, companyId },
     });
 
+    // Fabricación: los productos a pedido se venden sin stock (la venta abre su orden).
+    const productionOn = await productionActive(this.prisma, companyId);
     for (const item of dto.items) {
       const product = products.find(p => p.id === item.productId);
       if (!product) throw new BadRequestException(`Producto ${item.productId} no encontrado`);
       if (!product.active) throw new BadRequestException(`El producto "${product.name}" está inactivo`);
-      if (product.type !== ProductType.SERVICIO && !product.dropship && product.stock < item.quantity) {
+      if (!isStockless(product, productionOn) && product.stock < item.quantity) {
         throw new BadRequestException(`Stock insuficiente para "${product.name}": disponible ${product.stock}, solicitado ${item.quantity}`);
       }
     }
@@ -189,7 +192,7 @@ export class PosService {
     // Con bodega de venta, el stock tiene que estar en ESA bodega: si no alcanza, se bloquea
     // la venta aunque haya stock en otra.
     if (saleWarehouse) {
-      const physical = products.filter((p) => p.type !== ProductType.SERVICIO && !p.dropship);
+      const physical = products.filter((p) => !isStockless(p, productionOn));
       const inWarehouse = await warehouseStockFor(this.prisma, companyId, saleWarehouse.id, physical);
       const qtyByProduct = new Map<string, number>();
       for (const i of dto.items) qtyByProduct.set(i.productId, (qtyByProduct.get(i.productId) || 0) + i.quantity);
@@ -209,13 +212,16 @@ export class PosService {
     // Sin el módulo de órdenes, la empresa no prepara ni despacha desde el panel: la orden
     // de una venta del punto de venta nace entregada al cobrar (el stock ya se descontó
     // con la venta, como siempre).
-    const deliverOnCharge = dto.channel === SaleChannel.POS && !matchesModule(company?.modules, ORDERS_MODULE);
+    // Con productos a pedido la orden espera a que termine la fabricación.
+    const withProduction = products.some((p) => isMadeToOrder(p, productionOn) || isProcessService(p, productionOn));
+    const deliverOnCharge = dto.channel === SaleChannel.POS && !matchesModule(company?.modules, ORDERS_MODULE) && !withProduction;
 
     const total = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
     // Medios de pago: con varios, se agrupan por medio y la suma debe cuadrar con el total;
     // con uno solo (o solo paymentMethod), una fila por el total.
     let payments: { method: PaymentMethod; amount: number }[] = [];
+    let balanceDue: number | null = null;
     if (dto.payments?.length) {
       const byMethod = new Map<PaymentMethod, number>();
       for (const p of dto.payments) {
@@ -225,10 +231,16 @@ export class PosService {
       }
       payments = [...byMethod].map(([method, amount]) => ({ method, amount: Math.round(amount * 100) / 100 }));
       const paid = payments.reduce((s, p) => s + p.amount, 0);
-      if (!payments.length || Math.abs(paid - total) > 0.5) {
-        throw new BadRequestException(`Los medios de pago suman ${Math.round(paid)} y el total de la venta es ${Math.round(total)}`);
+      // Abono: solo en ventas con productos fabricados; lo que falta queda como saldo.
+      const partial = !!dto.allowBalance && withProduction && payments.length > 0 && paid > 0 && paid < total - 0.5;
+      if (partial) {
+        balanceDue = Math.round((total - paid) * 100) / 100;
+      } else {
+        if (!payments.length || Math.abs(paid - total) > 0.5) {
+          throw new BadRequestException(`Los medios de pago suman ${Math.round(paid)} y el total de la venta es ${Math.round(total)}`);
+        }
+        if (payments.length === 1) payments[0].amount = total;
       }
-      if (payments.length === 1) payments[0].amount = total;
     } else if (dto.paymentMethod && dto.paymentMethod !== PaymentMethod.MIXED) {
       payments = [{ method: dto.paymentMethod, amount: total }];
     }
@@ -256,6 +268,7 @@ export class PosService {
           externalId: dto.externalId,
           total,
           paymentMethod,
+          balanceDue,
           ...(payments.length ? { payments: { create: payments } } : {}),
           notes: dto.notes,
           customerName: dto.customerName || client?.name,
@@ -274,6 +287,7 @@ export class PosService {
               quantity: i.quantity,
               unitPrice: i.unitPrice,
               listPrice: products.find(p => p.id === i.productId)!.price,
+              ...(i.specs && Object.keys(i.specs).length ? { specs: i.specs } : {}),
             })),
           },
         },
@@ -284,7 +298,11 @@ export class PosService {
         const product = products.find(p => p.id === item.productId)!;
         // Servicios y productos dropship no descuentan stock propio: los dropship los
         // despacha el proveedor y el módulo de dropshipping costea sus líneas aparte.
-        if (product.type === ProductType.SERVICIO || product.dropship) continue;
+        if (product.type === ProductType.SERVICIO || product.dropship) {
+          // Servicio con proceso (reparación, instalación): abre su orden de fabricación.
+          if (isProcessService(product, productionOn)) await createProductionOrderForSaleItem(tx, item.id, user.name ?? user.email ?? null);
+          continue;
+        }
         const totalCost = await this.costing.consumeForSale(tx, {
           companyId,
           productId: item.productId,

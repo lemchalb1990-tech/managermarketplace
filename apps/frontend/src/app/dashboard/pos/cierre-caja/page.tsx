@@ -194,6 +194,12 @@ export default function CashClosurePage() {
                 </div>
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between text-[var(--text-2)]"><span>Ventas en efectivo</span><span>{fmt(summary.cashTotal)}</span></div>
+                  {(summary as { balanceCollected?: number }).balanceCollected ? (
+                    <div className="flex justify-between text-xs text-[var(--text-muted)]"><span>Incluye saldos cobrados de ventas con abono (todos los medios)</span><span>{fmt((summary as { balanceCollected?: number }).balanceCollected || 0)}</span></div>
+                  ) : null}
+                  {(summary as { balancePending?: number }).balancePending ? (
+                    <div className="flex justify-between text-xs text-amber-700"><span>Saldo por cobrar de las ventas del turno</span><span>{fmt((summary as { balancePending?: number }).balancePending || 0)}</span></div>
+                  ) : null}
                   <div className="flex justify-between font-semibold text-[var(--text)]"><span>Efectivo esperado</span><span>{fmt(expected)}</span></div>
                   {difference != null && (
                     <div className={`flex justify-between font-semibold ${difference === 0 ? 'text-[var(--ok)]' : 'text-[var(--danger)]'}`}>

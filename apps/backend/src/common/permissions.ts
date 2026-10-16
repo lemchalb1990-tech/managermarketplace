@@ -22,6 +22,7 @@ export const PRODUCT_FIELD_PERMISSIONS: { field: string; label: string }[] = [
   { field: 'price', label: 'Precio de venta (tienda, Mercado Libre y canales)' },
   { field: 'category', label: 'Categoría' },
   { field: 'images', label: 'Imágenes' },
+  { field: 'fabricacion', label: 'Fabricación (abastecimiento, proceso, materiales y especificaciones)' },
 ];
 export const PRODUCT_FIELD_VIEW_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.view`);
 export const PRODUCT_FIELD_EDIT_KEYS = PRODUCT_FIELD_PERMISSIONS.map((f) => `product.${f.field}.edit`);
@@ -116,6 +117,14 @@ export const PERMISSION_GROUPS: {
     ])),
   },
   {
+    key: 'fabricacion',
+    label: 'Fabricación',
+    items: [
+      { key: 'production', label: 'Fabricación: órdenes, tablero, tareas y calendario' },
+      { key: 'production.config', label: 'Fabricación: procesos, áreas y ajustes' },
+    ],
+  },
+  {
     key: 'finanzas',
     label: 'Finanzas',
     items: [{ key: 'finance', label: 'Finanzas: plan de cuentas, movimientos y presupuesto' }],
@@ -196,6 +205,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   [Role.SUPER_ADMIN]: ['*'],
   [Role.COMPANY_ADMIN]: [
     'dashboard',
+    'production',
+    'production.config',
     'orders',
     'orders.scan',
     'returns',
@@ -247,6 +258,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   ],
   [Role.CATALOG_MANAGER]: [
     'dashboard',
+    'production',
+    'production.config',
     'orders',
     'orders.scan',
     'returns',
@@ -285,6 +298,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     ...PRODUCT_FIELD_ALL_KEYS,
   ],
   [Role.VENDEDOR]: [
+    'production',
     'orders',
     'orders.scan',
     'returns',
@@ -368,6 +382,7 @@ export const PAGE_ROLES: Record<string, Role[]> = {
   catalog: CA_CM, warehouses: CA_CM, inventory: ANY, 'inventory.adjust': ANY, transfers: ANY, 'transfers.receive': ANY,
   purchases: CA_CM, suppliers: CA_CM, rentabilidad: CA_CM,
   finance: ANY,
+  payments: CA_CM_V, production: ANY, 'production.config': CA_CM,
   'warehouse.board': ANY, 'warehouse.picking': ANY, 'warehouse.packing': ANY,
   despachos: CA_CM, 'mis-rutas': [Role.DESPACHADOR],
   'drivers.fleet': ANY, 'drivers.metrics': ANY, 'drivers.payments': ANY, 'drivers.zones': ANY,

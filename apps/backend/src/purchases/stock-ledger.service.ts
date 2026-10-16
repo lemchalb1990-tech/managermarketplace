@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 type Tx = Prisma.TransactionClient;
 
 export interface StockReference {
-  type: 'SALE' | 'TRANSFER' | 'RETURN' | 'ADJUSTMENT' | 'PURCHASE' | 'COUNT' | 'INITIAL';
+  type: 'SALE' | 'TRANSFER' | 'RETURN' | 'ADJUSTMENT' | 'PURCHASE' | 'COUNT' | 'INITIAL' | 'PRODUCTION';
   id?: string;
   number?: string;
 }

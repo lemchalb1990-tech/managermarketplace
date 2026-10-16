@@ -299,6 +299,75 @@ export type PaymentRequestInfo = {
   workOrderId: string | null; workOrderFolio: number | null;
 };
 
+// ── Fabricación ──
+export type ProductionOrderStatus = 'PENDING' | 'IN_PROGRESS' | 'WAITING_APPROVAL' | 'ON_HOLD' | 'DONE' | 'CANCELLED';
+export type ProductionStageStatus = 'PENDING' | 'IN_PROGRESS' | 'WAITING_APPROVAL' | 'DONE' | 'SKIPPED';
+export type ProductionKind = 'MADE_TO_ORDER' | 'FOR_STOCK' | 'REPAIR';
+export type SpecField = { key: string; label: string; type?: 'text' | 'textarea' | 'number' | 'select'; options?: string[]; required?: boolean };
+export type ProductionArea = { id: string; name: string; hourlyCost: string | number; dailyCapacityHours: string | number | null; active: boolean };
+export type ProductionProcessStage = {
+  id?: string; position?: number; name: string; areaId: string | null; area?: { id: string; name: string } | null;
+  estimatedDays: number | string | null; estimatedHours: number | string | null; checklist: string[];
+  requiresApproval: boolean; notifyCustomer: boolean; customerVisible: boolean;
+};
+export type ProductionProcess = {
+  id: string; name: string; description: string | null; isRepair: boolean; active: boolean;
+  stages: ProductionProcessStage[]; _count?: { products: number; orders: number };
+};
+export type ProductionSettings = {
+  consumeMaterialsAt: 'START' | 'STAGE' | 'END'; blockDispatchWithBalance: boolean;
+  notifications: { email: boolean; whatsapp: boolean };
+};
+export type ProductionOrderSummary = {
+  id: string; number: number; kind: ProductionKind; kindLabel: string; status: ProductionOrderStatus; priority: number;
+  productName: string; productId: string | null; quantity: number; customerName: string | null; customerPhone: string | null; customerEmail: string | null;
+  dueDate: string | null; createdAt: string; completedAt: string | null; overdue: boolean; processId: string | null; processName: string | null;
+  currentStage: { id: string; name: string; status: ProductionStageStatus; areaName: string | null; assignedToName: string | null; dueDate: string | null } | null;
+  progress: number; stagesCount: number; saleId: string | null; saleNumber: number | null; balanceDue: number | null; trackingToken: string; reopenedFromId: string | null;
+};
+export type ProductionOrderStage = {
+  id: string; position: number; name: string; status: ProductionStageStatus; areaId: string | null; areaName: string | null;
+  estimatedDays: number | null; estimatedHours: number | null; requiresApproval: boolean; notifyCustomer: boolean; customerVisible: boolean;
+  checklist: Array<{ label: string; done: boolean }>; dueDate: string | null; startedAt: string | null; completedAt: string | null;
+  approvalStatus: string | null; approvalNote: string | null; approvalAt: string | null; assignedToId: string | null; assignedToName: string | null;
+};
+export type ProductionOrderDetail = ProductionOrderSummary & {
+  specs: Record<string, string> | null; repairInfo: Record<string, string> | null; notes: string | null; startedAt: string | null;
+  cancelledAt: string | null; cancelReason: string | null; warrantyReason: string | null; warehouseId: string | null; clientId: string | null;
+  createdByName: string | null; process: { id: string; name: string; isRepair: boolean } | null;
+  product: { id: string; name: string; sku: string; specFields: SpecField[] | null; stock: number; warehouseId: string | null; supplyMode: string } | null;
+  stages: ProductionOrderStage[];
+  sale: {
+    id: string; saleNumber: number | null; total: number; balanceDue: number; channel: string; externalId: string | null; createdAt: string;
+    orderId: string | null; orderStatus: string | null;
+    payments: Array<{ id: string; method: string; amount: number; isBalance: boolean; reference: string | null; createdAt: string }>;
+  } | null;
+  events: Array<{ id: string; type: string; message: string; stageName: string | null; customerVisible: boolean; notifyCustomer: boolean; actorName: string | null; createdAt: string }>;
+  attachments: Array<{ id: string; url: string; name: string; mimeType: string | null; stageName: string | null; customerVisible: boolean; createdByName: string | null; createdAt: string }>;
+  timeEntries: Array<{ id: string; minutes: number; hourlyCost: number; cost: number; note: string | null; stageName: string | null; userName: string | null; workDate: string }>;
+  materials: Array<{ id: string; materialId: string; name: string; sku: string; stock: number; plannedQty: number; reservedQty: number; consumedQty: number; unitCost: number; stageName: string | null; warehouseId: string | null }>;
+  costs: { materials: number; labor: number; total: number; estimatedMaterials: number; estimatedLabor: number; estimatedTotal: number; salePrice: number | null; margin: number | null };
+  reopenedFrom: { id: string; number: number } | null;
+  warrantyOrders: Array<{ id: string; number: number; status: ProductionOrderStatus; warrantyReason: string | null }>;
+  shortages?: string[];
+};
+export type ProductionTask = {
+  orderId: string; number: number; productName: string; quantity: number; customerName: string | null; priority: number;
+  dueDate: string | null; overdue: boolean; mine: boolean;
+  stage: { id: string; name: string; status: ProductionStageStatus; areaName: string | null; assignedToName: string | null; checklist: Array<{ label: string; done: boolean }> | null };
+};
+export type ProductionShortage = { materialId: string; name: string; sku: string; stock: number; cost: number; needed: number; reserved: number; missing: number; orders: number[] };
+export type ProductionPublicView = {
+  number: number; kindLabel: string; status: ProductionOrderStatus; productName: string; quantity: number; companyName: string;
+  customerName: string | null; dueDate: string | null; createdAt: string; completedAt: string | null; specs: Record<string, string> | null;
+  progress: number; balanceDue: number;
+  stages: Array<{ id: string; name: string; status: ProductionStageStatus; dueDate: string | null; startedAt: string | null; completedAt: string | null;
+    approval: { status: string | null; note: string | null; at: string | null } | null;
+    attachments: Array<{ id: string; url: string; name: string; mimeType: string | null }> }>;
+  attachments: Array<{ id: string; url: string; name: string; mimeType: string | null }>;
+  events: Array<{ message: string; createdAt: string }>;
+};
+
 // Query string sin los parámetros vacíos.
 const qs = (params: Record<string, string | number | undefined | null>) => {
   const q = new URLSearchParams();
@@ -777,7 +846,7 @@ export const api = {
     // SKU sugerido para un producto nuevo (sigue el formato de los SKU más recientes).
     suggestSku: (token: string, companyId?: string) =>
       apiFetch<{ sku: string }>(`/catalog/products/suggest-sku${companyId ? `?companyId=${companyId}` : ''}`, {}, token),
-    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: boolean; stockFilter?: string; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; stockWarehouseId?: string }, token: string) => {
+    search: (params: { page?: number; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: boolean; stockFilter?: string; pageSize?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; stockWarehouseId?: string; supplyMode?: string }, token: string) => {
       const q = new URLSearchParams();
       if (params.page) q.set('page', String(params.page));
       if (params.search) q.set('search', params.search);
@@ -791,6 +860,7 @@ export const api = {
       if (params.inStock) q.set('inStock', 'true');
       if (params.stockFilter) q.set('stockFilter', params.stockFilter);
       if (params.stockWarehouseId) q.set('stockWarehouseId', params.stockWarehouseId);
+      if (params.supplyMode) q.set('supplyMode', params.supplyMode);
       if (params.pageSize) q.set('pageSize', String(params.pageSize));
       if (params.sortBy) q.set('sortBy', params.sortBy);
       if (params.sortDir) q.set('sortDir', params.sortDir);
@@ -1908,6 +1978,8 @@ export const api = {
       apiFetch<PaymentRequestInfo>('/payments/requests', { method: 'POST', body: JSON.stringify(data) }, token),
     list: (token: string, params: { companyId?: string; status?: string; page?: number; workOrderId?: string } = {}) =>
       apiFetch<{ items: PaymentRequestInfo[]; total: number; page: number; pages: number; needsReview: number }>(`/payments/requests${qs(params)}`, {}, token),
+    createForSaleBalance: (saleId: string, data: { provider: PaymentProviderKey; expiresInHours?: number }, token: string) =>
+      apiFetch<PaymentRequestInfo>(`/payments/sales/${saleId}/balance`, { method: 'POST', body: JSON.stringify(data) }, token),
     createForWorkOrder: (workOrderId: string, data: { provider: PaymentProviderKey; expiresInHours?: number }, token: string) =>
       apiFetch<PaymentRequestInfo>(`/payments/work-orders/${workOrderId}`, { method: 'POST', body: JSON.stringify(data) }, token),
     get: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}`, {}, token),
@@ -1918,6 +1990,66 @@ export const api = {
     dismiss: (id: string, token: string) => apiFetch<PaymentRequestInfo>(`/payments/requests/${id}/dismiss`, { method: 'POST' }, token),
     publicStatus: (id: string) =>
       apiFetch<{ status: PaymentRequestStatus; amount: number; companyName: string | null; providerName: string; paymentUrl: string | null }>(`/payments/public/${id}`),
+  },
+  // Fabricación (módulo «produccion»).
+  production: {
+    settings: (token: string, companyId?: string) => apiFetch<ProductionSettings>(`/production/settings${qs({ companyId })}`, {}, token),
+    updateSettings: (data: Partial<ProductionSettings> & { companyId?: string }, token: string) =>
+      apiFetch<ProductionSettings>('/production/settings', { method: 'PATCH', body: JSON.stringify(data) }, token),
+    areas: (token: string, companyId?: string) => apiFetch<ProductionArea[]>(`/production/areas${qs({ companyId })}`, {}, token),
+    saveArea: (data: Record<string, unknown>, token: string) => apiFetch<ProductionArea>('/production/areas', { method: 'POST', body: JSON.stringify(data) }, token),
+    deleteArea: (id: string, token: string) => apiFetch<{ ok: boolean; deactivated?: boolean }>(`/production/areas/${id}`, { method: 'DELETE' }, token),
+    processes: (token: string, companyId?: string) => apiFetch<ProductionProcess[]>(`/production/processes${qs({ companyId })}`, {}, token),
+    saveProcess: (data: Record<string, unknown>, token: string) => apiFetch<ProductionProcess>('/production/processes', { method: 'POST', body: JSON.stringify(data) }, token),
+    deleteProcess: (id: string, token: string) => apiFetch<{ ok: boolean; deactivated?: boolean }>(`/production/processes/${id}`, { method: 'DELETE' }, token),
+    materials: (productId: string, token: string) =>
+      apiFetch<Array<{ id: string; materialId: string; quantity: number; stageName: string | null; notes: string | null; material: { id: string; name: string; sku: string; stock: number; cost: number | null } }>>(`/production/products/${productId}/materials`, {}, token),
+    setMaterials: (productId: string, items: Array<{ materialId: string; quantity: number; stageName?: string | null; notes?: string | null }>, token: string) =>
+      apiFetch<any[]>(`/production/products/${productId}/materials`, { method: 'PUT', body: JSON.stringify({ items }) }, token),
+    list: (token: string, params: Record<string, string | number | undefined> = {}) =>
+      apiFetch<{ items: ProductionOrderSummary[]; total: number; page: number; pages: number }>(`/production/orders${qs(params)}`, {}, token),
+    board: (token: string, params: { companyId?: string; processId?: string } = {}) =>
+      apiFetch<{ items: ProductionOrderSummary[]; stats: { open: number; overdue: number; waitingApproval: number; doneWeek: number } }>(`/production/board${qs(params)}`, {}, token),
+    tasks: (token: string, params: { companyId?: string; all?: string } = {}) => apiFetch<ProductionTask[]>(`/production/tasks${qs(params)}`, {}, token),
+    calendar: (token: string, params: { companyId?: string; from?: string; to?: string } = {}) =>
+      apiFetch<{ from: string; to: string; orders: ProductionOrderSummary[]; areas: Array<{ id: string; name: string; dailyCapacityHours: number | null; load: Record<string, number> }> }>(`/production/calendar${qs(params)}`, {}, token),
+    shortages: (token: string, companyId?: string) => apiFetch<ProductionShortage[]>(`/production/shortages${qs({ companyId })}`, {}, token),
+    forSale: (saleId: string, token: string) => apiFetch<ProductionOrderSummary[]>(`/production/sales/${saleId}`, {}, token),
+    create: (data: Record<string, unknown>, token: string) => apiFetch<{ id: string; number: number }>('/production/orders', { method: 'POST', body: JSON.stringify(data) }, token),
+    get: (id: string, token: string) => apiFetch<ProductionOrderDetail>(`/production/orders/${id}`, {}, token),
+    update: (id: string, data: Record<string, unknown>, token: string) => apiFetch<ProductionOrderDetail>(`/production/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    action: (id: string, action: 'complete' | 'cancel' | 'hold' | 'resume' | 'notes' | 'materials/reserve' | 'materials/consume', token: string, body: Record<string, unknown> = {}) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/${action}`, { method: 'POST', body: JSON.stringify(body) }, token),
+    warranty: (id: string, reason: string, token: string) =>
+      apiFetch<{ id: string; number: number }>(`/production/orders/${id}/warranty`, { method: 'POST', body: JSON.stringify({ reason }) }, token),
+    stageAction: (id: string, stageId: string, action: 'start' | 'complete' | 'skip' | 'reopen' | 'assign' | 'approval', token: string, body: Record<string, unknown> = {}) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/stages/${stageId}/${action}`, { method: 'POST', body: JSON.stringify(body) }, token),
+    updateStage: (id: string, stageId: string, data: Record<string, unknown>, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/stages/${stageId}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    setMaterial: (id: string, data: { materialId: string; plannedQty: number; stageName?: string | null }, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/materials`, { method: 'POST', body: JSON.stringify(data) }, token),
+    removeMaterial: (id: string, useId: string, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/materials/${useId}`, { method: 'DELETE' }, token),
+    addTime: (id: string, data: { stageId?: string | null; minutes: number; note?: string; workDate?: string; userId?: string | null }, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/time`, { method: 'POST', body: JSON.stringify(data) }, token),
+    removeTime: (id: string, entryId: string, token: string) => apiFetch<ProductionOrderDetail>(`/production/orders/${id}/time/${entryId}`, { method: 'DELETE' }, token),
+    addAttachment: (id: string, file: File, data: { stageName?: string; customerVisible?: boolean }, token: string) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (data.stageName) form.append('stageName', data.stageName);
+      form.append('customerVisible', data.customerVisible ? 'true' : 'false');
+      return fetch(`${API_URL}/api/production/orders/${id}/attachments`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+        .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || 'No se pudo subir el archivo'); return r.json() as Promise<ProductionOrderDetail>; });
+    },
+    updateAttachment: (id: string, attId: string, customerVisible: boolean, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/attachments/${attId}`, { method: 'PATCH', body: JSON.stringify({ customerVisible }) }, token),
+    removeAttachment: (id: string, attId: string, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/attachments/${attId}`, { method: 'DELETE' }, token),
+    payBalance: (id: string, data: { method: string; amount: number; reference?: string }, token: string) =>
+      apiFetch<ProductionOrderDetail>(`/production/orders/${id}/payments`, { method: 'POST', body: JSON.stringify(data) }, token),
+    publicView: (token: string) => apiFetch<ProductionPublicView>(`/public/production/${token}`),
+    publicApproval: (token: string, stageId: string, approved: boolean, note?: string) =>
+      apiFetch<ProductionPublicView>(`/public/production/${token}/stages/${stageId}/approval`, { method: 'POST', body: JSON.stringify({ approved, note }) }),
   },
   dropshipping: {
     suppliers: {
@@ -2144,7 +2276,7 @@ export type SubscriptionFeature = 'POS' | 'PURCHASES' | 'PICKING' | 'MULTICOMPAN
 // Filtros del listado del catálogo (los mismos de catalog.search) para acciones sobre todos los que coinciden.
 export interface CatalogFilters {
   search?: string; warehouseId?: string; category?: string; type?: string; active?: string;
-  listingStatus?: string; channel?: string; stockFilter?: string;
+  listingStatus?: string; channel?: string; stockFilter?: string; supplyMode?: string;
 }
 
 export const SUBSCRIPTION_FEATURE_LABEL: Record<SubscriptionFeature, string> = {

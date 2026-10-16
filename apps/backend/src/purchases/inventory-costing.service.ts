@@ -3,6 +3,7 @@ import { MovementType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { matchesModule } from '../common/modules.util';
 import { StockLedgerService, StockReference } from './stock-ledger.service';
+import { createProductionOrderForSaleItem, isMadeToOrder, productionActive } from '../production/production.util';
 
 type Tx = Prisma.TransactionClient;
 
@@ -143,6 +144,14 @@ export class InventoryCostingService {
   }): Promise<number | null> {
     const { companyId, productId, warehouseId, quantity, saleItemId, reason, userId } = params;
     const reference = params.reference ?? { type: 'SALE' as const };
+
+    // Fabricado a pedido: no sale de bodega; la venta abre su orden de fabricación (todas las
+    // ventas pasan por aquí: punto de venta, Mercado Libre y los demás canales).
+    const kind = await tx.product.findUnique({ where: { id: productId }, select: { type: true, dropship: true, supplyMode: true } });
+    if (kind && isMadeToOrder(kind, await productionActive(tx, companyId))) {
+      await createProductionOrderForSaleItem(tx, saleItemId, reason);
+      return null;
+    }
     const active = warehouseId ? await this.isPurchasesModuleActive(companyId, tx) : false;
 
     if (!active || !warehouseId) {

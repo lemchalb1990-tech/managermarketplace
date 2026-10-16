@@ -88,6 +88,14 @@ export class PaymentsController {
     return this.service.createForWorkOrder(user, id, body);
   }
 
+  // Link para cobrar el saldo de una venta con abono (fabricación).
+  @Post('sales/:saleId/balance')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...POS_ROLES)
+  createForSaleBalance(@CurrentUser() user: any, @Param('saleId') saleId: string, @Body() body: WorkOrderLinkBody) {
+    return this.service.createForSaleBalance(user, saleId, body);
+  }
+
   @Get('requests')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...POS_ROLES)

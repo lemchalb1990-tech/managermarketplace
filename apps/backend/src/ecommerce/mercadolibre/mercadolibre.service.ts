@@ -24,6 +24,7 @@ import { getEffectivePrice, getListingPrice } from '../../common/effective-price
 import { isInPromotion } from '../../common/ml-promo-guard.util';
 import { SubscriptionService } from '../../subscription/subscription.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { isMadeToOrder, productionActive } from '../../production/production.util';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_AUTH = 'https://auth.mercadolibre.cl';
@@ -2704,7 +2705,9 @@ export class MercadolibreService {
       return;
     }
 
-    const newStock = Math.max(0, product.stock - quantity);
+    // Fabricado a pedido: la venta abre su orden de fabricación y el stock no baja (no pausa por stock).
+    const toOrder = isMadeToOrder(product, await productionActive(tx, companyId));
+    const newStock = toOrder ? product.stock : Math.max(0, product.stock - quantity);
 
     const totalCost = await this.costing.consumeForSale(tx, {
       companyId,

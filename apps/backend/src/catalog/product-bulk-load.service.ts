@@ -8,6 +8,7 @@ import { InventoryCostingService } from '../purchases/inventory-costing.service'
 import { SubscriptionService } from '../subscription/subscription.service';
 import { SyncService } from '../ecommerce/sync/sync.service';
 import { cellText, isValidMoney, normalizeText, parseNumber, parseYesNo } from './product-bulk-load.util';
+import { productionActive } from '../production/production.util';
 
 // Carga masiva de productos (solo Super Admin, desde Administrador de plataforma):
 //   1. El Super Admin elige los campos y descarga una plantilla Excel solo con esas columnas.
@@ -18,7 +19,7 @@ import { cellText, isValidMoney, normalizeText, parseNumber, parseYesNo } from '
 // El stock va por bodega («Stock - <bodega>» = cantidad final en esa bodega) y pasa por el
 // motor de inventario (kardex), igual que una edición a mano.
 
-type FieldKind = 'text' | 'longtext' | 'money' | 'decimal' | 'int' | 'type' | 'bool' | 'warehouse' | 'category' | 'stock';
+type FieldKind = 'text' | 'longtext' | 'money' | 'decimal' | 'int' | 'type' | 'bool' | 'warehouse' | 'category' | 'stock' | 'supply';
 
 interface FieldDef {
   key: string;
@@ -55,6 +56,12 @@ const DEFAULT_WH_KEY = 'stock:__default';
 const MAX_ROWS = 5000;
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 const TYPE_LABEL: Record<ProductType, string> = { ARTICULO: 'Artículo', SERVICIO: 'Servicio' };
+// Fabricación (solo con el módulo activo).
+const SUPPLY_LABEL: Record<string, string> = { STOCK: 'Inventario', MADE_TO_ORDER: 'A pedido', MADE_FOR_STOCK: 'Para stock' };
+const PRODUCTION_FIELDS: FieldDef[] = [
+  { key: 'supplyMode', label: 'Abastecimiento', kind: 'supply', group: 'Fabricación', help: '«Inventario» (se compra y vende del stock), «A pedido» (se vende sin stock y cada venta abre una orden de fabricación) o «Para stock» (se fabrica por lotes).', width: 16 },
+  { key: 'manufacturingDays', label: 'Días de fabricación', kind: 'int', group: 'Fabricación', help: 'Días que toma fabricar una unidad (fecha comprometida de las órdenes).', width: 14 },
+];
 
 export type BulkLoadMode = 'both' | 'create' | 'update';
 export type BulkLoadAction = 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
@@ -135,7 +142,8 @@ export class ProductBulkLoadService {
     const stockFields: FieldDef[] = whs.length
       ? whs.map((w) => ({ key: `stock:${w.id}`, label: `Stock - ${w.name}`, kind: 'stock', group: 'Stock por bodega', help: `Cantidad final en la bodega «${w.name}». El sistema registra la diferencia como ajuste de inventario.`, width: 14 }))
       : [{ key: DEFAULT_WH_KEY, label: `Stock - ${DEFAULT_WAREHOUSE_NAME}`, kind: 'stock', group: 'Stock por bodega', help: 'La empresa no tiene bodegas: el stock queda en «Bodega principal», que se crea al guardar.', width: 14 }];
-    return [...STATIC_FIELDS, ...stockFields];
+    const production = (await productionActive(this.prisma, companyId)) ? PRODUCTION_FIELDS : [];
+    return [...STATIC_FIELDS, ...production, ...stockFields];
   }
 
   async listFields(companyId: string) {
@@ -188,6 +196,7 @@ export class ProductBulkLoadService {
       B: ['Sí', 'No'],
       C: whs.map((w) => w.name),
       D: categories,
+      E: Object.values(SUPPLY_LABEL),
     };
     for (const [col, values] of Object.entries(listCols)) {
       values.forEach((v, i) => { lists.getCell(`${col}${i + 1}`).value = v; });
@@ -204,6 +213,7 @@ export class ProductBulkLoadService {
       if (f.kind === 'bool') list('B', 2, true);
       if (f.kind === 'warehouse') list('C', whs.length, true);
       if (f.kind === 'category') list('D', categories.length, false);
+      if (f.kind === 'supply') list('E', 3, true);
     });
 
     if (withProducts) {
@@ -249,6 +259,7 @@ export class ProductBulkLoadService {
     if (f.kind === 'stock') return this.currentQty(p, f.key, defaultWh, p.warehouseId);
     switch (f.key) {
       case 'type': return TYPE_LABEL[p.type as ProductType];
+      case 'supplyMode': return SUPPLY_LABEL[p.supplyMode] ?? null;
       case 'active': return p.active ? 'Sí' : 'No';
       case 'warehouse': return p.warehouse?.name ?? null;
       default: {
@@ -397,6 +408,14 @@ export class ProductBulkLoadService {
             else bad(`«${text}» no es válido (usa Artículo o Servicio)`);
             break;
           }
+          case 'supply': {
+            const t = normalizeText(text);
+            if (t === 'inventario' || t === 'stock') values.supplyMode = 'STOCK';
+            else if (t === 'a pedido' || t === 'pedido' || t === 'fabricacion a pedido') values.supplyMode = 'MADE_TO_ORDER';
+            else if (t === 'para stock' || t === 'fabricacion para stock') values.supplyMode = 'MADE_FOR_STOCK';
+            else bad(`«${text}» no es válido (usa Inventario, A pedido o Para stock)`);
+            break;
+          }
           case 'bool': {
             const b = parseYesNo(v);
             if (b === undefined) bad(`«${text}» no es válido (usa Sí o No)`);
@@ -429,6 +448,7 @@ export class ProductBulkLoadService {
       const show = (k: string, v: any): string | number | null => {
         if (v === null || v === undefined) return null;
         if (k === 'type') return TYPE_LABEL[v as ProductType];
+        if (k === 'supplyMode') return SUPPLY_LABEL[v] ?? v;
         if (k === 'active') return v ? 'Sí' : 'No';
         if (k === 'warehouseId') return whName.get(v) ?? null;
         return typeof v === 'object' ? Number(v) : v;

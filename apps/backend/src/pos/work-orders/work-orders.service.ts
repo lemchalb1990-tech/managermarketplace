@@ -58,7 +58,8 @@ export class WorkOrdersService {
         // Se reserva contra la bodega por defecto del producto al momento de crear la
         // línea; si el producto no tiene bodega asignada, simplemente no hay nada que
         // reservar (no bloquea la orden de trabajo).
-        reservedWarehouseId: product.warehouseId,
+        // Productos fabricados a pedido y servicios no tienen stock que reservar.
+        reservedWarehouseId: product.supplyMode === 'MADE_TO_ORDER' || product.type === 'SERVICIO' ? null : product.warehouseId,
       };
     });
   }

@@ -10,6 +10,7 @@ import OrderInvoicesCard from './OrderInvoicesCard';
 import ImageViewer from './ImageViewer';
 import OrderCostsCard from './OrderCostsCard';
 import OrderCourierCard from './OrderCourierCard';
+import OrderProductionCard from './OrderProductionCard';
 import OrderMlMessagesCard from './OrderMlMessagesCard';
 import OrderVerificationBanner from './OrderVerificationBanner';
 import { SkeletonDetail } from '@/components/Skeleton';
@@ -969,6 +970,9 @@ Tienda corregida: ahora es de "${res.storeChangedTo}".` : ''}${res.orderRecreate
               </div>
             </div>
           )}
+
+          {/* Fabricación: órdenes de fabricación de los productos a pedido de la venta */}
+          {order.sale && <OrderProductionCard saleId={order.sale.id} />}
 
           {/* Mensajería postventa de Mercado Libre */}
           {order.sale && isMlOrder && <OrderMlMessagesCard saleId={order.sale.id} />}

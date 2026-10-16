@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsInt, Min, IsOptional, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNumber, IsInt, Min, IsOptional, IsEnum, IsArray, ValidateNested, IsObject, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FulfillmentType, PaymentMethod, SaleChannel } from '@prisma/client';
 
@@ -13,6 +13,11 @@ export class SaleItemDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   unitPrice: number;
+
+  // Especificaciones del cliente para un producto fabricado a pedido ({ campo: valor }).
+  @IsOptional()
+  @IsObject()
+  specs?: Record<string, string>;
 }
 
 export class SalePaymentDto {
@@ -42,6 +47,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  // Abono (venta con productos fabricados): los medios de pago pueden sumar menos que el total
+  // y la diferencia queda como saldo por cobrar.
+  @IsOptional()
+  @IsBoolean()
+  allowBalance?: boolean;
 
   @IsOptional()
   @IsString()

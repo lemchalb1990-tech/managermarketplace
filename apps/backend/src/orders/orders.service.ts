@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, FulfillmentType, PrepStage, Role, OrderEventSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertDispatchable } from '../production/production.service';
 import { EmailService } from '../email/email.service';
 import { CreateOrderDto, UpdateOrderDto, UpdateStatusDto, CheckItemDto, FindOrdersDto } from './dto/order.dto';
 
@@ -357,6 +358,11 @@ export class OrdersService {
       if (order.status === OrderStatus.DELIVERED) {
         throw new BadRequestException('Esta orden fue marcada como entregada por Mercado Libre: no se puede revertir desde el panel.');
       }
+    }
+
+    // Fabricación: no se despacha con órdenes de fabricación en curso (ni con saldo, si se configuró).
+    if (([OrderStatus.READY, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED] as OrderStatus[]).includes(dto.status)) {
+      await assertDispatchable(this.prisma, order.saleId, order.companyId);
     }
 
     if (dto.status === OrderStatus.READY) {

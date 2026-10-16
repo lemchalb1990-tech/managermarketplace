@@ -20,6 +20,7 @@ export interface MovementsQuery {
 const MOVEMENT_LABELS: Record<MovementType, string> = {
   SALE: 'Venta', RETURN: 'Devolución', ADJUSTMENT: 'Ajuste', INITIAL: 'Saldo inicial',
   PURCHASE: 'Compra', TRANSFER_OUT: 'Traspaso (salida)', TRANSFER_IN: 'Traspaso (entrada)',
+  PRODUCTION_IN: 'Fabricación (entrada)', PRODUCTION_OUT: 'Fabricación (consumo)',
 };
 
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;

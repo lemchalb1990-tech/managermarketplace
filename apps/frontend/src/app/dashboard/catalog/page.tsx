@@ -1,6 +1,7 @@
 'use client';
 
 import MlAvailabilityField from './MlAvailabilityField';
+import { ProductionFields, SUPPLY_LABEL, emptyProductionForm, productionFormFrom, productionPayload } from './ProductionFields';
 import { useEffect, useState, FormEvent, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
@@ -1436,6 +1437,7 @@ const emptyForm = {
   packageHeight: '', packageWidth: '', packageLength: '', packageWeight: '', barcode: '', noBarcode: false,
   variablePrice: false, minPrice: '',
   channelPrices: {} as Record<string, string>,
+  ...emptyProductionForm,
 };
 
 const fmtCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n);
@@ -1554,6 +1556,7 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [supplyFilter, setSupplyFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
   const [listingStatusFilter, setListingStatusFilter] = useState('');
   const [channelFilter, setChannelFilter] = useState('');
@@ -1576,7 +1579,7 @@ export default function CatalogPage() {
     return () => mq.removeEventListener('change', update);
   }, []);
   const view = isMobile ? 'grid' : viewMode;
-  const advancedFilterCount = [categoryFilter, typeFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
+  const advancedFilterCount = [categoryFilter, typeFilter, supplyFilter, activeFilter, listingStatusFilter, channelFilter, stockFilter].filter(Boolean).length;
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1638,6 +1641,8 @@ export default function CatalogPage() {
   const hasDropshippingModule = companyHas('dropshipping');
   // Precio variable: solo tiene sentido con el punto de venta (el precio real se ingresa al cobrar).
   const hasVariablePriceModule = hasPosModule && companyHas('variable_price');
+  // Fabricación: abastecimiento, proceso, especificaciones y lista de materiales del producto.
+  const hasProductionModule = companyHas('produccion');
 
   const activeConnections = [...connections, ...genericConnections].filter((c) => c.active);
   const mlChecked = connections.some((c) => publishTargets[c.id]);
@@ -1658,13 +1663,14 @@ export default function CatalogPage() {
     ...(search ? [{ label: `«${search}»`, onRemove: () => setSearch('') }] : []),
     ...(categoryFilter ? [{ label: `Categoría: ${categoryFilter}`, onRemove: () => setCategoryFilter('') }] : []),
     ...(typeFilter ? [{ label: typeFilter === 'SERVICIO' ? 'Servicios' : 'Artículos', onRemove: () => setTypeFilter('') }] : []),
+    ...(supplyFilter ? [{ label: SUPPLY_LABEL[supplyFilter] || supplyFilter, onRemove: () => setSupplyFilter('') }] : []),
     ...(activeFilter ? [{ label: activeFilter === 'true' ? 'Activos' : 'Inactivos', onRemove: () => setActiveFilter('') }] : []),
     ...(channelFilter ? [{ label: `Canal: ${MARKETPLACE_LABELS[channelFilter] || channelFilter}`, onRemove: () => setChannelFilter('') }] : []),
     ...(listingStatusFilter ? [{ label: `Publicación: ${({ ACTIVE: 'Activa', PAUSED: 'Pausada', ERROR_CLOSED: 'Con error o cerrada', NONE: 'Sin publicar' } as Record<string, string>)[listingStatusFilter] ?? listingStatusFilter}`, onRemove: () => setListingStatusFilter('') }] : []),
     ...(stockFilter ? [{ label: ({ in: 'Con stock', critical: 'Stock crítico', out: 'Sin stock' } as Record<string, string>)[stockFilter] ?? 'Stock', onRemove: () => setStockFilter('') }] : []),
   ];
   const catalogSetup = useCompanySetup(!loading && products.length === 0 && catalogFilters.length === 0);
-  function clearCatalogFilters() { setSearch(''); setCategoryFilter(''); setTypeFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
+  function clearCatalogFilters() { setSearch(''); setCategoryFilter(''); setTypeFilter(''); setSupplyFilter(''); setActiveFilter(''); setListingStatusFilter(''); setChannelFilter(''); setStockFilter(''); }
   const catalogSetupSteps: SetupStep[] = [
     { title: 'Crear tu empresa', done: true },
     {
@@ -1804,6 +1810,7 @@ export default function CatalogPage() {
         search: search || undefined,
         category: categoryFilter || undefined,
         type: typeFilter || undefined,
+        supplyMode: supplyFilter || undefined,
         active: activeFilter || undefined,
         listingStatus: listingStatusFilter || undefined,
         channel: channelFilter || undefined,
@@ -1828,6 +1835,7 @@ export default function CatalogPage() {
       search: search || undefined,
       category: categoryFilter || undefined,
       type: typeFilter || undefined,
+      supplyMode: supplyFilter || undefined,
       active: activeFilter || undefined,
       listingStatus: listingStatusFilter || undefined,
       channel: channelFilter || undefined,
@@ -2026,7 +2034,8 @@ export default function CatalogPage() {
       (editForm.barcode || '') !== (orig.barcode || '') ||
       !!editForm.noBarcode !== !!orig.noBarcode ||
       !!editForm.variablePrice !== !!orig.variablePrice ||
-      (editForm.minPrice || '') !== (orig.minPrice || '');
+      (editForm.minPrice || '') !== (orig.minPrice || '') ||
+      (orig.production !== undefined && JSON.stringify(productionPayload(editForm)) !== orig.production);
     setIsDirty(dirty);
   }, [editForm]);
 
@@ -2081,6 +2090,7 @@ export default function CatalogPage() {
       variablePrice: !!product.variablePrice,
       minPrice: product.minPrice != null ? String(Number(product.minPrice)) : '',
       channelPrices: channelPriceMap(product),
+      ...productionFormFrom(product),
     });
     setTab('edit');
     setEditError('');
@@ -2112,6 +2122,7 @@ export default function CatalogPage() {
       variablePrice: !!product.variablePrice,
       minPrice: product.minPrice != null ? String(Number(product.minPrice)) : '',
       channelPrices: JSON.stringify(channelPriceMap(product)),
+      production: JSON.stringify(productionPayload({ type: product.type || 'ARTICULO', ...productionFormFrom(product) })),
     };
     setMlCategoryAttrs([]);
     setCategorySupportsHtml(false);
@@ -2193,6 +2204,7 @@ export default function CatalogPage() {
         barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
         noBarcode: !!editForm.noBarcode,
         ...(hasVariablePriceModule ? { variablePrice: !!editForm.variablePrice, minPrice: editForm.variablePrice && editForm.minPrice !== '' ? parseFloat(editForm.minPrice) : null } : {}),
+        ...(hasProductionModule && pfEdit('fabricacion') ? productionPayload(editForm) : {}),
       };
       await api.catalog.update(selected.id, payload, token);
       const prevDays = selected.mlManufacturingDays != null ? Number(selected.mlManufacturingDays) : 0;
@@ -2250,6 +2262,7 @@ export default function CatalogPage() {
         barcode: editForm.noBarcode ? '' : ((editForm.barcode || '').trim() || undefined),
         noBarcode: !!editForm.noBarcode,
         ...(hasVariablePriceModule && editForm.variablePrice ? { variablePrice: true, minPrice: editForm.minPrice !== '' ? parseFloat(editForm.minPrice) : undefined } : {}),
+        ...(hasProductionModule && fView('fabricacion') ? productionPayload(editForm) : {}),
         ...(isSuperAdmin ? { companyId: selectedCompanyId } : {}),
       };
       const created = await api.catalog.create(payload, token);
@@ -2982,6 +2995,14 @@ export default function CatalogPage() {
             <option value="SERVICIO">Servicios</option>
           </select>
         </FilterField>
+        {hasProductionModule && (
+          <FilterField label="Abastecimiento">
+            <select value={supplyFilter} onChange={(e) => setSupplyFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white">
+              <option value="">Todos</option>
+              {Object.entries(SUPPLY_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </FilterField>
+        )}
         <FilterField label="Estado">
           <select
             value={activeFilter}
@@ -3270,10 +3291,13 @@ export default function CatalogPage() {
                   {pfView('price') ? <span className="text-sm font-semibold text-gray-800">{fmtCLP(Number(p.price))}</span> : <span />}
                   {pfView('stock') && <span className={`text-xs font-semibold ${p.stock === 0 ? 'text-red-500' : 'text-gray-600'}`}>{p.stock} un.</span>}
                 </div>
-                {((pfView('type') && p.type === 'SERVICIO') || !p.active) && (
+                {((pfView('type') && p.type === 'SERVICIO') || !p.active || (hasProductionModule && p.supplyMode && p.supplyMode !== 'STOCK')) && (
                   <div className="flex gap-1 mt-1.5">
                     {pfView('type') && p.type === 'SERVICIO' && (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">Servicio</span>
+                    )}
+                    {hasProductionModule && p.supplyMode && p.supplyMode !== 'STOCK' && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-700">{p.supplyMode === 'MADE_TO_ORDER' ? 'A pedido' : 'Fabricación'}</span>
                     )}
                     {!p.active && (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">Inactivo</span>
@@ -3377,6 +3401,11 @@ export default function CatalogPage() {
                     {pfView('type') && p.type === 'SERVICIO' && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                         Servicio
+                      </span>
+                    )}
+                    {hasProductionModule && p.supplyMode && p.supplyMode !== 'STOCK' && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                        {p.supplyMode === 'MADE_TO_ORDER' ? 'A pedido' : 'Fabricación'}
                       </span>
                     )}
                     {!p.active && (
@@ -3761,6 +3790,12 @@ export default function CatalogPage() {
                       placeholder="Ej: Electrónica"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
                   </PField>
+                  {hasProductionModule && fView('fabricacion') && (
+                    <div className="sm:col-span-2">
+                      <ProductionFields form={editForm} setForm={setEditForm} productId={selected?.id} editable={fEdit('fabricacion')}
+                        companyId={isSuperAdmin ? selectedCompanyId || undefined : undefined} />
+                    </div>
+                  )}
                   <div className="sm:col-span-2 pt-2 mt-1 border-t border-gray-100">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Precios</p>
                   </div>

@@ -60,8 +60,9 @@ export class CatalogController {
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
     @Query('stockWarehouseId') stockWarehouseId?: string,
+    @Query('supplyMode') supplyMode?: string,
   ) {
-    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir, stockWarehouseId });
+    return this.service.findAllPaginated(user, { page, search, warehouseId, category, type, active, listingStatus, channel, companyId, inStock, stockFilter, pageSize, sortBy, sortDir, stockWarehouseId, supplyMode });
   }
 
   // SKU sugerido para un producto nuevo: sigue el formato de los SKU más recientes de la empresa.

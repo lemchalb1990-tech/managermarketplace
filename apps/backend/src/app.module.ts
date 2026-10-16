@@ -37,6 +37,7 @@ import { DropshippingModule } from './dropshipping/dropshipping.module';
 import { CouriersModule } from './couriers/couriers.module';
 import { OrderAuditModule } from './order-audit/order-audit.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ProductionModule } from './production/production.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { PaymentsModule } from './payments/payments.module';
     CouriersModule,
     OrderAuditModule,
     PaymentsModule,
+    ProductionModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

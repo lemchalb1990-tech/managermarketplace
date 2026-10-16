@@ -83,10 +83,46 @@ export class CatalogService {
     }
   }
 
+  // Campos de fabricación: proceso de la empresa, especificaciones limpias y, si el producto es a
+  // pedido sin tiempo de fabricación para Mercado Libre, se usan sus días de fabricación.
+  private async normalizeProduction(data: Record<string, any>, companyId: string, prev?: { type?: string; mlManufacturingDays?: number | null }) {
+    if (data.productionProcessId !== undefined) {
+      if (data.productionProcessId) {
+        const ok = await this.prisma.productionProcess.count({ where: { id: data.productionProcessId, companyId } });
+        if (!ok) throw new BadRequestException('Proceso de fabricación no válido');
+      } else data.productionProcessId = null;
+    }
+    if (data.specFields !== undefined) {
+      const seen = new Set<string>();
+      const list = Array.isArray(data.specFields) ? data.specFields : [];
+      data.specFields = list
+        .map((f: any) => {
+          const label = String(f?.label || '').trim().slice(0, 80);
+          let key = String(f?.key || label).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+          if (!label || !key) return null;
+          while (seen.has(key)) key = `${key}_`;
+          seen.add(key);
+          const type = ['text', 'textarea', 'number', 'select'].includes(f?.type) ? f.type : 'text';
+          const options = type === 'select' ? (Array.isArray(f?.options) ? f.options : String(f?.options || '').split(',')).map((o: any) => String(o).trim()).filter(Boolean).slice(0, 50) : undefined;
+          return { key, label, type, ...(options ? { options } : {}), required: !!f?.required };
+        })
+        .filter(Boolean);
+      if (!data.specFields.length) data.specFields = null;
+    }
+    if (data.advancePercent != null) data.advancePercent = Math.max(0, Math.min(100, Math.round(Number(data.advancePercent))));
+    const type = data.type ?? prev?.type;
+    if (type === 'SERVICIO' && data.supplyMode && data.supplyMode !== 'STOCK') data.supplyMode = 'STOCK';
+    if (data.supplyMode === 'MADE_TO_ORDER' && data.manufacturingDays > 0 && data.mlManufacturingDays === undefined && (prev?.mlManufacturingDays ?? null) === null) {
+      data.mlManufacturingDays = data.manufacturingDays;
+    }
+    return data;
+  }
+
   async create(dto: CreateProductDto, user: any) {
     assertCanCreateProduct(user);
     dropHiddenOnCreate(user, dto as any);
     const companyId = this.resolveCompanyId(user, dto.companyId);
+    await this.normalizeProduction(dto as any, companyId);
     const exists = await this.prisma.product.findUnique({
       where: { sku_companyId: { sku: dto.sku, companyId } },
     });
@@ -151,7 +187,7 @@ export class CatalogService {
     return stripHiddenProductFields(user, products);
   }
 
-  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string }, opts: { idsOnly?: boolean } = {}) {
+  async findAllPaginated(user: any, query: { page?: string; search?: string; warehouseId?: string; category?: string; type?: string; active?: string; listingStatus?: string; channel?: string; companyId?: string; inStock?: string; stockFilter?: string; pageSize?: string; sortBy?: string; sortDir?: string; stockWarehouseId?: string; supplyMode?: string }, opts: { idsOnly?: boolean } = {}) {
     const companyId = user.role === Role.SUPER_ADMIN ? query.companyId : this.getCompanyId(user);
     // Punto de venta con bodega de venta: el stock que se muestra (y "Solo con stock") es el de esa bodega.
     const stockWh = query.stockWarehouseId && companyId
@@ -163,17 +199,19 @@ export class CatalogService {
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.category) where.category = query.category;
     if (query.type) where.type = query.type;
-    if (query.inStock === 'true') where.stock = { gt: 0 };
+    if (query.supplyMode && ['STOCK', 'MADE_TO_ORDER', 'MADE_FOR_STOCK'].includes(query.supplyMode)) where.supplyMode = query.supplyMode;
 
     // "Estado" (activo/inactivo): combinable con "Publicación" porque son dos filtros
     // independientes. Un servicio no maneja stock propio (siempre 0 por diseño), así que
     // queda exento de la condición de stock — para él, "Activo" depende solo del flag manual.
+    // Los fabricados a pedido se venden sin stock: cuentan como activos y «con stock».
     const andConditions: any[] = [];
+    if (query.inStock === 'true') andConditions.push({ OR: [{ stock: { gt: 0 } }, { supplyMode: 'MADE_TO_ORDER' }] });
     if (query.active === 'true') {
       andConditions.push({ active: true });
-      andConditions.push({ OR: [{ type: 'SERVICIO' }, { stock: { gt: 0 } }] });
+      andConditions.push({ OR: [{ type: 'SERVICIO' }, { stock: { gt: 0 } }, { supplyMode: 'MADE_TO_ORDER' }] });
     } else if (query.active === 'false') {
-      andConditions.push({ OR: [{ active: false }, { type: 'ARTICULO', stock: { lte: 0 } }] });
+      andConditions.push({ OR: [{ active: false }, { type: 'ARTICULO', stock: { lte: 0 }, supplyMode: { not: 'MADE_TO_ORDER' } }] });
     }
     // "Publicación": estado real guardado del Listing (igual criterio que el color de los
     // chips en el catálogo), independiente del stock o del flag "Activo" del producto.
@@ -201,6 +239,7 @@ export class CatalogService {
       andConditions.push({
         OR: [
           { type: 'SERVICIO' },
+          { supplyMode: 'MADE_TO_ORDER' },
           { productStocks: { some: { warehouseId: stockWh.id, quantity: { gt: 0 } } } },
           { productStocks: { none: {} }, warehouseId: stockWh.id, stock: { gt: 0 } },
           ...(defaultWh?.id === stockWh.id ? [{ productStocks: { none: {} }, warehouseId: null, stock: { gt: 0 } }] : []),
@@ -369,6 +408,7 @@ export class CatalogService {
     if (dto.warehouseId) await this.validateWarehouseId(dto.warehouseId, product.companyId);
 
     const data = await this.withMlCategoryPath({ ...dto } as any, product.mlCategoryId);
+    await this.normalizeProduction(data, product.companyId, product as any);
     // El stock no se sobrescribe: la diferencia se registra como ajuste en la bodega del
     // producto, para que quede en el historial y cuadre con el stock por bodega.
     const stockDelta = data.stock !== undefined && data.stock !== null ? Number(data.stock) - product.stock : 0;
