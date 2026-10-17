@@ -1,0 +1,28 @@
+/* Login Domium: fondo azul noche a pantalla completa y la tarjeta al medio. Solo dentro de .login-domium. */
+.login-domium { --font-lp-serif: var(--font-lp-sans); --lp-ink: #13263b; position: relative; isolation: isolate; overflow: hidden; background: #011f3d; color: #13263b; }
+.login-domium .lp-display { font-weight: 900; letter-spacing: -0.025em; color: #011f3d; }
+.login-domium .lp-btn { font-weight: 800; border-radius: 10px; }
+.login-domium .lp-btn--primary, .login-domium :is(button,a).lp-btn--primary { background: #014687 !important; color: #fff !important; }
+.login-domium .lp-btn--primary:hover, .login-domium :is(button,a).lp-btn--primary:hover { background: #013a70 !important; }
+.login-domium .text-\[\#0075de\] { color: #014687; }
+.login-domium .hover\:text-\[\#0075de\]:hover { color: #014687; }
+.login-domium .login-card input { border-radius: 10px; }
+.login-domium .login-card input:focus { border-color: #3bb3c3 !important; box-shadow: 0 0 0 3px rgba(59, 179, 195, .22) !important; }
+.login-domium .login-card { border: 0; border-radius: 18px; box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .55); }
+
+.login-shell { position: relative; z-index: 1; }
+.login-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.login-bg-photo { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: .16; filter: grayscale(.3); }
+.login-bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 50% 45%, rgba(1, 31, 61, .35), rgba(1, 31, 61, .92)); }
+.login-bg-swoosh { position: absolute; right: -120px; bottom: -80px; width: 560px; opacity: .1; z-index: 1; }
+.login-orb { position: absolute; z-index: 1; border-radius: 50%; filter: blur(70px); }
+.login-orb--t { left: -120px; top: -60px; width: 360px; height: 360px; background: rgba(59, 179, 195, .45); }
+.login-orb--g { right: 10%; top: 30%; width: 280px; height: 280px; background: rgba(133, 194, 38, .32); }
+
+.login-head { display: grid; justify-items: center; gap: 10px; margin-bottom: 24px; text-align: center; }
+.login-head img { height: 40px; width: auto; }
+.login-head p { color: #85c226; font-weight: 800; font-size: 15px; letter-spacing: .02em; }
+.login-alt { color: rgba(255, 255, 255, .72); }
+.login-alt button { color: #85c226 !important; }
+.login-foot, .login-foot a { color: rgba(255, 255, 255, .55); }
+.login-foot a:hover { color: #fff; }

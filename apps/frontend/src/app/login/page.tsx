@@ -1,24 +1,18 @@
 'use client';
 
-import { connectorOnLanding, connectorStatus } from '@/lib/connectors';
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
-import { Logos } from '@/app/dashboard/ecommerce/components/logos';
-import { usePlatformLogos, resolvePlatformLogo } from '@/lib/platformLogos';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { startLoginSplash, loadLoginSplashChannels } from '@/lib/loginSplash';
 
 type Mode = 'login' | 'register' | 'signup' | 'forgot';
 
-const MARK_COLORS = ['#ffffff', '#62aef0', '#ffffff', '#62aef0'];
-const brandChannels = ['mercadolibre', 'falabella', 'paris', 'ripley', 'walmart'] as const;
 
 export default function LoginPage() {
   const router = useRouter();
-  const logoMap = usePlatformLogos();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -121,54 +115,24 @@ export default function LoginPage() {
     'w-full rounded-lg border border-black/[0.12] bg-white px-3.5 py-2.5 text-[15px] text-black placeholder:text-black/35 transition-colors duration-200 focus:border-[#0075de] focus:outline-none focus:ring-[3px] focus:ring-[#e6f3fe]';
 
   return (
-    <div className="flex min-h-[100dvh] gap-4 p-4 sm:p-6">
-      {/* Panel de marca: bloque de color como en la landing */}
-      <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden rounded-[12px] p-12 text-white lg:flex" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
-        <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
-          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-white text-[0.8rem] font-bold text-[#02093a]">M</span>
-          Admin Marketplace
-        </Link>
-
-        <div className="max-w-md">
-          <h2 className="lp-display text-[clamp(2.4rem,3.6vw,54px)]">
-            Todas tus ventas en <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>un solo</span> lugar
-          </h2>
-          <p className="lp-serif mt-5 text-[18px] leading-[1.56] text-white/75">
-            Catálogo, órdenes, despacho y facturación conectados con cada canal de venta.
-          </p>
-          <div className="mt-8 space-y-2">
-            {['Stock sincronizado en todos tus canales', 'Pedidos del día ordenados por hora de corte', 'Boleta y factura en el mismo paso'].map((t) => (
-              <div key={t} className="lp-shot flex items-center gap-3 rounded-[8px] border border-black/[0.08] bg-white px-3 py-2.5 text-[14px] font-medium text-black">
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#e6f3fe] text-[#0075de]">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-                </span>
-                {t}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-3 text-[13px] font-medium text-white/60">Tus principales canales</p>
-          <div className="flex items-center gap-2.5">
-            {brandChannels.filter((k) => connectorStatus(logoMap, k) === 'AVAILABLE' && connectorOnLanding(logoMap, k)).map((k, i) => (
-              <span key={k} className="lp-mark" style={{ color: MARK_COLORS[i % MARK_COLORS.length] }}>
-                <span className="h-full w-full overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{resolvePlatformLogo(logoMap, k, Logos[k], k, 'login')}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      </aside>
+    <div className="login-shell flex min-h-[100dvh] justify-center gap-4 p-4 sm:p-6">
+      {/* Fondo de marca: azul noche con la foto del equipo, la flecha Domium y luces */}
+      <div className="login-bg" aria-hidden="true">
+        <div className="login-bg-photo" style={{ backgroundImage: "url(/landing/domium/equipo.jpg)" }} />
+        <img src="/landing/domium/domium-icono-blanco.svg" alt="" className="login-bg-swoosh" />
+        <div className="login-orb login-orb--t" />
+        <div className="login-orb login-orb--g" />
+      </div>
 
       {/* Formulario */}
       <div className="flex flex-1 items-center justify-center py-6">
         <div className="ui-enter w-full max-w-[400px]">
-          <Link href="/" className="mb-8 flex items-center justify-center gap-2 text-[15px] font-semibold tracking-[-0.01em] lg:hidden">
-            <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
-            Admin Marketplace
-          </Link>
+          <div className="login-head">
+            <Link href="/"><img src="/landing/domium/domium-horizontal-blanco.svg" alt="Domium" /></Link>
+            <p>Tu negocio, bajo control.</p>
+          </div>
 
-          <div className="lp-card p-7 sm:p-8">
+          <div className="lp-card login-card p-7 sm:p-8">
             {mode === 'signup' ? (
               <>
                 <h1 className="lp-display text-[32px]">Crea tu empresa</h1>
@@ -291,14 +255,14 @@ export default function LoginPage() {
           </div>
 
           {authCfg.signupEnabled && (mode === 'login' || mode === 'register') && (
-            <p className="mt-5 text-center text-[14px] text-black/60">
+            <p className="login-alt mt-5 text-center text-[14px]">
               {mode === 'login'
                 ? <>¿No tienes cuenta? <button type="button" onClick={() => go('register')} className="font-semibold text-[#0075de] hover:underline">Prueba gratis 15 días</button></>
                 : <>¿Ya tienes cuenta? <button type="button" onClick={() => go('login')} className="font-semibold text-[#0075de] hover:underline">Ingresa aquí</button></>}
             </p>
           )}
 
-          <p className="mt-6 text-center text-[13px] text-[#757575]">
+          <p className="login-foot mt-6 text-center text-[13px]">
             <Link href="/" className="hover:text-black">← Volver al inicio</Link>
             <span className="mx-2">·</span>
             Creado por OnDataSolution

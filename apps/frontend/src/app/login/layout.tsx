@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Nunito } from "next/font/google";
+import "./login-domium.css";
 
-// Mismas tipografías y paleta de la landing (clase .lp en globals.css).
-const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
-const serif = Source_Serif_4({ variable: "--font-lp-serif", subsets: ["latin"], weight: "400", display: "swap" });
+// Marca Domium: Nunito para todo el login (la clase .lp trae la paleta de la landing).
+const sans = Nunito({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700", "800", "900"] });
 
 export default function LoginLayout({ children }: { children: ReactNode }) {
-  return <div className={`lp ${sans.variable} ${serif.variable} min-h-[100dvh] w-full`}>{children}</div>;
+  return <div className={`lp login-domium ${sans.variable} min-h-[100dvh] w-full`}>{children}</div>;
 }
