@@ -61,14 +61,14 @@ export function FloatingContact({ heroId }: { heroId: string }) {
       <div
         id="lp-wa-dialog"
         role="dialog"
-        aria-label="Habla con Admin Marketplace"
+        aria-label="Habla con Domium"
         aria-hidden={!open}
         className={`lp-wa-dialog w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-[0_16px_48px_rgba(0,0,0,0.22)] ${open ? "lp-wa-dialog--in" : ""}`}
       >
         <div className="flex items-center gap-3 bg-[#075e54] px-4 py-3 text-white">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[15px] font-bold text-[#075e54]">M</span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold leading-tight">Admin Marketplace</p>
+            <p className="truncate text-[15px] font-semibold leading-tight">Domium</p>
             <p className="text-[12px] text-white/80">Ejecutivo comercial</p>
           </div>
           <button type="button" onClick={close} tabIndex={open ? 0 : -1} aria-label="Cerrar"

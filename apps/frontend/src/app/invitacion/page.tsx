@@ -73,7 +73,7 @@ function Invitacion() {
       <div className="ui-enter w-full max-w-[440px]">
         <Link href="/" className="mb-8 flex items-center justify-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
           <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
-          Admin Marketplace
+          Domium
         </Link>
         <div className="lp-card p-7 sm:p-8">
           {!info && !invalid && <p className="text-sm text-black/50">Revisando la invitación…</p>}

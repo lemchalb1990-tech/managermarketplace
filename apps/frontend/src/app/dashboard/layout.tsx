@@ -165,7 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="md:hidden h-[var(--topbar-h)] px-4 flex items-center justify-between shrink-0 border-b border-[var(--border-soft)]">
         <span className="flex items-center gap-2 font-bold text-[var(--text)] text-base tracking-tight">
           <span className="grid h-6 w-6 place-items-center rounded-[6px] bg-[var(--navy)] text-[0.7rem] font-bold text-white">M</span>
-          Admin Marketplace
+          Domium
         </span>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -260,7 +260,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
               <span className="flex flex-1 min-w-0 items-center gap-2 font-bold tracking-tight">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-white text-[0.8rem] font-bold text-[var(--navy)]">M</span>
-                <span className="truncate">Admin Marketplace</span>
+                <span className="truncate">Domium</span>
               </span>
               <HeaderCompanyPicker />
               {can(user, 'ml.mensajes', ['SUPER_ADMIN', 'COMPANY_ADMIN', 'CATALOG_MANAGER', 'VENDEDOR']) && hasModule(user, 'ecommerce') && <MessagesIndicator />}

@@ -228,10 +228,10 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
         {/* Producto (va cambiando con cada venta) */}
         <div ref={cardRef} className="lp-shot relative z-10 mx-auto w-full max-w-[300px] rounded-[12px] bg-white p-3" style={{ border: LINE }}>
           <div className="flex items-center justify-between gap-2 text-[11px]">
-            {/* El centralizador: todo pasa por Admin Marketplace */}
+            {/* El centralizador: todo pasa por Domium */}
             <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[#f4f8fb] py-0.5 pl-0.5 pr-2 font-semibold text-black">
               <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-black text-[9px] font-bold text-white">M</span>
-              <span className="truncate">Admin Marketplace{drop ? " · Proveedor" : ""}</span>
+              <span className="truncate">Domium{drop ? " · Proveedor" : ""}</span>
             </span>
             <span className="flex items-center gap-1.5 font-medium text-[#4e7a12]">
               <span className="relative flex h-2 w-2">
@@ -300,7 +300,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Reposición recibida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">Orden de compra N° 318 · Admin Marketplace</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">Orden de compra N° 318 · Domium</span>
                 </span>
               </div>
             )}

@@ -4,16 +4,16 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/dashboard',
-    name: 'Admin Marketplace',
-    short_name: 'Marketplace',
-    description: 'Gestión de inventario y marketplace',
+    name: 'Domium',
+    short_name: 'Domium',
+    description: 'Tu negocio, bajo control.',
     lang: 'es',
     start_url: '/dashboard',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#02093a',
-    theme_color: '#02093a',
+    background_color: '#011f3d',
+    theme_color: '#011f3d',
     icons: [
       { src: '/app/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

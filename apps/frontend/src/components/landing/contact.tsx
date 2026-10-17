@@ -47,8 +47,8 @@ export function trialHref(c: Contact | null): string | null {
 /** Link de contacto: WhatsApp; si no hay, correo; si no, la agenda. */
 export function contactHref(c: Contact | null): string | null {
   if (!c) return null;
-  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero más información sobre Admin Marketplace.");
-  if (c.email) return mail(c.email, "Quiero más información sobre Admin Marketplace");
+  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero más información sobre Domium.");
+  if (c.email) return mail(c.email, "Quiero más información sobre Domium");
   return c.scheduleUrl;
 }
 
@@ -97,7 +97,7 @@ export function ExecutiveButton({ label = "Contactar con un ejecutivo", classNam
 export function supportHref(c: Contact | null, company?: string): string | null {
   if (!c) return null;
   const who = company ? ` (empresa ${company})` : "";
-  if (c.whatsapp) return wa(c.whatsapp, `Hola, necesito ayuda con Admin Marketplace${who}.`);
-  if (c.email) return mail(c.email, `Ayuda con Admin Marketplace${who}`);
+  if (c.whatsapp) return wa(c.whatsapp, `Hola, necesito ayuda con Domium${who}.`);
+  if (c.email) return mail(c.email, `Ayuda con Domium${who}`);
   return null;
 }

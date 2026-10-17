@@ -19,14 +19,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Admin Marketplace",
-  description: "Gestión de inventario y marketplace",
+  title: "Domium",
+  description: "Tu negocio, bajo control: ventas, stock y boletas de todos tus canales en un solo panel.",
   // Instalada en iPhone: nombre bajo el ícono y barra de estado oscura sobre la barra azul marino.
-  appleWebApp: { capable: true, title: "Marketplace", statusBarStyle: "black" },
+  appleWebApp: { capable: true, title: "Domium", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#02093a",
+  themeColor: "#011f3d",
 };
 
 export default function RootLayout({
