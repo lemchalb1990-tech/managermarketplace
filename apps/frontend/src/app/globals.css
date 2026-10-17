@@ -400,34 +400,34 @@ body {
   /* Azul / índigo / celeste → azul noche y azul de la landing (acciones primarias) */
   --color-blue-50: #eef4fd;
   --color-blue-100: #d9e7fb;
-  --color-blue-200: #b6d1f6;
+  --color-blue-200: #cfe0f1;
   --color-blue-300: #85b3ef;
   --color-blue-400: #3d8ce6;
-  --color-blue-500: #0075de;
-  --color-blue-600: #0b1d5c;
-  --color-blue-700: #02093a;
+  --color-blue-500: #23899a;
+  --color-blue-600: #014687;
+  --color-blue-700: #011f3d;
   --color-blue-800: #020732;
   --color-blue-900: #01052a;
   --color-indigo-50: #eef4fd;
   --color-indigo-100: #d9e7fb;
-  --color-indigo-200: #b6d1f6;
+  --color-indigo-200: #cfe0f1;
   --color-indigo-300: #85b3ef;
   --color-indigo-400: #3d8ce6;
-  --color-indigo-500: #0075de;
-  --color-indigo-600: #0b1d5c;
-  --color-indigo-700: #02093a;
+  --color-indigo-500: #23899a;
+  --color-indigo-600: #014687;
+  --color-indigo-700: #011f3d;
   --color-indigo-800: #020732;
   --color-indigo-900: #01052a;
-  --color-sky-50: #eef7fe;
+  --color-sky-50: #eef5fb;
   --color-sky-100: #d8edfd;
   --color-sky-200: #b3dbfb;
   --color-sky-300: #86c3f6;
-  --color-sky-400: #62aef0;
+  --color-sky-400: #8bcfd8;
   --color-sky-500: #3796e6;
-  --color-sky-600: #0075de;
+  --color-sky-600: #23899a;
   --color-sky-700: #005fb6;
-  --color-sky-800: #0b1d5c;
-  --color-sky-900: #02093a;
+  --color-sky-800: #014687;
+  --color-sky-900: #011f3d;
 }
 
 /* Detalles finos comunes a todo el panel */
@@ -470,29 +470,29 @@ body {
 }
 
 /* ── Landing ─────────────────────────────────────────────────────────────────
-   Cuaderno de papel cálido: lienzo #f6f5f4, tarjetas blancas con borde fino
+   Cuaderno de papel cálido: lienzo #f4f8fb, tarjetas blancas con borde fino
    (sin sombras), un solo azul para la acción principal y colores de acento
    solo en fondos de bloques. Solo aplica dentro de .lp; el panel no cambia. */
 .lp {
-  --lp-blue: #0075de;
-  --lp-blue-hover: #005bb0;
-  --lp-paper: #f6f5f4;
+  --lp-blue: #23899a;
+  --lp-blue-hover: #1b6f7d;
+  --lp-paper: #f4f8fb;
   --lp-ink: #000000;
-  --lp-graphite: #615d59;
-  --lp-stone: #757575;
-  --lp-sky-tint: #e6f3fe;
+  --lp-graphite: #3d5368;
+  --lp-stone: #6b7f93;
+  --lp-sky-tint: #eaf2fa;
   --lp-marigold: #ffb110;
   --lp-coral: #f64932;
   --lp-peach: #f6d5b8;
-  --lp-sky: #62aef0;
-  --lp-signal: #097fe8;
-  --lp-midnight: #02093a;
+  --lp-sky: #8bcfd8;
+  --lp-signal: #3bb3c3;
+  --lp-midnight: #011f3d;
   --lp-line: rgba(0, 0, 0, 0.08);
 
   /* Los mocks reutilizan las variables del panel: se remapean a esta paleta. */
   --page-bg: var(--lp-paper);
   --surface: #ffffff;
-  --surface-soft: #f9f8f7;
+  --surface-soft: #f9fbfd;
   --text: var(--lp-ink);
   --text-2: var(--lp-graphite);
   --text-muted: var(--lp-stone);
@@ -509,8 +509,8 @@ body {
   font-feature-settings: "lnum";
 }
 .lp .ui-card { border: 1px solid var(--lp-line); box-shadow: none; border-radius: 12px; }
-.lp .ui-btn-brand { background: #02093a; color: #fff; border-radius: 8px; font-weight: 500; }
-.lp .ui-btn-brand:hover { background: #0b1d5c; }
+.lp .ui-btn-brand { background: #011f3d; color: #fff; border-radius: 8px; font-weight: 500; }
+.lp .ui-btn-brand:hover { background: #014687; }
 
 .lp-serif { font-family: var(--font-lp-serif), Georgia, serif; font-weight: 400; }
 .lp-display { font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
@@ -580,13 +580,13 @@ body {
   .lp-wa, .lp-wa-dialog, .lp-wa-dialog--in { transition: none; }
   .lp-wa:hover { transform: none; }
 }
-.lp-btn--primary { background: #02093a; color: #fff; }
-.lp-btn--primary:hover { background: #0b1d5c; }
+.lp-btn--primary { background: #011f3d; color: #fff; }
+.lp-btn--primary:hover { background: #014687; }
 /* Sobre fondos azul noche: botón blanco con texto azul oscuro. */
-.lp-btn--light { background: #fff; color: #02093a; }
-.lp-btn--light:hover { background: #e8eaf2; }
-.lp-btn--soft { background: #eceef5; color: #02093a; }
-.lp-btn--soft:hover { background: #dfe2ee; }
+.lp-btn--light { background: #fff; color: #011f3d; }
+.lp-btn--light:hover { background: #e3edf6; }
+.lp-btn--soft { background: #eaf2fa; color: #011f3d; }
+.lp-btn--soft:hover { background: #d6e4f1; }
 .lp-btn--text { color: rgba(0, 0, 0, 0.95); }
 .lp-btn--text:hover { background: rgba(0, 0, 0, 0.05); }
 .lp-nav-link { color: rgba(0, 0, 0, 0.54); border-radius: 8px; padding: 8px 12px; transition: color 0.2s ease; }
@@ -627,7 +627,7 @@ body {
   mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
 }
 .lp-ruled {
-  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgba(0, 117, 222, 0.08) 31px 32px);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgba(133, 194, 38, 0.08) 31px 32px);
 }
 
 /* Movimiento de las ilustraciones: flotar, destellar, dibujarse y girar. */
@@ -649,7 +649,7 @@ body {
 }
 
 /* Escena del inicio: números que cambian, aviso que entra y conector activo. */
-@keyframes lp-pop { 0% { transform: scale(1.18); color: #0075de; } 100% { transform: scale(1); } }
+@keyframes lp-pop { 0% { transform: scale(1.18); color: #23899a; } 100% { transform: scale(1); } }
 @keyframes lp-slide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes lp-wire { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
 .lp-pop { display: inline-block; animation: lp-pop 0.5s ease-out both; transform-origin: left bottom; }
@@ -692,12 +692,12 @@ body {
 /* Réplica del dashboard dentro de la landing: recupera la paleta, tipografía y
    tarjetas del panel (en claro) para que se vea igual que el sistema real. */
 .lp .lp-panel {
-  --brand: #0075de;
-  --brand-dark: #02093a;
-  --brand-ink: #0b1d5c;
-  --brand-light: #e8f1fc;
-  --brand-soft: #0075de1f;
-  --navy: #02093a;
+  --brand: #23899a;
+  --brand-dark: #011f3d;
+  --brand-ink: #014687;
+  --brand-light: #eaf2fa;
+  --brand-soft: #23899a1f;
+  --navy: #011f3d;
   --page-bg: #f7f6f2;
   --surface: #ffffff;
   --surface-soft: #fbfaf7;
@@ -706,7 +706,7 @@ body {
   --text-muted: #8a8884;
   --border: #e4e2dc;
   --border-soft: #eeece7;
-  --info: #0075de;
+  --info: #23899a;
   background: var(--page-bg);
   color: var(--text);
   font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;

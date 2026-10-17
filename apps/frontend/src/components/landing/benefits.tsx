@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { PRODUCT_IMG } from "./visuals";
+import { PRODUCT_IMG } from "@/components/landing/visuals";
 
 const LINE = "1px solid rgba(0,0,0,0.08)";
-const NAVY = "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)";
+// Tarjeta destacada: degradé del azul Domium al verde.
+const NAVY = "linear-gradient(135deg, #014687 0%, #85c226 100%)";
 const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
 
 function Photo({ src, className = "" }: { src: string; className?: string }) {
@@ -12,14 +13,27 @@ function Photo({ src, className = "" }: { src: string; className?: string }) {
   return <img src={src} alt="" loading="lazy" className={`shrink-0 rounded-lg object-cover ${className}`} style={{ border: LINE }} />;
 }
 
-function Card({ title, text, dark = false, className = "", children }: {
-  title: string; text: string; dark?: boolean; className?: string; children: ReactNode;
+const ICON: Record<string, string> = {
+  stock: "M21 16V8l-9-5-9 5v8l9 5zM3.3 7 12 12l8.7-5M12 22V12",
+  orders: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  invoice: "M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6",
+  profit: "M3 17l6-6 4 4 8-8M15 7h6v6",
+  photo: "M3 3h18v18H3zM9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM21 15l-5-5L5 21",
+  claim: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2",
+};
+function Card({ title, text, dark = false, className = "", children, icon, n }: {
+  title: string; text?: string; dark?: boolean; className?: string; children: ReactNode; icon?: string; n?: number;
 }) {
   return (
-    <div className={`relative flex flex-col overflow-hidden rounded-[12px] p-4 sm:p-5 ${dark ? "text-white" : "bg-white"} ${className}`}
+    <div className={`bf-card relative flex flex-col overflow-hidden rounded-[12px] p-4 sm:p-5 ${dark ? "text-white bf-card--dark" : "bg-white"} ${className}`}
       style={dark ? { background: NAVY } : { border: LINE }}>
+      <span className="bf-band" aria-hidden="true" />
+      <div className="bf-top">
+        {icon && <span className="bf-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[icon]} /></svg></span>}
+        {n && <span className="bf-num" aria-hidden="true">{String(n).padStart(2, "0")}</span>}
+      </div>
       <p className={`font-bold tracking-[-0.015em] ${dark ? "text-[22px] leading-[1.15]" : "text-[17px] leading-[1.25]"}`}>{title}</p>
-      <p className={`mt-1 text-[13px] leading-[1.45] ${dark ? "text-white/65" : "text-[#615d59]"}`}>{text}</p>
+      {text && <p className={`mt-1 text-[13px] leading-[1.45] ${dark ? "text-white/65" : "text-[#3d5368]"}`}>{text}</p>}
       <div className="mt-3 flex-1">{children}</div>
     </div>
   );
@@ -43,19 +57,19 @@ function StockDemo() {
         <Photo src={PRODUCT_IMG.polera} className="h-14 w-14" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-semibold">Polera oversize negra</p>
-          <p className="text-[12px] text-[#757575]">{hit != null ? `Venta en ${channels[hit]}` : "Stock en todos tus canales"}</p>
+          <p className="text-[12px] text-[#6b7f93]">{hit != null ? `Venta en ${channels[hit]}` : "Stock en todos tus canales"}</p>
         </div>
         <span key={stock} className="lp-pop font-mono text-[34px] font-semibold leading-none tabular-nums">{stock}</span>
       </div>
       <div className="mt-3 flex flex-wrap gap-1">
         {channels.map((c, i) => (
-          <span key={`${c}-${n}`} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${i === hit ? "lp-pop bg-[#0075de] text-white" : "bg-[#f6f5f4] text-[#615d59]"}`}>
+          <span key={`${c}-${n}`} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${i === hit ? "lp-pop bg-[#23899a] text-white" : "bg-[#f4f8fb] text-[#3d5368]"}`}>
             {c} <span className="font-mono font-semibold tabular-nums">{stock}</span>
           </span>
         ))}
       </div>
       <button type="button" onClick={sell}
-        className="mt-3 w-full rounded-lg bg-[#02093a] py-2 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
+        className="mt-3 w-full rounded-lg bf-btn py-2 text-[13px] font-semibold text-white transition">
         {stock > 0 ? "Simular una venta" : "Reponer stock"}
       </button>
     </div>
@@ -74,10 +88,10 @@ function OrdersDemo() {
   const list = orders.filter((o) => !onlyLate || o.late);
   return (
     <div>
-      <div className="inline-flex rounded-lg bg-[#f6f5f4] p-0.5 text-[12px] font-medium">
+      <div className="inline-flex rounded-lg bg-[#f4f8fb] p-0.5 text-[12px] font-medium">
         {[false, true].map((v) => (
           <button key={String(v)} type="button" onClick={() => setOnlyLate(v)}
-            className={`rounded-md px-3 py-1 transition ${onlyLate === v ? "bg-white shadow-sm" : "text-[#757575]"}`}>
+            className={`rounded-md px-3 py-1 transition ${onlyLate === v ? "bg-white shadow-sm" : "text-[#6b7f93]"}`}>
             {v ? "Atrasados (2)" : "Todos (4)"}
           </button>
         ))}
@@ -87,7 +101,7 @@ function OrdersDemo() {
           <li key={o.n} className="lp-slide flex items-center gap-2 rounded-lg px-2 py-1" style={{ border: LINE }}>
             <Photo src={o.img} className="h-7 w-7" />
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{o.n} · {o.c}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${o.late ? "bg-red-50 text-red-600" : "bg-[#f6f5f4] text-[#615d59]"}`}>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${o.late ? "bg-red-50 text-red-600" : "bg-[#f4f8fb] text-[#3d5368]"}`}>
               {o.late ? "Atrasado" : `Corte ${o.t}`}
             </span>
           </li>
@@ -120,7 +134,7 @@ function InvoiceDemo() {
               </div>
               <div className="mt-1.5 flex items-center gap-2">
                 <Photo src={item[0]} className="h-7 w-7" />
-                <span className="flex-1 truncate text-[12px] text-[#615d59]">{item[1]}</span>
+                <span className="flex-1 truncate text-[12px] text-[#3d5368]">{item[1]}</span>
                 <span className="font-mono text-[12px] font-semibold">{clp(item[2])}</span>
               </div>
             </div>
@@ -128,7 +142,7 @@ function InvoiceDemo() {
         })}
       </div>
       <button type="button" onClick={() => { setFolio((f) => f + 1); setFresh(true); }}
-        className="mt-2 w-full rounded-lg bg-[#02093a] py-2 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
+        className="mt-2 w-full rounded-lg bf-btn py-2 text-[13px] font-semibold text-white transition">
         Vender y emitir
       </button>
     </div>
@@ -139,7 +153,7 @@ function InvoiceDemo() {
 function ProfitDemo() {
   const price = 24990;
   const parts: Array<[string, number, string]> = [
-    ["Comisión", 0.14, "#02093a"], ["Envío", 0.06, "#62aef0"], ["Costo", 0.23, "#c9c6c0"], ["Ganancia", 0.57, "#0075de"],
+    ["Comisión", 0.14, "#014687"], ["Envío", 0.06, "#8bcfd8"], ["Costo", 0.23, "#c3d0dc"], ["Ganancia", 0.57, "#23899a"],
   ];
   const [sel, setSel] = useState(3);
   return (
@@ -148,7 +162,7 @@ function ProfitDemo() {
         <Photo src={PRODUCT_IMG.poleron} className="h-11 w-11" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold">Polerón blanco</p>
-          <p className="text-[12px] text-[#757575]">Venta neta {clp(Math.round(price / 1.19))}</p>
+          <p className="text-[12px] text-[#6b7f93]">Venta neta {clp(Math.round(price / 1.19))}</p>
         </div>
       </div>
       <div className="mt-3 flex h-3 overflow-hidden rounded-full">
@@ -161,7 +175,7 @@ function ProfitDemo() {
         {parts.map(([k, v, c], i) => (
           <li key={k}>
             <button type="button" onMouseEnter={() => setSel(i)} onClick={() => setSel(i)}
-              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition ${sel === i ? "bg-[#f6f5f4] font-semibold" : "text-[#615d59]"}`}>
+              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition ${sel === i ? "bg-[#f4f8fb] font-semibold" : "text-[#3d5368]"}`}>
               <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: c }} />{k}
               <span className="ml-auto font-mono">{clp(Math.round((price / 1.19) * v))}</span>
             </button>
@@ -183,11 +197,11 @@ function PhotoAiDemo() {
   }
   return (
     <div>
-      <p className="text-[12px] text-[#757575]">Título: <span className="font-medium text-black">Zapatillas urbanas blancas</span></p>
+      <p className="text-[12px] text-[#6b7f93]">Título: <span className="font-medium text-black">Zapatillas urbanas blancas</span></p>
       <div className="relative mt-2 overflow-hidden rounded-lg" style={{ border: LINE }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={wrong ? PRODUCT_IMG.jockey : PRODUCT_IMG.zapatillas} alt="" className="aspect-[3/1] w-full object-cover" />
-        {scanning && <span className="lp-scan pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[#0075de]/35 to-transparent" />}
+        {scanning && <span className="lp-scan pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[#23899a]/35 to-transparent" />}
         {!scanning && (
           <span className={`lp-slide absolute bottom-2 left-2 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white ${wrong ? "bg-red-600" : "bg-green-600"}`}>
             {wrong ? "✕ No coincide: parece un jockey" : "✓ Coincide con el título"}
@@ -195,8 +209,8 @@ function PhotoAiDemo() {
         )}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-[12px] font-medium">
-        <button type="button" onClick={() => check(false)} className={`rounded-lg py-1.5 ${!wrong ? "bg-[#02093a] text-white" : "bg-[#f6f5f4]"}`}>Foto correcta</button>
-        <button type="button" onClick={() => check(true)} className={`rounded-lg py-1.5 ${wrong ? "bg-[#02093a] text-white" : "bg-[#f6f5f4]"}`}>Foto equivocada</button>
+        <button type="button" onClick={() => check(false)} className={`rounded-lg py-1.5 ${!wrong ? "bf-btn text-white" : "bg-[#f4f8fb]"}`}>Foto correcta</button>
+        <button type="button" onClick={() => check(true)} className={`rounded-lg py-1.5 ${wrong ? "bf-btn text-white" : "bg-[#f4f8fb]"}`}>Foto equivocada</button>
       </div>
     </div>
   );
@@ -217,7 +231,7 @@ function ClaimDemo() {
       <div className="flex min-w-0 items-center gap-3 rounded-lg p-2.5" style={{ border: LINE }}>
         <Photo src={PRODUCT_IMG.mochila} className="h-12 w-12" />
         <div className="min-w-0">
-          <p className="text-[12px] text-[#757575]">Reclamo N° 5284019 · Mercado Libre</p>
+          <p className="text-[12px] text-[#6b7f93]">Reclamo N° 5284019 · Mercado Libre</p>
           <p className="truncate text-[14px] font-medium">“La mochila llegó con el cierre roto”</p>
         </div>
       </div>
@@ -225,12 +239,12 @@ function ClaimDemo() {
         <span className="lp-slide rounded-lg bg-green-50 px-4 py-3 text-center text-[13px] font-semibold text-green-700">✓ Respondido a tiempo</span>
       ) : (
         <div className="flex gap-2.5">
-          <div className="flex-1 rounded-lg bg-[#02093a] px-4 py-2 text-white">
+          <div className="flex-1 rounded-lg bf-btn px-4 py-2 text-white">
             <p className="text-[11px] text-white/60">Tiempo para responder</p>
             <p className="font-mono text-[18px] font-semibold tabular-nums">{d}d {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}</p>
           </div>
           <button type="button" onClick={() => setAnswered(true)}
-            className="rounded-lg bg-[#02093a] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-[#0b1d5c]">
+            className="rounded-lg bf-btn px-4 py-3 text-[13px] font-semibold text-white transition">
             Responder
           </button>
         </div>
@@ -242,23 +256,23 @@ function ClaimDemo() {
 /** Beneficios con menos texto: cada tarjeta se entiende probándola. */
 export function Benefits() {
   return (
-    <div className="ui-reveal mt-8 grid gap-4 md:grid-cols-2 lg:mt-10 lg:grid-cols-4">
-      <Card dark className="md:col-span-2" title="Nunca vendes lo que no tienes" text="Una venta descuenta el stock en todos tus canales.">
+    <div className="bf-grid ui-reveal mt-8 grid gap-4 md:grid-cols-2 lg:mt-10 lg:grid-cols-4">
+      <Card dark className="md:col-span-2" icon="stock" n={1} title="Nunca vendes lo que no tienes" text="Una venta descuenta el stock en todos tus canales.">
         <StockDemo />
       </Card>
-      <Card title="Pedidos en una lista" text="Por transportista y hora de corte.">
+      <Card icon="orders" n={2} title="Pedidos en una lista">
         <OrdersDemo />
       </Card>
-      <Card title="Boleta automática" text="Se emite en el mismo paso de la venta.">
+      <Card icon="invoice" n={3} title="Boleta automática">
         <InvoiceDemo />
       </Card>
-      <Card title="Ganancia real" text="Neto, comisión, envío y costo.">
+      <Card icon="profit" n={4} title="Ganancia real">
         <ProfitDemo />
       </Card>
-      <Card title="Fotos revisadas con IA" text="Antes de publicar en Mercado Libre.">
+      <Card icon="photo" n={5} title="Fotos revisadas con IA">
         <PhotoAiDemo />
       </Card>
-      <Card className="md:col-span-2" title="Reclamos sin perder plazos" text="Cada reclamo con su fecha límite.">
+      <Card className="md:col-span-2" icon="claim" n={6} title="Reclamos sin perder plazos">
         <ClaimDemo />
       </Card>
     </div>

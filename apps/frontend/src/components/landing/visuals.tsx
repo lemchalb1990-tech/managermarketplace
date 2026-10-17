@@ -27,7 +27,7 @@ export function Toast({ icon, tone, title, meta, className = "", style }: {
       </span>
       <span className="min-w-0">
         <span className="block truncate text-[13px] font-semibold leading-tight">{title}</span>
-        <span className="block truncate text-[12px] leading-tight text-[#757575]">{meta}</span>
+        <span className="block truncate text-[12px] leading-tight text-[#6b7f93]">{meta}</span>
       </span>
     </div>
   );
@@ -49,9 +49,9 @@ export const TOAST_ICONS = {
 /* ── Dashboard y alertas ──────────────────────────────────────────────────── */
 
 export const ALERTS: Array<{ t: string; m: string; tone: string; icon: ReactNode; when: string }> = [
-  { t: "Nueva venta", m: "Mercado Libre · Zapatillas urbanas blancas · suena un aviso", tone: "#0075de", icon: TOAST_ICONS.sale, when: "ahora" },
+  { t: "Nueva venta", m: "Mercado Libre · Zapatillas urbanas blancas · suena un aviso", tone: "#23899a", icon: TOAST_ICONS.sale, when: "ahora" },
   { t: "Nueva pregunta", m: "¿Tienen talla 40?", tone: "#e89d01", icon: svg("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"), when: "hace 3 min" },
   { t: "Nuevo reclamo", m: "Responder antes del 14 oct · 23:59", tone: "#f64932", icon: svg("M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"), when: "hace 12 min" },
   { t: "Pedidos atrasados", m: "2 pedidos de Falabella pasaron la hora de corte", tone: "#e32d14", icon: svg("M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"), when: "hace 20 min" },
-  { t: "Alerta de seguridad", m: "5 intentos fallidos de inicio de sesión", tone: "#02093a", icon: svg("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"), when: "hoy 09:14" },
+  { t: "Alerta de seguridad", m: "5 intentos fallidos de inicio de sesión", tone: "#011f3d", icon: svg("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"), when: "hoy 09:14" },
 ];

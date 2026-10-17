@@ -12,7 +12,7 @@ function Chip({ node, soon }: { node: ReactNode; soon: boolean }) {
         {node}
       </span>
       {soon && (
-        <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#02093a] px-2 py-0.5 text-[10px] font-semibold text-white">
+        <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#011f3d] px-2 py-0.5 text-[10px] font-semibold text-white">
           Próximamente
         </span>
       )}

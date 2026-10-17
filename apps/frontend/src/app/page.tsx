@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Inter } from "next/font/google";
+import { Nunito } from "next/font/google";
 import { Logos } from "@/app/dashboard/ecommerce/components/logos";
 import { BillingLogos } from "@/app/dashboard/billing/components/logos";
 import { ICONS, Icon } from "@/components/landing/icons";
 import { Steps } from "@/components/landing/steps";
+import { TopNav } from "@/components/landing/topnav";
+import { HeroDeco, LightDeco, DarkDeco, Wave } from "@/components/landing/deco";
+import { Gallery } from "@/components/landing/gallery";
 import { ConnectorsMarquee } from "@/components/landing/connectors-marquee";
 import { Pricing, DEFAULT_PLANS, type PublicPlan } from "@/components/landing/pricing";
 import { DashboardReplica } from "@/components/landing/dashboard-replica";
@@ -15,13 +18,11 @@ import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
 import { FloatingContact } from "@/components/landing/floating-contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
-import {
-  Toast, TOAST_ICONS,
-  ALERTS,
-} from "@/components/landing/visuals";
+import "./landing-domium.css";
+import { ALERTS } from "@/components/landing/visuals";
 
-// Tipografía propia de la landing: una sola sans para todo. El panel sigue con Hanken Grotesk.
-const sans = Inter({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap" });
+// Tipografía de la marca Domium en la landing. El panel sigue con Inter.
+const sans = Nunito({ variable: "--font-lp-sans", subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700", "800", "900"] });
 
 
 /* ── Mocks visuales (mini-versiones reales del producto) ───────────────────── */
@@ -76,60 +77,6 @@ async function getSignupEnabled(): Promise<boolean> {
 /* ── Contenido ─────────────────────────────────────────────────────────────── */
 
 
-/* ── Versión móvil ────────────────────────────────────────────────────────── */
-
-// Teléfono dibujado con CSS: la ruta del repartidor tal como se ve en "Mis rutas".
-function PhoneMock() {
-  const stops = [
-    { a: "Av. Providencia 1208", c: "Entregado", ok: true },
-    { a: "Los Leones 455, depto 1102", c: "Entregado", ok: true },
-    { a: "Manuel Montt 2310", c: "En camino" },
-    { a: "Eliodoro Yáñez 1890", c: "Pendiente" },
-  ];
-  return (
-    <div className="lp-shot mx-auto w-[260px] rounded-[40px] bg-[#111] p-2.5">
-      <div className="overflow-hidden rounded-[32px] bg-[#f6f5f4]">
-        <div className="flex items-center justify-between px-6 pb-2 pt-3 text-[11px] font-semibold">
-          <span>9:41</span>
-          <span className="h-4 w-16 rounded-full bg-[#111]" />
-          <span>5G</span>
-        </div>
-        <div className="px-4 pb-5">
-          <p className="text-[11px] text-[#757575]">Ruta de hoy · 8 paradas</p>
-          <p className="mt-0.5 text-[17px] font-semibold tracking-[-0.01em]">Hola, Andrea</p>
-          <div className="mt-3 flex items-center gap-2 rounded-xl bg-white p-3 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/5">
-              <span className="block h-full w-1/2 rounded-full bg-[#0075de]" />
-            </span>
-            <span className="font-mono text-[#615d59]">4 / 8</span>
-          </div>
-          <div className="mt-2 space-y-1.5">
-            {stops.map((s) => (
-              <div key={s.a} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-[11px]" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${s.ok ? "bg-[#15803d]" : s.c === "En camino" ? "bg-[#0075de]" : "bg-black/15"}`} />
-                <span className="min-w-0 flex-1 truncate">{s.a}</span>
-                <span className="text-[#757575]">{s.c}</span>
-              </div>
-            ))}
-          </div>
-          <span className="mt-3 block rounded-lg bg-[#02093a] py-2.5 text-center text-[12px] font-medium text-white">
-            Marcar entregado y foto
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const MOBILE_POINTS = [
-  ["Repartidores", "Ven su ruta del día, marcan cada entrega y suben la foto de respaldo."],
-  ["Bodega", "Picking y packing desde el teléfono: cada pedido con sus productos y su avance."],
-  ["Punto de venta", "Cobras y emites la boleta desde el celular o la tablet del mostrador."],
-  ["Tú", "Revisas ventas, stock y reclamos de Mercado Libre desde donde estés."],
-] as const;
-
-
-
 /* ── Página ───────────────────────────────────────────────────────────────── */
 
 const WRAP = "w-full px-4 sm:px-6 lg:px-12 2xl:px-20";
@@ -143,7 +90,7 @@ function SectionHead({ label, title, lead, points, dark = false, center = false 
   if (center) {
     return (
       <div className="ui-reveal text-center">
-        {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
+        {label && <p className={`lp-eyebrow ${dark ? "text-[#8bcfd8]" : "text-[#23899a]"}`}>{label}</p>}
         <h2 className="lp-h2 mx-auto mt-3 max-w-[22ch] text-balance">{title}</h2>
       </div>
     );
@@ -151,18 +98,18 @@ function SectionHead({ label, title, lead, points, dark = false, center = false 
   return (
     <div className="ui-reveal grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-16">
       <div>
-        {label && <p className={`lp-eyebrow ${dark ? "text-[#62aef0]" : "text-[#0075de]"}`}>{label}</p>}
+        {label && <p className={`lp-eyebrow ${dark ? "text-[#8bcfd8]" : "text-[#23899a]"}`}>{label}</p>}
         <h2 className="lp-h2 mt-3 max-w-[20ch] text-balance">{title}</h2>
       </div>
       {(lead || points) && (
         <div>
-          {lead && <p className={`lp-lead max-w-[46ch] text-pretty ${dark ? "text-white/70" : "text-[#615d59]"}`}>{lead}</p>}
+          {lead && <p className={`lp-lead max-w-[46ch] text-pretty ${dark ? "text-white/70" : "text-[#3d5368]"}`}>{lead}</p>}
           {points && (
             <ul className="mt-4 flex flex-wrap gap-2">
               {points.map((t) => (
-                <li key={t} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ${dark ? "bg-white/10 text-white" : "bg-white text-[#02093a]"}`}
-                  style={dark ? undefined : { border: "1px solid rgba(2,9,58,0.08)" }}>
-                  <span className="text-[#0075de]"><Icon d={ICONS.check} size={14} /></span>{t}
+                <li key={t} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ${dark ? "bg-white/10 text-white" : "bg-white text-[#011f3d]"}`}
+                  style={dark ? undefined : { border: "1px solid rgba(1,31,61,0.08)" }}>
+                  <span className="text-[#23899a]"><Icon d={ICONS.check} size={14} /></span>{t}
                 </li>
               ))}
             </ul>
@@ -211,54 +158,38 @@ export default async function Home() {
         Saltar al contenido
       </a>
 
-      {/* Barra superior fija */}
-      <header className="sticky top-0 z-40 bg-[#f6f5f4]/90 backdrop-blur-md [box-shadow:0_0.7px_1.46px_rgba(0,0,0,0.015),0_3px_9px_rgba(0,0,0,0.03)]">
-        <nav className={`${WRAP} flex h-16 items-center justify-between gap-4`} aria-label="Principal">
-          <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
-            <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-black text-[0.8rem] font-bold text-white">M</span>
-            <span className="max-[380px]:hidden">Admin Marketplace</span>
-          </Link>
-          <div className="hidden items-center text-[15px] font-medium lg:flex">
-            <a href="#beneficios" className="lp-nav-link">Beneficios</a>
-            <a href="#dashboard" className="lp-nav-link">Dashboard</a>
-            <a href="#movil" className="lp-nav-link">Versión móvil</a>
-            <a href="#precios" className="lp-nav-link">Precios</a>
-          </div>
-          <div className="flex items-center gap-2">
-            {signupEnabled && <Link href="/login?registro=1" className="lp-nav-link max-sm:hidden">Prueba gratis</Link>}
-            <Link href="/login" className="lp-btn lp-btn--primary">Entrar al panel</Link>
-          </div>
-        </nav>
-      </header>
+      <TopNav />
 
       <main id="contenido">
         {/* Inicio: franja azul noche a todo el ancho */}
-        <section id="inicio" className="relative overflow-hidden text-white" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
+        <section id="inicio" className="relative overflow-hidden text-white" style={{ background: "linear-gradient(160deg, #011f3d 0%, #014687 100%)" }}>
           {/* Puntos tenues y halo azul detrás de la escena */}
           <div className="pointer-events-none absolute inset-0" aria-hidden="true"
             style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1.2px)", backgroundSize: "22px 22px" }} />
           <div className="pointer-events-none absolute inset-0" aria-hidden="true"
-            style={{ background: "radial-gradient(ellipse 55% 70% at 72% 50%, rgba(0,117,222,0.32), transparent 70%)" }} />
+            style={{ background: "radial-gradient(ellipse 55% 70% at 72% 50%, rgba(133,194,38,0.32), transparent 70%)" }} />
+          <HeroDeco />
           <div className={`${WRAP} relative pb-16 pt-10 sm:pt-14 lg:pb-20`}>
           <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-10 2xl:gap-16">
             {/* Izquierda: titular, bajada y botones */}
             <div>
-              <p className="lp-eyebrow ui-enter text-[#62aef0]">Para tiendas que venden en marketplaces en Chile</p>
+              <p className="lp-eyebrow ui-enter text-[#8bcfd8]">Para tiendas que quieren llevar el control en un solo lugar</p>
               <h1 className="lp-h1 lp-h1--hero ui-enter mt-4 max-w-[20ch] text-balance" style={{ ["--d" as string]: "80ms" }}>
-                Vende en todos tus canales sin <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sobrevender</span>
+                Vende en todos tus canales sin <span className="lp-pill text-[#011f3d]" style={{ background: "#d6ecb0" }}>sobrevender</span>
               </h1>
               <div className="ui-enter mt-5 flex flex-col gap-6" style={{ ["--d" as string]: "160ms" }}>
                 <p className="lp-lead max-w-[46ch] text-pretty text-white/75">
-                  Conecta Mercado Libre, Falabella, Paris, Ripley y Walmart a tu bodega.
-                  Cada venta descuenta el stock en todos y emite la boleta sola.
+                  Une tus sucursales y marketplaces en un solo inventario: Mercado Libre, Falabella, Paris, Ripley y Walmart.
+                  <span className="deco-lead-2">Cada venta descuenta el stock en todos tus canales y emite la boleta al instante.</span>
                 </p>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap justify-center gap-3">
                   <ContactButtons dark primary />
+                  <a href="#precios" className="lp-btn lp-btn--lg deco-demo-btn">Solicita tu demo gratis</a>
                 </div>
                 <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-white/75">
                   {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (
                     <li key={t} className="flex items-center gap-2">
-                      <span className="text-[#4ade80]"><Icon d={ICONS.check} size={16} /></span>
+                      <span className="text-[#85c226]"><Icon d={ICONS.check} size={16} /></span>
                       {t}
                     </li>
                   ))}
@@ -275,34 +206,41 @@ export default async function Home() {
             </div>
           </div>
           </div>
+        <Wave fill="#ffffff" />
         </section>
 
         {/* Muro de logos */}
-        <section className="border-y border-black/[0.06] bg-white py-6">
+        <section className="border-b border-black/[0.06] bg-white py-3 deco-conn">
           <div className={WRAP}>
-            <p className="mb-2 text-center text-[14px] text-[#757575]">Conectores disponibles: marketplaces, tiendas, facturación y couriers</p>
+            <p className="mb-1 text-center deco-conn-title">Conectores disponibles: marketplaces, tiendas, facturación y couriers</p>
             <ConnectorsMarquee />
           </div>
         </section>
 
+        <Gallery />
+
         {/* Beneficios */}
-        <section id="beneficios" className={BAND}>
-          <div className={WRAP}>
+        <section id="beneficios" className={`${BAND} relative overflow-hidden deco-band-light`}>
+          <LightDeco />
+          <div className={`${WRAP} relative z-[1]`}>
             <SectionHead center label="Beneficios"
-              title={<>Vende tranquilo, <span className="lp-pill text-[#02093a]" style={{ background: "#cfe6fc" }}>sin quiebres</span> de stock</>} />
+              title={<>Vende tranquilo, <span className="lp-pill text-[#011f3d]" style={{ background: "#d6ecb0" }}>sin quiebres</span> de stock</>} />
             <Benefits />
           </div>
         </section>
 
         {/* Dashboard y alertas */}
-        <section id="dashboard" className={`bg-[#02093a] text-white ${BAND}`}>
-          <div className={WRAP}>
-            <div>
+        <section id="dashboard" className={`bg-[#011f3d] text-white ${BAND} relative overflow-hidden`}>
+          <DarkDeco />
+          <div className={`${WRAP} relative z-[1]`}>
+            <div className="db-wrap">
               <SectionHead center dark label="Dashboard y alertas" title="Tu negocio de un vistazo, y avisos cuando importa" />
-              <div className="ui-reveal mt-8 lg:mt-10" aria-label="Ejemplo del dashboard con datos de muestra">
+              <div className="ui-reveal mt-8 lg:mt-10 db-frame" aria-label="Ejemplo del dashboard con datos de muestra">
+                <div className="db-chrome" aria-hidden="true"><i /><i /><i /><span>Panel de Domium</span></div>
                 <DashboardReplica />
               </div>
-              <ul className="ui-reveal mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+              <p className="db-feed-title"><span className="db-live" />Avisos en tiempo real</p>
+              <ul className="ui-reveal mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 db-alerts">
                 {ALERTS.map((a) => (
                   <li key={a.t} className="flex min-w-0 items-center gap-3 rounded-[10px] bg-white px-3.5 py-3 text-black">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1f`, color: a.tone }}>
@@ -311,18 +249,23 @@ export default async function Home() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline justify-between gap-2">
                         <span className="truncate text-[14px] font-semibold leading-tight">{a.t}</span>
-                        <span className="shrink-0 text-[11px] text-[#757575]">{a.when}</span>
+                        <span className="shrink-0 text-[11px] text-[#6b7f93]">{a.when}</span>
                       </span>
-                      <span className="block truncate text-[12px] leading-tight text-[#615d59]">{a.m}</span>
+                      <span className="block truncate text-[12px] leading-tight text-[#3d5368]">{a.m}</span>
                     </span>
                   </li>
                 ))}
               </ul>
+              <div className="db-ticker" aria-hidden="true"><ul>
+                {[...ALERTS, ...ALERTS].map((a, n) => (
+                  <li key={n}><span className="db-tk-ico" style={{ background: `${a.tone}1f`, color: a.tone }}>{a.icon}</span><b>{a.t}</b><span>{a.m}</span><em>{a.when}</em></li>
+                ))}
+              </ul></div>
             </div>
           </div>
         </section>
 
-        <CtaBand bg="#0075de" fg="#fff" contact title="Imagina este panel con tus propias ventas"
+        <CtaBand bg="#23899a" fg="#fff" contact title="Imagina este panel con tus propias ventas"
           text="Un ejecutivo te lo muestra con tus canales y te ayuda a conectarlos, sin costo." />
 
         {/* Antes / ahora */}
@@ -337,41 +280,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Versión móvil: bloque de color a la izquierda, texto a la derecha */}
-        <section id="movil" className={BAND}>
-          <div className={`${WRAP} grid items-center gap-10 lg:grid-cols-[1fr_1fr]`}>
-            <div className="ui-reveal relative order-2 overflow-hidden rounded-[12px] px-4 py-10 lg:order-1" aria-hidden="true" style={{ background: "linear-gradient(160deg, #02093a 0%, #0b1d5c 100%)" }}>
-              <div className="relative mx-auto max-w-[560px]">
-                <PhoneMock />
-                {/* Avisos flotantes: al costado del teléfono en pantallas medianas, debajo en el celular */}
-                <div className="mt-6 grid gap-2 sm:mt-0 sm:block">
-                  <Toast className="w-full sm:absolute sm:left-0 sm:top-10 sm:w-52" tone="#0075de" icon={TOAST_ICONS.sale}
-                    title="¡Nueva venta!" meta="Falabella · Mochila urbana · $34.990" />
-                  <Toast className="w-full sm:absolute sm:right-0 sm:top-40 sm:w-52" tone="#0075de" icon={TOAST_ICONS.truck}
-                    title="Ruta asignada" meta="Andrea · 8 paradas" style={{ ["--fd" as string]: "0.6s" }} />
-                  <Toast className="w-full sm:absolute sm:bottom-16 sm:left-0 sm:w-52" tone="#15803d" icon={TOAST_ICONS.check}
-                    title="Entregado con foto" meta="Los Leones 455 · 12:48" style={{ ["--fd" as string]: "1.2s" }} />
-                </div>
-              </div>
-            </div>
-            <div className="ui-reveal order-1 lg:order-2">
-              <span className="lp-eyebrow text-[#0075de]">Versión móvil</span>
-              <h2 className="lp-h2 lp-h2--sm mt-3 text-balance">Tu equipo trabaja desde el celular</h2>
-              <p className="lp-lead mt-4 max-w-[46ch] text-[#615d59]">
-                El panel se adapta al teléfono, sin instalar nada: se abre en el navegador con el mismo usuario.
-              </p>
-              <ul className="mt-8 grid gap-3 sm:grid-cols-2">
-                {MOBILE_POINTS.map(([t, b]) => (
-                  <li key={t} className="lp-card p-5">
-                    <p className="text-[16px] font-semibold">{t}</p>
-                    <p className="mt-1 text-[15px] leading-[1.5] text-[#615d59]">{b}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-
         {/* Planes y precios */}
         <section id="precios" className={`bg-white ${BAND}`}>
           <div className={WRAP}>
@@ -381,22 +289,24 @@ export default async function Home() {
         </section>
 
         {/* Cómo empezar */}
-        <section id="como-empezar" className={BAND}>
-          <div className={WRAP}>
+        <section id="como-empezar" className={`${BAND} relative overflow-hidden deco-band-light`}>
+          <LightDeco />
+          <div className={`${WRAP} relative z-[1]`}>
             <h2 className="lp-h2 ui-reveal mx-auto max-w-[22ch] text-balance text-center">Empieza a vender en todos tus canales en 3 pasos</h2>
-            <Steps logos={(["mercadolibre", "falabella", "paris", "ripley", "walmart", "shopify"] as const)
-              .map((k) => resolveLogoNode(logoMap, k, Logos[k], "circle"))
-              .concat(resolveLogoNode(logoMap, "openfactura", BillingLogos.openfactura, "circle"))} />
+            <Steps logos={[]} />
           </div>
         </section>
 
         {/* Cierre */}
-        <section id="cierre" className="bg-[#02093a] text-white">
-          <div className={WRAP}>
+        <section id="cierre" className="bg-[#011f3d] text-white relative overflow-hidden">
+          <DarkDeco />
+          <div className={`${WRAP} relative z-[1]`}>
             <div className="relative flex flex-col gap-6 py-12 sm:flex-row sm:items-end sm:justify-between sm:py-14">
-              <div>
+              <div className="flex items-center gap-6">
+                <div>
                 <h2 className="lp-h2">¿Conversamos?</h2>
                 <p className="lp-lead mt-4 text-white/70">Un ejecutivo te ayuda a elegir el plan y a conectar tus canales.</p>
+                </div>
               </div>
               <ExecutiveButton label="Agenda con un ejecutivo" className="lp-btn--light lp-btn--lg shrink-0 self-start sm:self-auto" />
             </div>
@@ -406,12 +316,11 @@ export default async function Home() {
 
       <FloatingContact heroId="inicio" signupEnabled={signupEnabled} />
 
-      <footer className="bg-[#02093a] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
+      <footer className="bg-[#011f3d] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
         <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px]`}>
-          <span>Creado por OnDataSolution</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 14 }}><img src="/landing/domium/domium-horizontal-blanco.svg" alt="Domium" style={{ height: 24, width: "auto" }} />Creado por OnDataSolution</span>
           <div className="flex gap-5">
             <a href="#beneficios" className="hover:text-white">Beneficios</a>
-            <a href="#movil" className="hover:text-white">Versión móvil</a>
             <Link href="/login" className="hover:text-white">Entrar al panel</Link>
           </div>
         </div>
@@ -419,3 +328,4 @@ export default async function Home() {
     </div>
   );
 }
+

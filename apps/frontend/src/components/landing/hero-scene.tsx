@@ -5,8 +5,8 @@ import { usePlatformLogos } from "@/lib/platformLogos";
 import { connectorOnLanding, connectorStatus } from "@/lib/connectors";
 
 const LINE = "1px solid rgba(0,0,0,0.08)";
-const BLUE = "#0075de";
-const GREEN = "#15803d";
+const BLUE = "#23899a";
+const GREEN = "#4e7a12";
 const PURPLE = "#7c3aed";
 
 type Channel = { key: string; name: string };
@@ -60,7 +60,7 @@ const Svg = ({ d, size = 15 }: { d: string; size?: number }) => (
 function PosLogo() {
   return (
     <svg viewBox="0 0 64 40" className="h-full w-full" aria-hidden="true">
-      <rect width="64" height="40" rx="8" fill="#02093a" />
+      <rect width="64" height="40" rx="8" fill="#011f3d" />
       <path d="M20 14h24l-2 6H22zM22 20v8h20v-8M29 28v-4h6v4" stroke="#fff" strokeWidth="2" strokeLinejoin="round" fill="none" />
     </svg>
   );
@@ -99,8 +99,8 @@ function Floating({ k, children }: { k: string; children: ReactNode }) {
 function ChannelDot({ logo, active, pulse }: { logo: ReactNode; active: boolean; pulse: number }) {
   return (
     <span className="relative grid h-full w-full place-items-center">
-      {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full bg-[#0075de]/35 motion-reduce:hidden" />}
-      <span className={`relative grid h-full w-full place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#0075de,0_8px_20px_rgba(0,117,222,0.25)]" : "shadow-[0_6px_18px_rgba(0,117,222,0.28)]"}`}
+      {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full bg-[#23899a]/35 motion-reduce:hidden" />}
+      <span className={`relative grid h-full w-full place-items-center rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110 shadow-[0_0_0_3px_#23899a,0_8px_20px_rgba(133,194,38,0.25)]" : "shadow-[0_6px_18px_rgba(133,194,38,0.28)]"}`}
         style={{ border: LINE }}>
         {/* El logo llena el círculo hasta el borde */}
         <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{logo}</span>
@@ -118,16 +118,16 @@ function ServiceDot({ icon, logo, label, tone, active, pulse }: {
       {active && <span key={pulse} className="absolute inset-0 animate-ping rounded-full opacity-40 motion-reduce:hidden" style={{ background: tone }} />}
       {logo ? (
         <span className={`relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white transition-[box-shadow,transform] duration-300 ${active ? "scale-110" : ""}`}
-          style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : "0 6px 18px rgba(0,117,222,0.28)", border: active ? undefined : LINE }}>
+          style={{ boxShadow: active ? `0 0 0 3px ${tone}, 0 6px 16px ${tone}55` : "0 6px 18px rgba(133,194,38,0.28)", border: active ? undefined : LINE }}>
           <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:object-cover [&>img]:rounded-full [&>svg]:scale-[1.7]">{logo}</span>
         </span>
       ) : (
         <span className={`relative grid h-full w-full place-items-center rounded-full transition-[box-shadow,transform,background-color,color] duration-300 ${active ? "scale-110 text-white" : "bg-white"}`}
-          style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE, boxShadow: "0 6px 18px rgba(0,117,222,0.28)" }}>
+          style={active ? { background: tone, boxShadow: `0 6px 16px ${tone}55` } : { color: tone, border: LINE, boxShadow: "0 6px 18px rgba(133,194,38,0.28)" }}>
           <Svg d={icon} size={20} />
         </span>
       )}
-      <span className={`absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium transition-colors ${active ? "text-black" : "text-[#615d59]"}`}>
+      <span className={`absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium transition-colors ${active ? "text-black" : "text-[#3d5368]"}`}>
         {label}
       </span>
     </span>
@@ -194,7 +194,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
   return (
     <div className="relative p-1 sm:p-2">
       {/* Halo azul detrás del producto (el fondo azul lo pone la franja del inicio) */}
-      <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(circle at 50% 46%, rgba(0,117,222,0.3), transparent 55%)" }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(circle at 50% 46%, rgba(133,194,38,0.3), transparent 55%)" }} />
       {/* Área con el producto al centro y los círculos alrededor */}
       <div ref={areaRef} className="relative px-[21%] pb-[104px] pt-[92px] sm:pb-[112px] sm:pt-[104px]">
         {/* Conexiones de cada círculo con el producto */}
@@ -229,19 +229,19 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
         <div ref={cardRef} className="lp-shot relative z-10 mx-auto w-full max-w-[300px] rounded-[12px] bg-white p-3" style={{ border: LINE }}>
           <div className="flex items-center justify-between gap-2 text-[11px]">
             {/* El centralizador: todo pasa por Admin Marketplace */}
-            <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[#f6f5f4] py-0.5 pl-0.5 pr-2 font-semibold text-black">
+            <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-[#f4f8fb] py-0.5 pl-0.5 pr-2 font-semibold text-black">
               <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-black text-[9px] font-bold text-white">M</span>
               <span className="truncate">Admin Marketplace{drop ? " · Proveedor" : ""}</span>
             </span>
-            <span className="flex items-center gap-1.5 font-medium text-[#15803d]">
+            <span className="flex items-center gap-1.5 font-medium text-[#4e7a12]">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#15803d] opacity-60 motion-reduce:hidden" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#15803d]" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#4e7a12] opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#4e7a12]" />
               </span>
               Sincronizado
             </span>
           </div>
-          <div className="relative mt-2.5 overflow-hidden rounded-[10px] bg-[#f6f5f4]">
+          <div className="relative mt-2.5 overflow-hidden rounded-[10px] bg-[#f4f8fb]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img key={product.img} src={product.img} alt="" width={960} height={480}
               className="lp-fade aspect-[2/1] w-full object-cover" />
@@ -249,12 +249,12 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
             {active && (
               <div key={`sale-${step}`} className="lp-slide absolute inset-x-2 top-2">
                 <div className="lp-float flex w-full items-center gap-2.5 rounded-[10px] bg-white/95 px-3 py-2 shadow-[0_6px_18px_rgba(0,0,0,0.18)]">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0075de1f] text-[#0075de]">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#23899a1f] text-[#23899a]">
                     <Svg d={ICON.bag} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[12px] font-semibold leading-tight">¡Nueva venta! · {active.name}</span>
-                    <span className="block truncate text-[11px] leading-tight text-[#757575]">{product.name} · {product.price}{drop ? " · dropshipping" : ""}</span>
+                    <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">{product.name} · {product.price}{drop ? " · dropshipping" : ""}</span>
                   </span>
                 </div>
               </div>
@@ -264,7 +264,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p key={product.name} className="lp-fade truncate text-[14px] font-semibold leading-tight">{product.name}</p>
-              <p className="mt-0.5 truncate text-[11px] text-[#757575]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 11 canales"}</p>
+              <p className="mt-0.5 truncate text-[11px] text-[#6b7f93]">SKU {product.sku} · {drop ? "despacha el proveedor" : "en 11 canales"}</p>
             </div>
             {drop ? (
               <span className="shrink-0 rounded-full bg-[#7c3aed1a] px-2 py-1 text-[11px] font-semibold text-[#7c3aed]">Sin stock propio</span>
@@ -272,7 +272,7 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
               <p key={`${product.sku}-${stock}`} className="lp-pop shrink-0 text-[32px] font-semibold leading-none tracking-[-0.04em] tabular-nums">{stock}</p>
             )}
           </div>
-          <div className="mt-2.5 min-h-[48px] rounded-[10px] bg-[#f6f5f4] p-2">
+          <div className="mt-2.5 min-h-[48px] rounded-[10px] bg-[#f4f8fb] p-2">
             {active && drop ? (
               <div key={step} className="lp-slide flex items-center gap-2.5">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#7c3aed1f] text-[#7c3aed]">
@@ -280,27 +280,27 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Pedido enviado al proveedor · boleta N° {4520 + step}</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Despacha directo a tu cliente · tu stock no cambia</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">Despacha directo a tu cliente · tu stock no cambia</span>
                 </span>
               </div>
             ) : active ? (
               <div key={step} className="lp-slide flex items-center gap-2.5">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#15803d1f] text-[#15803d]">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#4e7a121f] text-[#4e7a12]">
                   <Svg d={ICON.doc} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Boleta N° {4520 + step} emitida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Venta en {active.name} · stock descontado en 11 canales</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">Venta en {active.name} · stock descontado en 11 canales</span>
                 </span>
               </div>
             ) : (
               <div key="restock" className="lp-slide flex items-center gap-2.5">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#15803d1f] text-[#15803d]">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#4e7a121f] text-[#4e7a12]">
                   <Svg d={ICON.box} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold leading-tight">Reposición recibida</span>
-                  <span className="block truncate text-[11px] leading-tight text-[#757575]">Orden de compra N° 318 · Admin Marketplace</span>
+                  <span className="block truncate text-[11px] leading-tight text-[#6b7f93]">Orden de compra N° 318 · Admin Marketplace</span>
                 </span>
               </div>
             )}
@@ -309,8 +309,8 @@ export function HeroScene({ logos, billingLogo }: { logos: Record<string, ReactN
 
         {/* Facturación justo debajo del producto: la boleta baja desde la misma venta */}
         <span className="absolute bottom-6 left-1/2 z-20 h-14 w-14 -translate-x-1/2 sm:h-[60px] sm:w-[60px]">
-          <span className={`pointer-events-none absolute bottom-full left-1/2 h-6 w-[2px] -translate-x-1/2 sm:h-7 ${active ? "bg-[#22c55e]" : "bg-white/30"}`}>
-            {active && <span key={step} className="lp-dot-down absolute -left-[3px] h-2 w-2 rounded-full bg-[#15803d]" />}
+          <span className={`pointer-events-none absolute bottom-full left-1/2 h-6 w-[2px] -translate-x-1/2 sm:h-7 ${active ? "bg-[#76ae1f]" : "bg-white/30"}`}>
+            {active && <span key={step} className="lp-dot-down absolute -left-[3px] h-2 w-2 rounded-full bg-[#4e7a12]" />}
           </span>
           <ServiceDot icon={ICON.doc} logo={billingLogo} label="Facturación" tone={GREEN} active={!!active} pulse={step} />
         </span>

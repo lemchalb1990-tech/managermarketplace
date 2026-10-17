@@ -75,7 +75,7 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
     ["Bodegas", (p) => (p.maxWarehouses == null ? "Ilimitadas" : num(p.maxWarehouses))],
     ...features.map((f): [string, (p: PublicPlan) => ReactNode] => [
       FEATURE_LABEL[f] || f,
-      (p) => (p.features.includes(f) ? <span className="text-[#0075de]"><Check /></span> : <span className="text-black/25">—</span>),
+      (p) => (p.features.includes(f) ? <span className="text-[#23899a]"><Check /></span> : <span className="text-black/25">—</span>),
     ]),
     ["Módulos adicionales", (p) => p.addons || <span className="text-black/25">—</span>],
     ["Implementación", (p) => (p.implementationPrice != null ? clp(p.implementationPrice) : "A convenir")],
@@ -85,18 +85,18 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
       <table className="w-full min-w-[640px] text-[14px]">
         <thead>
           <tr className="border-b border-black/[0.08]">
-            <th className="px-4 py-3 text-left font-medium text-[#757575]" />
+            <th className="px-4 py-3 text-left font-medium text-[#6b7f93]" />
             {plans.map((p) => (
-              <th key={p.id} className={`px-4 py-3 text-center font-bold ${p.id === featured ? "bg-[#02093a] text-white" : ""}`}>{p.name}</th>
+              <th key={p.id} className={`px-4 py-3 text-center font-bold ${p.id === featured ? "bg-[#011f3d] text-white" : ""}`}>{p.name}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map(([label, cell]) => (
             <tr key={label} className="border-b border-black/[0.05] last:border-0">
-              <td className="px-4 py-2.5 text-[#615d59]">{label}</td>
+              <td className="px-4 py-2.5 text-[#3d5368]">{label}</td>
               {plans.map((p) => (
-                <td key={p.id} className={`px-4 py-2.5 text-center ${p.id === featured ? "bg-[#02093a]/[0.04] font-semibold" : ""}`}>
+                <td key={p.id} className={`px-4 py-2.5 text-center ${p.id === featured ? "bg-[#011f3d]/[0.04] font-semibold" : ""}`}>
                   <span className="inline-flex items-center justify-center">{cell(p)}</span>
                 </td>
               ))}
@@ -139,26 +139,26 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
       <div className={`mt-8 grid gap-4 sm:grid-cols-2 ${paid.length + (trial ? 1 : 0) >= 5 ? "lg:grid-cols-3 xl:grid-cols-5" : paid.length + (trial ? 1 : 0) === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         {/* Prueba gratis como una columna más, al inicio */}
         {trial && (
-          <div className="relative flex flex-col rounded-[12px] bg-[#e6f3fe] p-6 text-[#02093a]" style={{ border: "1px solid rgba(0,117,222,0.18)" }}>
-            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-white text-[#0075de]">
+          <div className="relative flex flex-col rounded-[12px] bg-[#eaf2fa] p-6 text-[#011f3d]" style={{ border: "1px solid rgba(133,194,38,0.18)" }}>
+            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-white text-[#23899a]">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
               </svg>
             </span>
             <p className="text-[22px] font-bold tracking-[-0.011em]">{trial.name}</p>
-            <p className="mt-1 text-[14px] leading-[1.43] text-[#02093a]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
+            <p className="mt-1 text-[14px] leading-[1.43] text-[#011f3d]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
             <div className="mt-5">
               <p className="flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[34px] font-semibold tracking-[-0.03em]">Gratis</span>
-                {trial.trialDays ? <span className="text-[14px] text-[#02093a]/60">por {trial.trialDays} días</span> : null}
+                {trial.trialDays ? <span className="text-[14px] text-[#011f3d]/60">por {trial.trialDays} días</span> : null}
               </p>
-              <p className="mt-1 min-h-[1.4em] text-[12px] text-[#02093a]/60">Te la activa un ejecutivo</p>
+              <p className="mt-1 min-h-[1.4em] text-[12px] text-[#011f3d]/60">Te la activa un ejecutivo</p>
             </div>
             <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               className="lp-btn lp-btn--primary mt-5 w-full">
               Solicitar versión de prueba
             </Link>
-            <p className="mt-4 text-[13px] text-[#02093a]/70">
+            <p className="mt-4 text-[13px] text-[#011f3d]/70">
               {limit(trial.maxChannels, "canal", "canales")} · {limit(trial.maxProducts, "producto", "productos")}
             </p>
           </div>
@@ -169,31 +169,31 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
           const price = useAnnual ? Math.round(p.annualPrice! / 12) : p.monthlyPrice;
           return (
             <div key={p.id}
-              className={`relative flex flex-col rounded-[12px] p-6 ${isFeatured ? "bg-[#02093a] text-white" : "bg-white"}`}
+              className={`relative flex flex-col rounded-[12px] p-6 ${isFeatured ? "bg-[#011f3d] text-white" : "bg-white"}`}
               style={isFeatured ? undefined : { border: "1px solid rgba(0,0,0,0.08)" }}>
               {isFeatured && (
-                <span className="lp-tag absolute -top-3 left-6 bg-[#0075de] text-white">Más elegido</span>
+                <span className="lp-tag absolute -top-3 left-6 bg-[#23899a] text-white">Más elegido</span>
               )}
-              <span className={`mb-3 grid h-11 w-11 place-items-center rounded-xl ${isFeatured ? "bg-white/10 text-white" : "bg-[#eceef5] text-[#02093a]"}`}>
+              <span className={`mb-3 grid h-11 w-11 place-items-center rounded-xl ${isFeatured ? "bg-white/10 text-white" : "bg-[#eaf2fa] text-[#011f3d]"}`}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d={planIcon(p.name, idx)} />
                 </svg>
               </span>
               <p className="text-[22px] font-bold tracking-[-0.011em]">{p.name}</p>
               {p.description && (
-                <p className={`mt-1 text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#615d59]"}`}>{p.description}</p>
+                <p className={`mt-1 text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#3d5368]"}`}>{p.description}</p>
               )}
               <div className="mt-5">
                 {price != null ? (
                   <p className="flex flex-wrap items-baseline gap-x-1.5">
-                    {p.priceFrom && <span className={`text-[14px] ${isFeatured ? "text-white/65" : "text-[#757575]"}`}>Desde</span>}
+                    {p.priceFrom && <span className={`text-[14px] ${isFeatured ? "text-white/65" : "text-[#6b7f93]"}`}>Desde</span>}
                     <span className="text-[34px] font-semibold tracking-[-0.03em]">{clp(price)}</span>
-                    <span className={`text-[14px] ${isFeatured ? "text-white/65" : "text-[#757575]"}`}>/ mes + IVA</span>
+                    <span className={`text-[14px] ${isFeatured ? "text-white/65" : "text-[#6b7f93]"}`}>/ mes + IVA</span>
                   </p>
                 ) : (
                   <p className="text-[28px] font-semibold tracking-[-0.03em]">A cotizar</p>
                 )}
-                <p className={`mt-1 min-h-[1.4em] text-[12px] ${isFeatured ? "text-white/55" : "text-[#757575]"}`}>
+                <p className={`mt-1 min-h-[1.4em] text-[12px] ${isFeatured ? "text-white/55" : "text-[#6b7f93]"}`}>
                   {useAnnual
                     ? `${clp(p.annualPrice!)} al año`
                     : p.implementationPrice != null
@@ -206,7 +206,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
                 className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
                 Agenda con un ejecutivo
               </Link>
-              <p className={`mt-4 text-[13px] ${isFeatured ? "text-white/70" : "text-[#615d59]"}`}>
+              <p className={`mt-4 text-[13px] ${isFeatured ? "text-white/70" : "text-[#3d5368]"}`}>
                 {limit(p.maxChannels, "canal", "canales")} · {limit(p.maxProducts, "producto", "productos")}
               </p>
             </div>
@@ -224,7 +224,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
       </div>
       {compare && <CompareTable plans={paid} featured={featured} />}
 
-      <p className="mt-4 text-center text-[13px] text-[#757575]">Valores en pesos chilenos. No incluyen IVA.</p>
+      <p className="mt-4 text-center text-[13px] text-[#6b7f93]">Valores en pesos chilenos. No incluyen IVA.</p>
     </div>
   );
 }

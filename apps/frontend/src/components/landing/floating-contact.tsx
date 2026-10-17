@@ -96,13 +96,13 @@ export function FloatingContact({ heroId, signupEnabled }: { heroId: string; sig
           <div className="grid grid-cols-2 gap-2">
             {schedule && (
               <a href={schedule} {...ext(schedule)} tabIndex={open ? 0 : -1}
-                className={`rounded-full border border-[#02093a]/15 px-3 py-2 text-center text-[13px] font-semibold text-[#02093a] hover:bg-[#02093a]/5 ${trial ? "" : "col-span-2"}`}>
+                className={`rounded-full border border-[#011f3d]/15 px-3 py-2 text-center text-[13px] font-semibold text-[#011f3d] hover:bg-[#011f3d]/5 ${trial ? "" : "col-span-2"}`}>
                 Agenda con un ejecutivo
               </a>
             )}
             {trial && (
               <a href={trial} {...ext(trial)} tabIndex={open ? 0 : -1}
-                className={`rounded-full bg-[#02093a] px-3 py-2 text-center text-[13px] font-semibold text-white hover:bg-[#0b1d5c] ${schedule ? "" : "col-span-2"}`}>
+                className={`rounded-full bg-[#011f3d] px-3 py-2 text-center text-[13px] font-semibold text-white hover:bg-[#014687] ${schedule ? "" : "col-span-2"}`}>
                 Solicita tu prueba demo
               </a>
             )}

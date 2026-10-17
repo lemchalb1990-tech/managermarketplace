@@ -18,23 +18,23 @@ export function Steps({ logos }: { logos: ReactNode[] }) {
     <div className="ui-reveal mt-10">
       <ol className="relative grid gap-8 md:grid-cols-3 md:gap-6">
         {/* Línea que une los pasos, con un punto que avanza */}
-        <span className="pointer-events-none absolute left-[16.6%] right-[16.6%] top-7 hidden h-px bg-[#02093a]/15 md:block" aria-hidden="true">
-          <span className="lp-step-dot absolute -top-[3px] h-[7px] w-[7px] rounded-full bg-[#0075de]" />
+        <span className="pointer-events-none absolute left-[16.6%] right-[16.6%] top-7 hidden h-px bg-[#011f3d]/15 md:block" aria-hidden="true">
+          <span className="lp-step-dot absolute -top-[3px] h-[7px] w-[7px] rounded-full bg-[#23899a]" />
         </span>
         {STEPS.map((s, i) => (
           <li key={s.t} className="relative flex flex-col items-center text-center">
-            <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-[#02093a] text-white shadow-[0_8px_20px_rgba(2,9,58,0.2)]">
+            <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-[#011f3d] text-white shadow-[0_8px_20px_rgba(1,31,61,0.2)]">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={s.icon} />
               </svg>
-              <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-[#0075de] text-[12px] font-bold">{i + 1}</span>
+              <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-[#23899a] text-[12px] font-bold">{i + 1}</span>
             </span>
             <p className="mt-4 text-[18px] font-bold tracking-[-0.015em]">{s.t}</p>
-            <p className="mt-1 max-w-[30ch] text-[14px] leading-[1.5] text-[#615d59]">{s.b}</p>
+            <p className="mt-1 max-w-[30ch] text-[14px] leading-[1.5] text-[#3d5368]">{s.b}</p>
             {i === 1 && (
               <div className="mt-3 flex -space-x-2">
                 {logos.map((node, j) => (
-                  <span key={j} className="relative h-9 w-9 overflow-hidden rounded-full bg-white ring-2 ring-[#f6f5f4]" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
+                  <span key={j} className="relative h-9 w-9 overflow-hidden rounded-full bg-white ring-2 ring-[#f4f8fb]" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
                     <span className="absolute inset-0 overflow-hidden rounded-full [&>*]:h-full [&>*]:w-full [&>img]:rounded-full [&>img]:object-cover [&>svg]:scale-[1.7]">{node}</span>
                   </span>
                 ))}
