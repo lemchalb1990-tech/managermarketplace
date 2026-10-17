@@ -1,13 +1,13 @@
-/* Landing Domium: tipografía Nunito, acciones en verde lima y detalles en turquesa. */
-.lp { --font-lp-serif: var(--font-lp-sans); --font-hanken: var(--font-lp-sans); --lp-ink: #13263b; background: #ffffff; color: #13263b; }
-.lp h1, .lp h2, .lp .lp-h1, .lp .lp-h2, .lp .lp-h3 { font-weight: 900; letter-spacing: -0.02em; }
-.lp .lp-btn { font-weight: 800; border-radius: 10px; }
-.lp .lp-eyebrow { font-weight: 800; letter-spacing: .02em; }
-.lp .lp-btn--primary, .lp :is(button,a).lp-btn--primary { background: #85c226 !important; color: #011f3d !important; }
-.lp .lp-btn--primary:hover, .lp :is(button,a).lp-btn--primary:hover { background: #76ae1f !important; }
-.lp .lp-pill { background: #85c226 !important; color: #011f3d !important; }
-.lp .deco-hero-photo { opacity: .22; }
-.lp .deco-band-light { background: #f4f8fb; }
+/* Landing Domium (solo dentro de .lp-domium, así no se cuela al login): tipografía Nunito, acciones en verde lima y detalles en turquesa. */
+.lp-domium { --font-lp-serif: var(--font-lp-sans); --font-hanken: var(--font-lp-sans); --lp-ink: #13263b; background: #ffffff; color: #13263b; }
+.lp-domium h1, .lp-domium h2, .lp-domium .lp-h1, .lp-domium .lp-h2, .lp-domium .lp-h3 { font-weight: 900; letter-spacing: -0.02em; }
+.lp-domium .lp-btn { font-weight: 800; border-radius: 10px; }
+.lp-domium .lp-eyebrow { font-weight: 800; letter-spacing: .02em; }
+.lp-domium .lp-btn--primary, .lp-domium :is(button,a).lp-btn--primary { background: #85c226 !important; color: #011f3d !important; }
+.lp-domium .lp-btn--primary:hover, .lp-domium :is(button,a).lp-btn--primary:hover { background: #76ae1f !important; }
+.lp-domium .lp-pill { background: #85c226 !important; color: #011f3d !important; }
+.lp-domium .deco-hero-photo { opacity: .22; }
+.lp-domium .deco-band-light { background: #f4f8fb; }
 
 /* ── deco ── */
 .deco-swoosh { position: absolute; height: auto; user-select: none; }
@@ -25,8 +25,8 @@
 .deco-light-swoosh { right: -90px; top: 30px; width: 440px; opacity: .06; }
 .deco-dark-photo { position: absolute; inset: 0; background-size: cover; background-position: center 85%; opacity: .12; filter: grayscale(1); mix-blend-mode: luminosity; }
 .deco-dark-swoosh { left: -70px; bottom: -80px; width: 400px; opacity: .07; }
-.lp .lp-card, .lp .ui-card { box-shadow: 0 10px 30px rgba(1, 70, 135, .08); }
-.lp .lp-shot { box-shadow: 0 24px 60px rgba(1, 31, 61, .28); }
+.lp-domium .lp-card, .lp-domium .ui-card { box-shadow: 0 10px 30px rgba(1, 70, 135, .08); }
+.lp-domium .lp-shot { box-shadow: 0 24px 60px rgba(1, 31, 61, .28); }
 
 /* ── topnav ── */
 .tn { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; font-family: "Nunito", system-ui, sans-serif; }
@@ -88,32 +88,32 @@
 #inicio > .pb-16 { padding-left: max(28px, 7vw); padding-right: max(28px, 7vw); }
 @media (min-width: 1600px) { #inicio > .pb-16 { padding-left: 10vw; padding-right: 10vw; }
 }
-.lp .deco-demo-btn { background: #85c226; color: #011f3d; font-weight: 800; box-shadow: 0 8px 20px rgba(133, 194, 38, .35); }
-.lp .deco-demo-btn:hover { background: #76ae1f; box-shadow: 0 10px 24px rgba(133, 194, 38, .45); }
+.lp-domium .deco-demo-btn { background: #85c226; color: #011f3d; font-weight: 800; box-shadow: 0 8px 20px rgba(133, 194, 38, .35); }
+.lp-domium .deco-demo-btn:hover { background: #76ae1f; box-shadow: 0 10px 24px rgba(133, 194, 38, .45); }
 #inicio > .pb-16 > .grid > div:first-child { text-align: center; display: flex; flex-direction: column; align-items: center; }
 #inicio > .pb-16 > .grid > div:first-child h1, #inicio > .pb-16 > .grid > div:first-child .lp-lead { margin-left: auto; margin-right: auto; }
 #inicio > .pb-16 > .grid > div:first-child > div { align-items: center; width: 100%; }
 #inicio > .pb-16 > .grid > div:first-child ul { justify-content: center; }
-.lp .deco-conn-title { font-family: "Nunito", system-ui, sans-serif; font-size: 12.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #23899a; }
+.lp-domium .deco-conn-title { font-family: "Nunito", system-ui, sans-serif; font-size: 12.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #23899a; }
 #inicio > .pb-16 { padding-top: 20px; }
 @media (min-width: 640px) { #inicio > .pb-16 { padding-top: 28px; }
 }
-.lp main section.py-16 { padding-top: 32px; padding-bottom: 32px; }
-@media (min-width: 1024px) { .lp main section.py-16 { padding-top: 40px; padding-bottom: 40px; }
+.lp-domium main section.py-16 { padding-top: 32px; padding-bottom: 32px; }
+@media (min-width: 1024px) { .lp-domium main section.py-16 { padding-top: 40px; padding-bottom: 40px; }
 }
-.lp main section > div.py-10 { padding-top: 20px; padding-bottom: 20px; }
-@media (min-width: 1024px) { .lp main section > div.py-10 { padding-top: 24px; padding-bottom: 24px; }
+.lp-domium main section > div.py-10 { padding-top: 20px; padding-bottom: 20px; }
+@media (min-width: 1024px) { .lp-domium main section > div.py-10 { padding-top: 24px; padding-bottom: 24px; }
 }
-.lp #cierre div.py-12 { padding-top: 24px; padding-bottom: 24px; }
-@media (min-width: 640px) { .lp #cierre div.py-12 { padding-top: 28px; padding-bottom: 28px; }
+.lp-domium #cierre div.py-12 { padding-top: 24px; padding-bottom: 24px; }
+@media (min-width: 640px) { .lp-domium #cierre div.py-12 { padding-top: 28px; padding-bottom: 28px; }
 }
-.lp main section > .w-full, .lp footer > .w-full, .tn .tn-in { padding-left: max(28px, 7vw); padding-right: max(28px, 7vw); }
+.lp-domium main section > .w-full, .lp-domium footer > .w-full, .tn .tn-in { padding-left: max(28px, 7vw); padding-right: max(28px, 7vw); }
 .tn .tn-in { max-width: none; }
 @media (min-width: 1600px) {
-  .lp main section > .w-full, .lp footer > .w-full, .tn .tn-in { padding-left: 10vw; padding-right: 10vw; }
+  .lp-domium main section > .w-full, .lp-domium footer > .w-full, .tn .tn-in { padding-left: 10vw; padding-right: 10vw; }
 }
-.lp section.deco-conn { display: none !important; }
-.lp .deco-lead-2 { display: block; margin-top: 14px; }
+.lp-domium section.deco-conn { display: none !important; }
+.lp-domium .deco-lead-2 { display: block; margin-top: 14px; }
 #precios .mt-8.grid { display: flex !important; flex-wrap: wrap; justify-content: center; gap: 16px; }
 #precios .mt-8.grid > * { flex: 1 1 220px; max-width: 300px; }
 @media (min-width: 1280px) { #precios .mt-8.grid > * { flex: 1 1 0; max-width: none; }
@@ -161,12 +161,12 @@
 }
 
 /* ── benefits ── */
-.lp section.deco-conn { border-bottom-width: 0 !important; }
+.lp-domium section.deco-conn { border-bottom-width: 0 !important; }
 .bf-num { display: none !important; }
 .bf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 .bf-grid > .bf-card { grid-column: auto !important; }
-.lp .bf-card { border-radius: 18px !important; box-shadow: 0 12px 30px rgba(1, 70, 135, .08); padding-top: 26px !important; transition: transform .25s, box-shadow .25s; }
-.lp .bf-card:hover { transform: translateY(-4px); box-shadow: 0 20px 44px rgba(1, 70, 135, .14); }
+.lp-domium .bf-card { border-radius: 18px !important; box-shadow: 0 12px 30px rgba(1, 70, 135, .08); padding-top: 26px !important; transition: transform .25s, box-shadow .25s; }
+.lp-domium .bf-card:hover { transform: translateY(-4px); box-shadow: 0 20px 44px rgba(1, 70, 135, .14); }
 .bf-band { display: block; position: absolute; left: 0; right: 0; top: 0; height: 5px; }
 .bf-card:nth-child(3n + 1) .bf-band { background: linear-gradient(90deg, #014687, #3bb3c3); }
 .bf-card:nth-child(3n + 2) .bf-band { background: linear-gradient(90deg, #3bb3c3, #85c226); }
@@ -176,11 +176,11 @@
 .bf-ico { width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; background: #eaf2fa; color: #014687; box-shadow: 0 6px 14px rgba(1, 70, 135, .12); }
 .bf-ico svg { width: 26px; height: 26px; }
 .bf-card--dark .bf-ico { background: rgba(255, 255, 255, .18); color: #ffffff; box-shadow: none; }
-.lp .bf-card > p:first-of-type { font-family: "Nunito", system-ui, sans-serif; font-weight: 900; text-align: center; padding: 4px 58px 0; min-height: 52px; display: flex; align-items: center; justify-content: center; }
-.lp .bf-card > p:nth-of-type(2) { text-align: center; padding-inline: 12px; }
-.lp .bf-btn { background: #014687; color: #ffffff; }
-.lp .bf-btn:hover { background: #013a70; }
-.lp button.bf-btn, .lp div.bf-btn { background: #014687; }
+.lp-domium .bf-card > p:first-of-type { font-family: "Nunito", system-ui, sans-serif; font-weight: 900; text-align: center; padding: 4px 58px 0; min-height: 52px; display: flex; align-items: center; justify-content: center; }
+.lp-domium .bf-card > p:nth-of-type(2) { text-align: center; padding-inline: 12px; }
+.lp-domium .bf-btn { background: #014687; color: #ffffff; }
+.lp-domium .bf-btn:hover { background: #013a70; }
+.lp-domium button.bf-btn, .lp-domium div.bf-btn { background: #014687; }
 @media (max-width: 1023px) { .bf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 @media (max-width: 640px) { .bf-grid { grid-template-columns: 1fr !important; }
@@ -230,26 +230,26 @@
 .dr-main .lp-panel .ui-card { border-radius: 14px !important; }
 .dr-bar { background: linear-gradient(180deg, #3bb3c3, #8bcfd8); }
 .group:hover .dr-bar { background: #014687; }
-.lp .dr-on { background: #014687 !important; color: #fff !important; }
-.lp .dr-net { color: #4e7a12 !important; }
-.lp .dr-link { color: #23899a !important; }
-.lp .dr-st-prep { background: #e7f6f8; color: #1c7f8c; }
-.lp .dr-st-ready { background: #f0f8e4; color: #4e7a12; }
+.lp-domium .dr-on { background: #014687 !important; color: #fff !important; }
+.lp-domium .dr-net { color: #4e7a12 !important; }
+.lp-domium .dr-link { color: #23899a !important; }
+.lp-domium .dr-st-prep { background: #e7f6f8; color: #1c7f8c; }
+.lp-domium .dr-st-ready { background: #f0f8e4; color: #4e7a12; }
 .group:hover .dr-open { border-color: #014687 !important; background: #014687 !important; color: #fff !important; }
 @media (max-width: 900px) { .dr-shell { grid-template-columns: 1fr; } .dr-side { display: none; }
 }
-.lp .ba-on { background: #014687 !important; color: #ffffff !important; }
-.lp .ba-chip-on { background: #014687 !important; color: #ffffff !important; }
+.lp-domium .ba-on { background: #014687 !important; color: #ffffff !important; }
+.lp-domium .ba-chip-on { background: #014687 !important; color: #ffffff !important; }
 .ba-progress { width: 220px; height: 3px; margin: 10px auto 0; border-radius: 99px; background: #e3ebf3; overflow: hidden; }
 .ba-progress i { display: block; height: 100%; background: linear-gradient(90deg, #3bb3c3, #85c226); animation: ba-fill 3.2s linear forwards; }
 .ba-progress i.is-after { animation-duration: 4.2s; }
 @keyframes ba-fill { from { width: 0; } to { width: 100%; } }
-.lp #precios .lp-btn--primary, .lp #precios :is(button, a).lp-btn--primary { background: #014687 !important; color: #ffffff !important; }
-.lp #precios .lp-btn--primary:hover, .lp #precios :is(button, a).lp-btn--primary:hover { background: #013a70 !important; }
-.lp #precios .lp-btn--soft { background: #eaf2fa !important; color: #014687 !important; }
-.lp #precios .lp-btn--soft:hover { background: #d6e4f1 !important; }
-.lp #precios .lp-btn--light { background: #ffffff !important; color: #014687 !important; }
-.lp #precios .lp-btn--light:hover { background: #eaf2fa !important; }
+.lp-domium #precios .lp-btn--primary, .lp-domium #precios :is(button, a).lp-btn--primary { background: #014687 !important; color: #ffffff !important; }
+.lp-domium #precios .lp-btn--primary:hover, .lp-domium #precios :is(button, a).lp-btn--primary:hover { background: #013a70 !important; }
+.lp-domium #precios .lp-btn--soft { background: #eaf2fa !important; color: #014687 !important; }
+.lp-domium #precios .lp-btn--soft:hover { background: #d6e4f1 !important; }
+.lp-domium #precios .lp-btn--light { background: #ffffff !important; color: #014687 !important; }
+.lp-domium #precios .lp-btn--light:hover { background: #eaf2fa !important; }
 #precios [class*="bg-[#011f3d]"], #precios [class*="bg-[#02093a]"] { background-color: #014687 !important; }
 #precios [class*="bg-[#011f3d]/"], #precios [class*="bg-[#02093a]/"] { background-color: rgba(1,70,135,.05) !important; }
 #precios .lp-tag { background: #85c226 !important; color: #011f3d !important; }

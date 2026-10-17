@@ -153,7 +153,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary, contact = f
 export default async function Home() {
   const [logoMap, plans, signupEnabled] = await Promise.all([getPlatformLogoMap(), getPublicPlans(), getSignupEnabled()]);
   return (
-    <div className={`lp ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
+    <div className={`lp lp-domium ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
         Saltar al contenido
       </a>
