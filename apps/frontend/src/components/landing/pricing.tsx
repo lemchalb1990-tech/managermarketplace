@@ -65,7 +65,8 @@ function Check() {
 
 // Tabla para comparar los planes fila por fila (límites, módulos e implementación).
 function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: string | null }) {
-  const features = Array.from(new Set(plans.flatMap((p) => p.features)));
+  // Solo las funciones con nombre para el cliente (las internas, como ML_PROMOTIONS, no se listan).
+  const features = Array.from(new Set(plans.flatMap((p) => p.features))).filter((f) => FEATURE_LABEL[f]);
   const num = (n: number | null) => (n == null ? "Ilimitado" : n.toLocaleString("es-CL"));
   const rows: Array<[string, (p: PublicPlan) => ReactNode]> = [
     ["Canales de venta", (p) => num(p.maxChannels)],
@@ -74,7 +75,7 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
     ["Usuarios", (p) => num(p.maxUsers)],
     ["Bodegas", (p) => (p.maxWarehouses == null ? "Ilimitadas" : num(p.maxWarehouses))],
     ...features.map((f): [string, (p: PublicPlan) => ReactNode] => [
-      FEATURE_LABEL[f] || f,
+      FEATURE_LABEL[f],
       (p) => (p.features.includes(f) ? <span className="text-[#23899a]"><Check /></span> : <span className="text-black/25">—</span>),
     ]),
     ["Módulos adicionales", (p) => p.addons || <span className="text-black/25">—</span>],
