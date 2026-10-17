@@ -4,6 +4,7 @@
 // vuelve sólida al bajar, con la sección activa marcada y menú desplegable en el celular.
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DemoLink } from "./contact";
 
 const LOGO_COLOR = "/landing/domium/domium-horizontal-color.svg";
 const LOGO_WHITE = "/landing/domium/domium-horizontal-blanco.svg";
@@ -45,7 +46,7 @@ function Announce() {
   return (
     <div className="tn-announce" id="tn-announce">
       <span>Conecta Mercado Libre, Falabella, Paris, Ripley y Walmart a una sola bodega.</span>
-      <a href="#cierre">Agenda una demo →</a>
+      <DemoLink kind="schedule" fallback="#cierre">Agenda una demo →</DemoLink>
       <button type="button" aria-label="Cerrar aviso" onClick={() => { setOpen(false); window.dispatchEvent(new Event("tn-announce")); }}>×</button>
     </div>
   );
@@ -81,7 +82,7 @@ function MobilePanel({ open, close }: { open: boolean; close: () => void }) {
   return (
     <div className={`tn-mobile ${open ? "is-open" : ""}`}>
       {LINKS.map(([h, t]) => <a key={h} href={h} onClick={close}>{t}</a>)}
-      <a href="#precios" onClick={close}>Solicita tu Demo</a>
+      <DemoLink onClick={close}>Solicita tu Demo</DemoLink>
       <Link href="/login" className="tn-cta" onClick={close}>Entrar al panel</Link>
     </div>
   );
@@ -101,7 +102,7 @@ function NavD() {
           {LINKS.map(([h, t]) => <a key={h} href={h} className={active === h ? "is-active" : ""}>{t}</a>)}
         </div>
         <div className="tn-actions">
-          <a href="#precios" className="tn-ghost">Solicita tu Demo</a>
+          <DemoLink className="tn-ghost">Solicita tu Demo</DemoLink>
           <Link href="/login" className="tn-btn">Entrar al panel</Link>
           <Burger open={open} onClick={() => setOpen(!open)} light={!scrolled} />
         </div>

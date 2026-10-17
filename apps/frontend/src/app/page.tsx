@@ -14,7 +14,7 @@ import { DashboardReplica } from "@/components/landing/dashboard-replica";
 import { HeroScene } from "@/components/landing/hero-scene";
 import { Benefits } from "@/components/landing/benefits";
 import { BeforeAfter } from "@/components/landing/before-after";
-import { ContactButtons, ExecutiveButton } from "@/components/landing/contact";
+import { ContactButtons, DemoLink, ExecutiveButton } from "@/components/landing/contact";
 import { FloatingContact } from "@/components/landing/floating-contact";
 import { RemoteLogo } from "@/components/landing/remote-logo";
 import type { LogoView } from "@/lib/platformLogos";
@@ -59,18 +59,6 @@ async function getPublicPlans(): Promise<PublicPlan[]> {
     return rows.length ? rows : DEFAULT_PLANS;
   } catch {
     return DEFAULT_PLANS;
-  }
-}
-
-// ¿Está abierto el registro de empresas nuevas con Google? (muestra "Prueba gratis").
-async function getSignupEnabled(): Promise<boolean> {
-  try {
-    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const res = await fetch(`${base}/api/auth/config`, { next: { revalidate: 300 } });
-    if (!res.ok) return false;
-    return !!(await res.json() as { signupEnabled?: boolean }).signupEnabled;
-  } catch {
-    return false;
   }
 }
 
@@ -151,7 +139,7 @@ function CtaBand({ bg, fg = "#000", title, text, primary, secondary, contact = f
 }
 
 export default async function Home() {
-  const [logoMap, plans, signupEnabled] = await Promise.all([getPlatformLogoMap(), getPublicPlans(), getSignupEnabled()]);
+  const [logoMap, plans] = await Promise.all([getPlatformLogoMap(), getPublicPlans()]);
   return (
     <div className={`lp lp-domium ${sans.variable} min-h-[100dvh] w-full max-w-full overflow-x-hidden`}>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">
@@ -184,7 +172,7 @@ export default async function Home() {
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   <ContactButtons dark primary />
-                  <a href="#precios" className="lp-btn lp-btn--lg deco-demo-btn">Solicita tu demo gratis</a>
+                  <DemoLink className="lp-btn lp-btn--lg deco-demo-btn">Solicita tu demo gratis</DemoLink>
                 </div>
                 <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-white/75">
                   {["Stock sincronizado solo", "Boleta automática", "Sin instalar nada"].map((t) => (
@@ -314,7 +302,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <FloatingContact heroId="inicio" signupEnabled={signupEnabled} />
+      <FloatingContact heroId="inicio" />
 
       <footer className="bg-[#011f3d] text-white/60 [border-top:1px_solid_rgba(255,255,255,0.1)]">
         <div className={`${WRAP} flex flex-wrap items-center justify-between gap-4 py-8 text-[13px]`}>

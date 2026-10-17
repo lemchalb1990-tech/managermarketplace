@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 
 type Contact = { whatsapp: string | null; email: string | null; scheduleUrl: string | null };
@@ -27,11 +27,11 @@ export function useContact(): Contact | null {
 const wa = (num: string, text: string) => `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 const mail = (to: string, subject: string) => `mailto:${to}?subject=${encodeURIComponent(subject)}`;
 
-/** Link para agendar: la agenda configurada; si no hay, WhatsApp o correo. */
+/** Link para agendar: WhatsApp; si no hay, la agenda configurada o el correo. */
 export function scheduleHref(c: Contact | null): string | null {
   if (!c) return null;
+  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero agendar una reunión con un ejecutivo de Domium.");
   if (c.scheduleUrl) return c.scheduleUrl;
-  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero agendar una reunión con un ejecutivo de Admin Marketplace.");
   if (c.email) return mail(c.email, "Agendar reunión con un ejecutivo");
   return null;
 }
@@ -39,7 +39,7 @@ export function scheduleHref(c: Contact | null): string | null {
 /** Solicitud de la versión de prueba: WhatsApp o correo con el mensaje listo. */
 export function trialHref(c: Contact | null): string | null {
   if (!c) return null;
-  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero solicitar la versión de prueba de Admin Marketplace.");
+  if (c.whatsapp) return wa(c.whatsapp, "Hola, quiero solicitar una demo de Domium.");
   if (c.email) return mail(c.email, "Solicitud de versión de prueba");
   return c.scheduleUrl;
 }
@@ -72,6 +72,17 @@ export function ContactButtons({ dark = false, primary = false, size = "lg" }: {
       )}
     </>
   );
+}
+
+/** «Solicita tu demo» o «Agenda una demo»: abre WhatsApp con el mensaje listo; sin datos de
+ *  contacto queda el enlace de respaldo dentro de la página. */
+export function DemoLink({ kind = "demo", fallback = "#precios", className = "", onClick, children }: {
+  kind?: "demo" | "schedule"; fallback?: string; className?: string; onClick?: () => void; children: ReactNode;
+}) {
+  const c = useContact();
+  const href = (kind === "schedule" ? scheduleHref(c) : trialHref(c)) || fallback;
+  const ext = href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {};
+  return <a href={href} {...ext} className={className} onClick={onClick}>{children}</a>;
 }
 
 /** Un solo botón para hablar con un ejecutivo (agenda configurada o WhatsApp). */

@@ -17,7 +17,7 @@ function WhatsAppIcon({ size = 26 }: { size?: number }) {
 // Botón flotante de WhatsApp con ondas y, al pasar el inicio, un diálogo tipo chat de WhatsApp
 // sobre el botón: «Agenda con un ejecutivo y solicita tu prueba demo», con las tres salidas
 // (WhatsApp, agenda y prueba). Se abre solo una vez por sesión; el botón lo abre y lo cierra.
-export function FloatingContact({ heroId, signupEnabled }: { heroId: string; signupEnabled: boolean }) {
+export function FloatingContact({ heroId }: { heroId: string }) {
   const c = useContact();
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
@@ -48,7 +48,7 @@ export function FloatingContact({ heroId, signupEnabled }: { heroId: string; sig
 
   const whatsapp = c?.whatsapp ? contactHref(c) : null;
   const schedule = scheduleHref(c);
-  const trial = signupEnabled ? "/login?registro=1" : trialHref(c);
+  const trial = trialHref(c);
   if (!whatsapp && !schedule && !trial) return null;
 
   function close() {

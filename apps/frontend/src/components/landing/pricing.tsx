@@ -111,7 +111,7 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
 export function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [annual, setAnnual] = useState(false);
   const [compare, setCompare] = useState(false);
-  // Todos los planes llevan a agendar con un ejecutivo (agenda configurada o WhatsApp).
+  // Todos los planes llevan a agendar con un ejecutivo por WhatsApp (o la agenda / el correo si no hay).
   const contact = useContact();
   const talk = scheduleHref(contact);
   const trialLink = trialHref(contact);
@@ -147,7 +147,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
             </span>
             <p className="text-[22px] font-bold tracking-[-0.011em]">{trial.name}</p>
             <p className="mt-1 text-[14px] leading-[1.43] text-[#011f3d]/70">{trial.description || "Pruébalo sin costo antes de elegir tu plan."}</p>
-            <div className="mt-5">
+            <div className="mb-5 mt-5">
               <p className="flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[34px] font-semibold tracking-[-0.03em]">Gratis</span>
                 {trial.trialDays ? <span className="text-[14px] text-[#011f3d]/60">por {trial.trialDays} días</span> : null}
@@ -155,7 +155,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               <p className="mt-1 min-h-[1.4em] text-[12px] text-[#011f3d]/60">Te la activa un ejecutivo</p>
             </div>
             <Link href={trialLink || "/login"} {...(trialLink?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-              className="lp-btn lp-btn--primary mt-5 w-full">
+              className="lp-btn lp-btn--primary mt-auto w-full">
               Solicitar versión de prueba
             </Link>
             <p className="mt-4 text-[13px] text-[#011f3d]/70">
@@ -183,7 +183,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               {p.description && (
                 <p className={`mt-1 text-[14px] leading-[1.43] ${isFeatured ? "text-white/65" : "text-[#3d5368]"}`}>{p.description}</p>
               )}
-              <div className="mt-5">
+              <div className="mb-5 mt-5">
                 {price != null ? (
                   <p className="flex flex-wrap items-baseline gap-x-1.5">
                     {p.priceFrom && <span className={`text-[14px] ${isFeatured ? "text-white/65" : "text-[#6b7f93]"}`}>Desde</span>}
@@ -203,7 +203,7 @@ export function Pricing({ plans }: { plans: PublicPlan[] }) {
               </div>
               <Link href={talk || "/login"}
                 {...(talk?.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className={`lp-btn mt-5 w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
+                className={`lp-btn mt-auto w-full ${isFeatured ? "lp-btn--light" : "lp-btn--soft"}`}>
                 Agenda con un ejecutivo
               </Link>
               <p className={`mt-4 text-[13px] ${isFeatured ? "text-white/70" : "text-[#3d5368]"}`}>

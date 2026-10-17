@@ -256,3 +256,8 @@
 #precios [class*="text-[#23899a]"], #precios [class*="text-[#0075de]"] { color: #014687 !important; }
 #precios [class*="bg-[#eaf2fa]"][class*="p-6"] { border-color: rgba(1,70,135,.18) !important; }
 #precios button[class*="bg-black"] { background: #014687 !important; color: #ffffff !important; }
+
+/* Espacio superior a la mitad en «Un panel para cada momento de tu día» y en Beneficios. */
+.lp-domium .gy { padding-top: 20px; }
+.lp-domium main section#beneficios { padding-top: 16px; }
+@media (min-width: 1024px) { .lp-domium main section#beneficios { padding-top: 20px; } }
