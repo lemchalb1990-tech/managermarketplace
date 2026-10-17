@@ -23,7 +23,7 @@ const MAX_TURNS = 30;
 const FALLBACK_MODELS = /^claude-(opus-5|fable-5|sonnet-5-5)/;
 
 // Instrucciones fijas (van primero y se cachean). Los datos variables (fecha, empresa) van aparte.
-const SYSTEM_PROMPT = `Eres el asistente virtual de Admin Marketplace, un sistema de gestión para empresas chilenas que venden en tienda física y en marketplaces (Mercado Libre, Falabella, Paris, Ripley, Walmart y tiendas online).
+const SYSTEM_PROMPT = `Eres el asistente virtual de Domium, un sistema de gestión para empresas chilenas que venden en tienda física y en marketplaces (Mercado Libre, Falabella, Paris, Ripley, Walmart y tiendas online).
 
 Respondes consultas del equipo de la empresa usando SOLO las herramientas disponibles, que leen los datos reales de su empresa:
 - Antes de responder sobre ventas, stock, órdenes, fabricación, deudores, caja o Mercado Libre, consulta la herramienta que corresponda. No inventes cifras ni supongas datos que no vinieron de una herramienta.
