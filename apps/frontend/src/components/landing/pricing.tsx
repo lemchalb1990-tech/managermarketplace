@@ -71,7 +71,6 @@ function CompareTable({ plans, featured }: { plans: PublicPlan[]; featured: stri
     ["Canales de venta", (p) => num(p.maxChannels)],
     ["Productos", (p) => num(p.maxProducts)],
     ["Publicaciones", (p) => num(p.maxListings ?? null)],
-    ["Almacenamiento", (p) => (p.maxStorageMb == null ? "Ilimitado" : p.maxStorageMb >= 1024 ? `${(p.maxStorageMb / 1024).toLocaleString("es-CL", { maximumFractionDigits: 1 })} GB` : `${p.maxStorageMb} MB`)],
     ["Usuarios", (p) => num(p.maxUsers)],
     ["Bodegas", (p) => (p.maxWarehouses == null ? "Ilimitadas" : num(p.maxWarehouses))],
     ...features.map((f): [string, (p: PublicPlan) => ReactNode] => [
